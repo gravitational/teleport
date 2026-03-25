@@ -1,5 +1,4 @@
 //go:build unix
-// +build unix
 
 /*
  * Teleport
@@ -22,23 +21,28 @@ package regular
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"os/user"
+	"runtime"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // BenchmarkRootExecCommand measures performance of running multiple exec requests
 // over a single ssh connection. The same test is run with and without host user
 // creation support to catch any performance degradation caused by user provisioning.
 func BenchmarkRootExecCommand(b *testing.B) {
-	utils.RequireRoot(b)
+	testutils.RequireRoot(b)
 
 	b.ReportAllocs()
 
@@ -57,25 +61,41 @@ func BenchmarkRootExecCommand(b *testing.B) {
 
 	for _, test := range cases {
 		b.Run(test.name, func(b *testing.B) {
-			var opts []ServerOption
+			if test.createUser && runtime.GOOS != constants.LinuxOS {
+				b.Skip("Skip benchmark with user creation on non-linux OS")
+			}
+
+			opts := []ServerOption{
+				// TODO(okraport): Disable child logs to reduce noise in benchmark results.
+				// Re-enable once we have a better way to benchmark with logging enabled.
+				func(s *Server) error {
+					s.childLogConfig = &srv.ChildLogConfig{
+						ExecLogConfig: srv.ExecLogConfig{
+							Level: slog.LevelError,
+						},
+						Writer: io.Discard,
+					}
+					return nil
+				},
+			}
+
 			if test.createUser {
-				opts = []ServerOption{SetCreateHostUser(true)}
+				opts = append(opts, SetCreateHostUser(true))
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				username := f.user
 				if test.createUser {
-					username = utils.GenerateLocalUsername(b)
+					username = testutils.GenerateLocalUsername(b)
 					b.Cleanup(func() { _, _ = host.UserDel(username) })
 				}
 
-				_, err := newUpack(f.testSrv, username, []string{username, f.user}, wildcardAllow)
+				_, err := newUpack(b.Context(), f.testSrv, username, []string{username, f.user}, wildcardAllow)
 				require.NoError(b, err)
 
-				clt := f.newSSHClient(context.Background(), b, &user.User{Username: username})
+				clt := f.newSSHClient(b.Context(), b, &user.User{Username: username})
 
 				executeCommand(b, clt, "uptime", 10)
 			}
@@ -87,7 +107,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 	tb.Helper()
 
 	var wg sync.WaitGroup
-	for i := 0; i < executions; i++ {
+	for range executions {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

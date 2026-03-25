@@ -37,6 +37,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Metadata contains the instance "system" metadata.
@@ -123,7 +124,7 @@ func (c *fetchConfig) setDefaults() {
 		c.fetchCloudMetadata = func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata {
 			switch cloudEnvironment {
 			case "aws":
-				iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
+				iid, err := aws.GetEC2InstanceIdentityDocument(ctx)
 				if err != nil {
 					return nil
 				}
@@ -297,7 +298,6 @@ func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
 
 	cloudEnv := make(chan string, len(checks))
 	for _, check := range checks {
-		check := check
 		go func() {
 			if check.f(ctx) {
 				cloudEnv <- check.env

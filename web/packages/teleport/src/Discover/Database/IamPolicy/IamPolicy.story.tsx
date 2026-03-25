@@ -18,6 +18,8 @@
 
 import { MemoryRouter } from 'react-router';
 
+import { DiscoverBox } from 'teleport/Discover/Shared';
+
 import { IamPolicyView } from './IamPolicy';
 import type { State } from './useIamPolicy';
 
@@ -27,22 +29,28 @@ export default {
 
 export const Loaded = () => (
   <MemoryRouter>
-    <IamPolicyView {...props} />
+    <DiscoverBox>
+      <IamPolicyView {...props} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const Failed = () => (
   <MemoryRouter>
-    <IamPolicyView
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
-    />
+    <DiscoverBox>
+      <IamPolicyView
+        {...props}
+        attempt={{ status: 'failed', statusText: 'some error message' }}
+      />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const Processing = () => (
   <MemoryRouter>
-    <IamPolicyView {...props} attempt={{ status: 'processing' }} />
+    <DiscoverBox>
+      <IamPolicyView {...props} attempt={{ status: 'processing' }} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 

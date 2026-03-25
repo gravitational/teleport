@@ -1,7 +1,7 @@
 # This section configures the Jamf service.
 jamf_service:
-  # Enables the Jamf service. Default is 'no'
-  enabled: yes
+  # Enables the Jamf service. Default is false
+  enabled: true
 
   # Name of the sync source corresponding to the service.
   # Jamf service sources with the same name manage the same devices, which is

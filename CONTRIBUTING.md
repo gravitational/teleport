@@ -30,7 +30,6 @@ If your patch depends on new packages, the dependencies must:
 Instructions for contributing changes to the Teleport Helm chart are available
 [here](./examples/chart/CONTRIBUTING.md).
 
-# Contributing to Docs
+## Contributing to Docs
 
-See our public resources for docs contributors:
-https://github.com/gravitational/docs
+See our [public resources for docs contributors](https://github.com/gravitational/docs-website).

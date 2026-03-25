@@ -22,15 +22,18 @@ import {
   Button,
   ButtonBorder,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   ButtonSecondary,
   ButtonText,
   ButtonWarning,
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
+import { ButtonSelect } from './ButtonSelect';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
+import { CardTile } from './CardTile';
 import Flex from './Flex';
 import Image from './Image';
 import { Indicator } from './Indicator';
@@ -44,7 +47,10 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
+import { Status } from './Status';
 import { StepSlider } from './StepSlider';
+import { SyncStamp } from './SyncStamp';
+import { Tag } from './Tag';
 import Text, {
   H1,
   H2,
@@ -64,6 +70,7 @@ import TopNav from './TopNav';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
+  Status,
   Banner,
   Box,
   Button,
@@ -71,13 +78,16 @@ export {
   ButtonIcon,
   ButtonLink,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   ButtonSecondary,
+  ButtonSelect,
   ButtonText,
   ButtonWarning,
   ButtonWithMenu,
   Card,
   CardSuccess,
   CardSuccessLogin,
+  CardTile,
   Flex,
   H1,
   H2,
@@ -104,6 +114,8 @@ export {
   Subtitle1,
   Subtitle2,
   Subtitle3,
+  SyncStamp,
+  Tag,
   Text,
   TextArea,
   Toggle,
@@ -112,3 +124,4 @@ export {
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
 export { Stack } from './Flex';
+export { breakpointsPx } from './theme';

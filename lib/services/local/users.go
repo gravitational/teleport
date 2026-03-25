@@ -26,15 +26,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"iter"
 	"log/slog"
 	"sort"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/google/go-cmp/cmp"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -45,13 +44,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,11 +89,6 @@ func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
 func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
-	if !testing.Testing() {
-		// Don't allow using weak cryptography in production.
-		panic("Attempted to create a test identity service outside of a test")
-	}
-
 	s, err := NewIdentityService(backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -120,13 +115,9 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		pageSize = apidefaults.DefaultChunkSize
 	}
 
-	// Artificially inflate the limit to account for user secrets
-	// which have the same prefix.
-	limit := int(pageSize) * 4
+	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
 
-	itemStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
-
-	var userStream stream.Stream[*types.UserV2]
+	var userStream iter.Seq2[*types.UserV2, error]
 	if req.WithSecrets {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
@@ -143,21 +134,20 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		})
 	}
 
-	users, full := stream.Take(userStream, int(pageSize))
+	var resp userspb.ListUsersResponse
+	for user, err := range userStream {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	var nextToken string
-	if full && userStream.Next() {
-		nextToken = nextUserToken(users[len(users)-1])
+		if len(resp.Users) >= int(pageSize) {
+			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
+			return &resp, nil
+		}
+
+		resp.Users = append(resp.Users, user)
 	}
-
-	if err := userStream.Done(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &userspb.ListUsersResponse{
-		Users:         users,
-		NextPageToken: nextToken,
-	}, nil
+	return &resp, nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -171,7 +161,7 @@ func nextUserToken(user types.User) string {
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
 // of users along with their associated secrets.
-func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
 	type collector struct {
 		items userItems
 		name  string
@@ -241,7 +231,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
-func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
+func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
 	suffix := backend.NewKey(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
 		if !item.Key.HasSuffix(suffix) {
@@ -537,7 +527,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for range iterationLimit {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -547,7 +537,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -563,7 +553,8 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
+		_, err = s.Backend.ConditionalUpdate(ctx, item)
+		if err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
@@ -660,7 +651,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -677,7 +668,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (type
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -693,7 +684,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id types.ExternalIdentity) (ty
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if cmp.Equal(uid, &id) {
+			if uid.IsEqual(&id) {
 				return u, nil
 			}
 		}
@@ -1109,10 +1100,7 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := l.scopeCount[scope] + n
-	if v < 0 {
-		v = 0
-	}
+	v := max(l.scopeCount[scope]+n, 0)
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1589,28 +1577,62 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.OIDCConnector
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeOIDCConnectors(ctx, "", "", withSecrets))
+}
+
+// ListOIDCConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeOIDCConnectors(ctx, start, "", withSecrets), limit, types.OIDCConnector.GetName)
+}
+
+// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
+	mapFn := func(item backend.Item) (types.OIDCConnector, bool) {
+		conn, err := services.UnmarshalOIDCConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling OIDC Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors = append(connectors, conn)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(connectorKey)
+	if end != "" {
+		endKey = connectorKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.OIDCConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		})
+
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1643,7 +1665,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.OIDCAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -1730,6 +1752,12 @@ func (s *IdentityService) DeleteSAMLConnector(ctx context.Context, name string) 
 // GetSAMLConnector returns SAML connector data,
 // withSecrets includes or excludes secrets from return results
 func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	return s.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets)
+}
+
+// GetSAMLConnectorWithValidationOptions returns SAML connector data,
+// withSecrets includes or excludes secrets from return results
+func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
@@ -1740,7 +1768,7 @@ func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, wit
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1757,21 +1785,39 @@ func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, wit
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.SAMLConnector
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
+}
+
+// GetSAMLConnectorsWithValidationOptions returns registered connectors
+// withSecrets includes or excludes private key values from return results
+func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, opts...))
+}
+
+// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeSAMLConnectorsWithOptions(ctx, start, "", withSecrets, opts...), limit, types.SAMLConnector.GetName)
+}
+
+// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
+	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
+		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			item.Value,
+			opts,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling SAML Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
 			keyPair := conn.GetSigningKeyPair()
 			if keyPair != nil {
@@ -1779,9 +1825,30 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 				conn.SetSigningKeyPair(keyPair)
 			}
 		}
-		connectors = append(connectors, conn)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix))
+	if end != "" {
+		endKey = backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.SAMLConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		},
+	)
 }
 
 // CreateSAMLAuthRequest creates new auth request
@@ -1814,7 +1881,7 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*t
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.SAMLAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -1998,27 +2065,60 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 
 // GetGithubConnectors returns all configured Github connectors
 func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-	startKey := backend.ExactKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var connectors []types.GithubConnector
-	for _, item := range result.Items {
-		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
+	return stream.Collect(s.RangeGithubConnectors(ctx, "", "", withSecrets))
+}
+
+// ListGithubConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	return generic.CollectPageAndCursor(s.RangeGithubConnectors(ctx, start, "", withSecrets), limit, types.GithubConnector.GetName)
+}
+
+// RangeGithubConnectors returns valid registered connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
+	mapFn := func(item backend.Item) (types.GithubConnector, bool) {
+		conn, err := services.UnmarshalGithubConnector(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Error unmarshaling GitHub Connector",
+			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
 				"error", err,
 			)
-			continue
+			return nil, false
 		}
+
 		if !withSecrets {
-			connector.SetClientSecret("")
+			conn.SetClientSecret("")
 		}
-		connectors = append(connectors, connector)
+
+		return conn, true
 	}
-	return connectors, nil
+
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
+	if end != "" {
+		endKey = backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(conn types.GithubConnector) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || conn.GetName() < end
+		})
+
 }
 
 // GetGithubConnector returns a particular Github connector.
@@ -2081,7 +2181,7 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 		return nil, trace.Wrap(err)
 	}
 	req := new(types.GithubAuthRequest)
-	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return req, nil
@@ -2186,6 +2286,53 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
+}
+
+func newSAMLConnectorParser(loadSecrets bool) *samlConnectorParser {
+	return &samlConnectorParser{
+		baseParser:  newBaseParser(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)),
+		loadSecrets: loadSecrets,
+	}
+}
+
+type samlConnectorParser struct {
+	baseParser
+	loadSecrets bool
+}
+
+func (p *samlConnectorParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.SAMLConnectorV2{
+			Kind:    types.KindSAMLConnector,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		connector, err := services.UnmarshalSAMLConnectorWithValidationOptions(
+			event.Item.Value,
+			[]types.SAMLConnectorValidationOption{types.SAMLConnectorValidationFollowURLs(false)},
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return connector.WithoutSecrets(), nil
+		}
+		return connector, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 const (

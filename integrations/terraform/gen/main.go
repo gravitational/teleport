@@ -17,28 +17,36 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path"
+	"strings"
 	"text/template"
+
+	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
 
 // payload represents template payload
 type payload struct {
-	// Name represents resource name (capitalized)
+	// Name represents resource name (PascalCase)
 	Name string
-	// VarName represents resource variable name (underscored)
+	// VarName represents resource variable name (camelCase)
 	VarName string
 	// TypeName represents api/types resource type name
 	TypeName string
-	// IfaceName represents api/types interface for the (usually this is the same as Name)
+	// IfaceName represents the name of the api/types interface. Relevant only if
+	// the API methods used operate on interfaces instead of concrete types;
+	// otherwise, this should be empty.
 	IfaceName string
 	// GetMethod represents API get method name
 	GetMethod string
 	// CreateMethod represents API create method name
 	CreateMethod string
-	// CreateMethod represents API update method name
+	// UpdateMethod represents the API update method name.
+	// On services without conditional updates, you can use the Update method.
+	// On services with conditional updates, you must use the Upsert variant.
 	UpdateMethod string
 	// DeleteMethod represents API reset method used in singular resources
 	DeleteMethod string
@@ -48,6 +56,8 @@ type payload struct {
 	WithSecrets string
 	// ID id value on create and import
 	ID string
+	// IDPrefix is optional for resources which are stored with an prefix in the backend.
+	IDPrefix string
 	// RandomMetadataName indicates that Metadata.Name must be generated (supported by plural resources only)
 	RandomMetadataName bool
 	// UUIDMetadataName functions similar to RandomMetadataName but generates UUID instead of
@@ -64,14 +74,14 @@ type payload struct {
 	// ProtoPackagePath is the path of the package where the protobuf type of
 	// the resource is defined.
 	ProtoPackagePath string
-	// ProtoPackagePath is the name of the package where the protobuf type of
-	// the resource is defined.
+	// ProtoPackage is the local name alias of the package where the protobuf
+	// type of the resource is defined.
 	ProtoPackage string
 	// SchemaPackagePath is the path of the package where the resource schema
 	// definitions are defined.
 	SchemaPackagePath string
-	// SchemaPackagePath is the name of the package where the resource schema
-	// definitions are defined.
+	// SchemaPackage is the local name alias of the package where the resource
+	// schema definitions are defined.
 	SchemaPackage string
 	// IsPlainStruct states whether the resource type used by the API methods
 	// for this resource is a plain struct, rather than an interface.
@@ -88,6 +98,12 @@ type payload struct {
 	WithNonce bool
 	// ConvertPackagePath is the path of the package doing the conversion between protobuf and the go types.
 	ConvertPackagePath string
+	// ConvertToProtoFunc is the function converting the internal struct to the protobuf
+	// struct. Defaults to "ToProto" if empty.
+	ConvertToProtoFunc string
+	// ConvertFromProtoFunc is the function converting the protobuf struct to the internal
+	// struct. Defaults to "FromProto" if empty.
+	ConvertFromProtoFunc string
 	// PropagatedFields is a list of fields that must be copied from the
 	// existing resource when we're updating it. For example:
 	// "Spec.Audit.NextAuditDate" in AccessList resource
@@ -95,12 +111,53 @@ type payload struct {
 	// Namespaced indicates that the resource get and delete methods need the
 	// deprecated namespace parameter (always the default namespace).
 	Namespaced bool
-	// ForceSetKind indicates that the resource kind must be forcefully set by the provider.
-	// This is required for some special resources (ServerV2) that support multiple kinds.
-	// For those resources, we must set the kind, and don't want to have the user do it.
+	// ForceSetKind indicates that the resource kind must be forcefully set by
+	// the provider. This is required for some special resources (ServerV2) that
+	// support multiple kinds or for [RFD 153] resources. For those resources, we
+	// must set the kind, and don't want to have the user do it.
+	//
+	// [RFD 153]: https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md
 	ForceSetKind string
 	// GetCanReturnNil is used to check for nil returned value when doing a Get<Resource>.
 	GetCanReturnNil bool
+	// DefaultName is the default singleton resource name. This is currently only supported for 153 resources.
+	DefaultName string
+	// SaveSpecStateFromPlan indicates whether the spec field state should be
+	// taken from plan (true) or from the value returned by the GetMethod after
+	// the resource has been created. This is needed if the resource contains
+	// write-only fields that the server never returns. (We can't use Terraform's
+	// built-in write-only fields, since these require Terraform v1.11.)
+	SaveSpecStateFromPlan bool
+	// WithoutImportState skips generating the ImportState function, which may be
+	// not supported for resources with write-only fields.
+	WithoutImportState bool
+	// StatePoll optionally configures polling for state changes when creating or updating resources.
+	StatePoll *statePoll
+}
+
+// statePoll configures polling for state changes when creating or updating resources.
+type statePoll struct {
+	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
+	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
+	// Each string is treated as a field name for a nested object. It's expected
+	// the combined path points to a string value. All other paths along the way must be pointers
+	// to structs.
+	// Example: []string{"Status", "State"} would expect the object returned from GetMethod to have a Status
+	// field that is a pointer to a struct. That struct must have a State field. The State field must
+	// be a string.
+	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
+	// TODO(dustinspecker): support slices and other types besides pointers to structs
+	StatePath []string
+	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	PendingStates []string
+	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	TargetStates []string
+	// StatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	StatePollIntervalSeconds int
+	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	StateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -115,6 +172,27 @@ func (p *payload) CheckAndSetDefaults() error {
 	}
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	}
+	if p.StatePoll != nil {
+		if len(p.StatePoll.StatePath) == 0 {
+			return errors.New("StatePath must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
+		}
 	}
 	return nil
 }
@@ -150,8 +228,9 @@ var (
 		TypeName:               "AuthPreferenceV2",
 		VarName:                "authPreference",
 		GetMethod:              "GetAuthPreference",
-		CreateMethod:           "SetAuthPreference",
-		UpdateMethod:           "SetAuthPreference",
+		CreateMethod:           "UpsertAuthPreference",
+		UpdateMethod:           "UpsertAuthPreference",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetAuthPreference",
 		ID:                     `"auth_preference"`,
 		Kind:                   "cluster_auth_preference",
@@ -182,8 +261,9 @@ var (
 		TypeName:               "ClusterNetworkingConfigV2",
 		VarName:                "clusterNetworkingConfig",
 		GetMethod:              "GetClusterNetworkingConfig",
-		CreateMethod:           "SetClusterNetworkingConfig",
-		UpdateMethod:           "SetClusterNetworkingConfig",
+		CreateMethod:           "UpsertClusterNetworkingConfig",
+		UpdateMethod:           "UpsertClusterNetworkingConfig",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetClusterNetworkingConfig",
 		ID:                     `"cluster_networking_config"`,
 		Kind:                   "cluster_networking_config",
@@ -214,7 +294,7 @@ var (
 		IfaceName:              "DynamicWindowsDesktop",
 		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
 		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpdateDynamicWindowsDesktop",
+		UpdateMethod:           "DynamicDesktopClient().UpsertDynamicWindowsDesktop",
 		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
 		UpsertMethodArity:      2,
 		ID:                     `desktop.Metadata.Name`,
@@ -288,7 +368,6 @@ var (
 		Kind:                   "token",
 		HasStaticID:            false,
 		SchemaPackage:          "token",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
@@ -314,8 +393,9 @@ var (
 		TypeName:               "SessionRecordingConfigV2",
 		VarName:                "sessionRecordingConfig",
 		GetMethod:              "GetSessionRecordingConfig",
-		CreateMethod:           "SetSessionRecordingConfig",
-		UpdateMethod:           "SetSessionRecordingConfig",
+		CreateMethod:           "UpsertSessionRecordingConfig",
+		UpdateMethod:           "UpsertSessionRecordingConfig",
+		UpsertMethodArity:      2,
 		DeleteMethod:           "ResetSessionRecordingConfig",
 		ID:                     `"session_recording_config"`,
 		Kind:                   "session_recording_config",
@@ -435,6 +515,30 @@ var (
 		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
 	}
 
+	accessListMember = payload{
+		Name:                   "Member",
+		TypeName:               "Member",
+		VarName:                "accessListMember",
+		GetMethod:              "AccessListClient().GetStaticAccessListMember",
+		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		UpsertMethodArity:      2,
+		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		DeleteMethod:           "AccessListClient().DeleteStaticAccessListMember",
+		IDPrefix:               "accessListMember.Spec.AccessList",
+		ID:                     "accessListMember.Header.Metadata.Name",
+		Kind:                   "access_list_member",
+		HasStaticID:            false,
+		SchemaPackage:          "schemav1",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
+		ProtoPackage:           "accesslist",
+		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
+		TerraformResourceType:  "teleport_access_list_member",
+		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
+		ConvertToProtoFunc:     "ToMemberProto",
+		ConvertFromProtoFunc:   "FromMemberProto",
+		HasCheckAndSetDefaults: true,
+	}
+
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -544,6 +648,320 @@ var (
 		// We import the package containing kinds, then use ForceSetKind.
 		ForceSetKind: `"workload_identity"`,
 	}
+
+	autoUpdateVersion = payload{
+		Name:                  "AutoUpdateVersion",
+		TypeName:              "AutoUpdateVersion",
+		VarName:               "autoUpdateVersion",
+		GetMethod:             "GetAutoUpdateVersion",
+		CreateMethod:          "CreateAutoUpdateVersion",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertAutoUpdateVersion",
+		DeleteMethod:          "DeleteAutoUpdateVersion",
+		ID:                    "autoUpdateVersion.Metadata.Name",
+		Kind:                  "autoupdate_version",
+		HasStaticID:           false,
+		ProtoPackage:          "autoupdatev1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
+		TerraformResourceType: "teleport_autoupdate_version",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindAutoUpdateVersion",
+		DefaultName:  "apitypes.MetaNameAutoUpdateVersion",
+	}
+
+	autoUpdateConfig = payload{
+		Name:                  "AutoUpdateConfig",
+		TypeName:              "AutoUpdateConfig",
+		VarName:               "autoUpdateConfig",
+		GetMethod:             "GetAutoUpdateConfig",
+		CreateMethod:          "CreateAutoUpdateConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertAutoUpdateConfig",
+		DeleteMethod:          "DeleteAutoUpdateConfig",
+		ID:                    "autoUpdateConfig.Metadata.Name",
+		Kind:                  "autoupdate_config",
+		HasStaticID:           false,
+		ProtoPackage:          "autoupdatev1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
+		TerraformResourceType: "teleport_autoupdate_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindAutoUpdateConfig",
+		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
+	}
+
+	healthCheckConfig = payload{
+		Name:                  "HealthCheckConfig",
+		TypeName:              "HealthCheckConfig",
+		VarName:               "healthCheckConfig",
+		GetMethod:             "GetHealthCheckConfig",
+		CreateMethod:          "CreateHealthCheckConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertHealthCheckConfig",
+		DeleteMethod:          "DeleteHealthCheckConfig",
+		ID:                    "healthCheckConfig.Metadata.Name",
+		Kind:                  "health_check_config",
+		HasStaticID:           false,
+		ProtoPackage:          "healthcheckconfigv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/healthcheckconfig/v1",
+		TerraformResourceType: "teleport_health_check_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindHealthCheckConfig",
+	}
+
+	discoveryConfig = payload{
+		Name:                  "DiscoveryConfig",
+		TypeName:              "DiscoveryConfig",
+		VarName:               "discoveryConfig",
+		GetMethod:             "DiscoveryConfigClient().GetDiscoveryConfig",
+		CreateMethod:          "DiscoveryConfigClient().CreateDiscoveryConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "DiscoveryConfigClient().UpsertDiscoveryConfig",
+		DeleteMethod:          "DiscoveryConfigClient().DeleteDiscoveryConfig",
+		ID:                    "discoveryConfig.Header.Metadata.Name",
+		Kind:                  "discovery_config",
+		HasStaticID:           false,
+		ProtoPackage:          "discoveryconfigv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/discoveryconfig/v1",
+		TerraformResourceType: "teleport_discovery_config",
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindDiscoveryConfig",
+		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
+	}
+
+	vnetConfig = payload{
+		Name:                  "VnetConfig",
+		TypeName:              "VnetConfig",
+		VarName:               "vnetConfig",
+		GetMethod:             "VnetConfigClient().GetVnetConfig",
+		CreateMethod:          "VnetConfigClient().UpsertVnetConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
+		DeleteMethod:          "VnetConfigClient().ResetVnetConfig",
+		ID:                    `"vnet_config"`,
+		Kind:                  "vnet_config",
+		HasStaticID:           false,
+		ProtoPackage:          "vnet",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1",
+		TerraformResourceType: "teleport_vnet_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		DefaultName:  "apitypes.MetaNameVnetConfig",
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindVnetConfig",
+	}
+
+	integration = payload{
+		Name:                   "Integration",
+		VarName:                "integration",
+		TypeName:               "IntegrationV1",
+		IfaceName:              "Integration",
+		GetMethod:              "GetIntegration",
+		CreateMethod:           "CreateIntegration",
+		UpdateMethod:           "UpdateIntegration",
+		UpsertMethodArity:      2,
+		DeleteMethod:           "DeleteIntegration",
+		ID:                     "integration.Metadata.Name",
+		Kind:                   "integration",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_integration",
+		HasCheckAndSetDefaults: true,
+	}
+
+	appAuthConfig = payload{
+		Name:                  "AppAuthConfig",
+		TypeName:              "AppAuthConfig",
+		VarName:               "appauthconfig",
+		GetMethod:             "GetAppAuthConfig",
+		CreateMethod:          "CreateAppAuthConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "UpsertAppAuthConfig",
+		DeleteMethod:          "DeleteAppAuthConfig",
+		ID:                    "appauthconfig.Metadata.Name",
+		Kind:                  "app_auth_config",
+		HasStaticID:           false,
+		ProtoPackage:          "appauthconfigv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/appauthconfig/v1",
+		TerraformResourceType: "teleport_app_auth_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindAppAuthConfig",
+	}
+
+	inferenceModel = payload{
+		Name:                  "InferenceModel",
+		VarName:               "inferenceModel",
+		TypeName:              "InferenceModel",
+		GetMethod:             "SummarizerClient().GetInferenceModel",
+		CreateMethod:          "SummarizerClient().CreateInferenceModel",
+		UpdateMethod:          "SummarizerClient().UpsertInferenceModel",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferenceModel",
+		ID:                    "inferenceModel.Metadata.Name",
+		Kind:                  "inference_model",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_model",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindInferenceModel",
+	}
+
+	inferenceSecret = payload{
+		Name:                  "InferenceSecret",
+		VarName:               "inferenceSecret",
+		TypeName:              "InferenceSecret",
+		GetMethod:             "SummarizerClient().GetInferenceSecret",
+		CreateMethod:          "SummarizerClient().CreateInferenceSecret",
+		UpdateMethod:          "SummarizerClient().UpsertInferenceSecret",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferenceSecret",
+		ID:                    "inferenceSecret.Metadata.Name",
+		Kind:                  "inference_secret",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_secret",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		// ExtraImports: []string{
+		// 	"apitypes \"github.com/gravitational/teleport/api/types\"",
+		// 	"\"github.com/hashicorp/terraform-plugin-framework/attr\"",
+		// },
+		ForceSetKind: "apitypes.KindInferenceSecret",
+		// This resource's spec can't be fetched from the server, so its spec state
+		// is save from the plan. It also means we can't support importing the
+		// state from an existing configuration.
+		SaveSpecStateFromPlan: true,
+		WithoutImportState:    true,
+	}
+
+	inferencePolicy = payload{
+		Name:                  "InferencePolicy",
+		VarName:               "inferencePolicy",
+		TypeName:              "InferencePolicy",
+		GetMethod:             "SummarizerClient().GetInferencePolicy",
+		CreateMethod:          "SummarizerClient().CreateInferencePolicy",
+		UpdateMethod:          "SummarizerClient().UpsertInferencePolicy",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteInferencePolicy",
+		ID:                    "inferencePolicy.Metadata.Name",
+		Kind:                  "inference_policy",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_inference_policy",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindInferencePolicy",
+	}
+	scopedToken = payload{
+		Name:                  "ScopedToken",
+		TypeName:              "ScopedToken",
+		VarName:               "scopedToken",
+		GetMethod:             "GetScopedToken",
+		CreateMethod:          "CreateScopedToken",
+		UpdateMethod:          "UpsertScopedToken",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedToken",
+		ID:                    "scopedToken.Metadata.Name",
+		Kind:                  "scoped_token",
+		WithSecrets:           "true",
+		HasStaticID:           false,
+		ProtoPackage:          "joiningv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
+		TerraformResourceType: "teleport_scoped_token",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindScopedToken",
+	}
+
+	/*
+		//
+		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
+		//
+			typeA = payload{
+				Name:                  "TypeA",
+				TypeName:              "TypeA",
+				VarName:               "typeA",
+				GetMethod:             "GetTypeA",
+				CreateMethod:          "CreateTypeA",
+				UpsertMethodArity:     2,
+				UpdateMethod:          "UpsertTypeA",
+				DeleteMethod:          "DeleteTypeA",
+				ID:                    "typeA.Metadata.Name",
+				Kind:                  "type_a",
+				HasStaticID:           false,
+				ProtoPackage:          "examplev1",
+				ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/example/v1",
+				SchemaPackage:         "schemav1",
+				SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/example/v1",
+				TerraformResourceType: "teleport_type_a",
+				// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+				// resources are plain structs
+				IsPlainStruct: true,
+				// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+				// We import the package containing kinds, then use ForceSetKind.
+				ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+				ForceSetKind: "apitypes.KindTypeA",
+				// Only set default name if the resource is a singleton
+				// DefaultName:  "apitypes.MetaNameTypeA",
+			}
+	*/
 )
 
 func main() {
@@ -587,6 +1005,8 @@ func genTFSchema() {
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(accessList, pluralResource)
 	generateDataSource(accessList, pluralDataSource)
+	generateResource(accessListMember, pluralResource)
+	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
@@ -597,6 +1017,29 @@ func genTFSchema() {
 	generateDataSource(staticHostUser, pluralDataSource)
 	generateResource(workloadIdentity, pluralResource)
 	generateDataSource(workloadIdentity, pluralDataSource)
+	generateResource(autoUpdateVersion, singularResource)
+	generateDataSource(autoUpdateVersion, singularDataSource)
+	generateResource(autoUpdateConfig, singularResource)
+	generateDataSource(autoUpdateConfig, singularDataSource)
+	generateResource(healthCheckConfig, pluralResource)
+	generateDataSource(healthCheckConfig, pluralDataSource)
+	generateResource(discoveryConfig, pluralResource)
+	generateDataSource(discoveryConfig, pluralDataSource)
+	generateResource(vnetConfig, singularResource)
+	generateDataSource(vnetConfig, singularDataSource)
+	generateResource(integration, pluralResource)
+	generateDataSource(integration, pluralDataSource)
+	generateResource(appAuthConfig, pluralResource)
+	generateDataSource(appAuthConfig, pluralDataSource)
+	generateResource(inferenceModel, pluralResource)
+	generateDataSource(inferenceModel, pluralDataSource)
+	generateResource(inferenceSecret, pluralResource)
+	generateDataSource(inferenceSecret, pluralDataSource)
+	generateResource(inferencePolicy, pluralResource)
+	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(scopedToken, pluralResource)
+	generateDataSource(scopedToken, pluralDataSource)
+	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 
 func generateResource(p payload, tpl string) {
@@ -614,6 +1057,9 @@ func generate(p payload, tpl, outFile string) {
 	}
 
 	funcs := template.FuncMap{
+		"join":    strings.Join,
+		"split":   strings.Split,
+		"toSnake": toSnake,
 		"schemaImport": func(p payload) string {
 			if p.SchemaPackage == "tfschema" {
 				return `"` + p.SchemaPackagePath + `"`
@@ -645,4 +1091,9 @@ func generate(p payload, tpl, outFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// ToSnake converts a string to snake_case ignoring "." characters.
+func toSnake(s string) string {
+	return strcase.ToScreamingDelimited(s, '_', ".", false)
 }

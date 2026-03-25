@@ -67,6 +67,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				OsVersion:               "13.1.2",
 				OsBuild:                 "22D68",
 				OsUsername:              "llama",
+				OsLoginUser:             "llama2", // Usually matches OsUsername, different for testing only
 				JamfBinaryVersion:       "9.27",
 				MacosEnrollmentProfiles: "Enrolled via DEP: No\nMDM enrollment: Yes (User Approved)\nMDM server: ...",
 				ReportedAssetTag:        assetTag + "-reported",

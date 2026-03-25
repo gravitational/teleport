@@ -58,6 +58,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    accessGraphSettings: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     accessMonitoringRule: {
       list: false,
       read: false,
@@ -296,6 +303,83 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    instances: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    botInstances: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    workloadIdentity: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    clientIpRestriction: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateConfig: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateVersion: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateAgentRollout: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    autoUpdateAgentReport: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    inferencePolicy: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    inferenceModel: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    inferenceSecret: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({
@@ -307,7 +391,7 @@ test('undefined values in context response gives proper default values', async (
       lastConnected: new Date('2020-09-26T17:30:23.512Z'),
       connectedText: '2020-09-26 17:30:23',
       status: 'online',
-      url: '/web/cluster/aws/',
+      url: '/web/cluster/aws',
       authVersion: '4.4.0-dev',
       publicURL: 'localhost',
       proxyVersion: '4.4.0-dev',
@@ -413,7 +497,10 @@ test('excludeUserFields when updating user', async () => {
     allTraits: {},
   };
 
-  await user.updateUser(userReq, ExcludeUserField.AllTraits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -422,7 +509,10 @@ test('excludeUserFields when updating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.updateUser(userReq, ExcludeUserField.Traits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -441,7 +531,10 @@ test('excludeUserFields when creating user', async () => {
     allTraits: {},
   };
 
-  await user.createUser(userReq, ExcludeUserField.AllTraits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
@@ -455,7 +548,10 @@ test('excludeUserFields when creating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.createUser(userReq, ExcludeUserField.Traits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {

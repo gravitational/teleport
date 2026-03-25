@@ -17,13 +17,9 @@
  */
 
 import { useMemo } from 'react';
-import { useLocation, useParams, useRouteMatch } from 'react-router';
+import { useLocation, useMatch, useParams } from 'react-router';
 
-import cfg, {
-  UrlDbConnectParams,
-  UrlKubeExecParams,
-  UrlSshParams,
-} from 'teleport/config';
+import { consoleRoutePatterns } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
@@ -31,17 +27,12 @@ import ConsoleContext from './consoleContext';
 export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
-  const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
-  const kubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
-    cfg.routes.kubeExec
-  );
-  const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
-  const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
-    cfg.routes.consoleSession
-  );
-  const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
-    cfg.routes.dbConnect
-  );
+  const sshRouteMatch = useMatch(consoleRoutePatterns.consoleConnect);
+  const kubeExecRouteMatch = useMatch(consoleRoutePatterns.kubeExec);
+  const nodesRouteMatch = useMatch(consoleRoutePatterns.consoleNodes);
+  const joinSshRouteMatch = useMatch(consoleRoutePatterns.consoleSession);
+  const joinKubeExecRouteMatch = useMatch(consoleRoutePatterns.kubeExecSession);
+  const dbConnectMatch = useMatch(consoleRoutePatterns.dbConnect);
 
   // Ensure that each URL has corresponding document
   useMemo(() => {
@@ -49,22 +40,27 @@ export default function useRouting(ctx: ConsoleContext) {
       return;
     }
 
+    const participantMode = getParticipantMode(search);
+
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
     if (sshRouteMatch) {
       ctx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
-      // Extract the mode param from the URL if it is present.
-      const searchParams = new URLSearchParams(search);
-      const mode = searchParams.get('mode');
-      if (mode) {
-        joinSshRouteMatch.params.mode = mode as ParticipantMode;
-      }
-      ctx.addSshDocument(joinSshRouteMatch.params);
+      ctx.addSshDocument({
+        ...joinSshRouteMatch.params,
+        mode: participantMode,
+      });
     } else if (nodesRouteMatch) {
-      ctx.addNodeDocument(clusterId);
+      ctx.addNodeDocument(nodesRouteMatch.params.clusterId || clusterId);
     } else if (kubeExecRouteMatch) {
       ctx.addKubeExecDocument(kubeExecRouteMatch.params);
+    } else if (joinKubeExecRouteMatch) {
+      ctx.addKubeExecDocument({
+        ...joinKubeExecRouteMatch.params,
+        kubeId: '',
+        mode: participantMode,
+      });
     } else if (dbConnectMatch) {
       ctx.addDbDocument(dbConnectMatch.params);
     }
@@ -74,4 +70,12 @@ export default function useRouting(ctx: ConsoleContext) {
     clusterId,
     activeDocId: ctx.getActiveDocId(pathname),
   };
+}
+
+function getParticipantMode(search: string): ParticipantMode | undefined {
+  const searchParams = new URLSearchParams(search);
+  const mode = searchParams.get('mode');
+  if (mode === 'observer' || mode === 'moderator' || mode === 'peer') {
+    return mode;
+  }
 }

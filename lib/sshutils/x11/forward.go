@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 const (
@@ -55,14 +57,14 @@ type ForwardRequestPayload struct {
 // authProto and authCookie are required to set up authentication with the Server. screenNumber is used
 // by the server to determine which screen should be connected to for X11 forwarding. singleConnection is
 // an optional argument to request X11 forwarding for a single connection.
-func RequestForwarding(sess *ssh.Session, xauthEntry *XAuthEntry) error {
+func RequestForwarding(ctx context.Context, sess *tracessh.Session, xauthEntry *XAuthEntry) error {
 	payload := ForwardRequestPayload{
 		AuthProtocol: xauthEntry.Proto,
 		AuthCookie:   xauthEntry.Cookie,
 		ScreenNumber: uint32(xauthEntry.Display.ScreenNumber),
 	}
 
-	ok, err := sess.SendRequest(ForwardRequest, true, ssh.Marshal(payload))
+	ok, err := sess.SendRequest(ctx, ForwardRequest, true, ssh.Marshal(payload))
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {

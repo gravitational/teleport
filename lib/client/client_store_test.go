@@ -26,6 +26,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -39,11 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -62,8 +65,11 @@ func newTestAuthority(t *testing.T) testAuthority {
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
 	return testAuthority{
-		keygen:       testauthority.NewWithClock(clock),
+		keygen:       authority,
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
 		clock:        clock,
@@ -76,26 +82,35 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 
-	allowedLogins := []string{idx.Username, "root"}
+	keyRing := NewKeyRing(sshPriv, tlsPriv)
+	keyRing.KeyRingIndex = idx
+
+	s.signKeyRing(t, keyRing, makeExpired)
+	return keyRing
+}
+
+func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired bool) {
+	t.Helper()
+	allowedLogins := []string{keyRing.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
 	}
 
 	identity := tlsca.Identity{
-		Username: idx.Username,
+		Username: keyRing.Username,
 		Groups:   []string{"groups"},
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     s.clock,
-		PublicKey: tlsKey.Public(),
+		PublicKey: keyRing.TLSPrivateKey.Public(),
 		Subject:   subject,
 		NotAfter:  s.clock.Now().UTC().Add(ttl),
 	})
@@ -106,10 +121,10 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 
 	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
-		PublicUserKey: sshPriv.MarshalSSHPublicKey(),
+		PublicUserKey: keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		TTL:           ttl,
 		Identity: sshca.Identity{
-			Username:              idx.Username,
+			Username:              keyRing.Username,
 			Principals:            allowedLogins,
 			PermitAgentForwarding: false,
 			PermitPortForwarding:  true,
@@ -119,16 +134,13 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	})
 	require.NoError(t, err)
 
-	keyRing := NewKeyRing(sshPriv, tlsPriv)
-	keyRing.KeyRingIndex = idx
 	keyRing.Cert = cert
 	keyRing.TLSCert = tlsCert
 	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
 	keyRing.DBTLSCredentials["example-db"] = TLSCredential{
 		Cert:       tlsCert,
-		PrivateKey: tlsPriv,
+		PrivateKey: keyRing.TLSPrivateKey,
 	}
-	return keyRing
 }
 
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
@@ -176,97 +188,183 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 
 func TestClientStore(t *testing.T) {
 	t.Parallel()
+
+	ctx := context.Background()
 	a := newTestAuthority(t)
+	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 
-	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+	// create a test software and hardware key.
+	idx := KeyRingIndex{"test.proxy.com", "test-user", "root"}
+	softKeyRing := a.makeSignedKeyRing(t, idx, false)
+	keyInfo := idx.contextualKeyInfo()
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: keyInfo,
+	})
+	require.NoError(t, err)
+	hardKeyRing := NewKeyRing(hwPriv, hwPriv)
+	hardKeyRing.KeyRingIndex = idx
+	a.signKeyRing(t, hardKeyRing, false)
+
+	for name, keyRing := range map[string]*KeyRing{
+		"software key": softKeyRing,
+		"hardware key": hardKeyRing,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+				clientStore.HardwareKeyService = hwks
+
+				// Add key should add the key and trusted certs to their respective stores.
+				err := clientStore.AddKeyRing(keyRing)
+				require.NoError(t, err)
+
+				// the key's trusted certs should be added to the trusted certs store.
+				retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
+				require.NoError(t, err)
+				require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
+
+				// Getting the key from the key store should have no trusted certs.
+				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.HardwareKeyService, WithAllCerts...)
+				require.NoError(t, err)
+				expectKeyRing := keyRing.Copy()
+				expectKeyRing.TrustedCerts = nil
+				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
+
+				// Getting the key from the client store should fill in the trusted certs.
+				retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
+				require.NoError(t, err)
+				assertEqualKeyRings(t, keyRing, retrievedKeyRing)
+
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyRingIndex or ContextualKeyInfo (hardware keys).
+				retrievedKeyRing, err = clientStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""})
+				require.NoError(t, err)
+				expectKeyRing = keyRing.Copy()
+				expectKeyRing.ClusterName = ""
+				expectKeyRing.Cert = nil
+				expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
+				if hwPriv, ok := expectKeyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				if hwPriv, ok := expectKeyRing.SSHPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
+
+				var profileDir string
+				if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
+					profileDir = fs.KeyDir
+				}
+
+				// Create and save a corresponding profile for the key.
+				profile := &profile.Profile{
+					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
+					SiteName:     idx.ClusterName,
+					Username:     idx.Username,
+					Scope:        "/production",
+				}
+				err = clientStore.SaveProfile(profile, true)
+				require.NoError(t, err)
+				expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+					ProfileName:       profile.Name(),
+					WebProxyAddr:      profile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          profile.Username,
+					SiteName:          profile.SiteName,
+					KubeProxyAddr:     profile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: profile.TLSRoutingEnabled,
+				})
+				require.NoError(t, err)
+
+				// ReadProfileStatus should prepare a *ProfileStatus using the saved
+				// profile and key together.
+				profileStatus, err := clientStore.ReadProfileStatus(profile.Name())
+				require.NoError(t, err)
+				require.Equal(t, expectStatus, profileStatus)
+
+				// FullProfileStatus should return the current profile status, and any
+				// other available profiles' statuses.
+				otherKey := keyRing.Copy()
+				otherKey.ProxyHost = "other.example.com"
+				err = clientStore.AddKeyRing(otherKey)
+				require.NoError(t, err)
+
+				otherProfile := profile.Copy()
+				otherProfile.WebProxyAddr = "other.example.com:3080"
+				otherProfile.Scope = "/staging"
+				err = clientStore.SaveProfile(otherProfile, false)
+				require.NoError(t, err)
+
+				expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+					ProfileName:       otherProfile.Name(),
+					WebProxyAddr:      otherProfile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          otherProfile.Username,
+					SiteName:          otherProfile.SiteName,
+					KubeProxyAddr:     otherProfile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: otherProfile.TLSRoutingEnabled,
+				})
+				require.NoError(t, err)
+
+				currentStatus, otherStatuses, err := clientStore.FullProfileStatus("")
+				require.NoError(t, err)
+				require.Equal(t, expectStatus, currentStatus)
+				require.Len(t, otherStatuses, 1)
+				require.Equal(t, expectOtherStatus, otherStatuses[0])
+
+				// Test passing the active profile in the parameter.
+				currentStatus, otherStatuses, err = clientStore.FullProfileStatus("other.example.com")
+				require.NoError(t, err)
+				require.Equal(t, expectOtherStatus, currentStatus)
+				require.Len(t, otherStatuses, 1)
+				require.Equal(t, expectStatus, otherStatuses[0])
+				require.Equal(t, currentStatus.ScopePin, expectOtherStatus.ScopePin)
+			})
+		})
+	}
+}
+
+func TestPartialProfileStatusScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil ScopePin when profile has no scope", func(t *testing.T) {
 		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "noscope.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
 
-		idx := KeyRingIndex{
-			ProxyHost:   "proxy.example.com",
-			ClusterName: "root",
-			Username:    "test-user",
-		}
-		keyRing := a.makeSignedKeyRing(t, idx, false)
-
-		// Add key should add the key and trusted certs to their respective stores.
-		err := clientStore.AddKeyRing(keyRing)
-		require.NoError(t, err)
-
-		// the key's trusted certs should be added to the trusted certs store.
-		retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
-		require.NoError(t, err)
-		require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
-
-		// Getting the key from the key store should have no trusted certs.
-		retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, WithAllCerts...)
-		require.NoError(t, err)
-		expectKeyRing := keyRing.Copy()
-		expectKeyRing.TrustedCerts = nil
-		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
-
-		// Getting the key from the client store should fill in the trusted certs.
-		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
-		require.NoError(t, err)
-		assertEqualKeyRings(t, keyRing, retrievedKeyRing)
-
-		var profileDir string
-		if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
-			profileDir = fs.KeyDir
-		}
-
-		// Create and save a corresponding profile for the key.
-		profile := &profile.Profile{
-			WebProxyAddr: idx.ProxyHost + ":3080",
-			SiteName:     idx.ClusterName,
-			Username:     idx.Username,
-		}
-		err = clientStore.SaveProfile(profile, true)
-		require.NoError(t, err)
-		expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-			ProfileName:   profile.Name(),
-			WebProxyAddr:  profile.WebProxyAddr,
-			ProfileDir:    profileDir,
-			Username:      profile.Username,
-			SiteName:      profile.SiteName,
-			KubeProxyAddr: profile.KubeProxyAddr,
-			IsVirtual:     profileDir == "",
+			// No key ring saved — ReadProfileStatus should return partial status.
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.Nil(t, status.ScopePin)
 		})
-		require.NoError(t, err)
+	})
 
-		// ReadProfileStatus should prepare a *ProfileStatus using the saved
-		// profile and key together.
-		profileStatus, err := clientStore.ReadProfileStatus(profile.Name())
-		require.NoError(t, err)
-		require.Equal(t, expectStatus, profileStatus)
+	t.Run("ScopePin set when profile has scope", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "scoped.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+				Scope:        "/production",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
 
-		// FullProfileStatus should return the current profile status, and any
-		// other available profiles' statuses.
-		otherKey := keyRing.Copy()
-		otherKey.ProxyHost = "other.example.com"
-		err = clientStore.AddKeyRing(otherKey)
-		require.NoError(t, err)
-
-		otherProfile := profile.Copy()
-		otherProfile.WebProxyAddr = "other.example.com:3080"
-		err = clientStore.SaveProfile(otherProfile, false)
-		require.NoError(t, err)
-
-		expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-			ProfileName:   otherProfile.Name(),
-			WebProxyAddr:  otherProfile.WebProxyAddr,
-			ProfileDir:    profileDir,
-			Username:      otherProfile.Username,
-			SiteName:      otherProfile.SiteName,
-			KubeProxyAddr: otherProfile.KubeProxyAddr,
-			IsVirtual:     profileDir == "",
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.NotNil(t, status.ScopePin)
+			require.Equal(t, "/production", status.ScopePin.Scope)
 		})
-		require.NoError(t, err)
-
-		currentStatus, otherStatuses, err := clientStore.FullProfileStatus()
-		require.NoError(t, err)
-		require.Equal(t, expectStatus, currentStatus)
-		require.Len(t, otherStatuses, 1)
-		require.Equal(t, expectOtherStatus, otherStatuses[0])
 	})
 }
 
@@ -358,7 +456,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
-		_, spub, err := testauthority.New().GenerateKeyPair()
+		_, spub, err := testauthority.GenerateKeyPair()
 		require.NoError(t, err)
 		caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 		require.NoError(t, err)
@@ -383,6 +481,9 @@ func TestProxySSHConfig(t *testing.T) {
 // fast to avoid adding latency to all kubectl calls. It should tolerate being
 // called many times in parallel.
 func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(b, err)
 
@@ -400,9 +501,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	require.NotEmpty(b, certPEM)
 
-	keyPEM, err := keys.MarshalPrivateKey(key)
-	require.NoError(b, err)
-	privateKey, err := keys.NewPrivateKey(key, keyPEM)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(b, err)
 
 	kubeCred := TLSCredential{
@@ -426,7 +525,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	}
 
 	kubeClusterNames := make([]string, 0, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
 		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
 		kubeClusterNames = append(kubeClusterNames, kubeClusterName)
@@ -436,7 +535,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
@@ -458,19 +557,13 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	// Compare against a naive GetKeyRing call which loads the key and cert for
 	// all active kube clusters, not just the one requested.
 	b.Run("GetKeyRing", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			var wg sync.WaitGroup
-			wg.Add(len(kubeClusterNames))
+		for b.Loop() {
 			for _, kubeClusterName := range kubeClusterNames {
-				go func() {
-					defer wg.Done()
-					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, WithKubeCerts{})
-					require.NoError(b, err)
-					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
-					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
-				}()
+				keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
+				require.NoError(b, err)
+				require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
+				require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
 			}
-			wg.Wait()
 		}
 	})
 }

@@ -38,8 +38,6 @@ type UserTasks interface {
 	UpdateUserTask(context.Context, *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 	// DeleteUserTask deletes the user tasks resource by name.
 	DeleteUserTask(context.Context, string) error
-	// DeleteAllUserTasks deletes all user tasks.
-	DeleteAllUserTasks(context.Context) error
 }
 
 // MarshalUserTask marshals the UserTask object into a JSON byte array.
@@ -50,4 +48,18 @@ func MarshalUserTask(object *usertasksv1.UserTask, opts ...MarshalOption) ([]byt
 // UnmarshalUserTask unmarshals the UserTask object from a JSON byte array.
 func UnmarshalUserTask(data []byte, opts ...MarshalOption) (*usertasksv1.UserTask, error) {
 	return UnmarshalProtoResource[*usertasksv1.UserTask](data, opts...)
+}
+
+func MatchUserTask(ut *usertasksv1.UserTask, filters *usertasksv1.ListUserTasksFilters) bool {
+	integrationFilter := filters.GetIntegration()
+	if integrationFilter != "" && integrationFilter != ut.GetSpec().GetIntegration() {
+		return false
+	}
+
+	stateFilter := filters.GetTaskState()
+	if stateFilter != "" && stateFilter != ut.GetSpec().GetState() {
+		return false
+	}
+
+	return true
 }

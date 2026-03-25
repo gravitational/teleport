@@ -26,6 +26,7 @@ import {
   makeRetryableError,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import ModalsHost from 'teleterm/ui/ModalsHost';
@@ -61,7 +62,7 @@ const displayResultsAction: SearchAction = {
   perform() {},
 };
 
-it('does not display empty results copy after selecting two filters', () => {
+it('does not display empty results copy after selecting two filters', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
@@ -96,11 +97,11 @@ it('does not display empty results copy after selecting two filters', () => {
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).not.toHaveTextContent('No matching results found');
 });
 
-it('displays empty results copy after providing search query for which there is no results', () => {
+it('displays empty results copy after providing search query for which there is no results', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const mockActionAttempts = {
@@ -130,11 +131,11 @@ it('displays empty results copy after providing search query for which there is 
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent('No matching results found.');
 });
 
-it('includes offline cluster names in the empty results copy', () => {
+it('includes offline cluster names in the empty results copy', async () => {
   const cluster = makeRootCluster({ connected: false });
   const appContext = setUpContext(cluster.uri);
   appContext.clustersService.setState(draftState => {
@@ -168,14 +169,14 @@ it('includes offline cluster names in the empty results copy', () => {
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent('No matching results found.');
   expect(results).toHaveTextContent(
     `The cluster ${cluster.name} was excluded from the search because you are not logged in to it.`
   );
 });
 
-it('notifies about resource search errors and allows to display details', () => {
+it('notifies about resource search errors and allows to display details', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
@@ -216,14 +217,14 @@ it('notifies about resource search errors and allows to display details', () => 
     </MockAppContextProvider>
   );
 
-  const results = screen.getByRole('menu');
+  const results = await screen.findByRole('menu');
   expect(results).toHaveTextContent(
     'Some of the search results are incomplete.'
   );
   expect(results).toHaveTextContent('Could not fetch resources from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
-  act(() => screen.getByText('Show details').click());
+  await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
 
   expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -268,7 +269,8 @@ it('maintains focus on the search input after closing a resource search error mo
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  const searchbox = await screen.findByRole('searchbox');
+  await act(() => user.type(searchbox, 'foo'));
 
   expect(screen.getByRole('menu')).toHaveTextContent(
     'Some of the search results are incomplete.'
@@ -321,25 +323,28 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <SearchBarConnected />
-          <ModalsHost />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <AppUpdaterContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <SearchBarConnected />
+            <ModalsHost />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
+      </AppUpdaterContextProvider>
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  const searchbox = await screen.findByRole('searchbox');
+  await user.type(searchbox, 'foo');
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
-    expect(screen.getByTestId('Modal')).toBeInTheDocument();
+    // Wait for the login field to show up in the modal.
+    expect(screen.getByTestId('Modal')).toHaveTextContent('Username');
   });
-  expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
-  act(() => screen.getByLabelText('Close').click());
+  await user.click(screen.getByLabelText('Close'));
   await waitFor(() => {
     expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
   });
@@ -375,12 +380,12 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  const searchbox = await screen.findByRole('searchbox');
+  await user.type(searchbox, 'foo');
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
-  act(() => {
-    screen.getByTestId('unfocusable-element').click();
-  });
+  await user.click(screen.getByTestId('unfocusable-element'));
+
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 

@@ -19,6 +19,7 @@
 import { useEffect } from 'react';
 import styled from 'styled-components';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   leafClusterUri,
   makeAcl,
@@ -87,6 +88,18 @@ export const OnlineLoadedResources = () => {
             requiresRequest: false,
           },
           {
+            kind: 'database',
+            resource: makeDatabase({
+              name: 'unhealthy-database',
+              targetHealth: {
+                status: 'unhealthy',
+                error: 'some unhealthy error message',
+                message: 'some message',
+              },
+            }),
+            requiresRequest: false,
+          },
+          {
             kind: 'kube',
             resource: makeKube(),
             requiresRequest: false,
@@ -118,12 +131,14 @@ export const OnlineLoadedResources = () => {
                   display: 'foo',
                   name: 'foo',
                   accountId: '123456789012',
+                  requiresRequest: true,
                 },
                 {
                   arn: 'bar',
                   display: 'bar',
                   name: 'bar',
                   accountId: '123456789012',
+                  requiresRequest: true,
                 },
               ],
             },
@@ -303,6 +318,33 @@ function renderState({
     listUnifiedResources
       ? listUnifiedResources(params, abortSignal)
       : Promise.reject('No fetchServersPromise passed');
+
+  appContext.tshd.listDatabaseServers = () =>
+    new MockedUnaryCall({
+      resources: [
+        {
+          hostname: 'some-hostname-1',
+          hostId: 'some-host-id-1',
+          uri: 'some-uri-1',
+          targetHealth: {
+            status: 'unhealthy',
+            error: 'some unhealthy error',
+            message: '',
+          },
+        },
+        {
+          hostname: 'some-hostname-2',
+          hostId: 'some-host-id-2',
+          uri: 'some-uri-2',
+          targetHealth: {
+            status: 'unknown',
+            message: 'some unknown related message',
+            error: 'some other unknown error',
+          },
+        },
+      ],
+      nextKey: '',
+    });
 
   return (
     <AppContextProvider value={appContext}>

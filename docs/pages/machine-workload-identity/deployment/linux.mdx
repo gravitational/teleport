@@ -1,0 +1,114 @@
+---
+title: Deploying tbot on Linux
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on a Linux host
+sidebar_label: Linux
+tags:
+ - how-to
+ - mwi
+ - infrastructure-identity
+---
+
+This page explains how to deploy the Machine & Workload Identity agent, `tbot`,
+on a Linux host.
+
+## How it works
+
+The process in which `tbot` initially authenticates with the Teleport cluster is
+known as joining. A join method is a specific technique for the bot to prove its
+identity.
+
+On platforms where there is no native form of identity available to the machine,
+the preferred join method is [`bound_keypair`]. Unlike other join methods, a
+`bound_keypair` join token can only be used to join a single bot. [Read more
+about Bound Keypair Joining][bkp].
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A Linux host that you wish to install `tbot` onto.
+- A Linux user on that host that you wish `tbot` to run as. In the guide, we
+  will use `teleport` for this.
+
+## Step 1/4. Install `tbot`
+
+**This step is completed on the Linux host.**
+
+First, `tbot` needs to be installed on the VM that you wish to use Machine &
+Workload Identity on.
+
+Install Teleport as appropriate for your platform:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/4. Create a bot user
+
+**This step is completed on your local machine.**
+
+Create the bot with `tctl bots add`:
+
+```code
+$ tctl bots add example
+The bot joining URI: tbot+proxy+bound-keypair://bot-example-abc123:secret@example.teleport.sh:443
+This token must be used within 59 minutes after which it must be recreated.
+
+[...]
+```
+
+Take note of the joining URI as it will be used in the next step. Joining URIs
+contain all the information needed for the `tbot` client to connect to and
+authenticate with your Teleport cluster. Be aware that this URI contains a
+single use secret value (shown as `secret` in the above example) and should be
+copied with care.
+
+## Step 3/4. Configure `tbot`
+
+**This step is completed on the Linux host.**
+
+Create `/etc/tbot.yaml`:
+
+```yaml
+version: v2
+join_uri: tbot+proxy+bound-keypair://bot-example-abc123:secret@example.teleport.sh:443
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+# services will be filled in during the completion of an access guide.
+services: []
+```
+
+Replace:
+- The `join_uri` field value with the joining URI printed by `tctl` in step 2.
+
+<Admonition type="note">
+The first time that `tbot` runs, the registration secret contained within the
+joining URI will be used to authenticate the first connection. After the first
+successful join, the registration secret is invalidated. You may remove it from
+the join URI (shown as `secret` in the example token) in your configuration file
+after the first run has completed, but there is no tangible security benefit to
+doing so.
+</Admonition>
+
+### Prepare the storage directory
+
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
+### Create a systemd service
+
+(!docs/pages/includes/machine-id/daemon.mdx!)
+
+## Step 4/4. Configure services
+
+(!docs/pages/includes/machine-id/configure-services.mdx!)
+
+## Next steps
+
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
+  your environment.
+- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+  all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)
+
+[`bound_keypair`]: ../../reference/deployment/join-methods.mdx#bound-keypair-bound_keypair
+[bkp]: ../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx

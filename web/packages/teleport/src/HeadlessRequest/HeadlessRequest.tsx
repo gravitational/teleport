@@ -22,10 +22,13 @@ import styled from 'styled-components';
 import { Box, Flex, rotate360 } from 'design';
 import { Spinner } from 'design/Icon';
 
+import AuthnDialog from 'teleport/components/AuthnDialog';
 import HeadlessRequestDialog from 'teleport/components/HeadlessRequestDialog/HeadlessRequestDialog';
 import { useParams } from 'teleport/components/Router';
 import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
+import { shouldShowMfaPrompt, useMfa } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -37,25 +40,36 @@ export function HeadlessRequest() {
     publicKey: null as PublicKeyCredentialRequestOptions,
   });
 
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.HEADLESS_LOGIN,
+    },
+    isMfaRequired: true,
+  });
+
   useEffect(() => {
-    const setIpAddress = (response: { clientIpAddress: string }) => {
-      setState({
-        ...state,
-        status: 'loaded',
-        ipAddress: response.clientIpAddress,
-      });
-    };
+    const abortController = new AbortController();
 
     auth
-      .headlessSSOGet(requestId)
-      .then(setIpAddress)
-      .catch(e => {
+      .headlessSsoGet(requestId, abortController.signal)
+      .then(response => {
         setState({
           ...state,
-          status: 'error',
-          errorText: e.toString(),
+          status: 'loaded',
+          ipAddress: response.clientIpAddress,
         });
+      })
+      .catch(e => {
+        if (!abortController.signal.aborted) {
+          setState({
+            ...state,
+            status: 'error',
+            errorText: e.toString(),
+          });
+        }
       });
+
+    return () => abortController.abort();
   }, [requestId]);
 
   const setSuccess = () => {
@@ -100,38 +114,47 @@ export function HeadlessRequest() {
   }
 
   return (
-    <HeadlessRequestDialog
-      ipAddress={state.ipAddress}
-      onAccept={() => {
-        setState({ ...state, status: 'in-progress' });
+    <>
+      {
+        /* Show only one dialog at a time because too many dialogs can be confusing */
+        shouldShowMfaPrompt(mfa) ? (
+          <AuthnDialog mfaState={mfa} />
+        ) : (
+          <HeadlessRequestDialog
+            ipAddress={state.ipAddress}
+            onAccept={() => {
+              setState({ ...state, status: 'in-progress' });
 
-        auth
-          .headlessSSOAccept(requestId)
-          .then(setSuccess)
-          .catch(e => {
-            setState({
-              ...state,
-              status: 'error',
-              errorText: e.toString(),
-            });
-          });
-      }}
-      onReject={() => {
-        setState({ ...state, status: 'in-progress' });
+              auth
+                .headlessSsoAccept(mfa, requestId)
+                .then(setSuccess)
+                .catch(e => {
+                  setState({
+                    ...state,
+                    status: 'error',
+                    errorText: e.toString(),
+                  });
+                });
+            }}
+            onReject={() => {
+              setState({ ...state, status: 'in-progress' });
 
-        auth
-          .headlessSSOReject(requestId)
-          .then(setRejected)
-          .catch(e => {
-            setState({
-              ...state,
-              status: 'error',
-              errorText: e.toString(),
-            });
-          });
-      }}
-      errorText={state.errorText}
-    />
+              auth
+                .headlessSSOReject(requestId)
+                .then(setRejected)
+                .catch(e => {
+                  setState({
+                    ...state,
+                    status: 'error',
+                    errorText: e.toString(),
+                  });
+                });
+            }}
+            errorText={state.errorText}
+          />
+        )
+      }
+    </>
   );
 }
 

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -44,6 +45,28 @@ spec:
 version: v1
 `
 
+const validTokenYaml = `kind: token
+metadata:
+  name: test-name
+spec:
+  github:
+    enterprise_server_host: test-server-host
+    static_jwks: test-twks
+    allow:
+    - actor: test-actor
+      environment: test-environment
+      ref: test-ref
+      ref_type: test-ref-type
+      repository: test-repository
+      repository_owner: test-owner
+      workflow: test-workflow
+      sub: test-sub
+  join_method: github
+  roles:
+  - Node
+version: v2
+`
+
 func getAccessMonitoringRuleResource() *accessmonitoringrulesv1.AccessMonitoringRule {
 	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
@@ -62,6 +85,36 @@ func getAccessMonitoringRuleResource() *accessmonitoringrulesv1.AccessMonitoring
 	}
 }
 
+func getTokenResource() *types.ProvisionTokenV2 {
+	return &types.ProvisionTokenV2{
+		Kind:    types.KindToken,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "test-name",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles:      []types.SystemRole{types.RoleNode},
+			JoinMethod: types.JoinMethodGitHub,
+			GitHub: &types.ProvisionTokenSpecV2GitHub{
+				EnterpriseServerHost: "test-server-host",
+				StaticJWKS:           "test-twks",
+				Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+					{
+						Sub:             "test-sub",
+						Repository:      "test-repository",
+						RepositoryOwner: "test-owner",
+						Workflow:        "test-workflow",
+						Environment:     "test-environment",
+						Actor:           "test-actor",
+						Ref:             "test-ref",
+						RefType:         "test-ref-type",
+					},
+				},
+			},
+		},
+	}
+}
+
 func TestYAMLParse_Valid(t *testing.T) {
 	t.Parallel()
 
@@ -69,26 +122,48 @@ func TestYAMLParse_Valid(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test@example.com", nil)
 
-	endpoint := pack.clt.Endpoint("webapi", "yaml", "parse", types.KindAccessMonitoringRule)
-	re, err := pack.clt.PostJSON(context.Background(), endpoint, yamlParseRequest{
-		YAML: validAccessMonitoringRuleYaml,
-	})
-	require.NoError(t, err)
+	testCases := []struct {
+		name     string
+		kind     string
+		yaml     string
+		expected any
+	}{
+		{
+			name:     "AccessMonitoringRule",
+			kind:     types.KindAccessMonitoringRule,
+			yaml:     validAccessMonitoringRuleYaml,
+			expected: getAccessMonitoringRuleResource(),
+		},
+		{
+			name:     "Token",
+			kind:     types.KindToken,
+			yaml:     validTokenYaml,
+			expected: getTokenResource(),
+		},
+	}
 
-	var endpointResp yamlParseResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &endpointResp))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "yaml", "parse", tc.kind)
+			re, err := pack.clt.PostJSON(context.Background(), endpoint, yamlParseRequest{
+				YAML: tc.yaml,
+			})
+			require.NoError(t, err)
 
-	expectedResource := getAccessMonitoringRuleResource()
+			var endpointResp yamlParseResponse
+			require.NoError(t, json.Unmarshal(re.Bytes(), &endpointResp))
 
-	// Can't cast a unmarshaled interface{} into the expected type, so
-	// we are transforming the expected type to the same type as the
-	// one we got as a response.
-	b, err := json.Marshal(yamlParseResponse{Resource: expectedResource})
-	require.NoError(t, err)
-	var expectedResp yamlParseResponse
-	require.NoError(t, json.Unmarshal(b, &expectedResp))
+			// Can't cast a unmarshaled interface{} into the expected type, so
+			// we are transforming the expected type to the same type as the
+			// one we got as a response.
+			b, err := json.Marshal(yamlParseResponse{Resource: tc.expected})
+			require.NoError(t, err)
+			var expectedResp yamlParseResponse
+			require.NoError(t, json.Unmarshal(b, &expectedResp))
 
-	require.Equal(t, expectedResp.Resource, endpointResp.Resource)
+			require.Empty(t, cmp.Diff(expectedResp.Resource, endpointResp.Resource))
+		})
+	}
 }
 
 func TestYAMLParse_Errors(t *testing.T) {

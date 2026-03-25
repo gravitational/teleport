@@ -1,6 +1,3 @@
-//go:build !race
-// +build !race
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -42,20 +39,13 @@ import (
 
 // TestChaosUpload introduces failures in all stages of the async
 // upload process and verifies that the system is working correctly.
-//
-// Data race detector slows down the test significantly (10x+),
-// that is why the test is skipped when tests are running with
-// `go test -race` flag or `go test -short` flag
 func TestChaosUpload(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping chaos test in short mode.")
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := eventstest.NewMemoryUploader(eventsC)
+	memUploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsC,
+	})
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
@@ -114,7 +104,7 @@ func TestChaosUpload(t *testing.T) {
 	uploader, err := NewUploader(UploaderConfig{
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
-		ScanPeriod:   3 * time.Second,
+		ScanPeriod:   100 * time.Millisecond,
 		Streamer:     faultyStreamer,
 		Clock:        clockwork.NewRealClock(),
 	})
@@ -123,7 +113,9 @@ func TestChaosUpload(t *testing.T) {
 	go uploader.Serve(ctx)
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir)
+	fileStreamer, err := NewStreamer(StreamerConfig{
+		Dir: scanDir,
+	})
 	require.NoError(t, err)
 
 	parallelStreams := 20
@@ -133,7 +125,7 @@ func TestChaosUpload(t *testing.T) {
 		err    error
 	}
 	streamsCh := make(chan streamState, parallelStreams)
-	for i := 0; i < parallelStreams; i++ {
+	for range parallelStreams {
 		go func() {
 			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -163,7 +155,7 @@ func TestChaosUpload(t *testing.T) {
 
 	// wait for all streams to be completed
 	streams := make(map[string]streamState)
-	for i := 0; i < parallelStreams; i++ {
+	for range parallelStreams {
 		select {
 		case status := <-streamsCh:
 			require.NoError(t, status.err)
@@ -175,7 +167,7 @@ func TestChaosUpload(t *testing.T) {
 
 	require.Len(t, streams, parallelStreams)
 
-	for i := 0; i < parallelStreams; i++ {
+	for range parallelStreams {
 		select {
 		case event := <-eventsC:
 			require.NoError(t, event.Error)
@@ -183,7 +175,7 @@ func TestChaosUpload(t *testing.T) {
 
 			state := streams[event.SessionID]
 			outEvents := readStream(ctx, t, event.UploadID, memUploader)
-			require.Equal(t, len(state.events), len(outEvents), fmt.Sprintf("event: %v", event))
+			require.Len(t, state.events, len(outEvents), fmt.Sprintf("event: %v", event))
 		case <-ctx.Done():
 			t.Fatal("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}

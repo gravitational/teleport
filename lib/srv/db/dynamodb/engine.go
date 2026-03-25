@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -362,36 +363,49 @@ func (e *Engine) resolveEndpoint(req *http.Request) (*endpoint, error) {
 	var re *endpoint
 	switch target := strings.ToLower(target); {
 	case strings.HasPrefix(target, "dynamodbstreams"):
-		re, err = resolveDynamoDBStreamsEndpoint(req.Context(), awsMeta.Region, e.UseFIPS)
+		re, err = resolveDynamoDBStreamsEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	case strings.HasPrefix(target, "dynamodb"):
 		re, err = resolveDynamoDBEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	case strings.HasPrefix(target, "amazondax"):
-		re, err = resolveDaxEndpoint(req.Context(), awsMeta.Region, e.UseFIPS)
+		// TODO(gavin): drop DAX API support - it is a deployment API.
+		re, err = resolveDaxEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	default:
 		return nil, trace.BadParameter("DynamoDB API target %q is not recognized", target)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uri := e.sessionCtx.Database.GetURI()
-	if uri != "" && uri != apiaws.DynamoDBURIForRegion(awsMeta.Region) {
+	// TODO(gavin): drop support for custom URIs - custom URI adds complexity,
+	// but doesn't add any value since the signing name and region of the
+	// request must match.
+	if err := rewriteURL(re, e.sessionCtx.Database, awsMeta.Region); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
+
+func rewriteURL(re *endpoint, db types.Database, region string) error {
+	uri := db.GetURI()
+	if uri != "" && uri != apiaws.DynamoDBURIForRegion(region) {
 		// Add a temporary schema to make a valid URL for url.Parse.
 		if !strings.Contains(uri, "://") {
 			uri = "schema://" + uri
 		}
 		u, err := url.Parse(uri)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		// override the resolved endpoint URL with the user-configured URI.
 		re.URL = u
 	}
 	// Force HTTPS
 	re.URL.Scheme = "https"
-	return re, nil
+	return nil
 }
 
-func resolveDynamoDBStreamsEndpoint(ctx context.Context, region string, useFIPS bool) (*endpoint, error) {
+type resolverFn func(ctx context.Context, region, accountID string, useFIPS bool) (*endpoint, error)
+
+func resolveDynamoDBStreamsEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
 	params := dynamodbstreams.EndpointParameters{
 		Region:  aws.String(region),
 		UseFIPS: aws.Bool(useFIPS),
@@ -436,7 +450,7 @@ func resolveDynamoDBEndpoint(ctx context.Context, region, accountID string, useF
 	}, nil
 }
 
-func resolveDaxEndpoint(ctx context.Context, region string, useFIPS bool) (*endpoint, error) {
+func resolveDaxEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
 	params := dax.EndpointParameters{
 		Region:  aws.String(region),
 		UseFIPS: aws.Bool(useFIPS),

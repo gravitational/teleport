@@ -8,6 +8,10 @@ spec:
     # However, it has no login set, so it cannot SSH on them
     node_labels:
       "*": ["*"]
+    app_labels:
+      "*": ["*"]
+    db_labels:
+      "*": ["*"]
     rules:
       - resources:
           - role
@@ -27,6 +31,14 @@ spec:
           - delete
       - resources:
           - auth_connector
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - saml_idp_service_provider
         verbs:
           - list
           - create
@@ -81,5 +93,94 @@ spec:
           - read
           - update
           - delete
+      - resources:
+          - bot
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - workload_identity
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - app
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - autoupdate_version
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - autoupdate_config
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - db
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - inference_model
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - inference_policy
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - inference_secret
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - access_monitoring_rule
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - scoped_token
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+
   deny: {}
 version: v7

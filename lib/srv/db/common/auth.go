@@ -51,11 +51,12 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -69,11 +70,6 @@ const (
 	// azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
 	// cache entries.
 	azureVirtualMachineCacheTTL = 5 * time.Minute
-
-	// emptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
-	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
-	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
-	emptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 )
 
 // Auth defines interface for creating auth tokens and TLS configurations.
@@ -90,6 +86,8 @@ type Auth interface {
 	GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error)
+	// GetAlloyDBAuthToken generates AlloyDB auth token.
+	GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error)
 	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 	GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -174,17 +172,23 @@ type AuthConfig struct {
 	AuthClient AuthClient
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
-	// Clients provides interface for obtaining cloud provider clients.
-	Clients cloud.Clients
+
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Logger is used for logging.
 	Logger *slog.Logger
+
+	// AzureClients provides Azure SDK clients.
+	AzureClients azure.Clients
+	// GCPClients provides GCP SDK clients.
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
+
+	// azureIMDSClient is an optional IMDS client, overridden in tests.
+	azureIMDSClient imds.Client
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -195,8 +199,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
-	if c.Clients == nil {
-		return trace.BadParameter("missing Clients")
+	if c.AzureClients == nil {
+		return trace.BadParameter("missing AzureClients")
+	}
+	if c.GCPClients == nil {
+		return trace.BadParameter("missing GCPClients")
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
@@ -210,6 +217,9 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}
+	}
+	if c.azureIMDSClient == nil {
+		c.azureIMDSClient = azureimds.NewInstanceMetadataClient()
 	}
 	return nil
 }
@@ -488,6 +498,24 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) 
 	return tok.AccessToken, nil
 }
 
+// GetAlloyDBAuthToken returns authorization token that will be used as a
+// password when connecting to AlloyDB databases.
+func (a *dbAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
+	// https://cloud.google.com/alloydb/docs/connect-iam#procedure
+	scopes := []string{
+		"https://www.googleapis.com/auth/alloydb.login",
+	}
+	ts, err := a.getCloudTokenSource(ctx, databaseUser, scopes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tok, err := ts.Token()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tok.AccessToken, nil
+}
+
 // GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	// https://developers.google.com/identity/protocols/oauth2/scopes#spanner
@@ -503,7 +531,7 @@ func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string)
 }
 
 func (a *dbAuth) getCloudTokenSource(ctx context.Context, databaseUser string, scopes []string) (*cloudTokenSource, error) {
-	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	gcpIAM, err := a.cfg.GCPClients.GetIAMClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,7 +599,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
 func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
+	gcpCloudSQL, err := a.cfg.GCPClients.GetSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -632,7 +660,7 @@ SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 // GetAzureAccessToken generates Azure database access token.
 func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 	a.cfg.Logger.DebugContext(ctx, "Generating Azure access token")
-	cred, err := a.cfg.Clients.GetAzureCredential()
+	cred, err := a.cfg.AzureClients.GetCredential(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -671,6 +699,10 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 		region:       meta.Region,
 		credProvider: awsCfg.Credentials,
 		clock:        a.cfg.Clock,
+		isServerless: database.IsElastiCacheServerless(),
+	}
+	if tokenReq.isServerless {
+		tokenReq.targetID = meta.ElastiCacheServerless.CacheName
 	}
 	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
@@ -709,15 +741,15 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 		return "", trace.Wrap(err)
 	}
 
-	var client libazure.CacheForRedisClient
+	var client azure.CacheForRedisClient
 	switch resourceID.ResourceType.String() {
 	case "Microsoft.Cache/Redis":
-		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
-		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisEnterpriseClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -937,8 +969,14 @@ func shouldUseSystemCertPool(database types.Database) bool {
 	case types.DatabaseTypeOpenSearch:
 		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
 		return true
+
 	case types.DatabaseTypeSpanner:
 		// Spanner is hosted on GCP.
+		return true
+
+	case types.DatabaseTypeMongoAtlas:
+		// Atlas may use either Let's Encrypt or Google GTS Root R3/R4:
+		// https://www.mongodb.com/docs/atlas/reference/faq/security/
 		return true
 	}
 	return false
@@ -955,6 +993,11 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, database types.Database) er
 
 	// If server name is set prior to this function, use that.
 	if tlsConfig.ServerName != "" {
+		return nil
+	}
+
+	if database.GetType() == types.DatabaseTypeAlloyDB {
+		// The server name will be configured dynamically by the engine.
 		return nil
 	}
 
@@ -1074,7 +1117,7 @@ func (a *dbAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewSoftwarePrivateKey(signer)
+	privateKey, err := keys.NewPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1109,17 +1152,8 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 
 // getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
 // is not running on Azure, returns an error.
-func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
-	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
-		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
-	}
-
-	instanceID, err := metadataClient.GetID(ctx)
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*azure.VirtualMachine, error) {
+	instanceID, err := a.cfg.azureIMDSClient.GetID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1129,7 +1163,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.Wrap(err)
 	}
 
-	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	vmClient, err := a.cfg.AzureClients.GetVirtualMachinesClient(ctx, parsedInstanceID.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1207,7 +1241,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, da
 
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
-	return a.cfg.Clients.Close()
+	return a.cfg.GCPClients.Close()
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification
@@ -1272,10 +1306,12 @@ func externalIDForChainedAssumeRole(meta types.AWS) string {
 type awsRedisIAMTokenRequest struct {
 	// userID is the ElastiCache user ID.
 	userID string
-	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name.
+	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name or a serverless cache ID.
 	targetID string
 	// region is the AWS region.
 	region string
+	// isServerless is true if the request is for ElastiCache serverless.
+	isServerless bool
 	// credProvider are used to presign with AWS SigV4.
 	credProvider aws.CredentialsProvider
 	// clock is the clock implementation.
@@ -1323,7 +1359,7 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (strin
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, emptyPayloadHash, r.serviceName, r.region, r.clock.Now())
+	signedURI, _, err := signer.PresignHTTP(ctx, creds, req, awsutils.EmptyPayloadHash, r.serviceName, r.region, r.clock.Now())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1333,8 +1369,13 @@ func (r *awsRedisIAMTokenRequest) toSignedRequestURI(ctx context.Context) (strin
 // getSignableRequest creates a new request suitable for pre-signing with SigV4.
 func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 	query := url.Values{
-		"Action": {"connect"},
-		"User":   {r.userID},
+		"Action":        {"connect"},
+		"User":          {r.userID},
+		"X-Amz-Expires": {"900"},
+	}
+	if r.isServerless {
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/auth-iam.html
+		query.Add("ResourceType", "ServerlessCache")
 	}
 	reqURI := url.URL{
 		Scheme:   "http",

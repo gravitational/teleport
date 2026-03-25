@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';
@@ -34,10 +34,11 @@ import {
 
 import { DisplayTile } from 'teleport/Bots/Add/AddBotsPicker';
 import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
 import argoCD from './argocd.png';
-import controlWorkflowsLightImage from './control-workflows-light.svg';
-import controlWorkflowsImage from './control-workflows.svg';
+import controlWorkflowsDarkImage from './control-workflows-dark.png';
+import controlWorkflowsLightImage from './control-workflows-light.png';
 import elimiateSecretsLightImage from './eliminate-secrets-light.svg';
 import elimiateSecretsImage from './eliminate-secrets.svg';
 
@@ -46,6 +47,10 @@ const maxWidth = '1204px';
 export function EmptyState() {
   const [currIndex, setCurrIndex] = useState(0);
   const [intervalId, setIntervalId] = useState<any>();
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasAddBotPermissions = flags.addBots;
 
   function handleOnClick(clickedIndex: number) {
     clearInterval(intervalId);
@@ -69,9 +74,10 @@ export function EmptyState() {
           Static keys and API keys in your automated workflows are the target of
           hackers and are one of the primary sources of security breaches.
           <br />
-          Teleport Machine ID replaces shared credentials and secrets with
-          short-lived x.509 or SSH certificates and gives you a unified plan to
-          register, define access policies, and audit all your workflows.
+          Teleport Machine & Workload Identity replaces shared credentials and
+          secrets with short-lived X.509 or SSH certificates and gives you a
+          unified plan to register, define access policies, and audit all your
+          workflows.
         </Text>
       </Box>
       <FeatureContainer py={2} pr={2}>
@@ -82,7 +88,7 @@ export function EmptyState() {
             isSliding={!!intervalId}
             onClick={() => handleOnClick(0)}
             title="Eliminate secrets and shared credentials from CI/CD workflows"
-            description="Teleport Machine ID replaces passwords, API, and static keys with short-lived SSH and x.509 certificates."
+            description="Teleport Machine & Workload Identity replaces passwords, API, and static keys with short-lived SSH and X.509 certificates."
           />
           <DetailsTab
             active={currIndex === 1}
@@ -106,16 +112,18 @@ export function EmptyState() {
         </Box>
       </FeatureContainer>
       {/* setting a max width here to keep it "in the center" with the content above instead of with the screen */}
-      <Box width="100%" maxWidth={maxWidth} textAlign="center" mt={6}>
-        <ButtonPrimary
-          width="280px"
-          as={Link}
-          to={cfg.getBotsNewRoute()}
-          size="large"
-        >
-          Create Your First Bot
-        </ButtonPrimary>
-      </Box>
+      {hasAddBotPermissions && (
+        <Box width="100%" maxWidth={maxWidth} textAlign="center" mt={6}>
+          <ButtonPrimary
+            width="280px"
+            as={Link}
+            to={cfg.getBotsNewRoute()}
+            size="large"
+          >
+            Create Your First Bot
+          </ButtonPrimary>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -154,14 +162,14 @@ export const EliminateSecretsPreview = () => {
 
 const controlWorkflowsImages = {
   light: controlWorkflowsLightImage,
-  dark: controlWorkflowsImage,
+  dark: controlWorkflowsDarkImage,
 };
 
 export const ControlWorkflowsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox includeShadow>
-      <Image maxHeight="100%" src={controlWorkflowsImages[theme.type]} />
+      <Image height="330px" src={controlWorkflowsImages[theme.type]} />
     </PreviewBox>
   );
 };
@@ -231,4 +239,6 @@ const PreviewBox = styled(Box)<{ includeShadow?: boolean }>`
   box-shadow: ${p => {
     return p.includeShadow ? p.theme.boxShadow[1] : 'none';
   }};
+  border-radius: 8px;
+  overflow: hidden;
 `;

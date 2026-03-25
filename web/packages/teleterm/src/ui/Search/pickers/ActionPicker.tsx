@@ -20,8 +20,10 @@ import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
+import { makeLabelTag } from 'design/formatters';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
@@ -46,6 +48,7 @@ import {
   SearchResultKube,
   SearchResultResourceType,
   SearchResultServer,
+  SearchResultWindowsDesktop,
 } from 'teleterm/ui/Search/searchResult';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import * as uri from 'teleterm/ui/uri';
@@ -66,7 +69,7 @@ import { useActionAttempts } from './useActionAttempts';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
-  const { clustersService, modalsService } = ctx;
+  const { clustersService, modalsService, mainProcessClient } = ctx;
   ctx.clustersService.useState();
 
   const {
@@ -90,12 +93,19 @@ export function ActionPicker(props: { input: ReactElement }) {
   const { isSupported: isVnetSupported } = useVnetContext();
   const totalCountOfClusters = clustersService.getClusters().length;
 
+  // Use memo because this value never changes during app's lifetime but the call to get it goes
+  // through the context bridge.
+  const isScoreDebugEnabled = useMemo(
+    () => mainProcessClient.configService.get('debug.searchResultsScore').value,
+    [mainProcessClient.configService]
+  );
+
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
-
-      return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
+      // Name is empty if the user hasn't logged into that cluster yet.
+      return cluster?.name || uri.routing.parseClusterName(resourceUri);
     },
     [clustersService]
   );
@@ -210,11 +220,17 @@ export function ActionPicker(props: { input: ReactElement }) {
           return {
             key: getKey(item.searchResult),
             Component: (
-              <Component
-                searchResult={item.searchResult}
-                getOptionalClusterName={getOptionalClusterName}
-                isVnetSupported={isVnetSupported}
-              />
+              <>
+                {isScoreDebugEnabled &&
+                item.searchResult.kind !== 'display-results'
+                  ? item.searchResult.score
+                  : undefined}
+                <Component
+                  searchResult={item.searchResult}
+                  getOptionalClusterName={getOptionalClusterName}
+                  isVnetSupported={isVnetSupported}
+                />
+              </>
             ),
           };
         }}
@@ -506,6 +522,7 @@ export const ComponentMap: Record<
   kube: KubeItem,
   database: DatabaseItem,
   app: AppItem,
+  windows_desktop: WindowsDesktopItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
   'display-results': DisplayResultsItem,
@@ -581,6 +598,7 @@ const resourceIcons: Record<
   node: icons.Server,
   db: icons.Database,
   app: icons.Application,
+  windows_desktop: icons.Desktop,
 };
 
 function ResourceTypeFilterItem(
@@ -814,9 +832,61 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
+export function WindowsDesktopItem(
+  props: SearchResultItem<SearchResultWindowsDesktop>
+) {
+  const { searchResult } = props;
+  const windowsDesktop = searchResult.resource;
+
+  const $resourceFields = (
+    <ResourceFields>
+      <span
+        css={`
+          flex-shrink: 0;
+        `}
+      >
+        <HighlightField
+          field="addrWithoutDefaultPort"
+          searchResult={searchResult}
+        />
+      </span>
+    </ResourceFields>
+  );
+
+  return (
+    <IconAndContent
+      Icon={icons.Desktop}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">
+          {props.searchResult.requiresRequest
+            ? 'Request access to desktop '
+            : 'Connect to desktop '}
+          <strong>
+            <HighlightField field="name" searchResult={searchResult} />
+          </strong>
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4">
+            {props.getOptionalClusterName(windowsDesktop.uri)}
+          </Text>
+        </Box>
+      </Flex>
+      <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+    </IconAndContent>
+  );
+}
+
 function getAppItemCopy(
   $appName: React.JSX.Element,
-  app: tsh.App,
+  app: App,
   requiresRequest: boolean,
   isVnetSupported: boolean
 ) {
@@ -1069,11 +1139,7 @@ function Label(props: {
     .map(match => match.searchTerm);
 
   return (
-    <DesignLabel
-      key={label.name}
-      kind="secondary"
-      title={`${label.name}: ${label.value}`}
-    >
+    <DesignLabel key={label.name} kind="secondary" title={makeLabelTag(label)}>
       <Highlight text={label.name} keywords={nameMatches} />:{' '}
       <Highlight text={label.value} keywords={valueMatches} />
     </DesignLabel>

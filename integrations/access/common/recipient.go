@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -41,10 +41,10 @@ type RawRecipientsMap map[string][]string
 // The input can be one of the following:
 // "key" = "value"
 // "key" = ["multiple", "values"]
-func (r *RawRecipientsMap) UnmarshalTOML(in interface{}) error {
+func (r *RawRecipientsMap) UnmarshalTOML(in any) error {
 	*r = make(RawRecipientsMap)
 
-	recipientsMap, ok := in.(map[string]interface{})
+	recipientsMap, ok := in.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected type for recipients %T", in)
 	}
@@ -53,7 +53,7 @@ func (r *RawRecipientsMap) UnmarshalTOML(in interface{}) error {
 		switch val := v.(type) {
 		case string:
 			(*r)[k] = []string{val}
-		case []interface{}:
+		case []any:
 			for _, str := range val {
 				str, ok := str.(string)
 				if !ok {
@@ -75,7 +75,7 @@ func (r *RawRecipientsMap) UnmarshalTOML(in interface{}) error {
 // - for each role, the list of reviewers
 // - if the role doesn't exist in the map (or it's empty), we add the list of recipients for the default role ("*") instead
 func (r RawRecipientsMap) GetRawRecipientsFor(roles, suggestedReviewers []string) []string {
-	recipients := stringset.New()
+	recipients := set.New[string]()
 
 	for _, role := range roles {
 		roleRecipients := r[role]
@@ -88,18 +88,16 @@ func (r RawRecipientsMap) GetRawRecipientsFor(roles, suggestedReviewers []string
 
 	recipients.Add(suggestedReviewers...)
 
-	return recipients.ToSlice()
+	return recipients.Elements()
 }
 
 // GetAllRawRecipients returns unique set of raw recipients
 func (r RawRecipientsMap) GetAllRawRecipients() []string {
-	recipients := stringset.New()
-
+	recipients := set.New[string]()
 	for _, r := range r {
 		recipients.Add(r...)
 	}
-
-	return recipients.ToSlice()
+	return recipients.Elements()
 }
 
 // Recipient is a generic representation of a message recipient. Its nature depends on the messaging service used.
@@ -117,7 +115,7 @@ type Recipient struct {
 	// values are "User" or "Channel".
 	Kind string
 	// Data allows MessagingBot to store required data for the recipient
-	Data interface{}
+	Data any
 }
 
 // RecipientSet is a Set of Recipient. Recipient items are deduplicated based on Recipient.ID

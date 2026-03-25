@@ -1,0 +1,7 @@
+Scope         Node Name            Node ID              Address    Labels              
+------------- -------------------- -------------------- ---------- ------------------- 
+              unscoped-direct-name unscoped-direct-uuid 1.2.3.4:22 key=val             
+/staging/west scoped-direct-name   scoped-direct-uuid   1.2.3.4:44 key1=val1,key2=val2 
+              unscoped-tunnel-name unscoped-tunnel-uuid ⟵ Tunnel                       
+/staging/west scoped-tunnel-name   scoped-tunnel-uuid   ⟵ Tunnel                       
+

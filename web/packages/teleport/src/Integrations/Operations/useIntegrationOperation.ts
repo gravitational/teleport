@@ -20,11 +20,14 @@ import { useState } from 'react';
 
 import {
   IntegrationAwsOidc,
+  IntegrationAwsRa,
   IntegrationKind,
   integrationService,
   type Integration,
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { type DeleteRequestOptions } from './IntegrationOperations';
 
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();
@@ -37,8 +40,12 @@ export function useIntegrationOperation() {
     setOperation({ type: 'none' });
   }
 
-  function remove() {
-    return integrationService.deleteIntegration(operation.item.name);
+  function remove(opt: DeleteRequestOptions = {}) {
+    return integrationService.deleteIntegration({
+      name: operation.item.name,
+      clusterId,
+      deleteAssociatedResources: opt.deleteAssociatedResources,
+    });
   }
 
   async function edit(req: EditableIntegrationFields) {
@@ -60,7 +67,7 @@ export function useIntegrationOperation() {
           },
         });
       } catch (err) {
-        throw new Error(`Health check failed: ${err}`);
+        throw new Error(`Health check failed: ${err}`, { cause: err });
       }
     }
   }
@@ -99,4 +106,4 @@ export type Operation = {
   item?: Integration;
 };
 
-export type EditableIntegration = IntegrationAwsOidc;
+export type EditableIntegration = IntegrationAwsOidc | IntegrationAwsRa;

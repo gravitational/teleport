@@ -1,6 +1,6 @@
 tracing_service:
-  # Turns tracing on. Default is 'no'
-  enabled: yes
+  # Turns tracing on. Default is false
+  enabled: true
   # The OLTP exporter to send traces to. Possible values:
   #    "grpc://collector.example.com"
   #      - Traces will be exported via gRPC to the provided URL.

@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
-
+import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
   TerminalSearcher,
@@ -29,8 +27,7 @@ import { debounce } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 import { AppConfig, ConfigService } from 'teleterm/services/config';
-import { WindowsPty } from 'teleterm/services/pty';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
@@ -97,6 +94,7 @@ export default class TtyTerminal implements TerminalSearcher {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       rightClickSelectsWord: this.config['terminal.rightClick'] === 'menu',
       theme: this.options.theme,
       windowsPty: this.options.windowsPty && {
@@ -135,6 +133,46 @@ export default class TtyTerminal implements TerminalSearcher {
       if (action === 'terminalPaste' && isKeyDown) {
         void this.paste();
         // Do not invoke a copy action from the menu.
+        e.preventDefault();
+        // Event handled, do not process it in xterm.
+        return false;
+      }
+
+      return true;
+    });
+
+    // Xterm.js v6 removed the workaround that converted Alt+Arrow to Ctrl+Arrow sequences for word
+    // navigation (https://github.com/xtermjs/xterm.js/pull/5346). Re-add this behavior by sending
+    // the appropriate escape sequences, matching what VS Code does.
+    // https://github.com/microsoft/vscode/blob/5bb327de4bf14578c8c0bd1b553ee14dd2977e18/src/vs/workbench/contrib/terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.ts#L163-L182
+    //
+    // Terminal.app and iTerm2 have bindings only for Alt+Left/Right, so we follow their steps and
+    // send ESC b / ESC f (readline word navigation).
+    this.registerCustomKeyEventHandler(e => {
+      // Only handle pure Alt+Arrow. Other modifier combinations (e.g. Ctrl+Alt+Arrow,
+      // Shift+Alt+Arrow) have their own distinct escape sequences that Xterm.js already handles.
+      if (
+        e.type !== 'keydown' ||
+        !e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.shiftKey
+      ) {
+        return true;
+      }
+
+      let seq: string | undefined;
+      switch (e.key) {
+        case 'ArrowRight':
+          seq = '\x1bf';
+          break;
+        case 'ArrowLeft':
+          seq = '\x1bb';
+          break;
+      }
+
+      if (seq) {
+        this.term.input(seq, false /* wasUserInput */);
         e.preventDefault();
         // Event handled, do not process it in xterm.
         return false;
@@ -198,11 +236,17 @@ export default class TtyTerminal implements TerminalSearcher {
     this.fitAddon.fit();
 
     this.term.onData(data => {
-      this.ptyProcess.write(data);
+      this.ptyProcess.write(data).catch(error => {
+        this.logger.error(`Failed to write to the PTY process: ${error}`);
+      });
     });
 
     this.term.onResize(size => {
-      this.ptyProcess.resize(size.cols, size.rows);
+      this.ptyProcess.resize(size.cols, size.rows).catch(error => {
+        this.logger.error(
+          `Failed to send resize request to the PTY process: ${error}`
+        );
+      });
     });
 
     this.removePtyProcessOnDataListener = this.ptyProcess.onData(data =>
@@ -213,7 +257,9 @@ export default class TtyTerminal implements TerminalSearcher {
     // This is what is causing the terminal to visually repeat the input on hot reload.
     // The shared process version of PtyProcess knows whether it was started or not (the status
     // field), so it's a matter of exposing this field through gRPC and reading it here.
-    this.ptyProcess.start(this.term.cols, this.term.rows);
+    this.ptyProcess.start(this.term.cols, this.term.rows).catch(error => {
+      this.logger.error(`Failed to start the PTY process: ${error}`);
+    });
 
     window.addEventListener('resize', this.debouncedResize);
   }

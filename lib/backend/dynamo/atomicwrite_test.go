@@ -32,7 +32,7 @@ import (
 )
 
 func newAtomicWriteBackend(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
-	dynamoCfg := map[string]interface{}{
+	dynamoCfg := map[string]any{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}

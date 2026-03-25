@@ -18,13 +18,14 @@ package vnet
 
 import (
 	"context"
-	"os"
-	"time"
 
 	"github.com/gravitational/trace"
-	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
+)
+
+const (
+	tunInterfaceName = "utun"
 )
 
 // RunDarwinAdminProcess must run as root. It creates and sets up a TUN device
@@ -36,78 +37,20 @@ import (
 // socket at config.socketPath is deleted, ctx is canceled, or until
 // encountering an unrecoverable error.
 func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
+	log.InfoContext(ctx, "Running VNet admin process")
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "checking daemon process config")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	tunName, err := createAndSendTUNDevice(ctx, config.SocketPath)
+	serviceCreds, err := readCredentials(config.ServiceCredentialPath)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "reading service IPC credentials")
 	}
-
-	osConfigProvider, err := newProfileOSConfigProvider(tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, config.ClientCred)
+	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, config.ClientApplicationServiceAddr)
 	if err != nil {
-		return trace.Wrap(err, "creating profileOSConfigProvider")
+		return trace.Wrap(err, "creating user process client")
 	}
-	osConfigurator := newOSConfigurator(osConfigProvider)
+	defer clt.close()
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- trace.Wrap(osConfigurator.runOSConfigurationLoop(ctx))
-	}()
-
-	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
-	// If the socket is deleted, indicating that the unprivileged process exited, cancel the context
-	// and then wait for the osConfig loop to exit and send an err on errCh.
-	ticker := time.NewTicker(daemon.CheckUnprivilegedProcessInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if _, err := os.Stat(config.SocketPath); err != nil {
-				log.DebugContext(ctx, "failed to stat socket path, assuming parent exited")
-				cancel()
-				return trace.Wrap(<-errCh)
-			}
-		case err := <-errCh:
-			return trace.Wrap(err)
-		}
-	}
-}
-
-// createAndSendTUNDevice creates a virtual network TUN device and sends the open file descriptor on
-// socketPath. It returns the name of the TUN device or an error.
-func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, error) {
-	tun, tunName, err := createTUNDevice(ctx)
-	if err != nil {
-		return "", trace.Wrap(err, "creating TUN device")
-	}
-
-	defer func() {
-		// We can safely close the TUN device in the admin process after it has been sent on the socket.
-		if err := tun.Close(); err != nil {
-			log.WarnContext(ctx, "Failed to close TUN device.", "error", trace.Wrap(err))
-		}
-	}()
-
-	if err := sendTUNNameAndFd(socketPath, tunName, tun.File()); err != nil {
-		return "", trace.Wrap(err, "sending TUN over socket")
-	}
-	return tunName, nil
-}
-
-func createTUNDevice(ctx context.Context) (tun.Device, string, error) {
-	log.DebugContext(ctx, "Creating TUN device.")
-	dev, err := tun.CreateTUN("utun", mtu)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device")
-	}
-	name, err := dev.Name()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "getting TUN device name")
-	}
-	return dev, name, nil
+	return runUnixAdminProcess(ctx, clt, tunInterfaceName)
 }

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/testhelpers"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 func TestIsALPNConnUpgradeRequired(t *testing.T) {
@@ -166,22 +165,11 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		wantError     bool
 	}{
 		{
-			// TODO(greedy52) DELETE in 17.0
-			name:          "connection upgrade (legacy)",
-			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
-		},
-		{
-			// TODO(greedy52) DELETE in 17.0
-			name:          "connection upgrade with ping (legacy)",
-			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
-			withPing:      true,
-		},
-		{
-			name:          "connection upgrade (WebSocket)",
+			name:          "connection upgrade",
 			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
 		},
 		{
-			name:          "connection upgrade with ping (WebSocket)",
+			name:          "connection upgrade with ping",
 			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
 			withPing:      true,
 		},
@@ -210,6 +198,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 
 			t.Run("direct", func(t *testing.T) {
 				dialer := newALPNConnUpgradeDialer(directDialer, tlsConfig, test.withPing)
+
 				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 				if test.wantError {
 					require.Error(t, err)
@@ -227,6 +216,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 
 				proxyURLDialer := newProxyURLDialer(forwardProxyURL, directDialer)
 				dialer := newALPNConnUpgradeDialer(proxyURLDialer, tlsConfig, test.withPing)
+
 				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 				if test.wantError {
 					require.Error(t, err)
@@ -320,49 +310,6 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 	return m
 }
 
-// mockLegacyConnUpgradeHandler mocks the server side implementation to handle
-// an upgrade request and sends back some data inside the tunnel.
-func mockLegacyConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
-	t.Helper()
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
-		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeHeader), upgradeType)
-		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeTeleportHeader), upgradeType)
-		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
-
-		hj, ok := w.(http.Hijacker)
-		require.True(t, ok)
-
-		conn, _, err := hj.Hijack()
-		require.NoError(t, err)
-		defer conn.Close()
-
-		// Upgrade response.
-		response := &http.Response{
-			StatusCode: http.StatusSwitchingProtocols,
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-		}
-		require.NoError(t, response.Write(conn))
-
-		// Upgraded.
-		switch upgradeType {
-		case constants.WebAPIConnUpgradeTypeALPNPing:
-			// Wrap conn with Ping and write some pings.
-			pingConn := pingconn.New(conn)
-			pingConn.WritePing()
-			_, err = pingConn.Write(write)
-			require.NoError(t, err)
-			pingConn.WritePing()
-
-		default:
-			_, err = conn.Write(write)
-			require.NoError(t, err)
-		}
-	})
-}
-
 // mockWebSocketConnUpgradeHandler mocks the server side implementation to handle
 // a WebSocket upgrade request and sends back some data inside the tunnel.
 func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
@@ -421,44 +368,4 @@ func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
 	handler := &testhelpers.ProxyHandler{}
 	go http.Serve(listener, handler)
 	return handler, url
-}
-
-func Test_connUpgradeMode(t *testing.T) {
-	tests := []struct {
-		envVarValue      string
-		wantUseWebSocket require.BoolAssertionFunc
-		wantUseLegacy    require.BoolAssertionFunc
-	}{
-		{
-			envVarValue:      "",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.True,
-		},
-		{
-			envVarValue:      "WebSocket",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.False,
-		},
-		{
-			envVarValue:      "websocket",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.False,
-		},
-		{
-			envVarValue:      "legacy",
-			wantUseWebSocket: require.False,
-			wantUseLegacy:    require.True,
-		},
-		{
-			envVarValue:      "default",
-			wantUseWebSocket: require.True,
-			wantUseLegacy:    require.True,
-		},
-	}
-
-	for _, test := range tests {
-		mode := connUpgradeMode(test.envVarValue)
-		test.wantUseWebSocket(t, mode.useWebSocket())
-		test.wantUseLegacy(t, mode.useLegacy())
-	}
 }

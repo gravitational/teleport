@@ -20,21 +20,31 @@ package discoveryconfigv1
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
+	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/aws"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
@@ -53,6 +63,9 @@ type ServiceConfig struct {
 
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
+
+	// UsageReporter is the reporter for sending usage events.
+	UsageReporter func() usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -67,6 +80,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
+	}
+	if s.UsageReporter == nil {
+		return trace.BadParameter("usage reporter is required")
 	}
 
 	if s.Logger == nil {
@@ -84,11 +100,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log        *slog.Logger
-	authorizer authz.Authorizer
-	backend    services.DiscoveryConfigs
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
+	log           *slog.Logger
+	authorizer    authz.Authorizer
+	backend       services.DiscoveryConfigs
+	clock         clockwork.Clock
+	emitter       apievents.Emitter
+	usageReporter func() usagereporter.UsageReporter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -98,11 +115,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:        cfg.Logger,
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		clock:      cfg.Clock,
-		emitter:    cfg.Emitter,
+		log:           cfg.Logger,
+		authorizer:    cfg.Authorizer,
+		backend:       cfg.Backend,
+		clock:         cfg.Clock,
+		emitter:       cfg.Emitter,
+		usageReporter: cfg.UsageReporter,
 	}, nil
 }
 
@@ -124,7 +142,11 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 
 	dcs := make([]*discoveryconfigv1.DiscoveryConfig, len(results))
 	for i, r := range results {
-		dcs[i] = conv.ToProto(r)
+		downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dcs[i] = conv.ToProto(downgraded)
 	}
 
 	return &discoveryconfigv1.ListDiscoveryConfigsResponse{
@@ -149,7 +171,12 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	return conv.ToProto(dc), nil
+	downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, dc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToProto(downgraded), nil
 }
 
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
@@ -191,6 +218,8 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	}); err != nil {
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
+
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
 
 	return conv.ToProto(resp), nil
 }
@@ -238,6 +267,8 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config update event.", "error", err)
 	}
 
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_UPDATE)
+
 	return conv.ToProto(resp), nil
 }
 
@@ -281,6 +312,8 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+
 	return conv.ToProto(resp), nil
 }
 
@@ -293,6 +326,14 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the DiscoveryConfig before deletion to capture metadata for the usage event.
+	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
+			"discovery_config_name", req.GetName(),
+			"error", err)
 	}
 
 	if err := s.backend.DeleteDiscoveryConfig(ctx, req.GetName()); err != nil {
@@ -311,6 +352,10 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.log.WarnContext(ctx, "Failed to emit discovery config delete event.", "error", err)
+	}
+
+	if dc != nil {
+		s.emitUsageEvent(dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -376,4 +421,122 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+}
+
+// emitUsageEvent emits a DiscoveryConfigEvent usage event.
+func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action prehogv1a.DiscoveryConfigAction) {
+	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
+
+	creationMethod := CreationMethodGuided
+	if _, ok := dc.GetMetadata().Labels[types.DiscoveryIACToolLabel]; ok {
+		creationMethod = CreationMethodIAC
+	}
+
+	s.usageReporter().AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
+		Action:              action,
+		DiscoveryConfigName: dc.GetName(),
+		ResourceTypes:       resourceTypes,
+		CloudProviders:      cloudProviders,
+		CreationMethod:      creationMethod,
+	})
+}
+
+// extractDiscoveryConfigMetadata extracts resource types and cloud providers
+// for DiscoveryConfigEvent fields.
+func extractDiscoveryConfigMetadata(dc *discoveryconfig.DiscoveryConfig) (resourceTypes, cloudProviders []string) {
+	cloudProviderSet := make(map[string]struct{})
+	resourceTypeSet := make(map[string]struct{})
+
+	addMatcher := func(cloud string, types []string) {
+		if len(types) == 0 {
+			return
+		}
+
+		c := strings.ToLower(cloud)
+
+		cloudProviderSet[c] = struct{}{}
+		for _, t := range types {
+			label := c + ":" + t
+			resourceTypeSet[label] = struct{}{}
+		}
+	}
+
+	for _, m := range dc.Spec.AWS {
+		addMatcher(types.CloudAWS, m.Types)
+	}
+	for _, m := range dc.Spec.Azure {
+		addMatcher(types.CloudAzure, m.Types)
+	}
+	for _, m := range dc.Spec.GCP {
+		addMatcher(types.CloudGCP, m.Types)
+	}
+	for _, m := range dc.Spec.Kube {
+		addMatcher(types.DiscoveredResourceKubernetes, m.Types)
+	}
+
+	return slices.Collect(maps.Keys(resourceTypeSet)), slices.Collect(maps.Keys(cloudProviderSet))
+}
+
+// MaybeDowngradeDiscoveryConfig tests the client version passed through the gRPC metadata,
+// and if necessary downgrades the Discovery Config resource for compatibility with the older client.
+// The following rules are applied:
+//   - if version is lower than 18.5.0, the AWS wildcard region is replaced with "aws-global" sentinel region
+//     this ensures the client can still discover other resources without erroring out.
+func MaybeDowngradeDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata, which means it's a client really old or a third-party client.
+		// For those, downgrading the resource will do more harm than good, so the resource is returned as is.
+		return dc, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	dc = maybeDowngradeDiscoveryConfigAWSWildcardRegion(dc, clientVersion)
+	return dc, nil
+}
+
+var minSupportedDiscoveryConfigAWSWildcardRegionVersion = semver.Version{Major: 18, Minor: 5, Patch: 0}
+
+// For Auth Server v20.0.0, the expected minimum supported client version is v19.0.0, which supports the AWS wildcard region.
+// This function should be deleted at that time.
+//
+// TODO(@marco): DELETE IN v20.0.0.
+func maybeDowngradeDiscoveryConfigAWSWildcardRegion(dc *discoveryconfig.DiscoveryConfig, clientVersion *semver.Version) *discoveryconfig.DiscoveryConfig {
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedDiscoveryConfigAWSWildcardRegionVersion.String()); supported || err != nil {
+		return dc
+	}
+
+	var changed bool
+
+	originalDiscoveryConfig := dc
+
+	dc = dc.Clone()
+	awsMatchers := dc.Spec.AWS
+	awsMatchersWithoutRegionWildcard := make([]types.AWSMatcher, 0, len(awsMatchers))
+	for _, awsMatcher := range awsMatchers {
+		if len(awsMatcher.Regions) == 1 && awsMatcher.Regions[0] == types.Wildcard {
+			awsMatcher.Regions = []string{aws.AWSGlobalRegion}
+			changed = true
+		}
+		awsMatchersWithoutRegionWildcard = append(awsMatchersWithoutRegionWildcard, awsMatcher)
+	}
+
+	if !changed {
+		return originalDiscoveryConfig
+	}
+
+	dc.Spec.AWS = awsMatchersWithoutRegionWildcard
+	reason := fmt.Sprintf(`Client version %q does not support discovering all regions. Either update the Discovery Service agent to at least %s or enumerate all the regions in %q discovery config.`,
+		clientVersion, minSupportedDiscoveryConfigAWSWildcardRegionVersion, dc.GetName())
+	if dc.Metadata.Labels == nil {
+		dc.Metadata.Labels = make(map[string]string, 1)
+	}
+	dc.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return dc
 }

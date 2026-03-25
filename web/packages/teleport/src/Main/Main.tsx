@@ -26,11 +26,17 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -38,6 +44,7 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
+import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
@@ -46,27 +53,24 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import { storageService } from 'teleport/services/storageService';
-import { TopBar, TopBarProps } from 'teleport/TopBar';
+import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
 import { MainContainer } from './MainContainer';
-import { OnboardDiscover } from './OnboardDiscover';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  topBarProps?: TopBarProps;
-  inviteCollaboratorsFeedback?: ReactNode;
+  CustomLogo?: () => React.ReactElement;
 }
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const history = useHistory();
+  const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -90,23 +94,14 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
-  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
-    !ctx.redirectUrl
-  );
-
   useEffect(() => {
     if (
-      matchPath(history.location.pathname, {
-        path: ctx.redirectUrl,
-        exact: true,
-      })
+      ctx.redirectUrl &&
+      matchPath({ path: ctx.redirectUrl, end: true }, location.pathname)
     ) {
-      // hide the onboarding popup if we're on the redirectUrl, just in case
-      setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
-  }, [ctx, history.location.pathname]);
+  }, [ctx, location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -120,25 +115,8 @@ export function Main(props: MainProps) {
     );
   }
 
-  function handleOnboard() {
-    updateOnboardDiscover();
-    history.push(cfg.routes.discover);
-  }
-
-  function handleOnClose() {
-    updateOnboardDiscover();
-    setShowOnboardDiscover(false);
-  }
-
-  function updateOnboardDiscover() {
-    const discover = storageService.getOnboardDiscover();
-    storageService.setOnboardDiscover({ ...discover, notified: true });
-  }
-
   // redirect to the default feature when hitting the root /web URL
-  if (
-    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
-  ) {
+  if (matchPath(cfg.routes.root, location.pathname)) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }
@@ -172,42 +150,30 @@ export function Main(props: MainProps) {
     })
   );
 
-  const onboard = storageService.getOnboardDiscover();
-  const requiresOnboarding =
-    onboard && !onboard.hasResource && !onboard.notified;
-  const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
-
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar
-        CustomLogo={
-          props.topBarProps?.showPoweredByLogo
-            ? props.topBarProps.CustomLogo
-            : null
-        }
-      />
+      <TopBar CustomLogo={props.CustomLogo} />
       <Wrapper>
         <MainContainer>
-          <Navigation />
-          <ContentWrapper>
-            <ContentMinWidth>
-              <BannerList
-                banners={banners}
-                customBanners={props.customBanners}
-                billingBanners={featureFlags.billing && props.billingBanners}
-                onBannerDismiss={dismissAlert}
-              />
-              <Suspense fallback={null}>
-                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
-              </Suspense>
-            </ContentMinWidth>
-          </ContentWrapper>
+          <Navigation showPoweredByLogo={!!props.CustomLogo} />
+          <InfoGuidePanelProvider>
+            <ContentWrapper>
+              <ContentMinWidth>
+                <BannerList
+                  banners={banners}
+                  customBanners={props.customBanners}
+                  billingBanners={featureFlags.billing && props.billingBanners}
+                  onBannerDismiss={dismissAlert}
+                />
+                <ToastNotifications />
+                <Suspense fallback={null}>
+                  <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
+                </Suspense>
+              </ContentMinWidth>
+            </ContentWrapper>
+          </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
-      {displayOnboardDiscover && (
-        <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
-      )}
-      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }
@@ -302,6 +268,8 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+  const { infoGuideConfig, panelWidth } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -312,10 +280,16 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
+          overflow-y: auto;
+          ${marginTransitionCss({
+            sidePanelOpened: infoGuideSidePanelOpened,
+            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
+          })}
         `}
       >
         {children}
       </div>
+      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };

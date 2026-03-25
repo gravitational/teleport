@@ -27,15 +27,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
 	"github.com/gravitational/teleport/lib/utils"
@@ -635,7 +634,15 @@ func (a *App) resolveIncident(ctx context.Context, reqID string, resolution Reso
 // it doesn't perform any sort of I/O operations so even things like Go channels must be avoided.
 // Indeed, this limitation is not that ultimate at least if you know what you're doing.
 func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *PluginData) (PluginData, bool)) (bool, error) {
-	backoff := backoff.NewDecorr(modifyPluginDataBackoffBase, modifyPluginDataBackoffMax, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(modifyPluginDataBackoffBase),
+		First:  modifyPluginDataBackoffBase,
+		Max:    modifyPluginDataBackoffMax,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	for {
 		oldData, err := a.getPluginData(ctx, reqID)
 		if err != nil && !trace.IsNotFound(err) {
@@ -656,8 +663,10 @@ func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *
 		if !trace.IsCompareFailed(err) {
 			return false, trace.Wrap(err)
 		}
-		if err := backoff.Do(ctx); err != nil {
-			return false, trace.Wrap(err)
+		select {
+		case <-ctx.Done():
+			return false, trace.Wrap(ctx.Err())
+		case <-retry.After():
 		}
 	}
 }

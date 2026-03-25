@@ -30,8 +30,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/gravitational/teleport/lib/backend"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -117,17 +117,17 @@ type Backend struct {
 }
 
 // New returns a new instance of Kubernetes Secret identity backend storage.
-func New() (*Backend, error) {
+func New(ctx context.Context) (*Backend, error) {
 	restClient, _, err := kubeutils.GetKubeClient("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewWithClient(restClient)
+	return NewWithClient(ctx, restClient)
 }
 
 // NewWithClient returns a new instance of Kubernetes Secret identity backend storage with the provided client.
-func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
+func NewWithClient(ctx context.Context, restClient kubernetes.Interface) (*Backend, error) {
 	for _, env := range []string{teleportReplicaNameEnv, NamespaceEnv} {
 		if len(os.Getenv(env)) == 0 {
 			return nil, trace.BadParameter("environment variable %q not set or empty", env)
@@ -135,6 +135,7 @@ func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 	}
 
 	return NewWithConfig(
+		ctx,
 		Config{
 			Namespace: os.Getenv(NamespaceEnv),
 			SecretName: fmt.Sprintf(
@@ -152,19 +153,19 @@ func NewWithClient(restClient kubernetes.Interface) (*Backend, error) {
 // NewShared returns a new instance of the kuberentes shared secret store (equivalent to New() except that
 // this backend can be written to by any teleport agent within the helm release. used for propagating relevant state
 // to controllers).
-func NewShared() (*Backend, error) {
+func NewShared(ctx context.Context) (*Backend, error) {
 	restClient, _, err := kubeutils.GetKubeClient("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewSharedWithClient(restClient)
+	return NewSharedWithClient(ctx, restClient)
 }
 
 // NewSharedWithClient returns a new instance of the shared kubernetes secret store with the provided client (equivalent
 // to NewWithClient() except that this backend can be written to by any teleport agent within the helm release. used for propagating
 // relevant state to controllers).
-func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
+func NewSharedWithClient(ctx context.Context, restClient kubernetes.Interface) (*Backend, error) {
 	if os.Getenv(NamespaceEnv) == "" {
 		return nil, trace.BadParameter("environment variable %q not set or empty", NamespaceEnv)
 	}
@@ -172,10 +173,11 @@ func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
 	ident := os.Getenv(ReleaseNameEnv)
 	if ident == "" {
 		ident = "teleport"
-		slog.WarnContext(context.Background(), "Var RELEASE_NAME is not set, falling back to default identifier teleport for shared store.")
+		slog.WarnContext(ctx, "Var RELEASE_NAME is not set, falling back to default identifier teleport for shared store.")
 	}
 
 	return NewWithConfig(
+		ctx,
 		Config{
 			Namespace: os.Getenv(NamespaceEnv),
 			SecretName: fmt.Sprintf(
@@ -191,15 +193,23 @@ func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
 }
 
 // NewWithConfig returns a new instance of Kubernetes Secret identity backend storage with the provided config.
-func NewWithConfig(conf Config) (*Backend, error) {
+// Ensures that the secret exists.
+func NewWithConfig(ctx context.Context, conf Config) (*Backend, error) {
 	if err := conf.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &Backend{
+	b := &Backend{
 		Config: conf,
-		mu:     sync.Mutex{},
-	}, nil
+	}
+	if b.Exists(ctx) {
+		return b, nil
+	}
+	// NOTE: This will trigger an actual Create() since we don't have a resource version set.
+	// If we have an AlreadyExists error, discard it and move on as it can happen with rapid restarts/rollouts/agent name collisions.
+	if err := b.createSecret(ctx); err != nil && !kubeerrors.IsAlreadyExists(trace.Unwrap(err)) {
+		return nil, trace.Wrap(err)
+	}
+	return b, nil
 }
 
 func (b *Backend) GetName() string {
@@ -233,7 +243,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.updateSecretContent(ctx, i)
+	return b.updateSecretContent(ctx, true, i)
 }
 
 // Put puts value into backend (creates if it does not exist, updates it otherwise)
@@ -241,7 +251,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.updateSecretContent(ctx, i)
+	return b.updateSecretContent(ctx, false, i)
 }
 
 // getSecret reads the secret from K8S API.
@@ -277,51 +287,58 @@ func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend
 	}, nil
 }
 
-func (b *Backend) updateSecretContent(ctx context.Context, items ...backend.Item) (*backend.Lease, error) {
+func isConflict(err error) bool { return kubeerrors.IsConflict(trace.Unwrap(err)) }
+
+// updateSecretContent updates individual key in the secret data map.
+func (b *Backend) updateSecretContent(ctx context.Context, isCreate bool, item backend.Item) (*backend.Lease, error) {
 	// FIXME(tigrato):
 	// for now, the agent is the owner of the secret so it's safe to replace changes
 
-	secret, err := b.getSecret(ctx)
-	if trace.IsNotFound(err) {
-		secret = b.genSecretObject()
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if err := retry.OnError(retry.DefaultRetry, isConflict, func() error {
+		// NOTE: We create the secret in the constructor, so we know it exists at this point.
+		secret, err := b.getSecret(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	if secret.Data == nil {
-		secret.Data = map[string][]byte{}
-	}
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
 
-	updateDataMap(secret.Data, items...)
+		k := backendKeyToSecret(item.Key)
+		// If the isCreate flag is set, fail if the key already exists.
+		if _, exists := secret.Data[k]; isCreate && exists {
+			// NOTE: This will not trigger a retry.
+			return trace.AlreadyExists("key %q already exists in secret %s", item.Key, b.SecretName)
+		}
+		secret.Data[k] = item.Value
 
-	if err := b.upsertSecret(ctx, secret); err != nil {
+		if err := b.updateSecret(ctx, secret); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &backend.Lease{}, nil
 }
 
-func (b *Backend) upsertSecret(ctx context.Context, secret *corev1.Secret) error {
-	secretApply := applyconfigv1.Secret(b.SecretName, b.Namespace).
-		WithData(secret.Data).
-		WithLabels(secret.GetLabels()).
-		WithAnnotations(secret.GetAnnotations())
-
-	// apply resource lock if it's not a creation
-	if len(secret.ResourceVersion) > 0 {
-		secretApply = secretApply.WithResourceVersion(secret.ResourceVersion)
+// updateSecret updates the secret resource in Kubernetes.
+func (b *Backend) updateSecret(ctx context.Context, secret *corev1.Secret) error {
+	if secret.ResourceVersion == "" {
+		return trace.BadParameter("missing resource version")
 	}
-
-	_, err := b.KubeClient.
-		CoreV1().
-		Secrets(b.Namespace).
-		Apply(ctx, secretApply, metav1.ApplyOptions{FieldManager: b.FieldManager})
-
-	return trace.Wrap(err)
+	if _, err := b.KubeClient.CoreV1().Secrets(b.Namespace).Update(ctx, secret, metav1.UpdateOptions{FieldManager: b.FieldManager}); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
-func (b *Backend) genSecretObject() *corev1.Secret {
-	return &corev1.Secret{
+// createSecret creates the secret resource in Kubernetes.
+func (b *Backend) createSecret(ctx context.Context) error {
+	secret := &corev1.Secret{
 		Type: corev1.SecretTypeOpaque,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        b.SecretName,
@@ -330,6 +347,10 @@ func (b *Backend) genSecretObject() *corev1.Secret {
 		},
 		Data: map[string][]byte{},
 	}
+	if _, err := b.KubeClient.CoreV1().Secrets(b.Namespace).Create(ctx, secret, metav1.CreateOptions{FieldManager: b.FieldManager}); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]string {
@@ -354,10 +375,4 @@ func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]stri
 // "/" chars are not allowed in Kubernetes Secret keys.
 func backendKeyToSecret(k backend.Key) string {
 	return strings.ReplaceAll(k.String(), string(backend.Separator), ".")
-}
-
-func updateDataMap(data map[string][]byte, items ...backend.Item) {
-	for _, item := range items {
-		data[backendKeyToSecret(item.Key)] = item.Value
-	}
 }

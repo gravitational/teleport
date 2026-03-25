@@ -1,0 +1,6 @@
+type: application-proxy
+name: foo
+listen: tcp://0.0.0.0:3621
+credential_lifetime:
+  credential_ttl: 1m0s
+  renewal_interval: 30s

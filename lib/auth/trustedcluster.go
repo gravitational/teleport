@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,7 +35,6 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -159,7 +159,10 @@ func (a *Server) createTrustedCluster(ctx context.Context, tc types.TrustedClust
 	}
 
 	// Force name to the name of the trusted cluster.
-	tc.SetName(remoteCAs[0].GetClusterName())
+	if actualName := remoteCAs[0].GetClusterName(); actualName != tc.GetName() {
+		a.logger.WarnContext(ctx, "trusted cluster resource name did not match root cluster name. resource will be renamed. this will become an error in future versions, please update your configuration to match the root cluster name", "resource_name", tc.GetName(), "root_cluster_name", actualName)
+		tc.SetName(actualName)
+	}
 
 	// perform some configuration on the remote CAs
 	configureCAsForTrustedCluster(tc, remoteCAs)
@@ -302,7 +305,7 @@ func (a *Server) getCAsForTrustedCluster(ctx context.Context, tc types.TrustedCl
 // DeleteTrustedCluster removes types.CertAuthority, services.ReverseTunnel,
 // and services.TrustedCluster resources.
 func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -427,7 +430,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
 func (a *Server) DeleteRemoteCluster(ctx context.Context, name string) error {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -609,13 +612,19 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *au
 	}
 	if len(tokenLabels) != 0 {
 		meta := remoteCluster.GetMetadata()
-		meta.Labels = utils.CopyStringsMap(tokenLabels)
+		meta.Labels = maps.Clone(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
 	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
 	_, err = a.CreateRemoteClusterInternal(ctx, remoteCluster, []types.CertAuthority{remoteCA})
-	if err != nil && !trace.IsAlreadyExists(err) {
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			// note that we deliberately suppress the AlreadyExists error here as this situation
+			// requires admin intervention and the direct caller is prevented by the trusted cluster
+			// security model from taking any corrective action.
+			return nil, trace.Errorf("leaf cluster name %q conflicts with an existing cluster or ca registered with root cluster %q, if re-joining remove the existing "+types.KindRemoteCluster+" resource from the root, if attempting to update check that the name of your resource matches the root cluster name", remoteClusterName, domainName)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -675,7 +684,7 @@ func (a *Server) sendValidateRequestToProxy(ctx context.Context, host string, va
 		roundtrip.SanitizerEnabled(true),
 	}
 
-	if lib.IsInsecureDevMode() {
+	if a.insecureMode {
 		a.logger.WarnContext(ctx, "The setting insecureSkipVerify is used to communicate with proxy. Make sure you intend to run Teleport in insecure mode!")
 
 		// Get the default transport, this allows picking up proxy from the
@@ -733,7 +742,7 @@ func (a *Server) validateTrustedClusterName(ctx context.Context, trustedCluster 
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: trustedCluster.GetProxyAddress(),
-		Insecure:  lib.IsInsecureDevMode(),
+		Insecure:  a.insecureMode,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -755,5 +764,6 @@ func (a *Server) createReverseTunnel(ctx context.Context, t types.TrustedCluster
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.UpsertReverseTunnel(ctx, reverseTunnel))
+	_, err = a.UpsertReverseTunnel(ctx, reverseTunnel)
+	return trace.Wrap(err)
 }

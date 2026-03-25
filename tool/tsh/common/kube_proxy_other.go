@@ -1,5 +1,4 @@
 //go:build !darwin && !linux
-// +build !darwin,!linux
 
 /*
  * Teleport
@@ -28,6 +27,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func reexecToShell(_ context.Context, _ []byte) error {
+func reexecToShell(_ context.Context, _ []byte, _ string, _ []string) error {
 	return trace.NotImplemented("headless mode for local Kubernetes proxy is not implemented for %s", runtime.GOOS)
 }

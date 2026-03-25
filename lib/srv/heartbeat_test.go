@@ -71,6 +71,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 						Name:      "1",
 					},
 					Spec: types.AppServerSpecV3{
+						App:      &types.AppV3{},
 						Hostname: "2",
 					},
 				}
@@ -118,8 +119,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 			announcer := newFakeAnnouncer(ctx)
 
@@ -199,7 +199,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			require.Equal(t, HeartbeatStateKeepAlive, hb.state)
 			_, err = hb.announce()
 			require.Error(t, err)
-			require.IsType(t, announcer.err, err)
+			require.ErrorIs(t, err, announcer.err)
 			require.Equal(t, HeartbeatStateInit, hb.state)
 			require.Equal(t, 2, announcer.upsertCalls[hb.Mode])
 
@@ -244,8 +244,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			announcer := newFakeAnnouncer(ctx)

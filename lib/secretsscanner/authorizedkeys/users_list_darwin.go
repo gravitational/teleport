@@ -19,29 +19,54 @@
 package authorizedkeys
 
 /*
-#cgo CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
 #include <pwd.h>
 */
 import "C"
 
 import (
 	"os/user"
+	"runtime"
+	"strconv"
+
+	"github.com/gravitational/trace"
 )
 
-// getHostUsers returns a list of all users on the host
-// from local /etc/passwd file, LDAP, or other user databases.
-func getHostUsers() (results []user.User, _ error) {
+// getHostUsers returns the list of all users on the host from the user
+// directory (depending on system configuration this can be /etc/passwd,
+// LDAP...).
+func getHostUsers() ([]user.User, error) {
+	// on darwin the setpwent/getpwent/endpwent functions use thread-local
+	// storage so there's no need for a global lock but we must call the whole
+	// sequence from the same thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	C.setpwent()
-	var result *C.struct_passwd
+	defer C.endpwent()
+
+	var results []user.User
 	for {
-		result = C.getpwent() /* on darwin, getpwent() is reentrant */
-		if result == nil {
-			break
+		result, err := C.getpwent()
+		// cgo error convention, check the return value before errno
+		if result != nil {
+			results = append(results, passwdC2Go(result))
+			continue
 		}
-		results = append(results, passwdC2Go(result))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return results, nil
 	}
+}
 
-	C.endpwent()
-
-	return results, nil
+// passwdC2Go converts `passwd` struct from C to golang native struct
+func passwdC2Go(passwdC *C.struct_passwd) user.User {
+	name := C.GoString(passwdC.pw_name)
+	return user.User{
+		Name:     name,
+		Username: name,
+		Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
+		Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
+		HomeDir:  C.GoString(passwdC.pw_dir),
+	}
 }

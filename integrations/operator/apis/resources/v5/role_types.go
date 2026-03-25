@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,10 +38,10 @@ type TeleportRoleSpec types.RoleSpecV6
 // TeleportRole is the Schema for the roles API
 type TeleportRole struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportRoleSpec `json:"spec,omitempty"`
-	Status resources.Status `json:"status,omitempty"`
+	Spec   TeleportRoleSpec  `json:"spec"`
+	Status teleportcr.Status `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportRole struct {
 // TeleportRoleList contains a list of TeleportRole
 type TeleportRoleList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportRole `json:"items"`
 }
 
@@ -60,7 +60,7 @@ func (r TeleportRole) ToTeleport() types.Role {
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,
-			Description: r.Annotations[resources.DescriptionKey],
+			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.RoleSpecV6(r.Spec),
 	}

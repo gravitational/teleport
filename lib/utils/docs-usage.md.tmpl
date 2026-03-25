@@ -1,0 +1,97 @@
+{{define "FormatCommand" -}}
+{{if .Flags|AnyVisibleFlags}}{{if .FlagSummary }} {{.FlagSummary}}{{end}}{{end -}}
+    {{range .Args}}{{if not .Hidden}} {{ .|FormatUsageArg}}{{end}}{{end -}}
+{{end -}}
+
+{{ define "FormatCommands" -}}
+{{$appName := .Name -}}
+{{range .FlattenedCommands|SortCommandsByName -}}
+{{if not .Hidden -}}
+## {{$appName}} {{.FullCommand}}
+
+{{.Help|Wrap 0 }}
+Usage:
+
+```code
+$ {{$appName}} {{.FullCommand}}{{template "FormatCommand" .}}
+```
+
+{{if AnyEnvVarsForCmd .Args .Flags -}}
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+{{- EnvVarsToRows .Args .Flags|FormatThreeColMarkdownTable}}
+
+{{end -}}
+
+{{ if .Flags|AnyVisibleFlags -}}
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+{{- (ReplaceFlagDefaults (printf "%v %v" $appName .FullCommand) .Flags)|FlagsToRows|FormatThreeColMarkdownTable }}
+
+{{end -}}
+{{ if .Args -}}
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+{{- (ReplaceArgDefaults (printf "%v %v" $appName .FullCommand) .Args)|ArgsToRows|FormatThreeColMarkdownTable }}
+
+{{end -}}
+{{end -}}
+{{end -}}
+{{end -}}
+
+{{define "FormatUsage" -}}
+```code
+$ {{.Name}}{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
+```
+
+{{end -}}
+---
+title: {{.App.Name}} Reference
+description: Provides a comprehensive list of commands, arguments, and flags for {{.App.Name}}.
+sidebar_label: {{.App.Name}}
+tags:
+  - reference
+  - {{if eq .App.Name "tbot"}}mwi{{else}}platform-wide{{end}}
+---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-{{.App.Name}}*/}
+{/*vale messaging = NO*/}
+
+This guide provides a comprehensive list of commands, arguments, and flags for
+{{.App.Name}}.
+
+{{ .App.Help|Wrap 0 }}
+{{template "FormatUsage" .App -}}
+{{if .Context.Flags|AnyVisibleFlags -}}
+Global flags:
+
+|Flag|Default|Description|
+|---|---|---|
+{{- (ReplaceFlagDefaults .App.Name .Context.Flags)|FlagsToRows|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if AnyEnvVarsForCmd .Context.Args .Context.Flags -}}
+Global environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+{{- EnvVarsToRows .Context.Args .Context.Flags|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if .Context.Args -}}
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+{{- (ReplaceArgDefaults .App.Name .Context.Args)|ArgsToRows|FormatThreeColMarkdownTable}}
+
+{{end -}}
+{{if .App.Commands -}}
+{{template "FormatCommands" .App -}}
+{{end -}}

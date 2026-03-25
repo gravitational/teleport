@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
@@ -27,42 +27,63 @@ import { Touch as TouchComponent } from './Touch';
 
 const rootCluster = makeRootCluster();
 
-export default {
+interface StoryProps {
+  command: boolean;
+}
+
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/ModalsHost/HardwareKeys',
-} satisfies Meta;
+  argTypes: {
+    command: {
+      control: { type: 'boolean' },
+      description: 'Show a command when asked for pin or touch.',
+    },
+  },
+  args: {
+    command: true,
+  },
+};
 
-export function AskPinOptional() {
+export default meta;
+
+const longCommand =
+  'tsh ssh -X --forward-agent=yes --proxy=root.example.com --user=testuser';
+
+export function AskPinOptional(props: StoryProps) {
   return (
     <AskPinComponent
       onSuccess={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         pinOptional: true,
+        command: props.command ? longCommand : '',
       }}
     />
   );
 }
 
-export function AskPinRequired() {
+export function AskPinRequired(props: StoryProps) {
   return (
     <AskPinComponent
       onSuccess={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         pinOptional: false,
+        command: props.command ? longCommand : '',
       }}
     />
   );
 }
 
-export function Touch() {
+export function Touch(props: StoryProps) {
   return (
     <TouchComponent
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
+        command: props.command ? longCommand : '',
       }}
     />
   );
@@ -73,7 +94,9 @@ export function ChangePin() {
     <ChangePinComponent
       onSuccess={() => {}}
       onCancel={() => {}}
-      req={{ rootClusterUri: rootCluster.uri }}
+      req={{
+        proxyHostname: rootCluster.proxyHost,
+      }}
     />
   );
 }
@@ -84,7 +107,7 @@ export function OverwriteSlot() {
       onConfirm={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         message:
           "Would you like to overwrite this slot's private key and certificate?",
       }}

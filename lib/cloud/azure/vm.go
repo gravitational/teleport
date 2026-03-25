@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -39,7 +40,7 @@ const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMac
 type armCompute interface {
 	// Get retrieves information about an Azure virtual machine.
 	Get(ctx context.Context, resourceGroupName string, vmName string, options *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error)
-	// NewListPagers lists Azure virtual Machines.
+	// NewListPager lists Azure virtual Machines.
 	NewListPager(resourceGroup string, opts *armcompute.VirtualMachinesClientListOptions) *runtime.Pager[armcompute.VirtualMachinesClientListResponse]
 	// NewListAllPager lists Azure virtual machines in any resource group.
 	NewListAllPager(opts *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse]
@@ -78,7 +79,7 @@ type VirtualMachine struct {
 	Identities []Identity
 }
 
-// Identitiy represents an Azure virtual machine identity.
+// Identity represents an Azure virtual machine identity.
 type Identity struct {
 	// ResourceID the identity resource ID.
 	ResourceID string
@@ -287,10 +288,8 @@ type RunCommandRequest struct {
 	ResourceGroup string
 	// VMName is the name of the VM.
 	VMName string
-	// Script is the URI of the script for the virtual machine to execute.
+	// Script is the shell script to be executed in the virtual machine.
 	Script string
-	// Parameters is a list of parameters for the script.
-	Parameters []string
 }
 
 // RunCommandClient is a client for Azure Run Commands.
@@ -316,17 +315,13 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 
 // Run runs a command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
-	var params []*armcompute.RunCommandInputParameter
-	for _, value := range req.Parameters {
-		params = append(params, &armcompute.RunCommandInputParameter{
-			Value: to.Ptr(value),
-		})
-	}
-	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, "RunShellScript", armcompute.VirtualMachineRunCommand{
+	// TODO(Tener): make the run command name actual parameter.
+	const runCommandName = "teleport-install"
+
+	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			AsyncExecution: to.Ptr(false),
-			Parameters:     params,
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
@@ -335,6 +330,35 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = poller.PollUntilDone(ctx, nil /* options */)
-	return trace.Wrap(err)
+
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
+	resp, err := c.api.GetByVirtualMachine(ctx, req.ResourceGroup, req.VMName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+		Expand: to.Ptr("instanceView"),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if resp.Properties == nil || resp.Properties.InstanceView == nil {
+		return trace.BadParameter("unable to query command execution state, failure assumed")
+	}
+	iv := resp.Properties.InstanceView
+	execState := fromPtr(iv.ExecutionState)
+	if execState != armcompute.ExecutionStateSucceeded {
+		return trace.BadParameter("execution failed; exec state: %v, output: %v, stderr: %v, exit code: %v", execState, fromPtr(iv.Output), fromPtr(iv.Error), fromPtr(iv.ExitCode))
+	}
+	return nil
+}
+
+func fromPtr[T any](ptr *T) T {
+	var out T
+	if ptr != nil {
+		out = *ptr
+	}
+	return out
 }

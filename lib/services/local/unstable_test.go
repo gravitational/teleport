@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -35,8 +34,7 @@ func TestSystemRoleAssertions(t *testing.T) {
 	const serverID = "test-server"
 	const assertionID = "test-assertion"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -72,7 +70,7 @@ func TestSystemRoleAssertions(t *testing.T) {
 		assertions, err := unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 		require.NoError(t, err)
 
-		require.Equal(t, len(expect), len(assertions.SystemRoles))
+		require.Len(t, expect, len(assertions.SystemRoles))
 		require.Subset(t, expect, assertions.SystemRoles)
 	}
 }

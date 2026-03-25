@@ -1,0 +1,155 @@
+---
+title: Export Teleport Audit Events with Fluentd
+sidebar_label: Fluentd
+description: Forwarding audit event logs with Fluentd and Teleport Event Handler
+videoBanner: HAqxs4rBv2c
+tags:
+ - how-to
+ - zero-trust
+ - audit
+---
+
+Teleport's Event Handler plugin receives audit events from the Teleport Auth
+Service and forwards them to your log management solution, letting you perform
+historical analysis, detect unusual behavior, and form a better understanding of
+how users interact with your Teleport cluster.
+
+Fluentd is an open source data collector for a unified logging layer.
+
+This guide also serves as an explanation for the Teleport Event Handler plugin,
+using Fluentd as the target service.
+
+## How it works
+
+The Teleport Event Handler authenticates to the Teleport Auth Service to receive
+audit events over a gRPC stream, then sends those events to Fluentd as JSON
+payloads over a secure channel established via mutual TLS.
+
+In this demo, we'll create a local Docker container for Fluentd
+as a destination for the Event Handler:
+
+![The Teleport Fluentd plugin](../../../img/enterprise/plugins/fluentd-diagram.png)
+
+You can follow the instructions below for a local proof-of-concept demo, or use any
+of the additional installation instructions to configure the Teleport Event Handler
+to integrate with your infrastructure.
+
+## Prerequisites
+
+- Fluentd version v(=fluentd.version=) or greater. The Teleport Event Handler
+  will create a new `fluent.conf` file you can integrate into an existing Fluentd
+  system, or use with a fresh setup.
+- A server, virtual machine, Kubernetes cluster, or Docker environment to run the
+  Teleport Event Handler plugin.
+
+This guide requires you to have completed one of the Event Handler setup guides:
+
+- [Set up the Event Handler with tctl](event-handler-setup.mdx)
+- [Set up the Event Handler with the Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
+
+The instructions below demonstrate a local test of the Event Handler plugin on
+your workstation. You will need to adjust paths, ports, and domains for other
+environments.
+
+## Step 1/2. Start the Fluentd forwarder
+
+The Fluentd plugin will send events to your Fluentd instance using keys
+generated on the previous step.
+
+The `fluent.conf` file generated in the prerequisite setup guide configures
+your Fluentd instance to accept events using TLS and print them:
+
+```
+<source>
+    @type http
+    port 8888
+
+    <transport tls>
+        client_cert_auth true
+
+        # We are going to run fluentd in Docker. /keys will be mounted from the host file system.
+        ca_path /keys/ca.crt
+        cert_path /keys/server.crt
+        private_key_path /keys/server.key
+        private_key_passphrase ********** # Passphrase generated along with the keys
+    </transport>
+
+    <parse>
+      @type json
+      json_parser oj
+
+      # This time format is used by the plugin. This field is required.
+      time_type string
+      time_format %Y-%m-%dT%H:%M:%S
+    </parse>
+
+    # If the number of events is high, fluentd will start failing the ingestion
+    # with the following error message: buffer space has too many data errors.
+    # The following configuration prevents data loss in case of a restart and
+    # overcomes the limitations of the default fluentd buffer configuration.
+    # This configuration is optional.
+    # See https://docs.fluentd.org/configuration/buffer-section for more details.
+    <buffer>
+      @type file
+      flush_thread_count 8
+      flush_interval 1s
+      chunk_limit_size 10M
+      queue_limit_length 16
+      retry_max_interval 30
+      retry_forever true
+    </buffer>
+</source>
+
+# Events sent to test.log will be dumped to STDOUT.
+<match test.log>
+  @type stdout
+</match>
+```
+
+To try out this Fluentd configuration, start your Fluentd instance:
+
+```code
+$ docker run -u $(id -u ${USER}):$(id -g ${USER}) -p 8888:8888 -v $(pwd):/keys -v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
+```
+
+This will consume your current terminal, so open a new one to continue following along.
+
+## Step 2/2. Run the Event Handler plugin
+
+In this section, you will modify the Event Handler configuration you generated
+and run the Event Handler to test your configuration.
+
+### Configure the Event Handler
+
+Edit the configuration for the Event Handler, depending on your installation method.
+
+(!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
+
+Update the following fields.
+
+(!docs/pages/includes/plugins/finish-event-handler-fields.mdx!)
+
+### Start the Event Handler
+
+(!docs/pages/includes/plugins/start-event-handler.mdx!)
+
+## Troubleshooting connection issues
+
+If the Teleport Event Handler is displaying error logs while connecting to your
+Teleport Cluster, ensure that:
+
+- The certificate the Teleport Event Handler is using to connect to your
+  Teleport cluster is not past its expiration date. This is the value of the
+  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
+- In your Teleport Event Handler configuration file, you have provided
+  the correct host *and* port for the Teleport Proxy Service.
+- Start the Fluentd container prior to starting the Teleport Event Handler. The 
+  Event Handler will attempt to connect to Fluentd immediately upon startup.
+
+## Next steps
+
+- See instructions to configure dedicated integrations in the navigation sidebar
+under [Audit Event Export](./export-audit-events.mdx).
+- To see all of the options you can set in the values file for the
+`teleport-plugin-event-handler` Helm chart, consult our [reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).

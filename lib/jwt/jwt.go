@@ -20,6 +20,7 @@
 package jwt
 
 import (
+	"cmp"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -161,21 +162,9 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 		return nil, trace.BadParameter("can not sign token with non-signing key")
 	}
 
-	// Create a signer with configured private key and algorithm.
-	var signer interface{}
-	switch k.config.PrivateKey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer = k.config.PrivateKey
-	default:
-		signer = cryptosigner.Opaque(k.config.PrivateKey)
-	}
-	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	signingKey, err := SigningKeyFromPrivateKey(k.config.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	signingKey := jose.SigningKey{
-		Algorithm: algorithm,
-		Key:       signer,
 	}
 
 	if opts == nil {
@@ -189,7 +178,8 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	return sig, nil
 }
 
-func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+// AlgorithmForPublicKey returns a jose algorithm for the given public key.
+func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	switch pub.(type) {
 	case *rsa.PublicKey:
 		return jose.RS256, nil
@@ -201,6 +191,28 @@ func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	return "", trace.BadParameter("unsupported public key type %T", pub)
 }
 
+// SigningKeyFromPrivateKey creates a jose.SigningKey from the given signer,
+// wrapping it in an opaque signer if necessary.
+func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
+	// Create a signer with configured private key and algorithm.
+	var signer any
+	switch priv.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		signer = priv
+	default:
+		signer = cryptosigner.Opaque(priv)
+	}
+	algorithm, err := AlgorithmForPublicKey(priv.Public())
+	if err != nil {
+		return jose.SigningKey{}, trace.Wrap(err)
+	}
+
+	return jose.SigningKey{
+		Algorithm: algorithm,
+		Key:       signer,
+	}, nil
+}
+
 func (k *Key) Sign(p SignParams) (string, error) {
 	if err := p.Check(); err != nil {
 		return "", trace.Wrap(err)
@@ -210,8 +222,9 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.Username,
-			Issuer:    k.config.ClusterName,
+			Issuer:    cmp.Or(p.Issuer, k.config.ClusterName),
 			Audience:  jwt.Audience{p.URI},
+			ID:        uuid.NewString(),
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
 			Expiry:    jwt.NewNumericDate(p.Expires),
@@ -285,6 +298,9 @@ type SignParamsJWTSVID struct {
 	SetExpiry time.Time
 	// SetIssuedAt overrides the issued at time of the token.
 	SetIssuedAt time.Time
+
+	// PrivateClaims are any additional claims that should be added to the JWT.
+	PrivateClaims map[string]any
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -292,35 +308,46 @@ type SignParamsJWTSVID struct {
 func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// Record time here for consistency between exp and iat.
 	now := k.config.Clock.Now()
-	claims := jwt.Claims{
+
+	// We use map[string]any instead of jwt.Claims to avoid a json.Marshal/Unmarshal
+	// round-trip that would convert jwt.NumericDate (int64) to float64, causing
+	// timestamp claims to be serialized in scientific notation (e.g., "exp": 1.7e9).
+	// Using map[string]any preserves the jwt.NumericDate type until final marshaling.
+	claims := map[string]any{
 		// > 3.1. Subject:
 		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
-		Subject: p.SPIFFEID.String(),
+		"sub": p.SPIFFEID.String(),
+
 		// > 3.2. Audience:
 		// > The aud claim MUST be present, containing one or more values.
-		Audience: p.Audiences,
+		"aud": jwt.Audience(p.Audiences),
+
 		// > 3.3. Expiration Time:
 		// > The exp claim MUST be set
-		Expiry: jwt.NewNumericDate(now.Add(p.TTL)),
+		"exp": jwt.NewNumericDate(now.Add(p.TTL)),
+
 		// The spec makes no comment on inclusion of `iat`, but the SPIRE
 		// implementation does set this value and it feels like a good idea.
-		IssuedAt: jwt.NewNumericDate(now),
+		"iat": jwt.NewNumericDate(now),
+
 		// > 7.1. Replay Protection
 		// > the jti claim is permitted by this specification, it should be
 		// > noted that JWT-SVID validators are not required to track jti
 		// > uniqueness.
-		ID: p.JTI,
+		"jti": p.JTI,
+
 		// The SPIFFE specification makes no comment on the inclusion of `iss`,
 		// however, we provide this value so that the issued token can be a
 		// valid OIDC ID token and used with non-SPIFFE aware systems that do
 		// understand OIDC.
-		Issuer: p.Issuer,
+		"iss": p.Issuer,
 	}
+
 	if !p.SetIssuedAt.IsZero() {
-		claims.IssuedAt = jwt.NewNumericDate(p.SetIssuedAt)
+		claims["iat"] = jwt.NewNumericDate(p.SetIssuedAt)
 	}
 	if !p.SetExpiry.IsZero() {
-		claims.Expiry = jwt.NewNumericDate(p.SetExpiry)
+		claims["exp"] = jwt.NewNumericDate(p.SetExpiry)
 	}
 
 	// > 2.2. Key ID:
@@ -342,6 +369,20 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	//
 	// We will omit the inclusion of the type header until we can validate the
 	// ramifications of including it.
+
+	// > 3. JWT Claims:
+	//
+	// > Registered claims not described in this document, in addition to
+	// > private claims, MAY be used as implementers see fit.
+	if len(p.PrivateClaims) != 0 {
+		// Only inject claims that don't conflict with an existing primary claim
+		// such as sub or aud.
+		for k, v := range p.PrivateClaims {
+			if _, ok := claims[k]; !ok {
+				claims[k] = v
+			}
+		}
+	}
 
 	return k.sign(claims, opts)
 }
@@ -440,6 +481,9 @@ type VerifyParams struct {
 
 	// Audience is the Audience for the token
 	Audience string
+
+	// Issuer is the Issuer for the token
+	Issuer string
 }
 
 // Check verifies all the values are valid.
@@ -528,7 +572,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   k.config.ClusterName,
+		Issuer:   cmp.Or(p.Issuer, k.config.ClusterName),
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
@@ -715,4 +759,44 @@ func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONW
 		return nil, trace.Wrap(err)
 	}
 	return signature, nil
+}
+
+// PluginTokenParam defines the parameters needed to sign a JWT token for a Teleport plugin.
+type PluginTokenParam struct {
+	// Audience is the Audience for the Token.
+	Audience []string
+	// Issuer is the issuer of the token.
+	Issuer string
+	// Subject is the system that is going to use the token.
+	Subject string
+	// Expires is the time to live for the token.
+	Expires time.Time
+}
+
+// SignPluginToken signs a JWT token for a Teleport plugin.
+func (k *Key) SignPluginToken(p PluginTokenParam) (string, error) {
+	claims := jwt.Claims{
+		Subject:   p.Subject,
+		Issuer:    p.Issuer,
+		Audience:  p.Audience,
+		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		Expiry:    jwt.NewNumericDate(p.Expires),
+	}
+
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
+}
+
+// VerifyPluginToken verifies a JWT token for a Teleport plugin.
+func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims, error) {
+	expectedClaims := jwt.Expected{
+		Issuer:   claims.Issuer,
+		Subject:  claims.Subject,
+		Audience: claims.Audience,
+		Time:     k.config.Clock.Now(),
+	}
+	return k.verify(token, expectedClaims)
 }

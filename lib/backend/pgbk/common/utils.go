@@ -66,7 +66,7 @@ func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn
 func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log *slog.Logger) {
 	pgConn, err := ConnectPostgres(ctx, poolConfig)
 	if err != nil {
-		log.WarnContext(ctx, "Failed to connect to the \"postgres\" database.", "error", err)
+		log.DebugContext(ctx, "Failed to connect to the \"postgres\" database.", "error", trace.Unwrap(err))
 		return
 	}
 

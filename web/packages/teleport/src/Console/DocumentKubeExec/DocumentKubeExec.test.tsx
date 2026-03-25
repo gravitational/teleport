@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 /**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -16,10 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { screen } from '@testing-library/react';
-
-import '@testing-library/jest-dom';
 import 'jest-canvas-mock';
-
 import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
@@ -98,6 +96,7 @@ describe('DocumentKubeExec', () => {
     setup('waiting-for-exec-data');
 
     expect(screen.getByText('Exec into a pod')).toBeInTheDocument();
+    expect(screen.getByLabelText('Namespace')).toHaveFocus();
   });
 
   test('does not render data dialog when status is initialized', () => {

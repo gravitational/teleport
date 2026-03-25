@@ -26,7 +26,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -265,10 +267,14 @@ func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.R
 	// Connection is hop-by-hop header, drop.
 	reqCopy.Header.Del("Connection")
 
-	// force HTTPS, set host URL.
-	reqCopy.URL.Scheme = "https"
-	reqCopy.URL.Host = e.sessionCtx.Database.GetURI()
-	reqCopy.Host = e.sessionCtx.Database.GetURI()
+	// rewrite request URL
+	u, err := parseURI(e.sessionCtx.Database.GetURI())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	reqCopy.URL.Scheme = u.Scheme
+	reqCopy.URL.Host = u.Host
+	reqCopy.Host = u.Host
 
 	return reqCopy, payload, nil
 }
@@ -376,4 +382,17 @@ func (e *Engine) checkAccess(ctx context.Context) error {
 		dbRoleMatchers...,
 	)
 	return trace.Wrap(err)
+}
+
+func parseURI(uri string) (*url.URL, error) {
+	if !strings.Contains(uri, "://") {
+		uri = "https://" + uri
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// force HTTPS
+	u.Scheme = "https"
+	return u, nil
 }

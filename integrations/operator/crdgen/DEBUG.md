@@ -11,6 +11,7 @@ helpful if you want to attach a debugger.
 proto file:
 
 ```shell
+# in operator/
 $ make debug-dump-request
 
 for proto in teleport/loginrule/v1/loginrule.proto teleport/legacy/types/types.proto; do \

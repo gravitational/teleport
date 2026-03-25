@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
@@ -50,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -60,17 +60,18 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -304,6 +305,8 @@ type TeleInstance struct {
 
 	// Log specifies the instance logger
 	Log *slog.Logger
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
 	// ProcessProvider creates a Teleport process (OSS or Enterprise)
@@ -333,8 +336,9 @@ type InstanceConfig struct {
 	Logger *slog.Logger
 	// Ports is a collection of instance ports.
 	Listeners *InstanceListeners
-
-	Fds []*servicecfg.FileDescriptor
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
+	Fds     []*servicecfg.FileDescriptor
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -353,7 +357,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = slog.New(logutils.DiscardHandler{})
+		cfg.Logger = slog.New(slog.DiscardHandler)
+	}
+
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	// generate instance secrets (keys):
@@ -369,8 +377,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(context.TODO())
-	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	authority, err := testauthority.NewKeygen(cfg.Modules.BuildType(), clock.Now)
+	fatalIf(err)
+
+	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
@@ -383,11 +394,6 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	clock := cfg.Clock
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(types.RoleAdmin)},
@@ -395,15 +401,23 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
+
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
+
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -412,11 +426,17 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
@@ -457,18 +477,18 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 // GetSiteAPI is a helper which returns an API endpoint to a site with
 // a given name. i endpoint implements HTTP-over-SSH access to the
 // site's auth server.
-func (i *TeleInstance) GetSiteAPI(siteName string) authclient.ClientI {
-	siteTunnel, err := i.Tunnel.GetSite(siteName)
+func (i *TeleInstance) GetSiteAPI(clusterName string) authclient.ClientI {
+	cluster, err := i.Tunnel.Cluster(context.Background(), clusterName)
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "siter", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site", "error", err, "cluster", clusterName)
 		return nil
 	}
-	siteAPI, err := siteTunnel.GetClient()
+	clusterClient, err := cluster.GetClient()
 	if err != nil {
-		i.Log.WarnContext(context.Background(), "failed to get site client", "error", err, "site", siteName)
+		i.Log.WarnContext(context.Background(), "failed to get site client", "error", err, "cluster", clusterName)
 		return nil
 	}
-	return siteAPI
+	return clusterClient
 }
 
 // Create creates a new instance of Teleport which trusts a list of other clusters (other
@@ -555,7 +575,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.ReverseTunnels = []types.ReverseTunnel{rt}
 		}
 	}
-	tconf.HostUUID = i.Secrets.GetIdentity().ID.HostUUID
 	tconf.SSH.Addr.Addr = i.SSH
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
@@ -622,8 +641,13 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
-	tconf.Keygen = testauthority.New()
-	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	clock := cmp.Or(tconf.Clock, clockwork.NewRealClock())
+	keygen, err := testauthority.NewKeygen(tconf.Modules.BuildType(), clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tconf.Keygen = keygen
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 
@@ -661,7 +685,7 @@ func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(t *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
 	i.Process, err = i.createTeleportProcess(tconf)
@@ -678,7 +702,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)
@@ -878,6 +902,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.DebugService.Enabled = false
+			cfg.InsecureMode = true
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -909,7 +934,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for j := 0; j < len(configs); j++ {
+	for range configs {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)
@@ -927,10 +952,10 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 }
 
 // StartDatabase starts the database access service with the provided config.
-func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *authclient.Client, error) {
+func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *authclient.Client, string, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
@@ -952,7 +977,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	// compose this "cluster".
 	process, err := service.NewTeleport(conf)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
 
@@ -967,22 +992,24 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 
 	// Retrieve auth server connector.
 	var client *authclient.Client
+	var hostUUID string
 	for _, event := range receivedEvents {
 		if event.Name == service.DatabasesIdentityEvent {
 			conn, ok := (event.Payload).(*service.Connector)
 			if !ok {
-				return nil, nil, trace.BadParameter("unsupported event payload type %q", event.Payload)
+				return nil, nil, "", trace.BadParameter("unsupported event payload type %q", event.Payload)
 			}
 			client = conn.Client
+			hostUUID = conn.HostUUID()
 		}
 	}
 	if client == nil {
-		return nil, nil, trace.BadParameter("failed to retrieve auth client")
+		return nil, nil, "", trace.BadParameter("failed to retrieve auth client")
 	}
 
 	i.Log.DebugContext(context.Background(), "Teleport Database Server started",
@@ -991,7 +1018,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 		"received_events_count", len(receivedEvents),
 	)
 
-	return process, client, nil
+	return process, client, hostUUID, nil
 }
 
 func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterName string) (*service.TeleportProcess, error) {
@@ -1061,7 +1088,6 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
-	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
@@ -1070,6 +1096,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 
 	tconf.Auth.Enabled = false
+	tconf.InsecureMode = true
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
@@ -1160,7 +1187,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
-	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
 	tconf.SetToken("token")
 
@@ -1327,7 +1353,12 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
-
+	if i.Config.WindowsDesktop.Enabled {
+		expectedEvents = append(expectedEvents, service.WindowsDesktopReady)
+	}
+	if i.Config.Relay.Enabled {
+		expectedEvents = append(expectedEvents, service.RelayReady)
+	}
 	if i.Config.Discovery.Enabled {
 		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}
@@ -1362,6 +1393,18 @@ func (i *TeleInstance) Start() error {
 		"expected_events_count", len(expectedEvents),
 		"received_events_count", len(receivedEvents),
 	)
+
+	// Wait for any SSH instances to be visible in the inventory before returning
+	// to prevent any immediate connection attempts from failing because the host
+	// has not yet been propagated to the caches.
+	expectedNodes := len(i.Nodes)
+	if i.Config.SSH.Enabled {
+		expectedNodes++
+	}
+
+	if err := i.WaitForNodeCount(context.Background(), i.Secrets.SiteName, expectedNodes); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -1467,7 +1510,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
 		InsecureSkipVerify:            true,
-		KeysDir:                       keyDir,
+		ClientStore:                   client.NewFSClientStore(keyDir),
 		SiteName:                      cfg.Cluster,
 		ForwardAgent:                  fwdAgentMode,
 		Labels:                        cfg.Labels,
@@ -1478,12 +1521,13 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
 		Tracer:                        tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences:         cfg.EnableEscapeSequences,
+		DisableEscapeSequences:        !cfg.EnableEscapeSequences,
 		Stderr:                        cfg.Stderr,
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
 		DisableSSHResumption:          cfg.DisableSSHResumption,
+		AddKeysToAgent:                client.AddKeysToAgentNo,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1685,6 +1729,111 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
+func (w *WebClient) SFTP(path string, upload []byte) ([]byte, error) {
+	u := &url.URL{
+		Host:   w.i.Web,
+		Scheme: client.HTTPS,
+		Path: fmt.Sprintf(
+			"/v1/webapi/sites/%s/nodes/%s/%s/scp",
+			w.i.Config.Auth.ClusterName.GetClusterName(),
+			w.tc.Host,
+			w.tc.HostLogin,
+		),
+	}
+
+	q := u.Query()
+	q.Set("location", path)
+	q.Set("filename", "foo.txt")
+	u.RawQuery = q.Encode()
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+	header.Set("Authorization", "Bearer "+w.token)
+
+	ctx := w.i.Process.GracefulExitContext()
+	method := http.MethodGet
+	if upload != nil {
+		method = http.MethodPost
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(upload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header = header
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	clt := &http.Client{Transport: transport}
+	resp, err := clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return body, trace.ReadError(resp.StatusCode, body)
+}
+
+func (w *WebClient) JoinKubernetesSession(id string, mode types.SessionParticipantMode) (*terminal.Stream, error) {
+	u := url.URL{
+		Host:   w.i.Web,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/kube/exec/ws", w.tc.SiteName),
+	}
+
+	params := struct {
+		// Term is the initial PTY size.
+		Term session.TerminalParams `json:"term"`
+		// SessionID is a Teleport session ID to join as.
+		SessionID session.ID `json:"sid"`
+		// ParticipantMode is the mode that determines what you can do when you join an active session.
+		ParticipantMode types.SessionParticipantMode `json:"mode"`
+	}{
+		SessionID:       session.ID(id),
+		ParticipantMode: mode,
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, w.token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
+}
+
 // AddClientCredentials adds authenticated credentials to a client.
 // (server CAs and signed session key).
 func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
@@ -1830,20 +1979,24 @@ func (i *TeleInstance) StopAll() error {
 // WaitForNodeCount waits for a certain number of nodes in the provided cluster
 // to be visible to the Proxy. This should be called prior to any client dialing
 // of nodes to be sure that the node is registered and routable.
-func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, count int) error {
+func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
 		iterWaitTime = time.Second
 	)
 
+	if count <= 0 || i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled {
+		return nil
+	}
+
 	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		site, err := i.Tunnel.GetSite(cluster)
+		cluster, err := i.Tunnel.Cluster(ctx, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Validate that the site cache contains the expected count.
-		accessPoint, err := site.CachingAccessPoint()
+		accessPoint, err := cluster.CachingAccessPoint()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1857,7 +2010,7 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, cluster string, cou
 		}
 
 		// Validate that the site watcher contains the expected count.
-		watcher, err := site.NodeWatcher()
+		watcher, err := cluster.NodeWatcher()
 		if err != nil {
 			return trace.Wrap(err)
 		}

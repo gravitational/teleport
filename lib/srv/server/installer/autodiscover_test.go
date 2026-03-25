@@ -21,6 +21,7 @@ package installer
 import (
 	"context"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -99,6 +100,55 @@ func (m *mockGCPInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.In
 	return nil, trace.NotImplemented("not implemented")
 }
 
+func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
+	mockIMDSProviders := []func(ctx context.Context) (imds.Client, error){
+		func(ctx context.Context) (imds.Client, error) { return nil, nil },
+	}
+	for _, tt := range []struct {
+		name     string
+		initial  *AutoDiscoverNodeInstallerConfig
+		expected *AutoDiscoverNodeInstallerConfig
+	}{
+		{
+			name: "teleport binary location uses /opt/teleport if suffix is used",
+			initial: &AutoDiscoverNodeInstallerConfig{
+				InstallationManagedByTeleportUpdateWithSuffix: "example-suffix",
+				ProxyPublicAddr:   "proxy.example.com",
+				RepositoryChannel: "stable/rolling",
+				TeleportPackage:   "teleport",
+				imdsProviders:     mockIMDSProviders,
+			},
+			expected: &AutoDiscoverNodeInstallerConfig{
+				InstallationManagedByTeleportUpdateWithSuffix: "example-suffix",
+				ProxyPublicAddr:        "proxy.example.com",
+				RepositoryChannel:      "stable/rolling",
+				TeleportPackage:        "teleport",
+				Logger:                 slog.Default(),
+				autoUpgradesChannelURL: "https://proxy.example.com/v1/webapi/automaticupgrades/channel/default",
+				fsRootPrefix:           "/",
+				imdsProviders:          mockIMDSProviders,
+				binariesLocation: packagemanager.BinariesLocation{
+					Teleport:         "/opt/teleport/example-suffix/bin/teleport",
+					Systemctl:        "systemctl",
+					AptGet:           "apt-get",
+					AptKey:           "apt-key",
+					Rpm:              "rpm",
+					Yum:              "yum",
+					YumConfigManager: "yum-config-manager",
+					Zypper:           "zypper",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := tt.initial
+			err := conf.checkAndSetDefaults()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, conf)
+		})
+	}
+}
+
 func TestAutoDiscoverNode(t *testing.T) {
 	ctx := context.Background()
 
@@ -171,6 +221,22 @@ func TestAutoDiscoverNode(t *testing.T) {
 			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
 			require.Error(t, err)
 		})
+		t.Run("binary and config paths are non-default when using a suffix", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      false,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport-ent-fips",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+				InstallationManagedByTeleportUpdateWithSuffix: "example-suffix",
+			}
+
+			ani, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.NoError(t, err)
+
+			require.Equal(t, "/opt/teleport/example-suffix/bin/teleport", ani.binariesLocation.Teleport)
+		})
 	})
 
 	t.Run("well known distros", func(t *testing.T) {
@@ -236,6 +302,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 					mockBins["teleport"].Expect("node",
 						"configure",
 						"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+						"--data-dir="+testTempDir+"/var/lib/teleport",
 						"--proxy=proxy.example.com",
 						"--join-method=azure",
 						"--token=my-token",
@@ -260,6 +327,77 @@ func TestAutoDiscoverNode(t *testing.T) {
 				})
 			}
 		}
+	})
+
+	t.Run("using a teleport-update managed installation with suffix", func(t *testing.T) {
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
+
+		proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// We only expect calls to the automatic upgrade default channel's version endpoint.
+			w.WriteHeader(http.StatusNotImplemented)
+			w.Write([]byte("not available\n"))
+		}))
+		t.Cleanup(func() {
+			proxyServer.Close()
+		})
+		proxyPublicAddr := proxyServer.Listener.Addr().String()
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      true,
+			ProxyPublicAddr:   proxyPublicAddr,
+			TeleportPackage:   "teleport-ent",
+			TokenName:         "my-token",
+			AzureClientID:     "azure-client-id",
+			InstallationManagedByTeleportUpdateWithSuffix: "example-suffix",
+
+			fsRootPrefix:           testTempDir,
+			imdsProviders:          mockIMDSProviders,
+			binariesLocation:       binariesLocation,
+			aptPublicKeyEndpoint:   mockRepoKeys.URL,
+			autoUpgradesChannelURL: proxyServer.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// One of the first things the install command does is to check if teleport is already installed.
+		// If so, it stops the installation with success.
+		// Given that we are mocking the binary, it means it already exists and as such, the installation will stop.
+		// To prevent that, we must rename the file, call `<pakageManager> install teleport` and rename it back.
+		//teleportInitialPath := mockBins["teleport"].Path
+		//teleportHiddenPath := teleportInitialPath + "-hidden"
+		//require.NoError(t, os.Rename(teleportInitialPath, teleportHiddenPath))
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport_example-suffix.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport_example-suffix",
+			"--proxy="+proxyPublicAddr,
+			"--join-method=azure",
+			"--token=my-token",
+			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--azure-client-id=azure-client-id",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport_example-suffix.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		mockBins["systemctl"].Expect("enable", "teleport_example-suffix")
+		mockBins["systemctl"].Expect("restart", "teleport_example-suffix")
+
+		require.NoError(t, teleportInstaller.Install(ctx))
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+		require.FileExists(t, testTempDir+"/etc/teleport_example-suffix.yaml")
+		require.FileExists(t, testTempDir+"/etc/teleport_example-suffix.yaml.discover")
 	})
 
 	t.Run("with automatic upgrades", func(t *testing.T) {
@@ -314,6 +452,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy="+proxyPublicAddr,
 			"--join-method=azure",
 			"--token=my-token",
@@ -395,6 +534,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy=proxy.example.com",
 			"--join-method=gcp",
 			"--token=my-token",
@@ -499,6 +639,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
@@ -563,6 +704,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
@@ -625,6 +767,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
@@ -687,6 +830,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 		mockBins["teleport"].Expect("node",
 			"configure",
 			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--data-dir="+testTempDir+"/var/lib/teleport",
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
@@ -715,6 +859,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			mockBins["teleport"].Expect("node",
 				"configure",
 				"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+				"--data-dir="+testTempDir+"/var/lib/teleport",
 				"--proxy=proxy.example.com",
 				"--join-method=azure",
 				"--token=my-token",

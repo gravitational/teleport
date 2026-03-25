@@ -31,18 +31,15 @@ export type BotOptionsCellProps = {
 };
 
 export type BotListProps = {
-  attempt: Attempt;
   bots: FlatBot[];
   disabledEdit: boolean;
   disabledDelete: boolean;
-  fetchRoles: (input: string) => Promise<string[]>;
   onClose: () => void;
   onDelete: () => void;
-  onEdit: () => void;
+  onEdit: (updatedBot: FlatBot) => void;
+  onSelect: (item: FlatBot) => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
-  selectedRoles: string[];
-  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
 };
 
 export type DeleteBotProps = {
@@ -58,7 +55,8 @@ export type ViewBotProps = {
 };
 
 export enum BotFlowType {
-  GitHubActions = 'github-actions',
+  GitHubActionsSsh = 'github-actions-ssh',
+  GitHubActionsK8s = 'github-actions-k8s',
 }
 
 export type EditBotProps = {

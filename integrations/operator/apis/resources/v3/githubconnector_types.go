@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,10 +38,10 @@ type TeleportGithubConnectorSpec types.GithubConnectorSpecV3
 // TeleportGithubConnector is the Schema for the GithubConnector API
 type TeleportGithubConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportGithubConnectorSpec `json:"spec,omitempty"`
-	Status resources.Status            `json:"status,omitempty"`
+	Spec   TeleportGithubConnectorSpec `json:"spec"`
+	Status teleportcr.Status           `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportGithubConnector struct {
 // TeleportGithubConnectorList contains a list of TeleportGithubConnector
 type TeleportGithubConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportGithubConnector `json:"items"`
 }
 
@@ -60,7 +60,7 @@ func (c TeleportGithubConnector) ToTeleport() types.GithubConnector {
 		Metadata: types.Metadata{
 			Name:        c.Name,
 			Labels:      c.Labels,
-			Description: c.Annotations[resources.DescriptionKey],
+			Description: c.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.GithubConnectorSpecV3(c.Spec),
 	}

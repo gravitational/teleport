@@ -152,14 +152,7 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
       data-testid="tb-notifications"
       className={IGNORE_CLICK_CLASSNAME}
     >
-      <HoverTooltip
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-        tipContent="Notifications"
-        css={`
-          height: 100%;
-        `}
-      >
+      <HoverTooltip placement="bottom" tipContent="Notifications">
         <ButtonIconContainer
           onClick={onIconClick}
           onKeyUp={e => (e.key === 'Enter' || e.key === ' ') && onIconClick()}
@@ -311,10 +304,10 @@ const NotificationsDropdown = styled(Dropdown)`
   height: 80vh;
 
   right: -40px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     right: -52px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     right: -140px;
   }
 `;

@@ -62,6 +62,11 @@ describe('processRedirectURI', () => {
         expected: '/web',
       },
       {
+        name: 'URL with empty path with query params',
+        input: 'https://example.com/?foo=bar',
+        expected: '/web?foo=bar',
+      },
+      {
         name: 'relative path',
         input: '/custom/path',
         expected: '/web/custom/path',
@@ -70,6 +75,44 @@ describe('processRedirectURI', () => {
         name: 'path already starting with /web',
         input: '/web/existing/path',
         expected: '/web/existing/path',
+      },
+      {
+        name: 'saml idp service provider initiated SSO URL',
+        input:
+          'https://example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+        expected: '/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+      },
+      {
+        name: 'malformed URL',
+        input:
+          'https://example.//attacker.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+        expected:
+          '/web//attacker.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request',
+      },
+      {
+        name: 'saml idp identity provider initiated SSO URL',
+        input: 'https://example.com/enterprise/saml-idp/login/example-app',
+        expected: '/enterprise/saml-idp/login/example-app',
+      },
+      {
+        name: 'query params with base path',
+        input: '/web/foo?bar=quux',
+        expected: '/web/foo?bar=quux',
+      },
+      {
+        name: 'query params without base path',
+        input: '/foo?bar=quux',
+        expected: '/web/foo?bar=quux',
+      },
+      {
+        name: 'query params with base path in full URL',
+        input: 'https://example.com/web/foo?bar=quux',
+        expected: '/web/foo?bar=quux',
+      },
+      {
+        name: 'query params without base path in full URL',
+        input: 'https://example.com/foo?bar=quux',
+        expected: '/web/foo?bar=quux',
       },
     ];
 

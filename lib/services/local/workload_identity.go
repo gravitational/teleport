@@ -43,7 +43,7 @@ type WorkloadIdentityService struct {
 // NewWorkloadIdentityService creates a new WorkloadIdentityService
 func NewWorkloadIdentityService(b backend.Backend) (*WorkloadIdentityService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentity]{
+		generic.ServiceConfig[*workloadidentityv1pb.WorkloadIdentity]{
 			Backend:       b,
 			ResourceKind:  types.KindWorkloadIdentity,
 			BackendPrefix: backend.NewKey(workloadIdentityPrefix),
@@ -78,9 +78,31 @@ func (b *WorkloadIdentityService) GetWorkloadIdentity(
 // ListWorkloadIdentities lists all WorkloadIdentities using a given page size
 // and last key.
 func (b *WorkloadIdentityService) ListWorkloadIdentities(
-	ctx context.Context, pageSize int, currentToken string,
+	ctx context.Context,
+	pageSize int,
+	currentToken string,
+	options *services.ListWorkloadIdentitiesRequestOptions,
 ) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
+	if options.GetSortField() != "" && options.GetSortField() != "name" {
+		return nil, "", trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+	}
+	if options.GetSortDesc() {
+		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
+	}
+
+	if options.GetFilterSearchTerm() == "" {
+		r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
+		return r, nextToken, trace.Wrap(err)
+	}
+
+	r, nextToken, err := b.service.ListResourcesWithFilter(
+		ctx,
+		pageSize,
+		currentToken,
+		func(item *workloadidentityv1pb.WorkloadIdentity) bool {
+			return services.MatchWorkloadIdentity(item, options.GetFilterSearchTerm())
+		},
+	)
 	return r, nextToken, trace.Wrap(err)
 }
 
@@ -121,7 +143,7 @@ func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.NewKey(workloadIdentityPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),
 	}
 }
 

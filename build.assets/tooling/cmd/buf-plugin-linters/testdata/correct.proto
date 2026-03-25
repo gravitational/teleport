@@ -1,0 +1,79 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+syntax = "proto3";
+
+package teleport.foo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+message Foo {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  FooSpec spec = 5;
+  FooStatus status = 6;
+}
+
+message FooSpec {
+  string bar = 1;
+  int32 baz = 2;
+  bool qux = 3;
+}
+
+message FooStatus {
+  google.protobuf.Timestamp next_audit = 1;
+  string teleport_host = 2;
+}
+
+service FooService {
+  rpc GetFoo(GetFooRequest) returns (Foo);
+  rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
+  rpc CreateFoo(CreateFooRequest) returns (Foo);
+  rpc UpdateFoo(UpdateFooRequest) returns (Foo);
+  rpc UpsertFoo(UpsertFooRequest) returns (Foo);
+  rpc DeleteFoo(DeleteFooRequest) returns (google.protobuf.Empty);
+}
+
+message GetFooRequest {
+  string foo_id = 1;
+}
+
+message ListFoosRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListFoosResponse {
+  repeated Foo foos = 1;
+  string next_page_token = 2;
+}
+
+message CreateFooRequest {
+  Foo foo = 1;
+}
+
+message UpdateFooRequest {
+  Foo foo = 1;
+}
+
+message UpsertFooRequest {
+  Foo foo = 2;
+}
+
+message DeleteFooRequest {
+  string foo_id = 1;
+}

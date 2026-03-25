@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { ComponentProps } from 'react';
 
 import {
@@ -41,6 +41,8 @@ type StoryProps = {
   dbNameAttempt: 'not-started' | 'processing' | 'error';
   portAttempt: 'not-started' | 'processing' | 'error';
   disconnectAttempt: 'not-started' | 'error';
+  autoUsersEnabled: boolean;
+  databaseRoles: string[];
   // Offline props.
   connectAttempt: 'not-started' | 'processing' | 'error';
 };
@@ -66,6 +68,14 @@ const meta: Meta<StoryProps> = {
       control: { type: 'radio' },
       options: ['not-started', 'error'],
     },
+    autoUsersEnabled: {
+      if: { arg: 'online' },
+      control: { type: 'boolean' },
+    },
+    databaseRoles: {
+      if: { arg: 'online' },
+      control: { type: 'object' },
+    },
     // Offline props.
     connectAttempt: {
       if: { arg: 'online', truthy: false },
@@ -80,6 +90,8 @@ const meta: Meta<StoryProps> = {
     dbNameAttempt: 'not-started',
     portAttempt: 'not-started',
     disconnectAttempt: 'not-started',
+    autoUsersEnabled: false,
+    databaseRoles: [],
     // Offline props.
     connectAttempt: 'not-started',
   },
@@ -156,6 +168,9 @@ export function Story(props: StoryProps) {
     changePort: async () => [undefined, null],
     changePortAttempt: makeEmptyAttempt(),
     disconnectAttempt: makeEmptyAttempt(),
+    autoUserProvisioning: props.autoUsersEnabled
+      ? { databaseRoles: props.databaseRoles }
+      : undefined,
   };
 
   if (props.dbNameAttempt === 'error') {
@@ -191,3 +206,60 @@ export function Story(props: StoryProps) {
     />
   );
 }
+
+export const WithAutoUsersEnabled = {
+  args: {
+    online: true,
+    autoUsersEnabled: true,
+    databaseRoles: ['reader', 'writer'],
+  },
+};
+
+export const WithManyDatabaseRoles = {
+  args: {
+    online: true,
+    autoUsersEnabled: true,
+    databaseRoles: [
+      'reader',
+      'writer',
+      'admin',
+      'db_owner',
+      'db_backup_operator',
+      'db_datawriter',
+      'db_datareader',
+      'db_ddladmin',
+      'db_securityadmin',
+      'db_accessadmin',
+      'db_backupoperator',
+      'db_denydatawriter',
+      'db_denydatareader',
+      'analyst',
+      'developer',
+      'manager',
+      'auditor',
+      'operations',
+      'support',
+      'qa_engineer',
+    ],
+  },
+};
+
+export const WithLongRoleNames = {
+  args: {
+    online: true,
+    autoUsersEnabled: true,
+    databaseRoles: [
+      'super-long-role-name-that-might-cause-layout-issues-in-the-ui',
+      'another-very-long-database-role-name-with-many-hyphens',
+      'db_administrator_with_full_permissions_read_write_execute',
+    ],
+  },
+};
+
+export const WithoutAutoUsers = {
+  args: {
+    online: true,
+    autoUsersEnabled: false,
+    databaseRoles: [],
+  },
+};

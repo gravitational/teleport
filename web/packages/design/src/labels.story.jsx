@@ -17,7 +17,9 @@
  */
 
 import Flex from './Flex';
+import { CircleCheck, Cross, Plus } from './Icon';
 import Label from './Label';
+import { LabelButtonWithIcon } from './Label/LabelButtonWithIcon';
 import LabelState from './LabelState';
 
 export default {
@@ -31,55 +33,144 @@ export const Labels = () => (
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <Label mr={4} kind="primary">
+      <Label kind="primary">primary</Label>
+      <Label kind="secondary">secondary</Label>
+      <Label kind="warning">warning</Label>
+      <Label kind="danger">danger</Label>
+      <Label kind="success">success</Label>
+    </Flex>
+    <Flex
+      height="100px"
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+    >
+      <Label kind="primary" css={{ visibility: 'hidden' }}>
         Primary
       </Label>
-      <Label mr={4} kind="secondary">
-        Secondary
+      <Label kind="outline-primary" withHoverState>
+        outline-primary
       </Label>
-      <Label mr={4} kind="warning">
-        Warning
+      <Label kind="outline-secondary" withHoverState>
+        outline-secondary
       </Label>
-      <Label kind="danger">Danger</Label>
+      <Label kind="outline-success" withHoverState>
+        outline-success
+      </Label>
+      <Label kind="outline-warning" withHoverState>
+        outline-warning
+      </Label>
+      <Label kind="outline-danger" withHoverState>
+        outline-danger
+      </Label>
+      <Label kind="success" css={{ visibility: 'hidden' }}>
+        Success
+      </Label>
     </Flex>
     <Flex
       height="100px"
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <LabelState mr="4" kind="success">
-        Success
-      </LabelState>
-      <LabelState mr="4" kind="secondary">
-        Secondary
-      </LabelState>
-      <LabelState mr="4" kind="warning">
-        Warning
-      </LabelState>
-      <LabelState mr="4" kind="danger">
-        Danger
-      </LabelState>
+      <LabelState kind="success">Success</LabelState>
+      <LabelState kind="secondary">Secondary</LabelState>
+      <LabelState kind="warning">Warning</LabelState>
+      <LabelState kind="danger">Danger</LabelState>
     </Flex>
     <Flex
       height="100px"
       bg="levels.surface"
       justifyContent="center"
       alignItems="center"
+      gap={4}
     >
-      <LabelState shadow mr="4" kind="success">
+      <LabelState shadow kind="success">
         Success
       </LabelState>
-      <LabelState shadow mr="4" kind="secondary">
+      <LabelState shadow kind="secondary">
         Secondary
       </LabelState>
-      <LabelState shadow mr="4" kind="warning">
+      <LabelState shadow kind="warning">
         Warning
       </LabelState>
-      <LabelState shadow mr="4" kind="danger">
+      <LabelState shadow kind="danger">
         Danger
       </LabelState>
+    </Flex>
+
+    <Flex
+      pb={4}
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+      flexWrap={'wrap'}
+    >
+      <LabelButtonWithIcon
+        kind="outline-primary"
+        IconLeft={Plus}
+        withHoverState
+      >
+        LabelButtonWithIcon: outline-primary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-secondary"
+        IconRight={Cross}
+        withHoverState
+      >
+        LabelButtonWithIcon: outline-secondary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-warning"
+        IconRight={Cross}
+        withHoverState
+      >
+        LabelButtonWithIcon: outline-warning
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-danger"
+        IconRight={Cross}
+        withHoverState
+      >
+        LabelButtonWithIcon: outline-danger
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-success"
+        IconLeft={CircleCheck}
+        withHoverState
+      >
+        LabelButtonWithIcon: outline-success
+      </LabelButtonWithIcon>
+    </Flex>
+
+    <Flex
+      pb={4}
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+      flexWrap={'wrap'}
+    >
+      <LabelButtonWithIcon kind="primary" IconLeft={Plus} withHoverState>
+        LabelButtonWithIcon: primary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="secondary" IconRight={Cross} withHoverState>
+        LabelButtonWithIcon: secondary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="warning" IconRight={Cross} withHoverState>
+        LabelButtonWithIcon: warning
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="danger" IconRight={Cross} withHoverState>
+        LabelButtonWithIcon: danger
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="success" IconLeft={CircleCheck} withHoverState>
+        LabelButtonWithIcon: success
+      </LabelButtonWithIcon>
     </Flex>
   </>
 );

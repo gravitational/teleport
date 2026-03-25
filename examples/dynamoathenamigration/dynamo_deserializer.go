@@ -23,7 +23,7 @@ import (
 
 // awsAwsjson10_deserializeDocumentAttributeMap is copied from aws-sdk-go-v2/service/dynamodb/deserializers.go
 // AWS SDK does not expose fn to convert from dynamo json export format to types.AttributeValue.
-func awsAwsjson10_deserializeDocumentAttributeMap(v *map[string]types.AttributeValue, value interface{}) error {
+func awsAwsjson10_deserializeDocumentAttributeMap(v *map[string]types.AttributeValue, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -31,7 +31,7 @@ func awsAwsjson10_deserializeDocumentAttributeMap(v *map[string]types.AttributeV
 		return nil
 	}
 
-	shape, ok := value.(map[string]interface{})
+	shape, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -57,7 +57,7 @@ func awsAwsjson10_deserializeDocumentAttributeMap(v *map[string]types.AttributeV
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentAttributeValue(v *types.AttributeValue, value interface{}) error {
+func awsAwsjson10_deserializeDocumentAttributeValue(v *types.AttributeValue, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -65,7 +65,7 @@ func awsAwsjson10_deserializeDocumentAttributeValue(v *types.AttributeValue, val
 		return nil
 	}
 
-	shape, ok := value.(map[string]interface{})
+	shape, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -191,7 +191,7 @@ loop:
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentStringSetAttributeValue(v *[]string, value interface{}) error {
+func awsAwsjson10_deserializeDocumentStringSetAttributeValue(v *[]string, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -199,7 +199,7 @@ func awsAwsjson10_deserializeDocumentStringSetAttributeValue(v *[]string, value 
 		return nil
 	}
 
-	shape, ok := value.([]interface{})
+	shape, ok := value.([]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -227,7 +227,7 @@ func awsAwsjson10_deserializeDocumentStringSetAttributeValue(v *[]string, value 
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentNumberSetAttributeValue(v *[]string, value interface{}) error {
+func awsAwsjson10_deserializeDocumentNumberSetAttributeValue(v *[]string, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -235,7 +235,7 @@ func awsAwsjson10_deserializeDocumentNumberSetAttributeValue(v *[]string, value 
 		return nil
 	}
 
-	shape, ok := value.([]interface{})
+	shape, ok := value.([]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -263,7 +263,7 @@ func awsAwsjson10_deserializeDocumentNumberSetAttributeValue(v *[]string, value 
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentBinarySetAttributeValue(v *[][]byte, value interface{}) error {
+func awsAwsjson10_deserializeDocumentBinarySetAttributeValue(v *[][]byte, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -271,7 +271,7 @@ func awsAwsjson10_deserializeDocumentBinarySetAttributeValue(v *[][]byte, value 
 		return nil
 	}
 
-	shape, ok := value.([]interface{})
+	shape, ok := value.([]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -303,7 +303,7 @@ func awsAwsjson10_deserializeDocumentBinarySetAttributeValue(v *[][]byte, value 
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentMapAttributeValue(v *map[string]types.AttributeValue, value interface{}) error {
+func awsAwsjson10_deserializeDocumentMapAttributeValue(v *map[string]types.AttributeValue, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -311,7 +311,7 @@ func awsAwsjson10_deserializeDocumentMapAttributeValue(v *map[string]types.Attri
 		return nil
 	}
 
-	shape, ok := value.(map[string]interface{})
+	shape, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}
@@ -337,7 +337,7 @@ func awsAwsjson10_deserializeDocumentMapAttributeValue(v *map[string]types.Attri
 	return nil
 }
 
-func awsAwsjson10_deserializeDocumentListAttributeValue(v *[]types.AttributeValue, value interface{}) error {
+func awsAwsjson10_deserializeDocumentListAttributeValue(v *[]types.AttributeValue, value any) error {
 	if v == nil {
 		return fmt.Errorf("unexpected nil of type %T", v)
 	}
@@ -345,7 +345,7 @@ func awsAwsjson10_deserializeDocumentListAttributeValue(v *[]types.AttributeValu
 		return nil
 	}
 
-	shape, ok := value.([]interface{})
+	shape, ok := value.([]any)
 	if !ok {
 		return fmt.Errorf("unexpected JSON type %v", value)
 	}

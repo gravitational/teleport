@@ -5,3 +5,8 @@ rules:
     min-spaces-after: 0
   line-length:
     max: 120
+  indentation:
+    # helm's toYaml template function adds zero indentation to arrays but we
+    # generally add it in our manual templates; "whatever" means that any
+    # indentation level is fine (as long as it's the same within the same array)
+    indent-sequences: whatever

@@ -38,10 +38,7 @@ import { Theme } from 'design/theme/themes/types';
 export type TextAreaSize = 'large' | 'medium' | 'small';
 
 export interface TextAreaProps
-  extends ColorProps,
-    SpaceProps,
-    WidthProps,
-    HeightProps {
+  extends ColorProps, SpaceProps, WidthProps, HeightProps {
   size?: TextAreaSize;
   hasError?: boolean;
   resizable?: boolean;
@@ -107,7 +104,7 @@ const StyledTextArea = styled.textarea<StyledTextAreaProps>`
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
-  min-height: 50px;
+  min-height: ${props => textAreaGeometry[props.taSize].height}px;
   height: ${props => textAreaGeometry[props.taSize].height}px;
   padding: 8px 16px;
   outline: none;
@@ -133,6 +130,15 @@ const StyledTextArea = styled.textarea<StyledTextAreaProps>`
 
   &:read-only {
     cursor: not-allowed;
+
+    &:hover {
+      border: 1px solid
+        ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
+
+    &:focus-visible {
+      border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
   }
 
   &:disabled {

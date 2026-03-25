@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -43,58 +41,35 @@ type GCPInstances struct {
 	Zone string
 	// ProjectID is the instances' project ID.
 	ProjectID string
-	// ScriptName is the name of the script to execute on the instances to
-	// install Teleport.
-	ScriptName string
-	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster.
-	PublicProxyAddr string
-	// Parameters are the parameters passed to the installation script
-	Parameters []string
+	// InstallerParams are the installer parameters used for installation.
+	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered GCP virtual machines.
 	Instances []*gcpimds.Instance
+	// DiscoveryConfigName is the name of the DiscoveryConfig that triggered this discovery.
+	DiscoveryConfigName string
 }
 
 // MakeEvents generates MakeEvents for these instances.
 func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
 		events[fmt.Sprintf("%s%s/%s", gcpEventPrefix, inst.ProjectID, inst.Name)] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudGCP,
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudGCP,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events
 }
 
-// NewGCPWatcher creates a new GCP watcher.
-func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
-	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
-		fetchersFn:    fetchersFn,
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		clock:         clockwork.NewRealClock(),
-		pollInterval:  time.Minute,
-		triggerFetchC: make(<-chan struct{}),
-		InstancesC:    make(chan Instances),
-	}
-
-	for _, opt := range opts {
-		opt(&watcher)
-	}
-
-	return &watcher, nil
-}
-
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher {
-	fetchers := make([]Fetcher, 0, len(matchers))
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher[*GCPInstances] {
+	fetchers := make([]Fetcher[*GCPInstances], 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
@@ -117,20 +92,21 @@ type gcpFetcherConfig struct {
 }
 
 type gcpInstanceFetcher struct {
+	InstallerParams     *types.InstallerParams
 	GCP                 gcp.InstancesClient
 	ProjectIDs          []string
 	Zones               []string
 	ProjectID           string
 	ServiceAccounts     []string
 	Labels              types.Labels
-	Parameters          map[string]string
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
 	Integration         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
-	fetcher := &gcpInstanceFetcher{
+	return &gcpInstanceFetcher{
+		InstallerParams:     cfg.Matcher.Params,
 		GCP:                 cfg.GCPClient,
 		Zones:               cfg.Matcher.Locations,
 		ProjectIDs:          cfg.Matcher.ProjectIDs,
@@ -140,17 +116,9 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		Integration:         cfg.Integration,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
-	if cfg.Matcher.Params != nil {
-		fetcher.Parameters = map[string]string{
-			"token":           cfg.Matcher.Params.JoinToken,
-			"scriptName":      cfg.Matcher.Params.ScriptName,
-			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		}
-	}
-	return fetcher
 }
 
-func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*GCPInstances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
@@ -165,7 +133,7 @@ func (f *gcpInstanceFetcher) IntegrationName() string {
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
-func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
+func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPInstances, error) {
 	// Key by project ID, then by zone.
 	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
 	projectIDs, err := f.getProjectIDs(ctx)
@@ -194,18 +162,17 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 		}
 	}
 
-	var instances []Instances
+	var instances []*GCPInstances
 	for projectID, vmsByZone := range instanceMap {
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
-				instances = append(instances, Instances{GCP: &GCPInstances{
-					ProjectID:       projectID,
-					Zone:            zone,
-					Instances:       vms,
-					ScriptName:      f.Parameters["scriptName"],
-					PublicProxyAddr: f.Parameters["publicProxyAddr"],
-					Parameters:      []string{f.Parameters["token"]},
-				}})
+				instances = append(instances, &GCPInstances{
+					InstallerParams:     f.InstallerParams,
+					ProjectID:           projectID,
+					Zone:                zone,
+					Instances:           vms,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+				})
 			}
 		}
 	}

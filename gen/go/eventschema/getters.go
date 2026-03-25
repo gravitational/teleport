@@ -21,6 +21,7 @@ package eventschema
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -46,7 +47,7 @@ func GetEventSchemaFromType(eventType string) (*Event, error) {
 
 // getMessageName takes a message struct and returns its name.
 // The struct name is also the protobuf message name.
-func getMessageName(eventStruct interface{}) string {
+func getMessageName(eventStruct any) string {
 	if t := reflect.TypeOf(eventStruct); t.Kind() == reflect.Ptr {
 		return t.Elem().Name()
 	} else {
@@ -70,7 +71,7 @@ func QueryableEventList() (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		sb.WriteString(fmt.Sprintf("%s, %s\n", name, eventSchema.Description))
+		fmt.Fprintf(&sb, "%s, %s\n", name, eventSchema.Description)
 	}
 	return sb.String(), nil
 }
@@ -136,7 +137,7 @@ func (c *ColumnSchemaDetails) NameJSON() string {
 	sb := strings.Builder{}
 	sb.WriteString("$")
 	for _, item := range c.Path {
-		sb.WriteString(fmt.Sprintf(`["%s"]`, item))
+		fmt.Fprintf(&sb, `["%s"]`, item)
 	}
 	return sb.String()
 }
@@ -211,7 +212,6 @@ func (field *EventField) TableSchemaDetails(path []string) ([]*ColumnSchemaDetai
 	default:
 		return nil, trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
-	return nil, nil
 }
 
 func (field *EventField) dmlType() string {
@@ -251,7 +251,7 @@ func jsonFieldName(path []string) string {
 	sb := strings.Builder{}
 	sb.WriteString("$")
 	for _, item := range path {
-		sb.WriteString(fmt.Sprintf(`["%s"]`, item))
+		fmt.Fprintf(&sb, `["%s"]`, item)
 	}
 	return sb.String()
 }
@@ -270,12 +270,7 @@ func viewSchemaLine(jsonField, viewField, fieldType string) string {
 
 // IsValidEventType takes a string and returns whether it represents a valid event type.
 func IsValidEventType(input string) bool {
-	for _, eventType := range eventTypes {
-		if input == eventType {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(eventTypes, input)
 }
 
 // TableSchema returns a CSV description of the event table schema.

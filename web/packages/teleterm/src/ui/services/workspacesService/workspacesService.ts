@@ -63,8 +63,8 @@ import {
   DocumentCluster,
   DocumentGateway,
   DocumentsService,
-  DocumentTshKube,
   DocumentTshNode,
+  DocumentVnetInfo,
   getDefaultDocumentClusterQueryParams,
 } from './documentsService';
 
@@ -352,6 +352,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
 
     if (cluster.profileStatusError) {
+      // TODO(gzdunek): We should only sync the target cluster, not all of them.
       await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
       // Update the cluster.
       cluster = this.clustersService.findCluster(clusterUri);
@@ -465,6 +466,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  clearWorkspace(clusterUri: RootClusterUri): void {
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+        clusterUri,
+        draftState.workspaces
+      );
+    });
+    this.restoredState = produce(this.restoredState, draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
+  }
+
   getConnectedWorkspacesClustersUri() {
     return (Object.keys(this.state.workspaces) as RootClusterUri[]).filter(
       clusterUri => this.clustersService.findCluster(clusterUri)?.connected
@@ -513,6 +526,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.restoredState = produce(restoredState, () => {});
     const restoredWorkspaces = this.clustersService
       .getRootClusters()
+      // Start restoring clusters from the ones that already have a workspace.
+      // The algorithm that assigns a color in getWorkspaceDefaultState needs
+      // to know all used colors.
+      .toSorted((a, b) => {
+        const hasA = !!this.restoredState.workspaces[a.uri];
+        const hasB = !!this.restoredState.workspaces[b.uri];
+        return hasB === hasA ? 0 : hasA ? -1 : 1;
+      })
       .reduce((workspaces, cluster) => {
         const restoredWorkspace = this.restoredState.workspaces[cluster.uri];
         workspaces[cluster.uri] = getWorkspaceDefaultState(
@@ -550,11 +571,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         // DocumentsService
         // TrackedConnectionOperationsFactory
         // here
-        if (
-          d.kind === 'doc.terminal_tsh_kube' ||
-          d.kind === 'doc.terminal_tsh_node'
-        ) {
-          const documentTerminal: DocumentTshKube | DocumentTshNode = {
+        if (d.kind === 'doc.terminal_tsh_node') {
+          const documentTerminal: DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
@@ -582,12 +600,23 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 ...defaultParams.sort,
                 ...d.queryParams?.sort,
               },
+              statuses: d.queryParams?.statuses
+                ? [...d.queryParams.statuses] // makes the array mutable
+                : defaultParams.statuses,
               resourceKinds: d.queryParams?.resourceKinds
                 ? [...d.queryParams.resourceKinds] // makes the array mutable
                 : defaultParams.resourceKinds,
             },
           };
           return documentCluster;
+        }
+
+        if (d.kind === 'doc.vnet_info') {
+          const documentVnetInfo: DocumentVnetInfo = {
+            ...d,
+            launcherArgs: undefined,
+          };
+          return documentVnetInfo;
         }
 
         return d;
@@ -642,20 +671,20 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
-      .nativeEnum(DefaultTab)
+      .enum(DefaultTab)
       .default(getDefaultUnifiedResourcePreferences().defaultTab),
     viewMode: z
-      .nativeEnum(ViewMode)
+      .enum(ViewMode)
       .default(getDefaultUnifiedResourcePreferences().viewMode),
     labelsViewMode: z
-      .nativeEnum(LabelsViewMode)
+      .enum(LabelsViewMode)
       .default(getDefaultUnifiedResourcePreferences().labelsViewMode),
     availableResourceMode: z
-      .nativeEnum(AvailableResourceMode)
+      .enum(AvailableResourceMode)
       .default(getDefaultUnifiedResourcePreferences().availableResourceMode),
   })
   // Assign the default values if undefined is passed.
-  .default({});
+  .prefault({});
 
 // Because we don't have `strictNullChecks` enabled, zod infers
 // all properties as optional.

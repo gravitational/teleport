@@ -19,8 +19,14 @@
 package services
 
 import (
+	"context"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +34,192 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestValidateApp(t *testing.T) {
+	tests := []struct {
+		name       string
+		app        types.Application
+		proxyAddrs []string
+		wantErr    string
+	}{
+		{
+			name: "no public addr, no error",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+		},
+		{
+			name: "public addr does not conflict",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+		},
+		{
+			name: "public addr matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with trailing dot matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with multiple trailing dots matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with mixed casing matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "multiple proxy addrs, one matches",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"other.com:443", "web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with IDN matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"xn--fsq.cn:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with IDN does not conflict with non-IDN proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "münchen.de"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"example.com:443"},
+		},
+		{
+			name: "IDN with mixed case matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "MünchEn.de"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"münchen.de:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "IDN with subdomains matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "sub.münchen.de"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"sub.xn--mnchen-3ya.de:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "empty proxy addrs",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+		},
+		{
+			name: "multiple conflicting proxies",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"example.com:443", "example.com:80"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateApp(tt.app, &mockProxyGetter{addrs: tt.proxyAddrs})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// mockProxyGetter is a test implementation of ProxyGetter.
+type mockProxyGetter struct {
+	addrs []string
+}
+
+func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	servers := make([]types.Server, 0, len(m.addrs))
+
+	for _, addr := range m.addrs {
+		servers = append(
+			servers,
+			&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					PublicAddrs: []string{addr},
+				},
+			},
+		)
+	}
+
+	return servers, nil
+}
+
+func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	servers := make([]types.Server, 0, len(m.addrs))
+
+	for _, addr := range m.addrs {
+		servers = append(
+			servers,
+			&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					PublicAddrs: []string{addr},
+				},
+			},
+		)
+	}
+
+	return servers, "", nil
+}
 
 // TestApplicationUnmarshal verifies an app resource can be unmarshaled.
 func TestApplicationUnmarshal(t *testing.T) {
@@ -211,6 +403,7 @@ func TestBuildAppURI(t *testing.T) {
 	tests := []struct {
 		serviceFQDN string
 		port        int32
+		path        string
 		protocol    string
 		expected    string
 	}{
@@ -219,6 +412,34 @@ func TestBuildAppURI(t *testing.T) {
 			port:        8080,
 			protocol:    "http",
 			expected:    "http://service.example:8080",
+		},
+		{
+			serviceFQDN: "service.example",
+			port:        8080,
+			protocol:    "http",
+			path:        "foo",
+			expected:    "http://service.example:8080/foo",
+		},
+		{
+			serviceFQDN: "service.example",
+			port:        8080,
+			protocol:    "http",
+			path:        "/foo",
+			expected:    "http://service.example:8080/foo",
+		},
+		{
+			serviceFQDN: "service.example",
+			port:        8080,
+			protocol:    "http",
+			path:        "foo/bar",
+			expected:    "http://service.example:8080/foo/bar",
+		},
+		{
+			serviceFQDN: "service.example",
+			port:        8080,
+			protocol:    "http",
+			path:        "foo bar",
+			expected:    "http://service.example:8080/foo%20bar",
 		},
 		{
 			serviceFQDN: "service.example",
@@ -235,7 +456,7 @@ func TestBuildAppURI(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		require.Equal(t, tt.expected, buildAppURI(tt.protocol, tt.serviceFQDN, tt.port))
+		require.Equal(t, tt.expected, buildAppURI(tt.protocol, tt.serviceFQDN, tt.path, tt.port))
 	}
 }
 
@@ -345,4 +566,26 @@ func TestInsecureSkipVerify(t *testing.T) {
 		result := getTLSInsecureSkipVerify(tt.annotations)
 		require.Equal(t, tt.expected, result)
 	}
+}
+
+func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
+	r := httptest.NewRequest("GET", "/foo", nil)
+	r.Header.Set("x-no-rewrite", "no-rewrite")
+	rewrites := []*types.Header{
+		{Name: "host", Value: "1.2.3.4"},
+		{Name: "x-rewrite", Value: "{{external.rewrite}}"},
+		// Missing traits should log a debug message that this rewrite is skipped.
+		{Name: "x-bad-rewrite", Value: "{{external.bad_rewrite}}"},
+	}
+	traits := map[string][]string{
+		"rewrite": {"value1", "value2"},
+	}
+	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), traits, slog.Default())
+
+	assert.Equal(t, "1.2.3.4", r.Host)
+	wantHeaders := make(http.Header)
+	wantHeaders.Add("x-rewrite", "value1")
+	wantHeaders.Add("x-rewrite", "value2")
+	wantHeaders.Add("x-no-rewrite", "no-rewrite")
+	assert.Equal(t, wantHeaders, r.Header)
 }

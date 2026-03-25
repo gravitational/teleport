@@ -18,11 +18,11 @@ package v1
 
 import (
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type MemberOption func(*accesslist.AccessListMember)
@@ -37,13 +37,13 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
-		AccessList: msg.Spec.AccessList,
-		Name:       msg.Spec.Name,
-		Joined:     msg.Spec.Joined.AsTime(),
-		Expires:    msg.Spec.Expires.AsTime(),
-		Reason:     msg.Spec.Reason,
-		AddedBy:    msg.Spec.AddedBy,
+	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
+		AccessList: msg.GetSpec().GetAccessList(),
+		Name:       msg.GetSpec().GetName(),
+		Joined:     utils.TimeFromProto(msg.GetSpec().GetJoined()),
+		Expires:    utils.TimeFromProto(msg.GetSpec().GetExpires()),
+		Reason:     msg.GetSpec().GetReason(),
+		AddedBy:    msg.GetSpec().GetAddedBy(),
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
@@ -90,8 +90,8 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 		Spec: &accesslistv1.MemberSpec{
 			AccessList:       member.Spec.AccessList,
 			Name:             member.Spec.Name,
-			Joined:           timestamppb.New(member.Spec.Joined),
-			Expires:          timestamppb.New(member.Spec.Expires),
+			Joined:           utils.TimeIntoProto(member.Spec.Joined),
+			Expires:          utils.TimeIntoProto(member.Spec.Expires),
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
 			IneligibleStatus: ineligibleStatus,

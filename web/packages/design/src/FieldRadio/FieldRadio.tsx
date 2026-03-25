@@ -32,7 +32,15 @@ interface FieldRadioProps extends SpaceProps {
   helperText?: ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
+  /**
+   * Disables and mutes all values.
+   */
   disabled?: boolean;
+  /**
+   * Disables radio but does not mute values
+   * to remain readable.
+   */
+  readOnly?: boolean;
   size?: RadioButtonSize;
   value?: string;
   autoFocus?: boolean;
@@ -49,6 +57,7 @@ export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
       checked,
       defaultChecked,
       disabled,
+      readOnly,
       size,
       value,
       autoFocus,
@@ -63,7 +72,7 @@ export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
     const helperTypography = size === 'small' ? 'body3' : 'body2';
     return (
       <Box mb={3} lineHeight={0} {...styles}>
-        <StyledLabel disabled={disabled}>
+        <StyledLabel disabled={disabled} readOnly={readOnly}>
           <Flex flexDirection="row" gap={2}>
             {/* Nudge the small-size radio button to better align with the
                 label. */}
@@ -74,6 +83,7 @@ export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
                 checked={checked}
                 defaultChecked={defaultChecked}
                 disabled={disabled}
+                readOnly={readOnly}
                 name={name}
                 value={value}
                 autoFocus={autoFocus}
@@ -95,7 +105,10 @@ export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
   }
 );
 
-const StyledLabel = styled(LabelInput)<{ disabled?: boolean }>`
+const StyledLabel = styled(LabelInput)<{
+  disabled?: boolean;
+  readOnly?: boolean;
+}>`
   // Typically, a short label in a wide container means a lot of whitespace that
   // acts as a click target for a radio button. To avoid this, we use
   // inline-flex to wrap the label around its content.
@@ -104,5 +117,6 @@ const StyledLabel = styled(LabelInput)<{ disabled?: boolean }>`
   gap: ${props => props.theme.space[2]}px;
   margin-bottom: 0;
   line-height: 0;
-  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
+  cursor: ${props =>
+    props.disabled || props.readOnly ? 'not-allowed' : 'pointer'};
 `;

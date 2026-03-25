@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -42,14 +43,18 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -66,6 +71,7 @@ type FileConfig struct {
 	Auth    Auth  `yaml:"auth_service,omitempty"`
 	SSH     SSH   `yaml:"ssh_service,omitempty"`
 	Proxy   Proxy `yaml:"proxy_service,omitempty"`
+	Relay   Relay `yaml:"relay_service,omitempty"`
 	Kube    Kube  `yaml:"kubernetes_service,omitempty"`
 
 	// Apps is the "app_service" section in Teleport file configuration which
@@ -143,7 +149,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
-		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		return nil, trace.BadParameter("failed parsing the config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
 	}
 	if err := fc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
@@ -183,6 +189,8 @@ type SampleFlags struct {
 	AppName string
 	// AppURI is the internal address of the application to proxy
 	AppURI string
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool
 	// NodeLabels is list of labels in the format `foo=bar,baz=bax` to add to newly created nodes.
 	NodeLabels string
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server. Can be
@@ -409,17 +417,24 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
-	if enabled || flags.AppURI != "" || flags.AppName != "" {
-		if flags.AppURI == "" || flags.AppName == "" {
-			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
-		}
-
+	if enabled || flags.AppURI != "" || flags.AppName != "" || flags.MCPDemoServer {
 		apps.EnabledFlag = "yes"
-		apps.Apps = []*App{
-			{
-				Name: flags.AppName,
-				URI:  flags.AppURI,
-			},
+		apps.MCPDemoServer = flags.MCPDemoServer
+
+		switch {
+		case flags.AppURI != "" && flags.AppName != "":
+			apps.Apps = []*App{
+				{
+					Name: flags.AppName,
+					URI:  flags.AppURI,
+				},
+			}
+
+		case flags.MCPDemoServer && flags.AppURI == "" && flags.AppName == "":
+			// This is ok if only MCPDemoServer is set.
+
+		default:
+			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 	}
 
@@ -492,9 +507,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string           `yaml:"token_name"`
-	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName   string           `yaml:"token_name"`
+	TokenSecret string           `yaml:"token_secret,omitempty"`
+	Method      types.JoinMethod `yaml:"method"`
+	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -551,7 +567,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -596,12 +612,17 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
 	Storage     backend.Config   `yaml:"storage,omitempty"`
 	AdvertiseIP string           `yaml:"advertise_ip,omitempty"`
 	CachePolicy CachePolicy      `yaml:"cache,omitempty"`
+
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay types.Duration `yaml:"shutdown_delay,omitempty"`
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
@@ -628,6 +649,9 @@ type Global struct {
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
+
+	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
@@ -661,6 +685,30 @@ func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &out, nil
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration `yaml:"upper_limit_between_retries,omitempty"`
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration `yaml:"initial_connection_delay,omitempty"`
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration `yaml:"backoff_step_duration,omitempty"`
+}
+
+// Parse parses [servicecfg.AuthConnectionConfig] from Teleport config
+func (c *AuthConnectionConfig) Parse() (*servicecfg.AuthConnectionConfig, error) {
+	out := &servicecfg.AuthConnectionConfig{
+		UpperLimitBetweenRetries: c.UpperLimitBetweenRetries,
+		InitialConnectionDelay:   c.InitialConnectionDelay,
+		BackoffStepDuration:      c.BackoffStepDuration,
+	}
+	if err := out.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "failed to parse auth_connection_config")
+	}
+	return out, nil
 }
 
 // Service is a common configuration of a teleport service
@@ -719,6 +767,9 @@ type Auth struct {
 	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens StaticScopedTokens `yaml:"scoped_tokens,omitempty"`
 	// Authentication holds authentication configuration information like authentication
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
@@ -730,6 +781,10 @@ type Auth struct {
 	// ProxyChecksHostKeys is used when the proxy is in recording mode and
 	// determines if the proxy will check the host key of the client or not.
 	ProxyChecksHostKeys *types.BoolOption `yaml:"proxy_checks_host_keys,omitempty"`
+
+	// SessionRecordingConfig configures how session recording should be handled including things like
+	// encryption and key management.
+	SessionRecordingConfig *SessionRecordingConfig `yaml:"session_recording_config,omitempty"`
 
 	// LicenseFile is a path to the license file. The path can be either absolute or
 	// relative to the global data dir
@@ -832,6 +887,16 @@ type AccessGraph struct {
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.
 	Insecure bool `yaml:"insecure"`
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig `yaml:"audit_log"`
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool `yaml:"enabled"`
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time `yaml:"start_date"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
@@ -862,7 +927,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 func (a *Auth) hasCustomSessionRecording() bool {
 	empty := Auth{}
 	return a.SessionRecording != empty.SessionRecording ||
-		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys
+		a.ProxyChecksHostKeys != empty.ProxyChecksHostKeys ||
+		a.SessionRecordingConfig != empty.SessionRecordingConfig
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -876,6 +942,8 @@ type CAKeyParams struct {
 	// AWSKMS configures AWS Key Management Service to to be used for
 	// all CA private key crypto operations.
 	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
+	// HealthCheck contains configuration for keystore health checking.
+	HealthCheck *servicecfg.KeystoreHealthCheck `yaml:"health_check,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -896,6 +964,8 @@ type PKCS11 struct {
 	// Trailing newlines will be removed, other whitespace will be left. Set
 	// this or Pin to set the pin.
 	PINPath string `yaml:"pin_path,omitempty"`
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int `yaml:"max_sessions"`
 }
 
 // GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
@@ -920,10 +990,7 @@ type AWSKMS struct {
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	} `yaml:"multi_region,omitempty"`
+	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -990,6 +1057,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if roles.Include(types.RoleBot) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
@@ -1006,6 +1076,122 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		})
 	}
 	return provisionTokens, nil
+}
+
+// StaticScopedTokens is the list of [StaticScopedToken] configurations that
+// should be used to generate the auth service's [joiningv1.StaticScopedTokens]
+// resource.
+type StaticScopedTokens []StaticScopedToken
+
+// Parse converts [StaticScopedTokens] into [*joiningv1.StaticScopedTokens] so
+// they can be used to provision static scoped tokens.
+func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
+	var scopedTokens []*joiningv1.ScopedToken
+	for _, st := range t {
+		if err := st.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if st.Path != "" {
+			tokenDef, err := os.ReadFile(st.Path)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if err := yaml.Unmarshal(tokenDef, &st); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		roles, err := types.NewTeleportRoles(st.Roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		immutableLabels, err := st.ImmutableLabels.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		scopedToken := &joiningv1.ScopedToken{
+			Version: types.V1,
+			Kind:    types.KindScopedToken,
+			Metadata: &headerv1.Metadata{
+				Name: st.Name,
+			},
+			Scope: scopes.Root,
+			Spec: &joiningv1.ScopedTokenSpec{
+				Roles:           roles.StringSlice(),
+				AssignedScope:   st.Scope,
+				JoinMethod:      string(types.JoinMethodToken),
+				UsageMode:       string(joining.TokenUsageModeUnlimited),
+				ImmutableLabels: immutableLabels,
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Secret: st.Secret,
+			},
+		}
+
+		if err := joining.StrongValidateToken(scopedToken); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		scopedTokens = append(scopedTokens, scopedToken)
+	}
+
+	return &joiningv1.StaticScopedTokens{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: scopedTokens,
+		},
+	}, nil
+}
+
+// ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
+type ImmutableLabels struct {
+	SSH map[string]string `yaml:"ssh"`
+}
+
+// Parse converts [ImmutableLabels] into [*joininv1.ImmutableLabels] so they
+// can be used to provision static scoped tokens.
+func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
+	if il == nil {
+		return nil, nil
+	}
+
+	return &joiningv1.ImmutableLabels{
+		Ssh: il.SSH,
+	}, nil
+}
+
+// StaticScopedToken is a statically defined scoped token. It is meant to capture
+// yaml configuration that can be used to generate a [joiningv1.ScopedToken].
+type StaticScopedToken struct {
+	Name            string           `yaml:"name"`
+	Secret          string           `yaml:"secret"`
+	Roles           []string         `yaml:"roles"`
+	Scope           string           `yaml:"scope"`
+	Path            string           `yaml:"path"`
+	ImmutableLabels *ImmutableLabels `yaml:"immutable_labels"`
+}
+
+// Validate whether or not a [StaticScopedToken] is well formed.
+//
+// Returns an error if both the "path" field is defined alongside any of
+// the other fields.
+func (s StaticScopedToken) Validate() error {
+	isPathToken := s.Path != ""
+	isDefinedToken := s.Name != "" || s.Secret != "" || s.Roles != nil || s.Scope != ""
+
+	if isPathToken && isDefinedToken {
+		return trace.BadParameter("A static_scoped_token must either define a path to a yaml file describing the token or the token definition itself, but not both")
+	}
+
+	return nil
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
@@ -1034,6 +1220,11 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
+	// AllowBrowserAuthentication enables/disables browser-based authentication.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true.
+	AllowBrowserAuthentication *types.BoolOption `yaml:"allow_browser_authentication"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1042,7 +1233,7 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
@@ -1116,22 +1307,23 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                    a.Type,
-		SecondFactor:            a.SecondFactor,
-		SecondFactors:           a.SecondFactors,
-		ConnectorName:           a.ConnectorName,
-		U2F:                     u,
-		Webauthn:                w,
-		RequireMFAType:          a.RequireMFAType,
-		LockingMode:             a.LockingMode,
-		AllowLocalAuth:          a.LocalAuth,
-		AllowPasswordless:       a.Passwordless,
-		AllowHeadless:           a.Headless,
-		DeviceTrust:             dt,
-		DefaultSessionTTL:       a.DefaultSessionTTL,
-		HardwareKey:             h,
-		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
-		StableUnixUserConfig:    stableUNIXUserConfig,
+		Type:                       a.Type,
+		SecondFactor:               a.SecondFactor,
+		SecondFactors:              a.SecondFactors,
+		ConnectorName:              a.ConnectorName,
+		U2F:                        u,
+		Webauthn:                   w,
+		RequireMFAType:             a.RequireMFAType,
+		LockingMode:                a.LockingMode,
+		AllowLocalAuth:             a.LocalAuth,
+		AllowPasswordless:          a.Passwordless,
+		AllowHeadless:              a.Headless,
+		AllowBrowserAuthentication: a.AllowBrowserAuthentication,
+		DeviceTrust:                dt,
+		DefaultSessionTTL:          a.DefaultSessionTTL,
+		HardwareKey:                h,
+		SignatureAlgorithmSuite:    a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:       stableUNIXUserConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1275,11 +1467,14 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
+	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1289,7 +1484,10 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
-	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+	hk := &types.HardwareKey{
+		PIVSlot:     string(h.PIVSlot),
+		PinCacheTTL: types.Duration(h.PINCacheTTL),
+	}
 
 	if h.SerialNumberValidation != nil {
 		var err error
@@ -1451,6 +1649,16 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// ForceListen enables listening on the configured ListenAddress
+	// when connected to the cluster via a reverse tunnel. If no ListenAddress is
+	// configured, the default address is used.
+	//
+	// This allows the service to be connectable by users with direct network access.
+	// All connections still require a valid user certificate to be presented and will
+	// not permit any additional access. This is intended to provide an optional connection
+	// path to reduce latency if the Proxy is not co-located with the user and service.
+	ForceListen bool `yaml:"force_listen,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1490,11 +1698,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
-
-		if cfg.DisplayOffset > x11.MaxDisplayNumber {
-			cfg.DisplayOffset = x11.MaxDisplayNumber
-		}
+		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1575,6 +1779,15 @@ type AccessGraphSync struct {
 	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
+// AccessGraphAWSSyncCloudTrailLogs represents the configuration for the SQS queue
+// to poll for CloudTrail notifications.
+type AccessGraphAWSSyncCloudTrailLogs struct {
+	// QueueURL is the URL of the SQS queue to poll for AWS resources.
+	QueueURL string `yaml:"queue_url,omitempty"`
+	// QueueRegion is the AWS region of the SQS queue to poll for AWS resources.
+	QueueRegion string `yaml:"queue_region,omitempty"`
+}
+
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
 type AccessGraphAWSSync struct {
 	// Regions are AWS regions to poll for resources.
@@ -1584,6 +1797,20 @@ type AccessGraphAWSSync struct {
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// CloudTrailLogs is the configuration for the SQS queue to poll for
+	// CloudTrail logs.
+	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
+	// EKSAuditLogs is the configuration for fetching audit logs for EKS
+	// clusters discovered.
+	EKSAuditLogs *AccessGraphEKSAuditLogs `yaml:"eks_audit_logs,omitempty"`
+}
+
+// AccessGraphEKSAuditLogs is the configuration for fetching audit logs from
+// clusters discovered for access graph.
+type AccessGraphEKSAuditLogs struct {
+	// Tags are AWS EKS tags to match. Clusters that have tags that match these
+	// will have their audit logs fetched and sent to Access Graph.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1645,11 +1872,14 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	// Deprecated: CgroupPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// RootPath root directory for the Teleport cgroups.
-	// Optional, defaults to /teleport
+	// Deprecated: RootPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	RootPath string `yaml:"root_path"`
 }
 
@@ -1661,8 +1891,6 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
-		CgroupPath:        b.CgroupPath,
-		RootPath:          b.RootPath,
 	}
 }
 
@@ -1731,6 +1959,8 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// AssumeRoleARN is the AWS role to assume for database discovery.
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// AssumeRoleName is the AWS role name to assume for discovery.
+	AssumeRoleName string `yaml:"assume_role_name,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
@@ -1750,6 +1980,34 @@ type AWSMatcher struct {
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
 	SetupAccessForARN string `yaml:"setup_access_for_arn"`
+	// Organization is an AWS Organization matcher for discovering resources across multiple accounts under an Organization.
+	Organization *AWSOrganizationMatcher `yaml:"organization,omitempty"`
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+type AWSOrganizationMatcher struct {
+	// OrganizationID is the AWS Organization ID to match against.
+	// Required.
+	OrganizationID string `yaml:"organization_id,omitempty"`
+
+	// OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+	OrganizationalUnits AWSOrganizationUnitsMatcher `yaml:"organizational_units,omitempty"`
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+type AWSOrganizationUnitsMatcher struct {
+	// Include is a list of AWS Organizational Unit IDs and children OUs to include.
+	// Accounts that belong to these OUs, and their children, will be included.
+	// Only exact matches or wildcard (*) are supported.
+	// Required.
+	Include []string `yaml:"include,omitempty"`
+
+	// Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+	// Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+	// Only exact matches are supported.
+	// Optional. If empty, no OUs are excluded.
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -1773,6 +2031,28 @@ type InstallParams struct {
 	// Valid values: script, eice.
 	// Optional.
 	EnrollMode string `yaml:"enroll_mode"`
+	// Suffix indicates the installation suffix for the teleport installation.
+	// Set this value if you want multiple installations of Teleport.
+	// See --install-suffix flag in teleport-update program.
+	Suffix string `yaml:"suffix,omitempty"`
+	// UpdateGroup indicates the update group for the teleport installation.
+	// This value is used to group installations in order to update them in batches.
+	// See --group flag in teleport-update program.
+	UpdateGroup string `yaml:"update_group,omitempty"`
+	// HTTPProxySettings configures HTTP proxy settings for the installation.
+	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+}
+
+// HTTPProxySettings configures HTTP proxy settings for the installation.
+// When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+type HTTPProxySettings struct {
+	// HTTPProxy is the HTTP proxy URL.
+	HTTPProxy string `yaml:"http_proxy,omitempty"`
+	// HTTPSProxy is the HTTPS proxy URL.
+	HTTPSProxy string `yaml:"https_proxy,omitempty"`
+	// NoProxy is a comma-separated list of hosts that should be excluded
+	// from proxying.
+	NoProxy string `yaml:"no_proxy,omitempty"`
 }
 
 const (
@@ -1782,7 +2062,7 @@ const (
 
 var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
-func (ip *InstallParams) parse() (*types.InstallerParams, error) {
+func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1790,6 +2070,21 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:          ip.Suffix,
+		UpdateGroup:     ip.UpdateGroup,
+		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+	}
+
+	if ip.HTTPProxySettings != nil {
+		install.HTTPProxySettings = &types.HTTPProxySettings{
+			HTTPProxy:  ip.HTTPProxySettings.HTTPProxy,
+			HTTPSProxy: ip.HTTPProxySettings.HTTPSProxy,
+			NoProxy:    ip.HTTPProxySettings.NoProxy,
+		}
+
+		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch ip.EnrollMode {
@@ -1801,6 +2096,12 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
 	default:
 		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
+	}
+
+	if ip.Azure != nil {
+		install.Azure = &types.AzureInstallerParams{
+			ClientID: ip.Azure.ClientID,
+		}
 	}
 
 	if ip.InstallTeleport == "" {
@@ -1841,6 +2142,8 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// Integration is the Azure Integration name.
+	Integration string `yaml:"integration,omitempty"`
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
@@ -1917,6 +2220,10 @@ type DatabaseAD struct {
 	LDAPCert string `yaml:"ldap_cert,omitempty"`
 	// KDCHostName is the host name for a KDC for x509 Authentication.
 	KDCHostName string `yaml:"kdc_host_name,omitempty"`
+	// LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountName string `yaml:"ldap_service_account_name,omitempty"`
+	// LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.
+	LDAPServiceAccountSID string `yaml:"ldap_service_account_sid,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -1942,8 +2249,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.
@@ -1964,6 +2278,8 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS `yaml:"rds"`
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache `yaml:"elasticache"`
+	// ElastiCacheServerless contains ElastiCache Serverless specific settings.
+	ElastiCacheServerless DatabaseAWSElastiCacheServerless `yaml:"elasticache_serverless"`
 	// SecretStore contains settings for managing secrets.
 	SecretStore SecretStore `yaml:"secret_store"`
 	// MemoryDB contains MemoryDB specific settings.
@@ -2000,6 +2316,13 @@ type DatabaseAWSElastiCache struct {
 	ReplicationGroupID string `yaml:"replication_group_id,omitempty"`
 }
 
+// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless
+// databases.
+type DatabaseAWSElastiCacheServerless struct {
+	// CacheName is the ElastiCache Serverless cache name.
+	CacheName string `yaml:"cache_name,omitempty"`
+}
+
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
@@ -2020,6 +2343,17 @@ type DatabaseGCP struct {
 	ProjectID string `yaml:"project_id,omitempty"`
 	// InstanceID is the Cloud SQL database instance ID.
 	InstanceID string `yaml:"instance_id,omitempty"`
+	// AlloyDB contains AlloyDB specific settings.
+	AlloyDB DatabaseGCPAlloyDB `yaml:"alloydb,omitempty"`
+}
+
+// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
+type DatabaseGCPAlloyDB struct {
+	// EndpointType is the database endpoint type to use. Available types are 'private', 'public' and 'psc'.
+	// 'private' is the default type.
+	EndpointType string `yaml:"endpoint_type,omitempty"`
+	// EndpointOverride is an override of endpoint address to use.
+	EndpointOverride string `yaml:"endpoint_override,omitempty"`
 }
 
 // DatabaseAzure contains Azure database configuration.
@@ -2040,6 +2374,9 @@ type Apps struct {
 
 	// DebugApp turns on a header debugging application.
 	DebugApp bool `yaml:"debug_app"`
+
+	// MCPDemoServer enables the "Teleport Demo" MCP server.
+	MCPDemoServer bool `yaml:"mcp_demo_server"`
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`
@@ -2087,6 +2424,12 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string `yaml:"required_apps,omitempty"`
 
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
+	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+	// setting this value to true will overwrite that public address in the web UI.
+	UseAnyProxyPublicAddr bool `yaml:"use_any_proxy_public_addr"`
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
@@ -2096,6 +2439,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
+
+	// MCP contains MCP server-related configurations.
+	MCP *MCP `yaml:"mcp,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2154,6 +2500,17 @@ type PortRange struct {
 	EndPort int `yaml:"end_port,omitempty"`
 }
 
+// MCP contains MCP server-related configurations.
+type MCP struct {
+	// Command to launch stdio-based MCP servers.
+	Command string `yaml:"command,omitempty"`
+	// Args to execute with the command.
+	Args []string `yaml:"args,omitempty"`
+	// RunAsHostUser is the host user account under which the command will be
+	// executed. Required for stdio-based MCP servers.
+	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -2176,6 +2533,9 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
@@ -2463,7 +2823,14 @@ type WindowsDesktopService struct {
 	// no effect when connecting to desktops as local Windows users.
 	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
+	// New usages should prever DiscoveryConfigs instead, which allows for multiple searches.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
+	// DiscoveryConfigs configures desktop discovery via LDAP.
+	DiscoveryConfigs []LDAPDiscoveryConfig `yaml:"discovery_configs,omitempty"`
+	// DiscoveryInterval controls how frequently the discovery process runs.
+	DiscoveryInterval time.Duration `yaml:"discovery_interval"`
+	// PublishCRLInterval determines how frequently CRLs should be published.
+	PublishCRLInterval time.Duration `yaml:"publish_crl_interval"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
@@ -2492,12 +2859,14 @@ func (wds *WindowsDesktopService) Check() error {
 		return host.AD
 	})
 
-	if hasAD && wds.LDAP.Addr == "" {
+	ldapConfigOK := wds.LDAP.Domain != "" && (wds.LDAP.Addr != "" || wds.LDAP.LocateServer.Enabled)
+
+	if hasAD && !ldapConfigOK {
 		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
 			"the ldap configuration must also be specified")
 	}
 
-	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+	if (wds.Discovery.BaseDN != "" || len(wds.DiscoveryConfigs) > 0) && !ldapConfigOK {
 		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
 			"ldap configuration must also be specified")
 	}
@@ -2528,10 +2897,22 @@ type WindowsHost struct {
 	AD bool `yaml:"ad"`
 }
 
+// LocateServer contains parameters for locating LDAP servers
+// from the AD Domain
+type LocateServer struct {
+	// Enabled will automatically locate the LDAP server using DNS SRV records.
+	// When enabled, Domain must be set, Addr will be ignored
+	// https://ldap.com/dns-srv-records-for-ldap/
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Site is an LDAP site to locate servers from a specific logical site.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/b645c125-a7da-4097-84a1-2fa7cea07714#gt_8abdc986-5679-42d9-ad76-b11eb5a0daba
+	Site string `yaml:"site,omitempty"`
+}
+
 // LDAPConfig is the LDAP connection parameters.
 type LDAPConfig struct {
 	// Addr is the host:port of the LDAP server (typically port 389).
-	Addr string `yaml:"addr"`
+	Addr string `yaml:"addr,omitempty"`
 	// Domain is the ActiveDirectory domain name.
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
@@ -2544,8 +2925,10 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
+	// LocateServer is the config that enables LDAP server location using DNS SRV records.
+	LocateServer `yaml:"locate_server"`
 }
 
 // LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
@@ -2557,12 +2940,18 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// Labels are static labels applied to all hosts discovered via
+	// this policy.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.
@@ -2797,4 +3186,93 @@ func readJamfPasswordFile(path, key string) (string, error) {
 	}
 
 	return pwd, nil
+}
+
+// Relay is the relay_service section of the Teleport config file.
+type Relay struct {
+	// Enabled is set if the relay service is enabled, defaults to false.
+	Enabled bool `yaml:"enabled"`
+
+	// RelayGroup is the Relay group name, required if the relay service is
+	// enabled.
+	RelayGroup string `yaml:"relay_group"`
+
+	// TargetConnectionCount is the connection count that agents are supposed to
+	// maintain when connecting to the Relay group of this instance.
+	TargetConnectionCount int `yaml:"target_connection_count"`
+
+	// PublicHostnames is the list of DNS names and IP addresses that the
+	// Relay service credentials should be authoritative for.
+	PublicHostnames []string `yaml:"public_hostnames"`
+
+	// TransportListenAddr is the listen address for the transport listener, in
+	// addr:port format.
+	TransportListenAddr string `yaml:"transport_listen_addr"`
+
+	// TransportPROXYProtocol is set if the transport listener should expect a
+	// PROXY protocol header in incoming connections.
+	TransportPROXYProtocol bool `yaml:"transport_proxy_protocol"`
+
+	// PeerListenAddr is the listen address for the peer listener, in addr:port
+	// format.
+	PeerListenAddr string `yaml:"peer_listen_addr"`
+
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string `yaml:"peer_public_addr"`
+
+	// TunnelListenAddr is the listen address for the tunnel listener, in
+	// addr:port format.
+	TunnelListenAddr string `yaml:"tunnel_listen_addr"`
+
+	// TunnelPROXYProtocol is set if the tunnel listener should expect a PROXY
+	// protocol header in incoming connections.
+	TunnelPROXYProtocol bool `yaml:"tunnel_proxy_protocol"`
+}
+
+// SessionRecordingEncryptionConfig is the session_recording_config.encryption
+// section of the Teleport config file. It maps directly to [types.SessionRecordingEncryptionConfig]
+type SessionRecordingEncryptionConfig struct {
+	Enabled             bool `yaml:"enabled,omitempty"`
+	ManualKeyManagement *struct {
+		Enabled     bool              `yaml:"enabled,omitempty"`
+		ActiveKeys  []*types.KeyLabel `yaml:"active_keys,omitempty"`
+		RotatedKeys []*types.KeyLabel `yaml:"rotated_keys,omitempty"`
+	} `yaml:"manual_key_management,omitempty"`
+}
+
+// SessionRecordingConfig is the session_recording_config section of the Teleport config file.
+// It maps directly to [types.SessionRecordingConfigSpecV2]
+type SessionRecordingConfig struct {
+	Mode                string                            `yaml:"mode"`
+	ProxyChecksHostKeys *types.BoolOption                 `yaml:"proxy_checks_host_keys,omitempty"`
+	Encryption          *SessionRecordingEncryptionConfig `yaml:"encryption,omitempty"`
+}
+
+// toSpec converts SessionRecordingConfig into a types.SessionRecordingConfigSpecV2 so it can
+// be used to initialize session recording.
+func (src *SessionRecordingConfig) toSpec() types.SessionRecordingConfigSpecV2 {
+	if src == nil {
+		return types.SessionRecordingConfigSpecV2{}
+	}
+
+	var encryption *types.SessionRecordingEncryptionConfig
+	if src.Encryption != nil {
+		encryption = &types.SessionRecordingEncryptionConfig{
+			Enabled: src.Encryption.Enabled,
+		}
+		if src.Encryption.ManualKeyManagement != nil {
+			encryption.ManualKeyManagement = &types.ManualKeyManagementConfig{
+				Enabled:     src.Encryption.ManualKeyManagement.Enabled,
+				ActiveKeys:  src.Encryption.ManualKeyManagement.ActiveKeys,
+				RotatedKeys: src.Encryption.ManualKeyManagement.RotatedKeys,
+			}
+		}
+	}
+
+	return types.SessionRecordingConfigSpecV2{
+		Mode:                src.Mode,
+		ProxyChecksHostKeys: src.ProxyChecksHostKeys,
+		Encryption:          encryption,
+	}
 }

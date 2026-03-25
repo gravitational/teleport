@@ -16,13 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  ClientScreenSpec,
+  selectDirectoryInBrowser,
+  TdpbCodec,
+  TdpClient,
+  TdpClientEvent,
+} from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
 
-import Client, { TdpClientEvent } from './client';
-import { ClientScreenSpec } from './codec';
+import { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';
 
 // we update the time every time we receive data, or
 // at this interval (which ensures that the progress
@@ -35,7 +42,7 @@ enum Action {
   SEEK = 'seek',
 }
 
-export class PlayerClient extends Client {
+export class PlayerClient extends TdpClient {
   private textDecoder = new TextDecoder();
   private setPlayerStatus: React.Dispatch<React.SetStateAction<StatusEnum>>;
   private setStatusText: React.Dispatch<React.SetStateAction<string>>;
@@ -51,9 +58,14 @@ export class PlayerClient extends Client {
   private sendTimeUpdates = true;
   private lastUpdateTime = 0;
   private timeout = null;
+  private tdpbCodec = new TdpbCodec();
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(url);
+    super(
+      signal =>
+        adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
+      selectDirectoryInBrowser
+    );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
     this._setTime = setTime;
@@ -68,12 +80,6 @@ export class PlayerClient extends Client {
       this.lastTimestamp = t;
       this.lastUpdateTime = Date.now();
     }, PROGRESS_UPDATE_INTERVAL_MS);
-  }
-
-  // Override so we can set player status.
-  async connect(spec?: ClientScreenSpec) {
-    await super.connect(spec);
-    this.setPlayerStatus(StatusEnum.PLAYING);
   }
 
   scheduleNextUpdate(current: number) {
@@ -170,7 +176,16 @@ export class PlayerClient extends Client {
         this.scheduleNextUpdate(json.ms);
       }
 
-      await super.processMessage(base64ToArrayBuffer(json.message));
+      // Handle TDPB recordings by switching to the TDPB codec
+      if (json.tdpb_message) {
+        await super.processMessage(
+          base64ToArrayBuffer(json.tdpb_message),
+          this.tdpbCodec
+        );
+      } else {
+        // Handle TDP recordings
+        await super.processMessage(base64ToArrayBuffer(json.message));
+      }
     }
   }
 
@@ -198,30 +213,24 @@ export class PlayerClient extends Client {
   }
 
   // Overrides Client implementation.
-  handleClientScreenSpec(buffer: ArrayBuffer) {
-    this.emit(
-      TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-      this.codec.decodeClientScreenSpec(buffer)
-    );
+  handleClientScreenSpec(spec: ClientScreenSpec) {
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   // Overrides Client implementation. This prevents the Client from sending
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePdu() {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  handleMouseButton(buffer: ArrayBuffer) {
+  handleMouseButton() {
     return;
   }
 
   // Overrides Client implementation.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  handleMouseMove(buffer: ArrayBuffer) {
+  handleMouseMove() {
     return;
   }
 }

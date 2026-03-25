@@ -18,7 +18,6 @@
 package services_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -79,10 +78,9 @@ func TestAccessRequestCacheResets(t *testing.T) {
 	svcs, cache := newAccessRequestPack(t)
 	defer cache.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	for i := 0; i < requestCount; i++ {
+	for range requestCount {
 		r, err := types.NewAccessRequest(uuid.New().String(), "alice@example.com", "some-role")
 		require.NoError(t, err)
 
@@ -112,7 +110,7 @@ func TestAccessRequestCacheResets(t *testing.T) {
 	reads := make(chan struct{}, workers)
 	var eg errgroup.Group
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		eg.Go(func() error {
 			for {
 				select {
@@ -146,7 +144,7 @@ func TestAccessRequestCacheResets(t *testing.T) {
 	})
 
 	timeout = time.After(time.Second * 30)
-	for i := 0; i < resets; i++ {
+	for i := range resets {
 		svcs.bk.CloseWatchers()
 		select {
 		case <-inits:
@@ -154,7 +152,7 @@ func TestAccessRequestCacheResets(t *testing.T) {
 			require.FailNowf(t, "timeout waiting for access request cache to reset", "reset=%d", i)
 		}
 
-		for j := 0; j < workers; j++ {
+		for range workers {
 			// ensure that we're not racing ahead of worker reads too
 			// much if inits are happening quickly.
 			select {
@@ -177,8 +175,7 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 	svcs, cache := newAccessRequestPack(t)
 	defer cache.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// describe a set of basic test resources that we can use to
 	// verify various sort scenarios (request are inserted with
@@ -390,8 +387,7 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 func TestAccessRequestCacheExpiryFiltering(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		// set backend into mirror mode so that it does not expire items

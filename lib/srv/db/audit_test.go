@@ -35,9 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
+	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
@@ -335,12 +336,11 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 		})
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
-		// Select timezone.
 		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, "SELECT timezone()")
+		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.HelloQuery)
 
 		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.PingQuery)
 
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
@@ -392,8 +392,10 @@ func requireBindEvent(t *testing.T, testCtx *testContext) *events.PostgresBind {
 	return bindEvent
 }
 
-func requireEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
-	t.Helper()
+func requireEvent(t require.TestingT, testCtx *testContext, code string) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 	return event
@@ -417,8 +419,10 @@ func requireQueryEventWithDBName(t *testing.T, testCtx *testContext, code, query
 	require.Equal(t, dbName, queryEvent.DatabaseName)
 }
 
-func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
-	t.Helper()
+func waitForAnyEvent(t require.TestingT, testCtx *testContext) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	select {
 	case event := <-testCtx.emitter.C():
 		return event

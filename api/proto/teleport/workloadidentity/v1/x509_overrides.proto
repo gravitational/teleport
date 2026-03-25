@@ -1,0 +1,55 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// A configuration resource to override the issuers of SPIFFE X509-SVID
+// credentials. This message serves as both the type used in the v1 service and
+// as the canonical v1 storage format (in protojson).
+message X509IssuerOverride {
+  // Fixed string, "workload_identity_x509_issuer_override".
+  string kind = 1;
+  // Fixed string, "".
+  string sub_kind = 2;
+  // Fixed string, "v1".
+  string version = 3;
+
+  teleport.header.v1.Metadata metadata = 4;
+  X509IssuerOverrideSpec spec = 5;
+}
+
+// The spec for X509IssuerOverride.
+message X509IssuerOverrideSpec {
+  // The override for a single issuer (i.e. a single X.509 certificate in a
+  // SPIFFE cert_authority).
+  message Override {
+    // ASN.1 DER certificate, not included by default in the chain.
+    bytes issuer = 1;
+    // ASN.1 DER certificate ordered from leaf to root as it should be presented
+    // by a client or server in a TLS connection. Must not include self-signed
+    // roots of trust.
+    repeated bytes chain = 2;
+  }
+
+  // A list of issuer overrides. The public key of each issuer must be unique
+  // across all overrides' issuers, and should match one of the keys in the
+  // cluster's SPIFFE certificate authority.
+  repeated Override overrides = 1;
+}

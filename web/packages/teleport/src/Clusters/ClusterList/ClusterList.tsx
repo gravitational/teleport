@@ -17,14 +17,13 @@
  */
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
 import Table, { Cell } from 'design/DataTable';
-import { Primary, Secondary } from 'design/Label';
+import { Status } from 'design/Status';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { DropdownDivider } from 'teleport/components/Dropdown';
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
 
@@ -63,7 +62,15 @@ function renderRootLabelCell({ clusterId }: Cluster) {
   const isRoot = cfg.proxyCluster === clusterId;
   return (
     <Cell style={{ width: '40px' }}>
-      {isRoot ? <Primary>ROOT</Primary> : <Secondary>LEAF</Secondary>}
+      {isRoot ? (
+        <Status kind="primary" variant="filled" icon={false}>
+          ROOT
+        </Status>
+      ) : (
+        <Status kind="neutral" variant="filled-subtle" icon={false}>
+          LEAF
+        </Status>
+      )}
     </Cell>
   );
 }
@@ -85,14 +92,8 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
     );
   }
 
-  $items.push(<DropdownDivider key="divider" />);
-
-  $items.push(
-    renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))
-  );
-
   return (
-    <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>
+    <Cell align="right">{$items && <MenuButton>{$items}</MenuButton>}</Cell>
   );
 }
 

@@ -345,7 +345,7 @@ func newService(t *testing.T, checker services.AccessChecker, existing ...*types
 		Backend: testBackend{
 			GitServers: gitServersService,
 		},
-		ProxyPublicAddrGetter: func() string {
+		ProxyPublicAddrGetter: func(context.Context) string {
 			return fakeProxyAddr
 		},
 		GitHubAuthRequestCreator: func(_ context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {

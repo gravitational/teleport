@@ -24,6 +24,9 @@
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
 //!   and whose name begins with `CGO`)
 
+// bring in rdp-decoder to export its unmangled symbols in the staticlib
+extern crate rdp_decoder as _;
+
 use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
@@ -126,6 +129,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
             client_id: params.client_id,
+            keyboard_layout: params.keyboard_layout,
         },
     ) {
         Ok(res) => CGOResult {
@@ -512,6 +516,7 @@ pub struct CGOConnectParams {
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
     client_id: [u32; 4],
+    keyboard_layout: u32,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.

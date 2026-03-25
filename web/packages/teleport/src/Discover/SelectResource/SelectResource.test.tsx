@@ -26,6 +26,7 @@ import {
   Resource,
 } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
+import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import {
   allAccessAcl,
@@ -57,6 +58,7 @@ import {
   kindBasedList,
   l_DesktopAzure,
   l_Saml,
+  m_MCP,
   makeResourceSpec,
   NoAccessList,
 } from './testUtils';
@@ -154,6 +156,7 @@ describe('preferred resources', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -176,6 +179,7 @@ describe('preferred resources', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -198,6 +202,7 @@ describe('preferred resources', () => {
         k_Database,
         l_Saml,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -209,6 +214,7 @@ describe('preferred resources', () => {
         // preferred first
         c_ApplicationGcp,
         g_Application,
+        m_MCP,
         // alpha; guided before unguided
         a_DatabaseAws,
         d_Saml,
@@ -242,6 +248,7 @@ describe('preferred resources', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -297,6 +304,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -327,6 +335,7 @@ describe('marketing params', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -357,6 +366,7 @@ describe('marketing params', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -387,6 +397,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -406,6 +417,7 @@ describe('marketing params', () => {
         // preferred first
         c_ApplicationGcp,
         g_Application,
+        m_MCP,
         // alpha; guided before unguided
         a_DatabaseAws,
         d_Saml,
@@ -447,6 +459,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -1115,6 +1128,66 @@ test('does not display erorr banner if user has "some" permissions to add', asyn
   expect(
     screen.queryByText(/You cannot add new resources./i)
   ).not.toBeInTheDocument();
+});
+
+describe('Connect Cloud Account call-to-action', () => {
+  const originalIsCloud = cfg.isCloud;
+
+  afterEach(() => {
+    cfg.isCloud = originalIsCloud;
+  });
+
+  test('shows Connect Cloud Account call-to-action if user has permission to create integrations', () => {
+    jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: () => null,
+      updateClusterPinnedResources: () => null,
+      getClusterPinnedResources: () => null,
+      updateDiscoverResourcePreferences: () => null,
+    });
+
+    cfg.isCloud = true;
+
+    const ctx = createTeleportContext();
+    ctx.storeUser.setState({ acl: { ...allAccessAcl } });
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <SelectResource onSelect={() => {}} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/Connect Cloud Account/)).toBeInTheDocument();
+  });
+
+  test("hides Connect Cloud Account cta when user doesn't have permission to create integrations", () => {
+    jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: () => null,
+      updateClusterPinnedResources: () => null,
+      getClusterPinnedResources: () => null,
+      updateDiscoverResourcePreferences: () => null,
+    });
+
+    cfg.isCloud = true;
+
+    const ctx = createTeleportContext();
+    ctx.storeUser.setState({
+      acl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
+    });
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <SelectResource onSelect={() => {}} />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText(/Connect Cloud Account/)).not.toBeInTheDocument();
+  });
 });
 
 describe('filterBySupportedPlatformsAndAuthTypes', () => {

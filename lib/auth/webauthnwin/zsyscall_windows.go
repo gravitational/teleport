@@ -52,7 +52,7 @@ var (
 )
 
 func webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, clientData *webauthnClientData, opts *webauthnAuthenticatorGetAssertionOptions, out **webauthnAssertion) (ret uintptr, err error) {
-	r0, _, e1 := syscall.Syscall6(procWebAuthNAuthenticatorGetAssertion.Addr(), 5, uintptr(hwnd), uintptr(unsafe.Pointer(rpID)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)), 0)
+	r0, _, e1 := syscall.SyscallN(procWebAuthNAuthenticatorGetAssertion.Addr(), uintptr(hwnd), uintptr(unsafe.Pointer(rpID)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)))
 	ret = uintptr(r0)
 	if ret != 0 {
 		err = errnoErr(e1)
@@ -61,7 +61,7 @@ func webAuthNAuthenticatorGetAssertion(hwnd syscall.Handle, rpID *uint16, client
 }
 
 func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEntityInformation, user *webauthnUserEntityInformation, pubKeyCredParams *webauthnCoseCredentialParameters, clientData *webauthnClientData, opts *webauthnAuthenticatorMakeCredentialOptions, out **webauthnCredentialAttestation) (ret uintptr, err error) {
-	r0, _, e1 := syscall.Syscall9(procWebAuthNAuthenticatorMakeCredential.Addr(), 7, uintptr(hwnd), uintptr(unsafe.Pointer(rp)), uintptr(unsafe.Pointer(user)), uintptr(unsafe.Pointer(pubKeyCredParams)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)), 0, 0)
+	r0, _, e1 := syscall.SyscallN(procWebAuthNAuthenticatorMakeCredential.Addr(), uintptr(hwnd), uintptr(unsafe.Pointer(rp)), uintptr(unsafe.Pointer(user)), uintptr(unsafe.Pointer(pubKeyCredParams)), uintptr(unsafe.Pointer(clientData)), uintptr(unsafe.Pointer(opts)), uintptr(unsafe.Pointer(out)))
 	ret = uintptr(r0)
 	if ret != 0 {
 		err = errnoErr(e1)
@@ -70,17 +70,17 @@ func webAuthNAuthenticatorMakeCredential(hwnd syscall.Handle, rp *webauthnRPEnti
 }
 
 func freeAssertion(in *webauthnAssertion) {
-	syscall.Syscall(procWebAuthNFreeAssertion.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
+	syscall.SyscallN(procWebAuthNFreeAssertion.Addr(), uintptr(unsafe.Pointer(in)))
 	return
 }
 
 func freeCredentialAttestation(in *webauthnCredentialAttestation) {
-	syscall.Syscall(procWebAuthNFreeCredentialAttestation.Addr(), 1, uintptr(unsafe.Pointer(in)), 0, 0)
+	syscall.SyscallN(procWebAuthNFreeCredentialAttestation.Addr(), uintptr(unsafe.Pointer(in)))
 	return
 }
 
 func webAuthNGetApiVersionNumber() (ret int, err error) {
-	r0, _, e1 := syscall.Syscall(procWebAuthNGetApiVersionNumber.Addr(), 0, 0, 0, 0)
+	r0, _, e1 := syscall.SyscallN(procWebAuthNGetApiVersionNumber.Addr())
 	ret = int(r0)
 	if ret == 0 {
 		err = errnoErr(e1)
@@ -89,7 +89,7 @@ func webAuthNGetApiVersionNumber() (ret int, err error) {
 }
 
 func webAuthNGetErrorName(in uintptr) (ret uintptr) {
-	r0, _, _ := syscall.Syscall(procWebAuthNGetErrorName.Addr(), 1, uintptr(in), 0, 0)
+	r0, _, _ := syscall.SyscallN(procWebAuthNGetErrorName.Addr(), uintptr(in))
 	ret = uintptr(r0)
 	return
 }
@@ -99,7 +99,7 @@ func webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(out *bool) (ret uintp
 	if *out {
 		_p0 = 1
 	}
-	r0, _, e1 := syscall.Syscall(procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Addr(), 1, uintptr(unsafe.Pointer(&_p0)), 0, 0)
+	r0, _, e1 := syscall.SyscallN(procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable.Addr(), uintptr(unsafe.Pointer(&_p0)))
 	*out = _p0 != 0
 	ret = uintptr(r0)
 	if ret != 0 {
@@ -109,7 +109,7 @@ func webAuthNIsUserVerifyingPlatformAuthenticatorAvailable(out *bool) (ret uintp
 }
 
 func getForegroundWindow() (hwnd syscall.Handle, err error) {
-	r0, _, e1 := syscall.Syscall(procGetForegroundWindow.Addr(), 0, 0, 0, 0)
+	r0, _, e1 := syscall.SyscallN(procGetForegroundWindow.Addr())
 	hwnd = syscall.Handle(r0)
 	if hwnd == 0 {
 		err = errnoErr(e1)

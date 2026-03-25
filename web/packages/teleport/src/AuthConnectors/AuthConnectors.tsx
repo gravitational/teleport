@@ -17,15 +17,18 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 
-import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
-import { H2, P } from 'design/Text/Text';
+import { Alert, Box, Flex, Indicator } from 'design';
+import { H2 } from 'design/Text/Text';
+import {
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import {
-  DesktopDescription,
-  MobileDescription,
   ResponsiveAddButton,
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
@@ -55,18 +58,18 @@ export function AuthConnectorsContainer() {
       <Route
         key="auth-connector-edit"
         path={cfg.routes.ssoConnector.edit}
-        render={() => <GitHubConnectorEditor />}
+        element={<GitHubConnectorEditor />}
       />
       <Route
         key="auth-connector-new"
         path={cfg.routes.ssoConnector.create}
-        render={() => <GitHubConnectorEditor isNew={true} />}
+        element={<GitHubConnectorEditor isNew={true} />}
       />
       <Route
         key="auth-connector-list"
         path={cfg.routes.sso}
         exact
-        render={() => <AuthConnectors />}
+        element={<AuthConnectors />}
       />
     </Switch>
   );
@@ -118,7 +121,7 @@ export function AuthConnectors() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
@@ -141,18 +144,17 @@ export function AuthConnectors() {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription>{description}</MobileDescription>
-        <ResponsiveAddButton
-          fill="border"
-          onClick={() =>
-            history.push(cfg.getCreateAuthConnectorRoute('github'))
-          }
-        >
-          New GitHub Connector
-        </ResponsiveAddButton>
+        <InfoGuideButton config={{ guide: <InfoGuide isGitHub={true} /> }}>
+          <ResponsiveAddButton
+            fill="border"
+            onClick={() => navigate(cfg.getCreateAuthConnectorRoute('github'))}
+          >
+            New GitHub Connector
+          </ResponsiveAddButton>
+        </InfoGuideButton>
       </ResponsiveFeatureHeader>
       {fetchAttempt.status === 'error' && (
-        <Alert children={fetchAttempt.statusText} />
+        <Alert>{fetchAttempt.statusText}</Alert>
       )}
       {fetchAttempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -173,7 +175,7 @@ export function AuthConnectors() {
               {isEmpty ? (
                 <EmptyList
                   onCreate={() =>
-                    history.push(cfg.getCreateAuthConnectorRoute('github'))
+                    navigate(cfg.getCreateAuthConnectorRoute('github'))
                   }
                   isLocalDefault={defaultConnector.type === 'local'}
                 />
@@ -188,22 +190,6 @@ export function AuthConnectors() {
             </Box>
             <CtaConnectors />
           </Flex>
-          <DesktopDescription>
-            <H3 mb={3}>Auth Connectors</H3>
-            <P mb={3}>{description}</P>
-            <P mb={2}>
-              Please{' '}
-              <Link
-                color="text.main"
-                // This URL is the OSS documentation for auth connectors
-                href="https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/"
-                target="_blank"
-              >
-                view our documentation
-              </Link>{' '}
-              on how to configure a GitHub connector.
-            </P>
-          </DesktopDescription>
         </Flex>
       )}
       {resources.status === 'removing' && (
@@ -219,3 +205,26 @@ export function AuthConnectors() {
     </FeatureBox>
   );
 }
+
+export const InfoGuide = ({ isGitHub = false }) => (
+  <Box>
+    <InfoParagraph>
+      Auth connectors allow Teleport to authenticate users via an external
+      identity source such as Okta, Microsoft Entra ID, GitHub, etc. This
+      authentication method is commonly known as single sign-on (SSO).
+    </InfoParagraph>
+    <ReferenceLinks
+      links={[
+        isGitHub
+          ? {
+              title: 'Configure GitHub connector',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/',
+            }
+          : {
+              title: 'Samples of different connectors',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/',
+            },
+      ]}
+    />
+  </Box>
+);

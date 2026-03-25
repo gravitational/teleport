@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
-import { render, screen } from 'design/utils/testing';
+import { enableMswServer, screen, server } from 'design/utils/testing';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
 import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';
@@ -32,21 +31,29 @@ import {
   KUBERNETES,
   SERVERS,
 } from 'teleport/Discover/SelectResource/resources';
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
+import {
+  resourceSpecConnectMyComputer,
+  resourceSpecSamlGcp,
+} from './Fixtures/fixtures';
 import { ResourceKind } from './Shared';
 import { getGuideTileId } from './testUtils';
 import { DiscoverUpdateProps, useDiscover } from './useDiscover';
 
+enableMswServer();
+
 beforeEach(() => {
   jest.restoreAllMocks();
+  server.use(userEventCaptureSuccess());
 });
 
 type createProps = {
@@ -69,18 +76,19 @@ const create = ({ initialEntry = '', preferredResource }: createProps) => {
   const userAcl = getAcl();
   const ctx = createTeleportContext({ customAcl: userAcl });
 
-  return render(
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-      ]}
-    >
-      <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
+  return renderWithMemoryRouter(
+    <TeleportContextProvider ctx={ctx}>
+      <FeaturesContextProvider value={getOSSFeatures()}>
+        <InfoGuidePanelProvider>
           <Discover />
-        </FeaturesContextProvider>
-      </TeleportContextProvider>
-    </MemoryRouter>
+        </InfoGuidePanelProvider>
+      </FeaturesContextProvider>
+    </TeleportContextProvider>,
+    {
+      initialEntries: [
+        { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+      ],
+    }
   );
 };
 
@@ -146,7 +154,7 @@ describe('location state', () => {
     // we assert three databases for servers because the naming convention includes "server"
     expect(
       screen.queryAllByTestId(getGuideTileId({ kind: ResourceKind.Database }))
-    ).toHaveLength(4);
+    ).toHaveLength(5);
 
     expect(
       screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))
@@ -278,30 +286,25 @@ const renderUpdate = (props: DiscoverUpdateProps) => {
     },
   ];
 
-  return render(
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: '' } },
-      ]}
-    >
-      <TeleportContextProvider ctx={ctx}>
+  return renderWithMemoryRouter(
+    <TeleportContextProvider ctx={ctx}>
+      <InfoGuidePanelProvider>
         <DiscoverComponent eViewConfigs={testViews} updateFlow={props} />
-      </TeleportContextProvider>
-    </MemoryRouter>
+      </InfoGuidePanelProvider>
+    </TeleportContextProvider>,
+    {
+      initialEntries: [
+        { pathname: cfg.routes.discover, state: { entity: '' } },
+      ],
+    }
   );
 };
 
 test('update flow: renders single component based on resourceSpec', () => {
-  const resourceSpec: ResourceSpec = {
-    name: 'Connect My Computer',
-    kind: ResourceKind.ConnectMyComputer,
-    event: null,
-    icon: 'laptop',
-    keywords: [],
-    hasAccess: true,
-  };
-
-  renderUpdate({ resourceSpec: resourceSpec, agentMeta: { resourceName: '' } });
+  renderUpdate({
+    resourceSpec: resourceSpecConnectMyComputer,
+    agentMeta: { resourceName: '' },
+  });
 
   expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
 
@@ -317,17 +320,8 @@ test('update flow: renders single component based on resourceSpec', () => {
 });
 
 test('update flow: agentMeta is prepopulated based on agentMeta', () => {
-  const resourceSpec: ResourceSpec = {
-    name: 'MockComponent1',
-    kind: ResourceKind.SamlApplication,
-    event: null,
-    icon: 'application',
-    keywords: [],
-    hasAccess: true,
-  };
-
   renderUpdate({
-    resourceSpec: resourceSpec,
+    resourceSpec: resourceSpecSamlGcp,
     agentMeta: { resourceName: 'saml2' },
   });
 

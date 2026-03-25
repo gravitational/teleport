@@ -27,7 +27,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // gitSSHCommand implements `tsh git ssh`.
@@ -45,25 +47,34 @@ type gitSSHCommand struct {
 
 func newGitSSHCommand(parent *kingpin.CmdClause) *gitSSHCommand {
 	cmd := &gitSSHCommand{
-		CmdClause: parent.Command("ssh", "Proxy Git commands using SSH").Hidden(),
+		CmdClause: parent.Command("ssh", "Proxy Git commands using SSH.").Hidden(),
 	}
 
 	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrg)
-	cmd.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cmd.userHost)
-	cmd.Arg("command", "Command to execute on a remote host").StringsVar(&cmd.command)
-	cmd.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cmd.options)
+	cmd.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cmd.userHost)
+	cmd.Arg("command", "Command to execute on a remote host.").StringsVar(&cmd.command)
+	cmd.Flag("option", "OpenSSH options in the format used in the configuration file.").Short('o').AllowDuplicate().StringsVar(&cmd.options)
 	return cmd
 }
 
-func (c *gitSSHCommand) run(cf *CLIConf) error {
+func (c *gitSSHCommand) run(cf *CLIConf) (err error) {
 	_, host, ok := strings.Cut(c.userHost, "@")
 	if !ok || host != "github.com" {
 		return trace.BadParameter("user-host %q is not GitHub", c.userHost)
 	}
 
-	// TODO(greedy52) when git calls tsh, tsh cannot prompt for password (e.g.
-	// user session expired) using provided stdin pipe. `tc.Login` should try
-	// hijacking "/dev/tty" and replace `prompt.Stdin` temporarily.
+	// This command is invoked by "git" and it can be invoked when the user
+	// session is expired. Stdin piped by "git" is likely not the terminal so
+	// try some hacks to do the prompt. In cases the prompt is still not
+	// available (e.g. Windows, GUI tools, etc.), print a user-friendly message
+	// instead of "ssh: cert has expired".
+	prompt.EnableStdinTerminalFallback()
+	defer func() {
+		if utils.IsCertExpiredError(err) {
+			err = trace.AccessDenied("Your Teleport session has expired. Please login using 'tsh login'.")
+		}
+	}()
+
 	identity, err := getGitHubIdentity(cf, c.gitHubOrg)
 	if err != nil {
 		return trace.Wrap(err)

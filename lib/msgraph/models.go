@@ -21,6 +21,8 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type GroupMember interface {
@@ -43,6 +45,8 @@ type Group struct {
 	OnPremisesNetBiosName *string `json:"onPremisesNetBiosName,omitempty"`
 	// OnPremisesSamAccountName is the on-premises SAM account name of the group.
 	OnPremisesSamAccountName *string `json:"onPremisesSamAccountName,omitempty"`
+	// Owners is a list of users who are the owners of this group.
+	Owners []*User `json:"owners,omitempty"`
 }
 
 func (g *Group) IsOffice365Group() bool {
@@ -162,7 +166,7 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 		Type string `json:"@odata.type"`
 	}
 
-	if err := json.Unmarshal(msg, &temp); err != nil {
+	if err := utils.FastUnmarshal(msg, &temp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -171,11 +175,11 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	switch temp.Type {
 	case "#microsoft.graph.user":
 		var u *User
-		err = json.Unmarshal(msg, &u)
+		err = utils.FastUnmarshal(msg, &u)
 		member = u
 	case "#microsoft.graph.group":
 		var g *Group
-		err = json.Unmarshal(msg, &g)
+		err = utils.FastUnmarshal(msg, &g)
 		member = g
 	default:
 		// Return an error if we encounter a type we do not support.

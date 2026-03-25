@@ -1,0 +1,37 @@
+resource "teleport_access_monitoring_rule" "monitoring-rule" {
+  version = "v1"
+
+  metadata = {
+    name = "monitoring-rule"
+  }
+
+  spec = {
+    subjects  = ["access_request"]
+    condition = "access_request.spec.roles.contains(\"your_role_name\")"
+    notification = {
+      name       = "slack"
+      recipients = ["#your-slack-channel"]
+    }
+    automatic_review = {
+      integration = "builtin"
+      decision    = "APPROVED"
+    }
+    desired_state = "reviewed"
+    schedules = {
+      default = {
+        time = {
+          shifts = [{
+            end     = "23:59"
+            start   = "00:00"
+            weekday = "Monday"
+            }, {
+            end     = "23:59"
+            start   = "00:00"
+            weekday = "Tuesday"
+          }]
+          timezone = "America/Los_Angeles"
+        }
+      }
+    }
+  }
+}

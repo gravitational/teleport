@@ -114,7 +114,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,7 +167,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.UserClient.GetClusterName()
+	clusterName, err := s.cfg.UserClient.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +185,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	processStdout := &bytes.Buffer{}
 
-	clientConf := client.MakeDefaultConfig()
+	clientConf := &client.Config{}
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
 	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
 	clientConf.Host = req.ResourceName

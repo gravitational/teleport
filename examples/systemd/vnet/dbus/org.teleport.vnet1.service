@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=org.teleport.vnet1
+SystemdService=teleport-vnet.service
+User=root
+Exec=/bin/false

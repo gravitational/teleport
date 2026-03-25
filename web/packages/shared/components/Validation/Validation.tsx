@@ -180,3 +180,25 @@ export function useValidation(): Validator {
   }
   return useStore(validator);
 }
+
+/** Conditionally suspends showing validation errors for all the children. */
+export function ValidationSuspender({
+  suspend,
+  children,
+}: React.PropsWithChildren<{ suspend?: boolean }>) {
+  // The trick is to substitute the current validator with a phony one. While
+  // we could render the children as wrapped or not wrapped, depending on the
+  // `suspend` flag value, we would end up remounting the children when the
+  // flag changes. As this would obliterate their state, we thus wrap it with a
+  // context provider that toggles between the actual and phony validator.
+  const currentValidator = useValidation();
+  const [phonyValidator] = React.useState(() => new Validator());
+  useStore(phonyValidator);
+  return (
+    <ValidationContext.Provider
+      value={suspend ? phonyValidator : currentValidator}
+    >
+      {children}
+    </ValidationContext.Provider>
+  );
+}

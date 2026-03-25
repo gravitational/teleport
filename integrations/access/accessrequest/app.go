@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -165,6 +166,8 @@ func (a *App) run(ctx context.Context) error {
 		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
+	} else {
+		logger.Get(ctx).WarnContext(ctx, "Failed to watch access_monitoring_rule events. Allow access_monitoring_rule read permissions in the plugin role.")
 	}
 
 	a.job.SetReady(ok)
@@ -251,9 +254,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	loginsByRole, err := a.getLoginsByRole(ctx, req)
-	if trace.IsAccessDenied(err) {
-		log.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
-	} else if err != nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -521,22 +522,65 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	return nil
 }
 
-func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
-	loginsByRole := make(map[string][]string, len(req.GetRoles()))
-
-	for _, role := range req.GetRoles() {
-		currentRole, err := a.apiClient.GetRole(ctx, role)
+func getRoles(ctx context.Context, client services.RoleGetter, roleNames []string) ([]types.Role, error) {
+	var roles []types.Role
+	for _, roleName := range roleNames {
+		role, err := client.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func getAllowedLogins(roles []types.Role) map[string][]string {
+	allowedLogins := make(map[string][]string, len(roles))
+	for _, role := range roles {
+		logins := role.GetLogins(types.Allow)
+		if logins == nil {
+			logins = []string{}
+		}
+		allowedLogins[role.GetName()] = logins
+	}
+	return allowedLogins
+}
+
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	log := logger.Get(ctx)
+
+	roles, err := getRoles(ctx, a.apiClient, req.GetRoles())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return an empty map if missing roles read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.roles, please use the preset "access-plugin" role`, "error", err)
+		return map[string][]string{}, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
 	}
 
-	return loginsByRole, nil
+	userState, err := services.GetUserOrLoginState(ctx, a.apiClient, req.GetUser())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return un-applied logins if missing user_login_state and user read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
+		return getAllowedLogins(roles), nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	userTraits := userState.GetTraits()
+	for _, role := range roles {
+		_, err := services.ApplyTraits(role, userTraits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return getAllowedLogins(roles), nil
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {
@@ -570,7 +614,12 @@ func (a *App) tryApproveRequest(ctx context.Context, reqID string, req types.Acc
 		return trace.Wrap(err)
 	}
 
-	if !slices.Contains(oncallUsers, req.GetUser()) {
+	// Ignore casing when matching users.
+	for index, oncallUser := range oncallUsers {
+		oncallUsers[index] = strings.ToLower(oncallUser)
+	}
+
+	if !slices.Contains(oncallUsers, strings.ToLower(req.GetUser())) {
 		log.DebugContext(ctx, "Skipping approval because user is not on-call")
 		return nil
 	}

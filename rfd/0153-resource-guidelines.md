@@ -156,7 +156,8 @@ support a new feature.
 ### API
 
 All APIs should follow the conventions listed below that are largely based on
-the [Google API style guide](https://cloud.google.com/apis/design/standard_methods).
+the [Google API style guide](https://cloud.google.com/apis/design/standard_methods) and the [Buf
+Protobuf style guide](https://buf.build/docs/best-practices/style-guide/)
 
 #### Create
 
@@ -167,10 +168,14 @@ The request MUST fail and return a `trace.AlreadyExists` error if a matching res
 
 ```protobuf
 // Creates a new Foo resource in the backend.
-    rpc CreateFoo(CreateFooRequest) returns (Foo);
+    rpc CreateFoo(CreateFooRequest) returns (CreateFooResponse);
 
 message CreateFooRequest {
   // The desired Foo to be created.
+  Foo foo = 1;
+}
+
+message CreateFooResponse {
   Foo foo = 1;
 }
 ```
@@ -186,13 +191,17 @@ The request MUST fail and return a `trace.NotFound` error if there is no matchin
 
 ```protobuf
 // Updates an existing Foo in the backend.
-    rpc UpdateFoo(UpdateFooRequest) returns (Foo);
+    rpc UpdateFoo(UpdateFooRequest) returns (UpdateFooResponse);
 
 message UpdateFooRequest {
   // The full Foo resource to update in the backend.
   Foo foo = 1;
   // A partial update for an existing Foo resource.
   FieldMask update_mask = 2;
+}
+
+message UpdateFooResponse {
+  Foo foo = 1;
 }
 ```
 
@@ -207,11 +216,15 @@ without requiring a call to `Get`. If `Upsert` is not consumed it may be omitted
 `Update`.
 
 ```protobuf
-// Creates a new Foo or replaces an existing Foo in the backend.
-    rpc UpsertFoo(UpsertFooRequest) returns (Foo);
+  // Creates a new Foo or replaces an existing Foo in the backend.
+  rpc UpsertFoo(UpsertFooRequest) returns (UpsertFooResponse);
 
 message UpsertFooRequest {
   // The full Foo resource to persist in the backend.
+  Foo foo = 1;
+}
+
+message UpsertFooResponse {
   Foo foo = 1;
 }
 ```
@@ -225,12 +238,16 @@ The request MUST fail and return a `trace.NotFound` error if there is no matchin
 
 ```protobuf
 // Returns a single Foo matching the request
-    rpc GetFoo(GetFooRequest) returns (Foo);
+    rpc GetFoo(GetFooRequest) returns (GetFooResponse);
 
 message GetFooRequest {
   // A filter to match the Foo by. Some resource may require more parameters to match and
   // may not use the name at all.
   string foo_id = 1;
+}
+
+message GetFooResponse {
+  Foo foo = 1;
 }
 ```
 
@@ -239,15 +256,17 @@ message GetFooRequest {
 The `List` RPC takes the requested page size and starting point and returns a list of resources that match. If there are
 additional resources, the response MUST also include a token that indicates where the next page of results begins.
 
+`List` RPC can optionally provide a `Filter` message and/or a `SortMode` field where supported.
+
 Most legacy APIs do not provide a paginated way to retrieve resources and instead offer some kind of `GetAllFoos` RPC
 which either returns all `Foo` in a single message or leverages a server side stream to send each `Foo` one at a time.
 Returning all items in a single message causes problems when the number of resources scales beyond gRPC message size
 limits. To provide parity with this legacy API if needed, a helper method should be implemented on the client which
-builds the entire resource set by repeatedly calling `List` until all pages have been consumed.
+builds the entire resource set by repeatedly calling `List` until all pages have been consumed, see the [clientutils](https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19) package for more details.
 
 ```protobuf
 // Returns a page of Foo and the token to find the next page of items.
-    rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
+rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
 
 message ListFoosRequest {
   // The maximum number of items to return.
@@ -255,6 +274,18 @@ message ListFoosRequest {
   int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+
+  enum SortMode {
+    SORT_MODE_UNSPECIFIED = 0;
+    SORT_MODE_FIELD_EXAMPLE = 1;
+  }
+  // sort_mode specifies the sorting type for the results.
+  SortMode sort_mode = 3;
+  // is_sort_descending specifies sort direction
+  bool is_sort_descending = 4;
+
+  // filter is a collection of fields to filter Foos
+  ListFoosFilter filter = 5;
 }
 
 message ListFoosResponse {
@@ -270,6 +301,63 @@ A listing operation should not abort entirely if a single item cannot be (un)mar
 and the rest of the page should be processed. Aborting an entire page when a single entry is invalid causes the cache
 to be permanently unhealthy since it is never able to initialize loading the affected resource.
 
+##### Pagination Stability
+
+As of time of writing 2025-11-24 the backend does not support snapshotting. Meaning every `List` query executed
+against the backend has a potentially different view of the data. It is possible for:
+* Items to be deleted or created between `List` calls.
+* Mutable fields to be modified causing items to be reordered when sorting resulting in duplicate entries.
+
+#### Sorting Support
+
+Note that as of time of writing (2025-11-24), advanced sorting is possible in Cache only.
+
+This is achieved via the [sortcache](https://github.com/gravitational/teleport/blob/96f222c00624e3f7ad3cbcd1859936420b438725/lib/utils/sortcache/sortcache.go#L47) package.
+
+Each index requires a dedicated key function that returns lexicographically sortable key, for example:
+
+```go
+func (u *inventoryInstance) getAlphabeticalKey() bytestring {
+	var name, id string
+	if u.isInstance() {
+		name = u.instance.GetHostname()
+		id = u.instance.GetName()
+	} else {
+		name = u.bot.GetSpec().GetBotName()
+		id = u.bot.GetSpec().GetInstanceId()
+	}
+
+	return bytestring(ordered.Encode(name, id, u.getKind()))
+}
+```
+
+With the pagination token using a base32hex representation of that key:
+```go
+nextPageToken = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(rawKey))
+```
+
+base32hex is the chosen format for tokens which maintains the order between keys, which can be useful for debugging and for future optimizations.
+
+1. Default sort mode must be the same and use the same key format as the pagination in the backend.
+2. Compound keys should use make use of the `rsc.io/ordered` package.
+3. Sorting options must remain unchanged for subsequent `List`.
+4. The backend should return a `*trace.CompareFailedError` if the sort mode is unsupported by the backend.
+
+##### Page Token contract
+
+The backend only enforces a single contract for the token:
+* Empty token (`""`) indicates no more items.
+* Any other string value indicates further results are available.
+
+If possible the structure of the token should be opaque to the client to prevent tampering and reduce the implicit API surface.
+
+##### Page Size
+
+Clients should make use of [clientutils](https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19) to automatically adjust the page size when fetching resources:
+```go
+foos, err := clientutils.Resources(ctx, client.ListFoos)
+```
+
 #### Delete
 
 The `Delete` RPC takes the parameters required to match a resource and performs a hard delete of the specified resource
@@ -279,13 +367,15 @@ The request MUST fail and return a `trace.NotFound` error if there is no matchin
 
 ```protobuf
 // Remove a matching Foo resource
-    rpc DeleteFoo(DeleteFooRequest) returns (google.protobuf.Empty);
+    rpc DeleteFoo(DeleteFooRequest) returns (DeleteFooResponse);
 
 message DeleteFooRequest {
   // Name of the foo to remove. Some resource may require more parameters to match and
   // may not use the name at all.
   string foo_id = 1;
 }
+
+message DeleteFooResponse {}
 ```
 
 ### Backend Storage
@@ -375,13 +465,6 @@ func (s *FooService) UpdateFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo,
 When upserting a resource, the `backend.Backend.Put` method should be used to persist the resource. It is also
 imperative that the revision generated by the backend is set on the returned resource.
 
-A resource may expose an upsert method from the backend layer even if the gRPC API does not expose an `Upsert` RPC. This
-may occur if a resource is cached, since the
-[cache collections](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/collections.go#L60)
-require an upsert mechanism,
-see [`services.DynamicAccessExt`](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/services/access_request.go#L260-L278)
-for an example.
-
 ```go
 func (s *FooService) UpsertFoo(ctx context.Context, foo *foov1.Foo) (*foov1.Foo, error) {
 	value, err := convertFooToValue(foo)
@@ -432,63 +515,88 @@ func (s *FooService) GetFoo(ctx context.Context, id string) (*Foo, error) {
 
 #### List
 
-Listing can either be done via calling `backend.Backend.GetRange` manually in a loop or by making use of the functional
+Listing can either be done via collecting a stream returned by `backend.Backend.Items`, making use of the functional
 helpers in the
-[stream](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/api/internalutils/stream/stream.go)
-package to do the heavy lifting.
+[stream](https://github.com/gravitational/teleport/blob/a32c69b581ff0ceef55b83a601cfb54c6d52d710/lib/itertools/stream/stream.go).
 
 A listing operation should not abort entirely if a single item cannot be converted from a `backend.Item`, it should
 instead be logged, and the rest of the page should be processed. Aborting an entire page when a single entry is invalid,
 causes Teleport to be permanently unhealthy since it is never able to load or cache the affected resource(s).
 
+The backend [generic](https://github.com/gravitational/teleport/blob/a32c69b581ff0ceef55b83a601cfb54c6d52d710/lib/services/local/generic/helpers.go) package providers a helper `CollectPageAndCursor` to implement `ListFoos` in terms of the ranging getter `RangeFoos`
+
+
 ```go
-func (s *FooService) ListFoos(ctx context.Context, pageSize int, pageToken string) ([]*foov1.Foo, string, error) {
-	rangeStart := backend.Key("foo", pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey("foo"))
+func (s *FooService) ListFoos(ctx context.Context, limit int, startKey string) ([]*foov1.Foo, string, error) {
+	return generic.CollectPageAndCursor(s.RangeFoos(ctx, startKey, ""), limit, foov1.Foo.GetName)
+}
 
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
-		pageSize = apidefaults.DefaultChunkSize
+func (s *FooService) RangeFoos(ctx context.Context, start, end string) iter.Seq2[*foov1.Foo, error] {
+	mapFn := func(item backend.Item) (*foov1.Foo, bool) {
+		foo, err := convertItemToFoo(item)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal foo",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+		return foo, true
 	}
 
-	// Increase the page size by one to detect if another page is available if
-	// a full page match is retrieved without having to fetch the next page.
-	pagSize++
-
-	fooStream := stream.MapWhile(
-		backend.StreamRange(ctx, s.backend, rangeStart, rangeEnd, limit),
-		func (item backend.Item) (types.User, bool) {
-			foo, err := convertItemToFoo(item)
-
-			// Warn if an item cannot be converted but don't prevent the entire page from being processed.
-			if err != nil {
-				s.log.Warnf("Skipping foo at %s because conversion from backend item failed: %v", item.Key, err)
-				return nil, true
-			}
-			return foo, true
-	})
-
-	foos, more := stream.Take(userStream, pageSize)
-	var nextToken string
-	if more && fooStream.Next() {
-		nextToken = backend.NextPaginationKey(foos[len(foos)-1])
+	fooKey := backend.NewKey(foosPrefix)
+	startKey := fooKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(fooKey)
+	if end != "" {
+		endKey = fooKey.AppendKey(backend.KeyFromString(end)).ExactKey()
 	}
 
-	return foos, nextToken, trace.NewAggregate(err, fooStream.Done())
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn, // mapping function
+		),
+		func(foo *foov1.Foo) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || foo.GetName() < end
+		})
+}
+
+```
+
+
+### RBAC
+
+Making use of the `stream.FilterMap` pattern can also be used to verify access to a resource when listing:
+
+```go
+// ListFoos returns a page of Foo resources.
+func (a *ServerWithRoles) ListFoos(ctx context.Context, limit int, startKey string) ([]*foov1.Foo, string, error) {
+	if err := a.authorizeAction(types.KindFoo, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeFoos(ctx, startKey, ""),
+			func(foo *foov1.Foo) (*foov1.Foo, bool) {
+				if a.checkAccessToFoo(foo) == nil {
+					return foo, true
+				}
+				return nil, false // Drops item from the stream silently
+			},
+		),
+		limit,
+		*foov1.Foo.GetName,
+	)
 }
 ```
 
 ### Cache
-
-One thing to consider when creating a resource is whether it will need to be cached. As mentioned above, any resource
-that is cached must have its backend layer implement the specific set of operations required by the cache collections
-[executor](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/collections.go#L54-L76).
-While `Upsert` and `DeleteAll` semantics are required by the cache it is preferred that the two methods are not directly
-exposed in the gRPC API. Several existing resources include a `DeleteAll` purely for the cache that always returns a
-`trace.NotImplemented` error. To avoid exposing the methods in the gRPC API at all, a local variant of the backend
-service similar
-to [`services.DynamicAccessExt`](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/services/access_request.go#L260-L278)
-should be used.
 
 Caching is most important for resources that are accessed frequently and in a "hot path" (i.e., during the process of
 performing normal day-to-day operations). For example, resources like cluster networking config, session recording
@@ -496,47 +604,120 @@ config, CAs, roles, etc. which are retrieved per connection should be cached to 
 accessed infrequently, or which scale linearly with cluster size are good examples of resources that should NOT be
 cached.
 
-If a resource is to be cached, it must be added to
-the [Auth cache](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/cache.go#L95-L154)
-and the cache of any service that requires it. To add the `Foo` resource to the cache its executor would look similar
-to the following:
+If a resource is to be cached, it must be added to the
+[Auth cache](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/cache.go#L95-L154)
+and the cache of any service that requires it. To add the `Foo` resource to the cache, a new `lib/cache/foo.go` file should be
+added which houses a collection and any `(Cache)` receiver methods. The collection MUST be
+[registered](https://github.com/gravitational/teleport/blob/4c71ad634b3564ad3234f1b3e46f00faabdbcbef/lib/cache/collections.go#L164-L712)
+and added to the list of cache
+[collections](https://github.com/gravitational/teleport/blob/4c71ad634b3564ad3234f1b3e46f00faabdbcbef/lib/cache/collections.go#L65-L135).
+
+> [!NOTE]
+> Some resources may not need to be stored in the cache, but still need to be registered with the cache to allow
+watchers for said resource to be created. These resources do NOT need a collection and can instead be [registered](https://github.com/gravitational/teleport/blob/cc9712c0444ee16e07adc75c21cb6b0a6ebd1af8/lib/cache/collections.go#L137-L147)
+with the unique set of resources to indicate as such to the cache.
+
+<details open><summary>lib/cache/foo.go</summary>
 
 ```go
-type fooExecutor struct{}
+package cache
 
-func (fooExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*foov1.Foo, error) {
-	var (
-		startKey string
-		allFoos []*foov1.Foo
-	)
-	for {
-		foos, nextKey, err := cache.Foo.ListFoos(ctx, 0, startKey, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+import (
+	"context"
 
-		allFoos = append(allFoos, foos...)
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+type fooIndex string
+
+const fooNameIndex fooIndex = "name"
+
+func newHealthCheckConfigCollection(upstream services.Foo, w types.WatchKind) (*collection[*foov1.Foo, fooIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter Foo")
 	}
-	return allFoos, nil
+
+	return &collection[*foov1.Foo, fooIndex]{
+		store: newStore(
+			proto.CloneOf[*foov1.Foo],
+			map[healthCheckConfigIndex]func(*foov1.Foo) string{
+				fooNameIndex: func(r *foov1.Foo) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*foov1.Foo, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListFoos))
+			return out, trace.Wrap(err)
+		},
+		watch: w,
+	}, nil
 }
 
-func (fooExecutor) upsert(ctx context.Context, cache *Cache, resource foov1.Foo) error {
-	return cache.Foo.UpsertFoo(ctx, resource)
+// ListFoos lists foos with pagination.
+func (c *Cache) ListFoos(ctx context.Context, pageSize int, nextToken string) ([]*foov1.Foo, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListFoos")
+	defer span.End()
+
+	lister := genericLister[*foov1.Foo, fooIndex]{
+		cache:           c,
+		collection:      c.collections.foo,
+		index:           fooNameIndex,
+		upstreamList:    c.Config.Foo.ListFoos,
+		nextToken:       foov1.Foo.GetName,
+	}
+	out, next, err := lister.list(ctx, pageSize, nextToken)
+	return out, next, trace.Wrap(err)
 }
 
-func (fooExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.FooLocal.DeleteAllFoos(ctx)
+// GetFoo fetches a foo by name.
+func (c *Cache) GetFoo(ctx context.Context, name string) (*foov1.Foo, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetFoo")
+	defer span.End()
+
+	getter := genericGetter[*foov1.Foo, fooIndex]{
+		cache:       c,
+		collection:  c.collections.foo,
+		index:       fooNameIndex,
+		upstreamGet: c.Config.Foo.GetFoo,
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }
 
-func (fooExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.Foo.DeleteFoo(ctx, &foov1.DeleteFoo{Name: resource.GetName()})
+// RangeFoos returns Foo resources within the range [start, end).
+func (c *Cache) RangeFoos(ctx context.Context, start, end string) iter.Seq2[*foov1.Foo, error] {
+	lister := genericLister[*foov1.Foo, fooIndex]{
+		cache:        c,
+		collection:   c.collections.foos,
+		index:        fooNameIndex,
+		upstreamList: c.Config.Foos.ListFoos,
+		nextToken:    foov1.Foo.GetName,
+	}
+
+	return func(yield func(*foov1.Foo, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeFoos")
+		defer span.End()
+
+		for foo, err := range lister.Range(ctx, start, end) {
+			if !yield(foo, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 ```
+
+</details>
 
 #### Event stream mechanism
 
@@ -551,7 +732,7 @@ For example, to add a parser for `foo`:
 ```go
 func newFooParser() *fooParser {
 	return &fooParser{
-		baseParser: newBaseParser(backend.Key(fooPrefix)),
+		baseParser: newBaseParser(backend.ExactKey(fooPrefix)),
 	}
 }
 
@@ -562,7 +743,15 @@ type fooParser struct {
 func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindFoo, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.ExactKey(fooPrefix))
+		return types.Resource153ToLegacy(&foov1.Foo{
+				Kind: types.KindFoo,
+				SubKind: ""
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: name
+				}
+		})
 	case types.OpPut:
 		foo, err := services.UnmarshalFoo(
 			event.Item.Value,
@@ -687,22 +876,22 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // FooService provides an API to manage Foos.
 service FooService {
   // GetFoo returns the specified Foo resource.
-  rpc GetFoo(GetFooRequest) returns (Foo);
+  rpc GetFoo(GetFooRequest) returns (GetFooResponse);
 
   // ListFoos returns a page of Foo resources.
   rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
 
   // CreateFoo creates a new Foo resource.
-  rpc CreateFoo(CreateFooRequest) returns (Foo);
+  rpc CreateFoo(CreateFooRequest) returns (CreateFooResponse);
 
   // UpdateFoo updates an existing Foo resource.
-  rpc UpdateFoo(UpdateFooRequest) returns (Foo);
+  rpc UpdateFoo(UpdateFooRequest) returns (UpdateFooResponse);
 
   // UpsertFoo creates or replaces a Foo resource.
-  rpc UpsertFoo(UpsertFooRequest) returns (Foo);
+  rpc UpsertFoo(UpsertFooRequest) returns (UpsertFooResponse);
 
   // DeleteFoo hard deletes the specified Foo resource.
-  rpc DeleteFoo(DeleteFooRequest) returns (google.protobuf.Empty);
+  rpc DeleteFoo(DeleteFooRequest) returns (DeleteFooResponse);
 }
 
 // Request for GetFoo.
@@ -741,6 +930,12 @@ message CreateFooRequest {
   Foo foo = 1;
 }
 
+// Response for CreateFoo.
+message CreateFooResponse {
+  // The foo resource that was created, including its new revision.
+  Foo foo = 1;
+}
+
 // Request for UpdateFoo.
 message UpdateFooRequest {
   // The foo resource to update.
@@ -751,10 +946,25 @@ message UpdateFooRequest {
   FieldMask update_mask = 2;
 }
 
+// Response for UpdateFoo.
+message UpdateFooResponse {
+  // The foo resource that was written in storage, including
+  // its new revision. The resource is complete even if the
+  // update request was for a partial update.
+  Foo foo = 1;
+}
+
 // Request for UpsertFoo.
 message UpsertFooRequest {
   // The foo resource to upsert.
-  Foo foo = 2;
+  Foo foo = 1;
+}
+
+// Response for UpsertFoo
+message UpsertFooResponse {
+  // The foo resource that was written in storage, including
+  // its new revision.
+  Foo foo = 1;
 }
 
 // Request for DeleteFoo.
@@ -762,6 +972,9 @@ message DeleteFooRequest {
   // Name of the foo to remove.
   string foo_id = 1;
 }
+
+// Response for DeleteFoo
+message DeleteFooResponse {}
 ```
 
 </details>

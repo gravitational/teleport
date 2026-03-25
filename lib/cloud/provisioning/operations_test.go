@@ -33,7 +33,7 @@ import (
 )
 
 func withErrCheck(fn func(*testing.T, error)) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		tt := t.(*testing.T)
 		tt.Helper()
 		fn(tt, err)

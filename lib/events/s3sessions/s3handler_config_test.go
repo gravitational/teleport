@@ -33,12 +33,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -136,6 +136,16 @@ func TestConfig_SetFromURL(t *testing.T) {
 				require.True(t, config.UseVirtualStyleAddressing)
 			},
 		},
+		{
+			name: "complete initiators",
+			url:  "s3://path/bucket/audit?complete_initiators=dev-usw2-role/tenant-foo&complete_initiators=dev-usw2-role/tenant-bar",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.ElementsMatch(t, config.CompleteInitiators, []string{
+					"dev-usw2-role/tenant-foo",
+					"dev-usw2-role/tenant-bar",
+				})
+			},
+		},
 	}
 
 	for _, tt := range cases {
@@ -195,7 +205,7 @@ func TestEndpoints(t *testing.T) {
 			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
 			if tt.fips {
 				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					FIPS: true,
 				})
 			}

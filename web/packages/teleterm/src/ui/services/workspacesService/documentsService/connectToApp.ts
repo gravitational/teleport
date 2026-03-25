@@ -17,15 +17,20 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { AppSubKind } from 'shared/services';
+import { getAppProtocol } from 'shared/services/apps';
 
 import {
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
   isWebApp,
 } from 'teleterm/services/tshd/app';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { IAppContext } from 'teleterm/ui/types';
 import { AppUri, routing } from 'teleterm/ui/uri';
+import { VnetLauncher } from 'teleterm/ui/Vnet';
 
 import { DocumentOrigin } from './types';
 
@@ -44,11 +49,11 @@ export async function connectToApp(
    * launchVnet is supposed to be provided if VNet is supported. If so, connectToApp is going to use
    * this function when targeting a TCP app. Otherwise it'll create an app gateway.
    */
-  launchVnet: null | (() => Promise<[void, Error]>),
+  launchVnet: null | VnetLauncher,
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
-    arnForAwsApp?: string;
+    arnForAwsAppOrRoleForAwsIc?: string;
   }
 ): Promise<void> {
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
@@ -76,7 +81,20 @@ export async function connectToApp(
         app: target,
         rootCluster,
         cluster,
-        arn: options.arnForAwsApp,
+        arn: options.arnForAwsAppOrRoleForAwsIc,
+      }),
+      telemetry
+    );
+    return;
+  }
+
+  if (target.subKind === AppSubKind.AwsIcAccount) {
+    launchAppInBrowser(
+      ctx,
+      target,
+      getAwsIcLaunchUrl({
+        app: target,
+        roleName: options.arnForAwsAppOrRoleForAwsIc,
       }),
       telemetry
     );
@@ -104,14 +122,13 @@ export async function connectToApp(
 
   // TCP app
   if (launchVnet) {
-    await connectToAppWithVnet(
-      ctx,
-      launchVnet,
-      target,
-      // We don't let the user pick the target port through the search bar on purpose. If an app
-      // allows a port range, we'd need to allow the user to input any number from the range.
-      undefined /* targetPort */
-    );
+    // We don't let the user pick the target port through the search bar on purpose. If an app
+    // allows a port range, we'd need to allow the user to input any number from the range.
+    await launchVnet({
+      addrToCopy: appToAddrToCopy(target),
+      resourceUri: target.uri,
+      isMultiPortApp: !!target.tcpPorts.length,
+    });
     return;
   }
 
@@ -120,7 +137,12 @@ export async function connectToApp(
     targetPort = target.tcpPorts[0].port;
   }
 
-  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
+  const targetProtocol = getAppProtocol(target.endpointUri);
+  await setUpAppGateway(ctx, target.uri, {
+    telemetry,
+    targetPort,
+    targetProtocol,
+  });
 }
 
 export async function setUpAppGateway(
@@ -133,6 +155,10 @@ export async function setUpAppGateway(
      * only for multi-port TCP apps.
      */
     targetPort?: number;
+    /**
+     * targetProtocol is the protocol of the resource proxied by the gateway.
+     */
+    targetProtocol?: string;
   }
 ) {
   const rootClusterUri = routing.ensureRootClusterUri(targetUri);
@@ -145,6 +171,8 @@ export async function setUpAppGateway(
     targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
+    targetProtocol: options.targetProtocol,
+    autoUserProvisioning: undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -158,41 +186,6 @@ export async function setUpAppGateway(
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
-}
-
-export async function connectToAppWithVnet(
-  ctx: IAppContext,
-  launchVnet: () => Promise<[void, Error]>,
-  target: App,
-  targetPort: number | undefined
-) {
-  const [, err] = await launchVnet();
-  if (err) {
-    return;
-  }
-
-  let addrToCopy = target.publicAddr;
-  if (targetPort) {
-    addrToCopy = `${addrToCopy}:${targetPort}`;
-  }
-
-  try {
-    await navigator.clipboard.writeText(addrToCopy);
-  } catch (error) {
-    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
-    // prompt, the Electron app throws an error about clipboard write permission being denied.
-    if (error['name'] === 'NotAllowedError') {
-      console.error(error);
-      ctx.notificationsService.notifyInfo(
-        `Connect via VNet by using ${addrToCopy}.`
-      );
-      return;
-    }
-    throw error;
-  }
-  ctx.notificationsService.notifyInfo(
-    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
-  );
 }
 
 /**

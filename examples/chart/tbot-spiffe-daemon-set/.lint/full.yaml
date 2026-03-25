@@ -1,0 +1,8 @@
+clusterName: example.teleport.sh
+token: example-token
+teleportProxyAddress: example.teleport.sh:443
+debug: true
+workloadIdentitySelector:
+  labels:
+    foo: bar
+    fizz: buzz

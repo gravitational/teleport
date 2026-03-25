@@ -21,14 +21,19 @@ package rdpclient
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/binary"
 	"image/png"
 	"log/slog"
-	"time"
+	"slices"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 // LicenseStore implements client-side license storage for Microsoft
@@ -46,16 +51,8 @@ type Config struct {
 	LicenseStore LicenseStore
 	HostID       string
 
-	// UserCertGenerator generates user certificates for RDP authentication.
-	GenerateUserCert GenerateUserCertFn
-	CertTTL          time.Duration
-
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
-
-	// Conn handles TDP messages between Windows Desktop Service
-	// and a Teleport Proxy.
-	Conn *tdp.Conn
 
 	// Encoder is an optional override for PNG encoding.
 	Encoder *png.Encoder
@@ -90,26 +87,20 @@ type Config struct {
 	// KDCAddr is the address of Key Distribution Center.
 	// This is used to support RDP Network Level Authentication (NLA)
 	// when connecting to hosts enrolled in Active Directory.
-	// This filed is not used when AD is false.
+	// This field is not used when AD is false.
 	KDCAddr string
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
-}
 
-// GenerateUserCertFn generates user certificates for RDP authentication.
-type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
+	// The desktop protocol version used by the client (TDP or TDPB).
+	ClientProtocol string
+}
 
 //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
 func (c *Config) checkAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Config")
-	}
-	if c.GenerateUserCert == nil {
-		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
-	}
-	if c.Conn == nil {
-		return trace.BadParameter("missing Conn in rdpclient.Config")
 	}
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
@@ -120,6 +111,9 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()
 	}
+	if !slices.Contains([]string{tdpb.ProtocolName, legacy.ProtocolName}, c.ClientProtocol) {
+		return trace.BadParameter("missing ClientProtocol in rdpclient.Config")
+	}
 	c.Logger = c.Logger.With("rdp_addr", c.Addr)
 	return nil
 }
@@ -129,4 +123,37 @@ func (c *Config) checkAndSetDefaults() error {
 // a given desktop.
 func (c *Config) hasSizeOverride() bool { //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
 	return c.Width != 0 && c.Height != 0
+}
+
+type rdpClientID [16]byte
+
+type uint32Like interface {
+	~uint32
+}
+
+//nolint:unused // only used in client.go which is ignored by linter
+func rdpClientIDToUint32Array[T uint32Like](h rdpClientID) [4]T {
+	cArray := [4]T{}
+	for idx := range cArray {
+		cArray[idx] = T(binary.LittleEndian.Uint32(h[idx*4:]))
+	}
+	return cArray
+}
+
+func newRDPClientID(id string) rdpClientID {
+	// In previous revisions of this code, we incorrectly assumed
+	// that rdpClientID would always be a UUID. This is not always the case,
+	// however, we should continue to attempt to parse rdpClientID as a UUID
+	// so that the client ID stays the same for existing users as this
+	// may affect RDP licensing.
+	// See https://github.com/gravitational/teleport/issues/63766
+	parsedUUID, err := uuid.Parse(id)
+	if err == nil {
+		return rdpClientID(parsedUUID)
+	}
+
+	// Fall back to taking a hash of the rdpClientID
+	hash := [16]byte{}
+	copy(hash[:], md5.New().Sum([]byte(id)))
+	return rdpClientID(hash)
 }

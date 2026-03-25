@@ -31,6 +31,8 @@ func TestCalculateTrustedDeviceRequirement(t *testing.T) {
 	assert.NoError(t, err)
 	deviceTrustRequiredRole, err := types.NewRole("device-trust-required", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequired}})
 	assert.NoError(t, err)
+	deviceTrustRequiredHumanRole, err := types.NewRole("device-trust-required-for-humans", types.RoleSpecV6{Options: types.RoleOptions{DeviceTrustMode: constants.DeviceTrustModeRequiredForHumans}})
+	assert.NoError(t, err)
 
 	tests := []struct {
 		name              string
@@ -60,6 +62,22 @@ func TestCalculateTrustedDeviceRequirement(t *testing.T) {
 				Mode: constants.DeviceTrustModeOptional,
 			},
 			roles:             []types.Role{deviceTrustRequiredRole, deviceTrustOptionalRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+		},
+		{
+			name: "required for humans by cluster but not by roles",
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			},
+			roles:             []types.Role{deviceTrustOptionalRole},
+			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
+		},
+		{
+			name: "required for humans by role but not by cluster",
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeOptional,
+			},
+			roles:             []types.Role{deviceTrustRequiredHumanRole},
 			expectRequirement: types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED,
 		},
 	}

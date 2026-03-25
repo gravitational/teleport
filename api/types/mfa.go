@@ -16,9 +16,10 @@ package types
 
 import (
 	"bytes"
+	"slices"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -172,4 +173,100 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
 	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
 	return trace.Wrap(err)
+}
+
+// mfaDevicesEqual compares two MFA device slices independent of ordering.
+// This cannot be done via goderive entirely because it does not support
+// interfaces.
+func mfaDevicesEqual(a, b []*MFADevice) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Check devices assuming that they are in the same order first.
+	ordered := true
+	for i := range a {
+		if !mfaDeviceEqual(a[i], b[i]) {
+			ordered = false
+			break
+		}
+	}
+	if ordered {
+		return true
+	}
+
+	// Fallback to order-independent comparison. Shallow-copy `a` so
+	// swap-removing matched entries is possible without mutating
+	// the provided slice.
+	//  With typical MFA device counts (<10) the
+	// scan is faster than building a map.
+	remaining := slices.Clone(a)
+
+	for _, bd := range b {
+		matched := false
+		for i, ad := range remaining {
+			if !mfaDeviceEqual(ad, bd) {
+				continue
+			}
+
+			remaining[i] = remaining[len(remaining)-1]
+			remaining = remaining[:len(remaining)-1]
+			matched = true
+		}
+
+		if !matched {
+			return false
+		}
+	}
+
+	return true
+}
+
+// mfaDeviceEqual compares all fields of two MFA devices.
+func mfaDeviceEqual(a, b *MFADevice) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Kind != b.Kind ||
+		a.SubKind != b.SubKind ||
+		a.Version != b.Version ||
+		a.Id != b.Id ||
+		!a.AddedAt.Equal(b.AddedAt) ||
+		!a.LastUsed.Equal(b.LastUsed) ||
+		!deriveTeleportEqualMetadata(&a.Metadata, &b.Metadata) {
+		return false
+	}
+	return mfaDeviceDeviceEqual(a.Device, b.Device)
+}
+
+// mfaDeviceDeviceEqual compares all fields of two isMFADevice_Devices.
+func mfaDeviceDeviceEqual(a, b isMFADevice_Device) bool {
+	switch av := a.(type) {
+	case *MFADevice_Totp:
+		bv, ok := b.(*MFADevice_Totp)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualTOTPDevice(av.Totp, bv.Totp)
+	case *MFADevice_U2F:
+		bv, ok := b.(*MFADevice_U2F)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualU2FDevice(av.U2F, bv.U2F)
+	case *MFADevice_Webauthn:
+		bv, ok := b.(*MFADevice_Webauthn)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualWebauthnDevice(av.Webauthn, bv.Webauthn)
+	case *MFADevice_Sso:
+		bv, ok := b.(*MFADevice_Sso)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualSSOMFADevice(av.Sso, bv.Sso)
+	default:
+		return a == nil && b == nil
+	}
 }

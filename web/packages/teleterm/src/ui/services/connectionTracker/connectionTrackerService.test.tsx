@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
-
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import 'jest-canvas-mock';
 import { act, ComponentType, createRef } from 'react';
 
 import { render, screen } from 'design/utils/testing';
@@ -30,6 +29,8 @@ import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeApp,
   makeAppGateway,
+  makeDatabase,
+  makeDatabaseGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
@@ -56,6 +57,7 @@ test('updating target port creates new connection', async () => {
     targetUser: undefined,
     targetSubresourceName: '1337',
     origin: 'resource_table',
+    autoUserProvisioning: undefined,
   });
   // Add without opening. It's not necessary and it'll be easier to verify activating connections
   // later if we don't open the doc at this point.
@@ -70,7 +72,7 @@ test('updating target port creates new connection', async () => {
   expect(conn1337.title).toEqual(`${app.name}:1337`);
 
   // Update target port.
-  let targetPortInput = screen.getByLabelText('Target Port');
+  let targetPortInput = screen.getByLabelText('Target Port *');
   await user.clear(targetPortInput);
   await user.type(targetPortInput, '4242');
   // We have to lose focus of that field, otherwise React is going to warn about updates not wrapped
@@ -114,6 +116,7 @@ test('updating target port to match connection params of gateway created by othe
     targetUri: app.uri,
     targetUser: undefined,
     origin: 'resource_table' as const,
+    autoUserProvisioning: undefined,
   };
   const doc1 = docsService.createGatewayDocument({
     ...baseDocumentGatewayFields,
@@ -154,7 +157,7 @@ test('updating target port to match connection params of gateway created by othe
   expect(ctx.connectionTracker.findConnection(conn1337Id).connected).toBe(true);
 
   // Update target port from 1337 to 4242.
-  let targetPortInput = screen.getByLabelText('Target Port');
+  let targetPortInput = screen.getByLabelText('Target Port *');
   await user.clear(targetPortInput);
   await user.type(targetPortInput, '4242');
   await user.tab();
@@ -187,6 +190,90 @@ test('updating target port to match connection params of gateway created by othe
     });
   });
   expect(docsService.getLocation()).toEqual(doc1.uri);
+});
+
+test('connection tracker syncs autoUserProvisioning when gateway document is updated', async () => {
+  const ctx = new MockAppContext();
+  const rootCluster = makeRootCluster();
+  ctx.addRootCluster(rootCluster);
+  ctx.workspacesService.setState(draft => {
+    draft.rootClusterUri = rootCluster.uri;
+  });
+
+  const docsService = ctx.workspacesService.getWorkspaceDocumentService(
+    rootCluster.uri
+  );
+
+  const database = makeDatabase({
+    protocol: 'postgres',
+    autoUserProvisioning: { databaseRoles: [] },
+  });
+
+  jest.spyOn(ctx.tshd, 'createGateway').mockImplementation(async () => {
+    const gateway = makeDatabaseGateway({
+      targetUri: database.uri,
+      targetName: database.name,
+      targetUser: 'alice',
+      uri: `/gateways/${unique()}`,
+      localPort: '5432',
+    });
+
+    return new MockedUnaryCall(gateway);
+  });
+
+  const doc = docsService.createGatewayDocument({
+    targetName: database.name,
+    targetUri: database.uri,
+    targetUser: 'alice',
+    origin: 'resource_table',
+    autoUserProvisioning: {
+      databaseRoles: ['reader', 'writer'],
+    },
+  });
+
+  docsService.add(doc);
+
+  const topBarConnectMyComputerRef = createRef<HTMLDivElement>();
+  const topBarAccessRequestRef = createRef<HTMLDivElement>();
+  const Component = () => (
+    <MockAppContextProvider appContext={ctx}>
+      <ResourcesContextProvider>
+        <TabHost
+          ctx={ctx}
+          topBarConnectMyComputerRef={topBarConnectMyComputerRef}
+          topBarAccessRequestRef={topBarAccessRequestRef}
+        />
+      </ResourcesContextProvider>
+    </MockAppContextProvider>
+  );
+
+  render(<Component />);
+
+  expect(await screen.findByText('Close Connection')).toBeInTheDocument();
+
+  let connections = ctx.connectionTracker.getConnections();
+  expect(connections).toHaveLength(1);
+  let connection = connections[0] as TrackedGatewayConnection;
+  expect(connection.autoUserProvisioning?.databaseRoles).toEqual([
+    'reader',
+    'writer',
+  ]);
+
+  act(() => {
+    ctx.workspacesService.setState(draftState => {
+      const workspace = draftState.workspaces[rootCluster.uri];
+      const document = workspace.documents.find(d => d.uri === doc.uri);
+      if (document && document.kind === 'doc.gateway') {
+        document.autoUserProvisioning = {
+          databaseRoles: ['admin'],
+        };
+      }
+    });
+  });
+
+  connections = ctx.connectionTracker.getConnections();
+  connection = connections[0] as TrackedGatewayConnection;
+  expect(connection.autoUserProvisioning?.databaseRoles).toEqual(['admin']);
 });
 
 function setupTests(): {

@@ -23,15 +23,19 @@ import (
 	"crypto"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -41,16 +45,45 @@ const (
 	TestPassword = "UPDATER_TEST_PASSWORD"
 	// TestBuild is env var for setting test build type during the test.
 	TestBuild = "UPDATER_TEST_BUILD"
+	// TestRequireFastReExecOnly is an envvar to require "fast" (local-only)
+	// re-execution for client tools.
+	TestRequireFastReExecOnly = "UPDATER_TEST_FAST_REEXEC_ONLY"
 )
 
-var (
-	version = teleport.Version
-)
+func init() {
+	path, err := os.Executable()
+	if err != nil {
+		return
+	}
+	// For the integration test we use a pattern where the version is encoded
+	// in the directory name to simplify usage and avoid recompiling each
+	// individual binary.
+	parts := strings.Split(path, string(filepath.Separator))
+	if len(parts) > 2 {
+		tools.Version = parts[len(parts)-2]
+	}
+
+	if e := os.Getenv(TestRequireFastReExecOnly); e != "" {
+		b, err := apiutils.ParseBool(e)
+		if err != nil {
+			panic(err)
+		}
+		tools.FastReExecOnly = b
+	}
+}
 
 type TestModules struct{}
 
+func (p *TestModules) GenerateLongTermResourceGrouping(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
+
 func (p *TestModules) GenerateAccessRequestPromotions(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
+func (p *TestModules) GenerateAccessRequestSuggestedReviewers(context.Context, modules.AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+	return []string{}, nil
 }
 
 func (p *TestModules) GetSuggestedAccessLists(context.Context, *tlsca.Identity, modules.AccessListSuggestionClient, modules.AccessListAndMembersGetter, string) ([]*accesslist.AccessList, error) {
@@ -65,12 +98,12 @@ func (p *TestModules) BuildType() string {
 	return "CLI"
 }
 
-// IsEnterpriseBuild returns false for [TestModules].
+// IsEnterpriseBuild returns true if `UPDATER_TEST_BUILD` env is set `ent` for [TestModules].
 func (p *TestModules) IsEnterpriseBuild() bool {
 	return os.Getenv(TestBuild) == modules.BuildEnterprise
 }
 
-// IsOSSBuild returns false for [TestModules].
+// IsOSSBuild returns true if `UPDATER_TEST_BUILD` env is set `oss` for [TestModules].
 func (p *TestModules) IsOSSBuild() bool {
 	return os.Getenv(TestBuild) == modules.BuildOSS
 }
@@ -82,7 +115,7 @@ func (p *TestModules) LicenseExpiry() time.Time {
 
 // PrintVersion prints the Teleport version.
 func (p *TestModules) PrintVersion() {
-	fmt.Printf("Teleport v%v git\n", version)
+	fmt.Printf("Teleport v%v git\n", tools.Version)
 }
 
 // Features returns supported features
@@ -99,7 +132,7 @@ func (p *TestModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *TestModules) AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
+func (p *TestModules) AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

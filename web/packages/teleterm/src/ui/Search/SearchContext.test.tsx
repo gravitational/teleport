@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PropsWithChildren } from 'react';
-
 import '@testing-library/jest-dom';
-
 import {
   act,
   createEvent,
@@ -28,6 +25,7 @@ import {
   renderHook,
   screen,
 } from '@testing-library/react';
+import { PropsWithChildren } from 'react';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -183,10 +181,10 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    act(() => screen.getByTestId('open').click());
+    fireEvent.click(screen.getByTestId('open'));
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    act(() => screen.getByTestId('close').click());
+    fireEvent.click(screen.getByTestId('close'));
     expect(otherInput).toHaveFocus();
   });
 });
@@ -260,6 +258,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['db'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: true,
+        statuses: ['healthy'],
       },
     });
     docService.add(clusterDoc);
@@ -281,6 +280,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);
@@ -316,6 +316,7 @@ test('search bar state is adjusted to the active document', () => {
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);

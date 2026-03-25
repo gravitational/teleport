@@ -19,7 +19,9 @@
 package common
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -58,7 +60,8 @@ type InventoryCommand struct {
 
 	services string
 
-	upgrader string
+	upgrader    string
+	updateGroup string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -72,6 +75,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
+	c.inventoryStatus.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
 
 	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
 	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
@@ -80,6 +84,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
+	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -110,37 +115,45 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
-	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
+	rsp, err := client.GetInventoryStatus(ctx, &proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if c.getConnected {
-		table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
-		for _, h := range rsp.Connected {
-			services := make([]string, 0, len(h.Services))
-			for _, s := range h.Services {
-				services = append(services, string(s))
+	switch c.format {
+	case teleport.Text:
+		if c.getConnected {
+			table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
+			for _, h := range rsp.GetConnected() {
+				table.AddRow([]string{
+					h.GetServerID(),
+					strings.Join(h.GetServices(), ","),
+					h.GetVersion(),
+					cmp.Or(h.GetExternalUpgrader(), "none"),
+				})
 			}
-			upgrader := h.ExternalUpgrader
-			if upgrader == "" {
-				upgrader = "none"
-			}
-			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version, upgrader})
+
+			_, err := table.AsBuffer().WriteTo(os.Stdout)
+			return trace.Wrap(err)
 		}
 
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
-		return trace.Wrap(err)
+		printHierarchicalData(map[string]any{
+			"Versions":        toAnyMap(rsp.VersionCounts),
+			"Upgraders":       toAnyMap(rsp.UpgraderCounts),
+			"Services":        toAnyMap(rsp.ServiceCounts),
+			"Total Instances": rsp.InstanceCount,
+		}, "  ", 0)
+	case teleport.JSON:
+		output, err := json.Marshal(rsp)
+		if err != nil {
+			return trace.Wrap(err, "marshaling inventory status to json")
+		}
+		fmt.Println(string(output))
+	default:
+		return trace.BadParameter("unknown format: %q", c.format)
 	}
-
-	printHierarchicalData(map[string]any{
-		"Versions":        toAnyMap(rsp.VersionCounts),
-		"Upgraders":       toAnyMap(rsp.UpgraderCounts),
-		"Services":        toAnyMap(rsp.ServiceCounts),
-		"Total Instances": rsp.InstanceCount,
-	}, "  ", 0)
 
 	return nil
 }
@@ -216,11 +229,12 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		NewerThanVersion: vc.Normalize(c.newerThan),
 		ExternalUpgrader: upgrader,
 		NoExtUpgrader:    noUpgrader,
+		UpdateGroup:      c.updateGroup,
 	})
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version"})
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group"})
 		for instances.Next() {
 			instance := instances.Item()
 
@@ -245,6 +259,11 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				upgraderVersion = "none"
 			}
 
+			var updateGroup string
+			if updateInfo := instance.GetUpdaterInfo(); updateInfo != nil {
+				updateGroup = updateInfo.UpdateGroup
+			}
+
 			table.AddRow([]string{
 				instance.GetName(),
 				instance.GetHostname(),
@@ -252,6 +271,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				instance.GetTeleportVersion(),
 				upgrader,
 				upgraderVersion,
+				updateGroup,
 			})
 		}
 

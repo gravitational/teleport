@@ -31,26 +31,28 @@ test('lock search', async () => {
   const ctx = createTeleportContext();
 
   jest.spyOn(lockService, 'fetchLocks').mockResolvedValue(
-    makeLocks([
-      {
-        name: 'lock-name-1',
-        targets: {
-          user: 'lock-user',
+    makeLocks({
+      items: [
+        {
+          name: 'lock-name-1',
+          targets: {
+            user: 'lock-user',
+          },
         },
-      },
-      {
-        name: 'lock-name-2',
-        targets: {
-          role: 'lock-role-1',
+        {
+          name: 'lock-name-2',
+          targets: {
+            role: 'lock-role-1',
+          },
         },
-      },
-      {
-        name: 'lock-name-3',
-        targets: {
-          role: 'lock-role-2',
+        {
+          name: 'lock-name-3',
+          targets: {
+            role: 'lock-role-2',
+          },
         },
-      },
-    ])
+      ],
+    })
   );
 
   render(

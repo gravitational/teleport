@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*
  * Teleport
@@ -32,24 +31,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestOSCommandPrep(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 
 	// because CheckHomeDir now inspects access to the home directory as the actual user after a rexec,
 	// we need to setup a real, non-root user with a valid home directory in order for this test to
 	// exercise the correct paths
 	tempHome := t.TempDir()
-	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0777))
+	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0o777))
 
 	username := "test-os-command-prep"
 	scx.Identity.Login = username
@@ -82,6 +83,7 @@ func TestOSCommandPrep(t *testing.T) {
 		"TERM=xterm",
 		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTYName()),
 		"SSH_SESSION_ID=xxx",
+		"TELEPORT_SESSION=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"SSH_TELEPORT_USER=teleportUser",
@@ -145,6 +147,8 @@ func TestConfigureCommand(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
+
 	unexpectedKey := "FOO"
 	unexpectedValue := "BAR"
 	// environment values in the server context should not be forwarded
@@ -158,11 +162,13 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
 }
 
-// TestContinue tests if the process hangs if a continue signal is not sent
-// and makes sure the process continues once it has been sent.
+// TestContinue tests if the process continues once the continue signal
+// has been sent.
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 
 	// Configure Session Context to re-exec "ls".
 	var err error
@@ -184,21 +190,8 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 		}
 
-		// Close the read half of the pipe to unblock the ready signal.
-		closeErr := scx.readyw.Close()
-		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
+		cmdDone <- cmd.Wait()
 	}()
-
-	// Wait for the process. Since the continue pipe has not been closed, the
-	// process should not have exited yet.
-	select {
-	case err := <-cmdDone:
-		t.Fatalf("Process exited before continue with error %v", err)
-	case <-time.After(5 * time.Second):
-	}
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
 
 	// Signal to child that it may execute the requested program.
 	scx.execRequest.Continue()

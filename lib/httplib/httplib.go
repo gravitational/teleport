@@ -34,13 +34,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/utils"
@@ -232,27 +232,20 @@ type ProxyVersion struct {
 
 // RouteNotFoundResponse writes a JSON error reply containing
 // a not found error, a Version object, and a not found HTTP status code.
-func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion string) {
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter) {
 	SetDefaultSecurityHeaders(w.Header())
 
 	errObj := &trace.TraceErr{
 		Err: trace.NotFound("path not found"),
-	}
-
-	ver, err := semver.NewVersion(proxyVersion)
-	if err != nil {
-		slog.DebugContext(ctx, "Error parsing Teleport proxy semver version", "err", err)
-	} else {
-		verObj := ProxyVersion{
-			Major:      ver.Major,
-			Minor:      ver.Minor,
-			Patch:      ver.Patch,
-			String:     proxyVersion,
-			PreRelease: string(ver.PreRelease),
-		}
-		fields := make(map[string]interface{})
-		fields["proxyVersion"] = verObj
-		errObj.Fields = fields
+		Fields: map[string]any{
+			"proxyVersion": ProxyVersion{
+				Major:      api.VersionMajor,
+				Minor:      api.VersionMinor,
+				Patch:      api.VersionPatch,
+				String:     api.Version,
+				PreRelease: api.VersionPreRelease,
+			},
+		},
 	}
 
 	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
@@ -312,11 +305,14 @@ func OriginLocalRedirectURI(redirectURL string) (string, error) {
 		return "", trace.BadParameter("Invalid scheme: %s", parsedURL.Scheme)
 	}
 
+	// Make sure User field does not exist to prevent basic auth
+	if parsedURL.User != nil {
+		return "", trace.BadParameter("Basic Auth not allowed in redirect URL")
+	}
+
 	resultURI := parsedURL.RequestURI()
 	if strings.HasPrefix(resultURI, "//") {
 		return "", trace.BadParameter("Invalid double slash redirect")
-	} else if strings.Contains(resultURI, "@") {
-		return "", trace.BadParameter("Basic Auth not allowed in redirect")
 	}
 	return resultURI, nil
 }

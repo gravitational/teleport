@@ -1,0 +1,133 @@
+---
+title: Using JWT Authentication with Grafana
+sidebar_label: Grafana
+description: How to use JWT Authentication with Grafana
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+---
+
+This guide will help you configure Grafana [JWT
+authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/)
+with Teleport.
+
+## How it works
+
+Teleport issues short-lived JWTs and injects them into each proxied request to
+Grafana. Grafana is configured to trust Teleport’s JWT signer, allowing it to
+verify the user’s identity and retrieve role information from the
+Teleport-signed token.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- Running [Application Service](../protect-apps/connecting-apps.mdx).
+- Access to main config of your Grafana instance
+
+## Step 1/3. Configure JWT authentication in Grafana
+
+(!docs/pages/includes/application-access/jwt-grafana-config.mdx!)
+
+## Step 2/3. Register a Grafana application in Teleport
+
+You can register the Grafana application in Teleport by defining it in your
+Teleport Application Service configuration, or by using dynamic registration
+with `tctl` or Terraform. Assign <Var name="app URI"
+initial="http://grafana.example.com:3000"/> to the domain of your Grafana
+instance:
+
+<Tabs>
+<TabItem label="Static configuration">
+Add an application entry in your Teleport Application Service configuration
+file, `teleport.yaml`:
+```yaml
+app_service:
+  enabled: true
+  apps:
+  - name: "grafana"
+    uri: <Var name="app URI"/>
+    rewrite:
+      headers:
+      - "Authorization: Bearer {{internal.jwt}}"
+```
+Restart the Teleport Application service.
+</TabItem>
+
+<TabItem label="tctl">
+Create an `app` resource definition file named `app-grafana.yaml`:
+```yaml
+# app-grafana.yaml
+kind: app
+version: v3
+metadata:
+  name: grafana
+spec:
+  uri: <Var name="app URI"/>
+  rewrite:
+    headers:
+    - name: "Authorization"
+      value: "Bearer {{internal.jwt}}"
+```
+
+Create the `app` resource with:
+```code
+$ tctl create -f app-grafana.yaml
+```
+</TabItem>
+
+<TabItem label="Terraform">
+Create a `teleport_app` resource in terraform:
+```hcl
+resource "teleport_app" "grafana" {
+  version = "v3"
+  metadata = {
+    name = "grafana"
+    labels = {
+      "teleport.dev/origin" = "dynamic"
+    }
+  }
+
+  spec = {
+    uri = "<Var name="app URI"/>"
+    rewrite = {
+      headers = [{
+        name  = "Authorization"
+        value = "Bearer {{internal.jwt}}"
+      }]
+    }
+  }
+}
+```
+Apply the configuration:
+```code
+$ terraform apply
+```
+</TabItem>
+
+</Tabs>
+
+
+The header rewrite configuration above will replace the `{{internal.jwt}}`
+template variable with a Teleport-signed JWT token in each request.
+
+## Step 3/3. Connect to Grafana
+
+Log in to your Teleport cluster in your browser at https://<Var
+name="teleport.example.com" />.
+
+In the **Resources** tab, locate the `grafana` application and click **Launch**.
+
+Grafana will open and you should be automatically logged in as your Teleport
+user. You can verify this by clicking your profile icon in the upper-right
+corner.
+
+## Next steps
+
+- Get more information about integrating with [Teleport JWT tokens](./introduction.mdx).
+- See the [dynamic registration](../configuration/dynamic-registration.mdx) guide.
+- Learn more about [accessing APIs](../protect-apps/api-access.mdx) with the Teleport
+  Application Service.
+- Take a look at application-related [Access Controls](../configuration/controls.mdx).

@@ -16,4 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { IdentityContainer as Identity } from './Identity';
+export {
+  IdentityContainer as Identity,
+  TshHomeMigrationBanner,
+} from './Identity';

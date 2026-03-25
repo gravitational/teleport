@@ -90,11 +90,9 @@ const commands = {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { clusterUri: RootClusterUri }) {
-      const cluster = ctx.clustersService.findCluster(args.clusterUri);
       ctx.modalsService.openRegularDialog({
         kind: 'cluster-logout',
-        clusterUri: cluster.uri,
-        clusterTitle: cluster.name,
+        clusterUri: args.clusterUri,
       });
     },
   },

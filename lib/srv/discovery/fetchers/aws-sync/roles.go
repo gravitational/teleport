@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -57,7 +56,6 @@ func (a *Fetcher) pollAWSRoles(ctx context.Context, result *Resources, collectEr
 		eG.SetLimit(5)
 		roleMu := sync.Mutex{}
 		for _, role := range result.Roles {
-			role := role
 			eG.Go(func() error {
 				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
 				if err != nil {
@@ -193,9 +191,8 @@ func (a *Fetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgra
 	)
 
 	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
-		AwsRole:      role,
-		AccountId:    a.AccountID,
-		LastSyncTime: timestamppb.Now(),
+		AwsRole:   role,
+		AccountId: a.AccountID,
 	}
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -255,7 +252,6 @@ func awsRoleToProtoRole(role iamtypes.Role, accountID string) *accessgraphv1alph
 		RoleLastUsed:             lastTimeUsed,
 		Tags:                     tags,
 		PermissionsBoundary:      permissionsBoundary,
-		LastSyncTime:             timestamppb.Now(),
 	}
 }
 
@@ -265,6 +261,5 @@ func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, role *acces
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		AwsRole:        role,
 		AccountId:      accountID,
-		LastSyncTime:   timestamppb.Now(),
 	}
 }

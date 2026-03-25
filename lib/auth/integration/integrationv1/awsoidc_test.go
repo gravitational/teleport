@@ -19,6 +19,7 @@
 package integrationv1
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -216,12 +217,14 @@ func TestRBAC(t *testing.T) {
 
 	_, err = localClient.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
+	backend := &mockCache{}
 
 	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
 		IntegrationService:    resourceSvc,
 		Authorizer:            resourceSvc.authorizer,
-		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
-		Cache:                 &mockCache{},
+		ProxyPublicAddrGetter: func(context.Context) string { return "128.0.0.1" },
+		Cache:                 backend,
+		TokenCreator:          backend,
 	})
 	require.NoError(t, err)
 

@@ -695,7 +695,7 @@ func (s *JiraSuiteOSS) TestRace() {
 	assert.Equal(t, types.OpInit, (<-watcher.Events()).Type)
 
 	process := lib.NewProcess(ctx)
-	for i := 0; i < s.raceNumber; i++ {
+	for range s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.RequesterOSSUserName, "editor")
 			if err != nil {
@@ -750,7 +750,7 @@ func (s *JiraSuiteOSS) TestRace() {
 			return nil
 		})
 	}
-	for i := 0; i < 2*s.raceNumber; i++ {
+	for range 2 * s.raceNumber {
 		process.SpawnCritical(func(ctx context.Context) error {
 			var event types.Event
 			select {
@@ -780,7 +780,7 @@ func (s *JiraSuiteOSS) TestRace() {
 	require.NoError(t, raceErr)
 
 	var count int
-	requests.Range(func(key, val interface{}) bool {
+	requests.Range(func(key, val any) bool {
 		count++
 		assert.Equal(t, int64(0), *val.(*int64))
 		return true

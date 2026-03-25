@@ -24,11 +24,12 @@ import React, {
 
 import { Box, LabelInput, TextArea } from 'design';
 import { BoxProps } from 'design/Box';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import { TextAreaSize } from 'design/TextArea';
-import { IconTooltip } from 'design/Tooltip';
 import { useRule } from 'shared/components/Validation';
 
 import { HelperTextLine } from '../FieldInput/FieldInput';
+import { Rule } from '../Validation/rules';
 
 export type FieldTextAreaProps = BoxProps & {
   id?: string;
@@ -41,7 +42,7 @@ export type FieldTextAreaProps = BoxProps & {
   autoFocus?: boolean;
   autoComplete?: HTMLInputAutoCompleteAttribute;
   spellCheck?: boolean;
-  rule?: (options: unknown) => () => unknown;
+  rule?: Rule;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
@@ -49,14 +50,21 @@ export type FieldTextAreaProps = BoxProps & {
   onBlur?: React.FocusEventHandler<HTMLInputElement>;
   readonly?: boolean;
   defaultValue?: string;
-  toolTipContent?: React.ReactNode;
+  tooltipContent?: React.ReactNode;
+  tooltipSticky?: boolean;
   disabled?: boolean;
-  // markAsError is a flag to highlight an
-  // input box as error color before validator
-  // runs (which marks it as error)
+  /**
+   * Highlights the text area with error color before validator runs (which
+   * marks it as error)
+   */
   markAsError?: boolean;
   textAreaCss?: string;
   resizable?: boolean;
+  /**
+   * Adds a `required` attribute to the underlying text area and adds a
+   * required field indicator to the label.
+   */
+  required?: boolean;
 };
 
 export const FieldTextArea = forwardRef<
@@ -83,11 +91,13 @@ export const FieldTextArea = forwardRef<
       autoComplete = 'off',
       spellCheck,
       readonly = false,
-      toolTipContent = null,
+      tooltipContent = null,
+      tooltipSticky = false,
       disabled = false,
       markAsError = false,
       resizable = true,
       textAreaCss,
+      required,
       ...styles
     },
     ref
@@ -127,23 +137,14 @@ export const FieldTextArea = forwardRef<
       <Box mb="3" {...styles}>
         {label ? (
           <LabelInput mb={0}>
-            <Box mb={1}>
-              {toolTipContent ? (
-                <>
-                  <span
-                    css={{
-                      marginRight: '4px',
-                      verticalAlign: 'middle',
-                    }}
-                  >
-                    {label}
-                  </span>
-                  <IconTooltip children={toolTipContent} />
-                </>
-              ) : (
-                <>{label}</>
-              )}
-            </Box>
+            <LabelContent
+              required={required}
+              tooltipContent={tooltipContent}
+              tooltipSticky={tooltipSticky}
+              mb={1}
+            >
+              {label}
+            </LabelContent>
             {$textAreaElement}
           </LabelInput>
         ) : (

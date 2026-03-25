@@ -33,10 +33,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -98,7 +99,7 @@ func TestShutdown(t *testing.T) {
 	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
-	closeContext, cancel := context.WithCancel(context.TODO())
+	closeContext, cancel := context.WithCancel(t.Context())
 	fn := NewChanHandlerFunc(func(_ context.Context, ccx *ConnectionContext, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
 		require.NoError(t, err)
@@ -132,18 +133,18 @@ func TestShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	// context will timeout because there is a connection around
-	ctx, ctxc := context.WithTimeout(context.TODO(), 50*time.Millisecond)
+	ctx, ctxc := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer ctxc()
 	require.True(t, trace.IsConnectionProblem(srv.Shutdown(ctx)))
 
 	// now shutdown will return
 	cancel()
-	ctx2, ctxc2 := context.WithTimeout(context.TODO(), time.Second)
+	ctx2, ctxc2 := context.WithTimeout(t.Context(), time.Second)
 	defer ctxc2()
 	require.NoError(t, srv.Shutdown(ctx2))
 
 	// shutdown is re-entrable
-	ctx3, ctxc3 := context.WithTimeout(context.TODO(), time.Second)
+	ctx3, ctxc3 := context.WithTimeout(t.Context(), time.Second)
 	defer ctxc3()
 	require.NoError(t, srv.Shutdown(ctx3))
 }

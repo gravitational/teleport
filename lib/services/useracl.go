@@ -108,6 +108,8 @@ type UserACL struct {
 	Bots ResourceAccess `json:"bots"`
 	// BotInstances defines access to manage bot instances
 	BotInstances ResourceAccess `json:"botInstances"`
+	// Instances defines access to manage instances
+	Instances ResourceAccess `json:"instances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
@@ -122,6 +124,24 @@ type UserACL struct {
 	FileTransferAccess bool `json:"fileTransferAccess"`
 	// GitServers defines access to Git servers.
 	GitServers ResourceAccess `json:"gitServers"`
+	// WorkloadIdentity defines access to Workload Identity
+	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
+	// ClientIPRestriction defines access to Cloud IP Restrictions
+	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
+	// InferenceModel defines access to session summaries inference model.
+	InferenceModel ResourceAccess `json:"inferenceModel"`
+	// InferencePolicy defines access to session summaries inference policy.
+	InferencePolicy ResourceAccess `json:"inferencePolicy"`
+	// InferenceSecret defines access to session summaries inference secret.
+	InferenceSecret ResourceAccess `json:"inferenceSecret"`
+	// AutoUpdateConfig defines access to autoupdate config.
+	AutoUpdateConfig ResourceAccess `json:"autoUpdateConfig"`
+	// AutoUpdateVersion defines access to autoupdate version.
+	AutoUpdateVersion ResourceAccess `json:"autoUpdateVersion"`
+	// AutoUpdateAgentRollout defines access to autoupdate agent rollout.
+	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
+	// AutoUpdateAgentReport defines access to autoupdate agent reports.
+	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -196,8 +216,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
-		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
+	// accessGraphSettings should always be enabled for users to interact with demo mode
+	accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
@@ -212,10 +233,12 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
+	instances := newAccess(userRoles, ctx, types.KindInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
 	fileTransferAccess := userRoles.CanCopyFiles()
+	workloadIdentity := newAccess(userRoles, ctx, types.KindWorkloadIdentity)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -225,6 +248,16 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	contact := newAccess(userRoles, ctx, types.KindContact)
+
+	var clientIPRestrictions ResourceAccess
+	if features.Cloud {
+		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
+	}
+
+	autoUpdateConfig := newAccess(userRoles, ctx, types.KindAutoUpdateConfig)
+	autoUpdateVersion := newAccess(userRoles, ctx, types.KindAutoUpdateVersion)
+	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
+	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
 
 	return UserACL{
 		AccessRequests:          requestAccess,
@@ -264,11 +297,21 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
 		BotInstances:            botInstances,
+		Instances:               instances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
 		AccessGraphSettings:     accessGraphSettings,
 		Contact:                 contact,
 		FileTransferAccess:      fileTransferAccess,
 		GitServers:              gitServersAccess,
+		WorkloadIdentity:        workloadIdentity,
+		ClientIPRestriction:     clientIPRestrictions,
+		InferenceModel:          newAccess(userRoles, ctx, types.KindInferenceModel),
+		InferencePolicy:         newAccess(userRoles, ctx, types.KindInferencePolicy),
+		InferenceSecret:         newAccess(userRoles, ctx, types.KindInferenceSecret),
+		AutoUpdateConfig:        autoUpdateConfig,
+		AutoUpdateVersion:       autoUpdateVersion,
+		AutoUpdateAgentRollout:  autoUpdateAgentRollout,
+		AutoUpdateAgentReport:   autoUpdateAgentReport,
 	}
 }

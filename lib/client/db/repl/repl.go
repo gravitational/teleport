@@ -44,6 +44,8 @@ type REPLNewFunc func(context.Context, *NewREPLConfig) (REPLInstance, error)
 type REPLInstance interface {
 	// Run executes the REPL. This is a blocking operation.
 	Run(context.Context) error
+	// SetSize sets the REPL terminal window dimensions.
+	SetSize(width, height int) error
 }
 
 // REPLRegistry is an interface for initializing REPL instances and checking

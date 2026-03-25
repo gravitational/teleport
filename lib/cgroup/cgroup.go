@@ -19,18 +19,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO(capnspacehook) REMOVE IN v20: We only keep this package around so we can cleanup and unmount
+// the cgroup filesystem after an upgrade if necessary. Once v19 should
+// never mount the cgroup filesystem so we won't need to clean it up in v20.
 package cgroup
-
-// #include <stdint.h>
-// #include <stdlib.h>
-// extern uint64_t cgroup_id(char *path);
-import "C"
 
 import (
 	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -90,13 +89,6 @@ func New(config *Config) (*Service, error) {
 		teleportRoot: filepath.Join(config.MountPath, config.RootPath, uuid.New().String()),
 	}
 
-	// Mount the cgroup2 filesystem.
-	err = s.mount()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	logger.DebugContext(context.TODO(), "Teleport session hierarchy mounted.", "hierarchy_root", s.teleportRoot)
 	return s, nil
 }
 
@@ -122,15 +114,6 @@ func (s *Service) Close(skipUnmount bool) error {
 	return nil
 }
 
-// Create will create a cgroup for a given session.
-func (s *Service) Create(sessionID string) error {
-	err := os.Mkdir(filepath.Join(s.teleportRoot, sessionID), fileMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // Remove will remove the cgroup for a session. An existing processes will be
 // moved to the root controller.
 func (s *Service) Remove(sessionID string) error {
@@ -142,12 +125,10 @@ func (s *Service) Remove(sessionID string) error {
 
 	// Move all PIDs to the root controller. This has to be done before a cgroup
 	// can be removed.
-	err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids)
-	if err != nil {
+	if err = writePids(filepath.Join(s.MountPath, cgroupProcs), pids); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// The rmdir syscall is used to remove a cgroup.
 	err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
@@ -209,7 +190,9 @@ func writePids(path string, pids []string) error {
 
 	for _, pid := range pids {
 		_, err := f.WriteString(pid + "\n")
-		if err != nil {
+		// ignore no such process that can be returned if the process has already
+		// exited.
+		if err != nil && !errors.Is(err, unix.ESRCH) {
 			return trace.Wrap(err)
 		}
 	}
@@ -217,7 +200,7 @@ func writePids(path string, pids []string) error {
 	return trace.Wrap(f.Sync())
 }
 
-// cleanupHierarchy removes any cgroups for any exisiting sessions.
+// cleanupHierarchy removes any cgroups for any existing sessions.
 func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
@@ -263,81 +246,14 @@ func (s *Service) cleanupHierarchy() error {
 	return nil
 }
 
-// mount mounts the cgroup2 filesystem.
-func (s *Service) mount() error {
-	// Make sure path to cgroup2 mount point exists.
-	err := os.MkdirAll(s.MountPath, fileMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check if the Teleport root cgroup exists, if it does the cgroup filesystem
-	// is already mounted, return right away.
-	files, err := os.ReadDir(s.MountPath)
-	if err == nil && len(files) > 0 {
-		// Create cgroup that will hold Teleport sessions.
-		err = os.MkdirAll(s.teleportRoot, fileMode)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-
-	// Mount the cgroup2 filesystem. Even if the cgroup filesystem is already
-	// mounted, it is safe to re-mount it at another location, both will have
-	// the exact same view of the hierarchy. From "man cgroups":
-	//
-	//   It is not possible to mount the same controller against multiple
-	//   cgroup hierarchies.  For example, it is not possible to mount both
-	//   the cpu and cpuacct controllers against one hierarchy, and to mount
-	//   the cpu controller alone against another hierarchy.  It is possible
-	//   to create multiple mount points with exactly the same set of
-	//   comounted controllers.  However, in this case all that results is
-	//   multiple mount points providing a view of the same hierarchy.
-	//
-	// The exact args to the mount syscall come strace of mount(8). From the
-	// docs: https://www.kernel.org/doc/Documentation/cgroup-v2.txt:
-	//
-	//    Unlike v1, cgroup v2 has only single hierarchy.  The cgroup v2
-	//    hierarchy can be mounted with the following mount command:
-	//
-	//       # mount -t cgroup2 none $MOUNT_POINT
-	//
-	// The output of the strace looks like the following:
-	//
-	//    mount("none", "/cgroup3", "cgroup2", MS_MGC_VAL, NULL) = 0
-	//
-	// Where MS_MGC_VAL can be dropped. From mount(2) because we only support
-	// kernels 4.18 and above for this feature.
-	//
-	//   The mountflags argument may have the magic number 0xC0ED (MS_MGC_VAL)
-	//   in the top 16 bits.  (All of the other flags discussed in DESCRIPTION
-	//   occupy the low order 16 bits of mountflags.)  Specifying MS_MGC_VAL
-	//   was required in kernel versions prior to 2.4, but since Linux 2.4 is
-	//   no longer required and is ignored if specified.
-	err = unix.Mount("none", s.MountPath, "cgroup2", 0, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.DebugContext(context.TODO(), "Mounted cgroup filesystem.", "mount_path", s.MountPath)
-
-	// Create cgroup that will hold Teleport sessions.
-	err = os.MkdirAll(s.teleportRoot, fileMode)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // unmount will unmount the cgroupv2 filesystem.
 func (s *Service) unmount() error {
-	// The exact args to the umount syscall come from a strace of umount(8):
-	//
-	//    umount2("/cgroup2", 0)                  = 0
-	err := unix.Unmount(s.MountPath, 0)
-	if err != nil {
-		return trace.Wrap(err)
+	if err := unix.Unmount(s.MountPath, unix.MNT_DETACH); err != nil {
+		// EINVAL is returned if the cgroup filesystem is not mounted,
+		// which should be almost always the case.
+		if !errors.Is(err, unix.EINVAL) {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -381,15 +297,13 @@ func (s *Service) ID(sessionID string) (uint64, error) {
 	return fh.CgroupID, nil
 }
 
-var (
-	// pattern matches cgroup process files.
-	pattern = regexp.MustCompile(`cgroup\.procs$`)
-)
+// pattern matches cgroup process files.
+var pattern = regexp.MustCompile(`cgroup\.procs$`)
 
 const (
 	// fileMode is the mode files and directories are created in within the
 	// cgroup filesystem.
-	fileMode = 0555
+	fileMode = 0o555
 
 	// teleportRoot is the prefix of the root cgroup that holds all other
 	// Teleport cgroups.

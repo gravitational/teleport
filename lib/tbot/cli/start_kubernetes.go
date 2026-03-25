@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 // KubernetesCommand implements `tbot start kubernetes` and
@@ -42,14 +43,14 @@ type KubernetesCommand struct {
 // NewKubernetesCommand initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
 func NewKubernetesCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *KubernetesCommand {
-	cmd := parentCmd.Command("kubernetes", fmt.Sprintf("%s tbot with a kubernetes output.", mode)).Alias("k8s")
+	cmd := parentCmd.Command("kubernetes", fmt.Sprintf("%s tbot with a Kubernetes output.", mode)).Alias("k8s")
 
 	c := &KubernetesCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("kubernetes-cluster", "The name of the Kubernetes cluster in Teleport for which to fetch credentials").Required().StringVar(&c.KubernetesCluster)
+	cmd.Flag("kubernetes-cluster", "The name of the Kubernetes cluster in Teleport for which to fetch credentials.").Required().StringVar(&c.KubernetesCluster)
 	cmd.Flag("disable-exec-plugin", "If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.").BoolVar(&c.DisableExecPlugin)
 
 	// Note: excluding roles; the bot will fetch all available in CLI mode.
@@ -67,7 +68,7 @@ func (c *KubernetesCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.KubernetesOutput{
+	cfg.Services = append(cfg.Services, &k8s.OutputV1Config{
 		Destination:       dest,
 		KubernetesCluster: c.KubernetesCluster,
 		DisableExecPlugin: c.DisableExecPlugin,

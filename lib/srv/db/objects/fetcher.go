@@ -26,7 +26,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	libcloud "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
@@ -40,7 +40,7 @@ type ImportRulesReader interface {
 type ObjectFetcherConfig struct {
 	ImportRules ImportRulesReader
 	Auth        common.Auth
-	GCPClients  libcloud.GCPClients
+	GCPClients  gcp.Clients
 	Log         *slog.Logger
 }
 

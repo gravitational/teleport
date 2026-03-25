@@ -9,10 +9,9 @@
     "strict": true,
     "noImplicitReturns": true,
     "paths": {
-      "design/*": ["web/packages/design/src/*"],
-      "design": ["web/packages/design/src/"],
-      "gen-proto-ts/*": ["gen/proto/ts/*"],
+      "design/*": ["./src/*"],
+      "design": ["./src/"],
+      "gen-proto-ts/*": ["../../../gen/proto/ts/*"],
     }
-
   }
 }

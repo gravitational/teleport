@@ -18,16 +18,14 @@
 
 package bpf
 
-import "C"
-
 import (
 	"context"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,7 +33,7 @@ import (
 type BPF interface {
 	// OpenSession will start monitoring all events within a session and
 	// emitting them to the Audit Log.
-	OpenSession(ctx *SessionContext) (uint64, error)
+	OpenSession(ctx *SessionContext) error
 
 	// CloseSession will stop monitoring events for a particular session.
 	CloseSession(ctx *SessionContext) error
@@ -73,30 +71,41 @@ type SessionContext struct {
 	// User is the Teleport user.
 	User string
 
-	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Teleport to find itself by cgroup.
-	PID int
+	// UserOriginClusterName is the name of the cluster where the user is
+	// originally from.
+	UserOriginClusterName string
 
 	// Emitter is used to record events for a particular session
 	Emitter apievents.Emitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
-	Events map[string]bool
+	Events map[string]struct{}
+
+	// UserRoles are the roles assigned to the user.
+	UserRoles []string
+	// UserTraits are the traits assigned to the user.
+	UserTraits wrappers.Traits
+
+	// AuditSessionID is the audit session ID that should be the same
+	// for all processes in an SSH session. It is used to correlate
+	// audit events with the session. See
+	// https://github.com/torvalds/linux/blob/b75d8f38bcc9599af42635530c00268c71911f11/Documentation/ABI/stable/procfs-audit_loginuid
+	// for more details.
+	AuditSessionID uint32
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
-type NOP struct {
-}
+type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close(bool) error {
+func (s *NOP) Close(_ bool) error {
 	return nil
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
-	return 0, nil
+func (s *NOP) OpenSession(_ *SessionContext) error {
+	return nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
@@ -110,13 +119,13 @@ func (s *NOP) Enabled() bool {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	minKernel := semver.New(constants.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.LessThan(*minKernel) {
-		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
+	minKernelVersion := semver.Version{Major: 5, Minor: 8, Patch: 0}
+	if version.LessThan(minKernelVersion) {
+		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernelVersion)
 	}
 
 	if err = utils.HasBTF(); err != nil {

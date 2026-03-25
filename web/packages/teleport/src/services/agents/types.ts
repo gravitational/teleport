@@ -16,14 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GitServer } from 'web/packages/teleport/src/services/gitServers';
-
 import type { Platform } from 'design/platform';
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+import {
+  IncludedResourceMode,
+  ResourceHealthStatus,
+} from 'shared/components/UnifiedResources';
 
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
+import { GitServer } from 'teleport/services/gitServers';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
@@ -64,6 +66,7 @@ export type ResourceFilter = {
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };

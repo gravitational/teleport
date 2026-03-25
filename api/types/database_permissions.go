@@ -29,7 +29,7 @@ func (m *DatabasePermission) CheckAndSetDefaults() error {
 		}
 	}
 	for key, val := range m.Match {
-		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+		if key == Wildcard && (len(val) != 1 || val[0] != Wildcard) {
 			return trace.BadParameter("database permission: selector *:<val> is not supported")
 		}
 	}

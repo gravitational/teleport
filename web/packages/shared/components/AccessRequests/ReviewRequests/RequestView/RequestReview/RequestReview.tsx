@@ -29,7 +29,11 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
-import { AccessRequest, RequestState } from 'shared/services/accessRequests';
+import {
+  AccessRequest,
+  RequestKind,
+  RequestState,
+} from 'shared/services/accessRequests';
 
 import { AccessDurationReview } from '../../../AccessDuration';
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
@@ -107,6 +111,10 @@ export default function RequestReview({
     return state !== undefined ? state === currentOptionState : undefined;
   }
 
+  const someResourcesConstrained = request.resources?.some(
+    r => !!r.constraints
+  );
+
   return (
     <Validation>
       {({ validator }) => (
@@ -164,7 +172,9 @@ export default function RequestReview({
                     <React.Fragment key={index}>
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
-                        <HorizontalLine />
+                        <HorizontalLine
+                          height={92 + (someResourcesConstrained ? 24 : 0)}
+                        />
                         <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
@@ -192,6 +202,18 @@ export default function RequestReview({
                           }
                           options={suggestedAccessListOptions}
                         />
+                        {someResourcesConstrained && (
+                          <Text
+                            ml={1}
+                            mt={2}
+                            fontSize={1}
+                            color="text.slightlyMuted"
+                          >
+                            Requested resource(s) include Constraints; access
+                            granted via membership in an Access List will be
+                            broader than requested.
+                          </Text>
+                        )}
                       </Box>
                     </React.Fragment>
                   );
@@ -298,9 +320,13 @@ function makeReviewStateOptions(
     );
   }
 
-  return [
+  const opts: ReviewStateOption[] = [
     { value: 'DENIED', label: <>Reject request</> },
-    {
+  ];
+
+  // Don't allow approving short-term access for long-term requests.
+  if (request.requestKind !== RequestKind.LongTerm) {
+    opts.push({
       value: 'APPROVED',
       label: (
         <>
@@ -308,16 +334,19 @@ function makeReviewStateOptions(
           {shortTermDuration ? ` (${shortTermDuration})` : ''}
         </>
       ),
-    },
-    {
-      value: 'PROMOTED',
-      disabled:
-        fetchSuggestedAccessListsAttempt.status === 'error' ||
-        (fetchSuggestedAccessListsAttempt.status === 'success' &&
-          fetchSuggestedAccessListsAttempt.data.length === 0),
-      label: <>{promotedContent}</>,
-    },
-  ];
+    });
+  }
+
+  opts.push({
+    value: 'PROMOTED',
+    disabled:
+      fetchSuggestedAccessListsAttempt.status === 'error' ||
+      (fetchSuggestedAccessListsAttempt.status === 'success' &&
+        fetchSuggestedAccessListsAttempt.data.length === 0),
+    label: <>{promotedContent}</>,
+  });
+
+  return opts;
 }
 
 const TextMutedNoEllipsis = styled.div`

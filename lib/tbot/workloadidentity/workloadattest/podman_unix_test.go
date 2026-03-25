@@ -33,10 +33,12 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/podman"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPodmanAttestor(t *testing.T) {
-	server := podman.NewTestServer(t,
+	server, err := podman.NewFakeServer(
+		t.TempDir(),
 		podman.WithContainer(podman.Container{
 			ID:   "d54768c18894b931db6f6876f6be2178d8a8b34fc3485659fda78fe86af3e08b",
 			Name: "web-server",
@@ -44,6 +46,7 @@ func TestPodmanAttestor(t *testing.T) {
 				Image:  "nginx:latest",
 				Labels: map[string]string{"region": "eu"},
 			},
+			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
 		}),
 		podman.WithPod(podman.Pod{
 			ID:     "5ffc3df0af9a6dd0f92668fc949734aad2ad41a5670b7218196d377d55ca32c5",
@@ -51,13 +54,21 @@ func TestPodmanAttestor(t *testing.T) {
 			Labels: map[string]string{"department": "marketing"},
 		}),
 	)
+	require.NoError(t, err)
+
+	server.Start()
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Logf("failed to close http server: %v", err)
+		}
+	})
 
 	attestor := NewPodmanAttestor(
 		PodmanAttestorConfig{
 			Enabled: true,
 			Addr:    server.Addr(),
 		},
-		utils.NewSlogLoggerForTests(),
+		logtest.NewLogger(),
 	)
 
 	attestor.rootPath = t.TempDir()
@@ -78,9 +89,10 @@ func TestPodmanAttestor(t *testing.T) {
 	expected := &workloadidentityv1.WorkloadAttrsPodman{
 		Attested: true,
 		Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-			Name:   "web-server",
-			Image:  "nginx:latest",
-			Labels: map[string]string{"region": "eu"},
+			Name:        "web-server",
+			Image:       "nginx:latest",
+			Labels:      map[string]string{"region": "eu"},
+			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
 		},
 		Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
 			Name:   "billing-system",

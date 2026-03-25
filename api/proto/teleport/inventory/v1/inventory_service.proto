@@ -1,0 +1,110 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.inventory.v1;
+
+import "teleport/legacy/types/types.proto";
+import "teleport/machineid/v1/bot_instance.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1;inventoryv1";
+
+// InventoryService provides methods to manage and query the inventory of Teleport instances and bot instances.
+service InventoryService {
+  // ListUnifiedInstances returns a page of teleport instances and bot instances.
+  rpc ListUnifiedInstances(ListUnifiedInstancesRequest) returns (ListUnifiedInstancesResponse);
+}
+
+// InstanceType represents the type of instance.
+enum InstanceType {
+  INSTANCE_TYPE_UNSPECIFIED = 0;
+  // INSTANCE_TYPE_INSTANCE is a Teleport instance.
+  INSTANCE_TYPE_INSTANCE = 1;
+  // INSTANCE_TYPE_BOT_INSTANCE is a bot instance.
+  INSTANCE_TYPE_BOT_INSTANCE = 2;
+}
+
+// UnifiedInstanceSort specifies the sort mode for listing unified instances.
+// If a sorting criteria for multiple instances are equal (eg. 2 instances are the same version), the secondary
+// sorting will always be by name.
+enum UnifiedInstanceSort {
+  UNIFIED_INSTANCE_SORT_UNSPECIFIED = 0;
+  // UNIFIED_INSTANCE_SORT_NAME sorts by display name (hostname for instances, bot name for bot instances).
+  UNIFIED_INSTANCE_SORT_NAME = 1;
+  // UNIFIED_INSTANCE_SORT_TYPE sorts by instance type (instance vs bot_instance).
+  UNIFIED_INSTANCE_SORT_TYPE = 2;
+  // UNIFIED_INSTANCE_SORT_VERSION sorts by version.
+  UNIFIED_INSTANCE_SORT_VERSION = 3;
+}
+
+// SortOrder specifies the sort order for listing unified instances.
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  // SORT_ORDER_ASCENDING sorts in ascending order.
+  SORT_ORDER_ASCENDING = 1;
+  // SORT_ORDER_DESCENDING sorts in descending order.
+  SORT_ORDER_DESCENDING = 2;
+}
+
+// ListUnifiedInstancesRequest is the request for listing instances.
+message ListUnifiedInstancesRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListUnifiedInstances request, if any.
+  string page_token = 2;
+  // filter specifies optional search criteria to limit which instances should be returned.
+  ListUnifiedInstancesFilter filter = 3;
+  // sort specifies the sort mode for the results. Defaults to UNIFIED_INSTANCE_SORT_NAME.
+  UnifiedInstanceSort sort = 4;
+  // order specifies the sort order for the results. Defaults to SORT_ORDER_ASCENDING.
+  SortOrder order = 5;
+}
+
+// ListUnifiedInstancesResponse is the response from listing instances.
+message ListUnifiedInstancesResponse {
+  // items is the list of instances (instances or bot instances) returned.
+  repeated UnifiedInstanceItem items = 1;
+  // next_page_token contains the next page token to use as the start key for the next page of instances.
+  string next_page_token = 2;
+}
+
+// ListUnifiedInstancesFilter provides a mechanism to refine ListUnifiedInstances results.
+message ListUnifiedInstancesFilter {
+  // search is a basic string search query which will filter results by name (hostname for instances, bot name for bot instances).
+  string search = 1;
+  // predicate_expression is a predicate expression used to match against resource field values.
+  string predicate_expression = 2;
+  // instance_types is the types of instances to return. If omitted, both instances and bot instances will be returned.
+  repeated InstanceType instance_types = 3;
+  // services is the list of services (system roles) to filter instances by. An instance must have one or more of the services here to be returned.
+  // The services filter is ignored for bot instances.
+  repeated string services = 4;
+  // updater_groups is the list of updater groups to filter instances by.
+  repeated string updater_groups = 5;
+  // upgraders is the list of upgraders to filter instances by.
+  repeated string upgraders = 6;
+}
+
+// UnifiedInstanceItem represents either a teleport or bot instance.
+message UnifiedInstanceItem {
+  oneof item {
+    // instance is the canonical instance type from the Instance heartbeat system.
+    types.InstanceV1 instance = 1;
+    // bot_instance is the canonical bot instance type.
+    teleport.machineid.v1.BotInstance bot_instance = 2;
+  }
+}

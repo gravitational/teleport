@@ -22,11 +22,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -64,11 +66,18 @@ type SystemdService struct {
 	Ready ReadyChecker
 	// Log contains a logger.
 	Log *slog.Logger
+	// ForceRestart forces the process to always restart.
+	ForceRestart bool
 }
 
 // ReadyChecker returns the systemd service readiness status.
 type ReadyChecker interface {
 	GetReadiness(ctx context.Context) (debug.Readiness, error)
+}
+
+// Name of the systemd service.
+func (s SystemdService) Name() string {
+	return s.ServiceName
 }
 
 // Reload the systemd service.
@@ -84,7 +93,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
 
-	// If the service is not running, return ErrNotNeeded.
+	// If the service is not running, return nil.
 	// Note systemctl reload returns an error if the unit is not active, and
 	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
@@ -93,7 +102,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		return trace.Errorf("unable to determine if systemd service is active")
 	case code > 0:
 		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
-		return trace.Wrap(ErrNotNeeded)
+		return nil
 	}
 
 	// Get initial PID for crash monitoring.
@@ -106,20 +115,28 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	}
 
 	// Attempt graceful reload of running service.
-	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
-	switch {
-	case code < 0:
-		return trace.Errorf("unable to reload systemd service")
-	case code > 0:
-		// Graceful reload fails, try hard restart.
+	if !s.ForceRestart {
+		code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
+		switch {
+		case code < 0:
+			return trace.Errorf("unable to reload systemd service")
+		case code > 0:
+			// Graceful reload fails, try hard restart.
+			code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
+			if code != 0 {
+				return trace.Errorf("hard restart of systemd service failed")
+			}
+			s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
+		default:
+			s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
+		}
+	} else {
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
 			return trace.Errorf("hard restart of systemd service failed")
 		}
-		s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
-	default:
-		s.Log.InfoContext(ctx, "Gracefully reloaded.", unitKey, s.ServiceName)
 	}
+
 	// monitor logs all relevant errors, so we filter for a few outcomes
 	err = s.monitor(ctx, initPID)
 	if errors.Is(err, context.DeadlineExceeded) ||
@@ -299,6 +316,9 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
 func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
+	if s.Ready == nil {
+		return nil
+	}
 	var lastErr error
 	var readiness debug.Readiness
 	for {
@@ -371,15 +391,19 @@ func (s SystemdService) Enable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	args := []string{"enable", s.ServiceName}
-	if now {
-		args = append(args, "--now")
-	}
-	code := s.systemctl(ctx, slog.LevelError, args...)
+	// The --now flag is not supported in systemd versions older than 220,
+	// so perform enable + start commands instead.
+	code := s.systemctl(ctx, slog.LevelInfo, "enable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to enable systemd service")
 	}
-	s.Log.InfoContext(ctx, "Service enabled.", unitKey, s.ServiceName)
+	if now {
+		code := s.systemctl(ctx, slog.LevelInfo, "start", s.ServiceName)
+		if code != 0 {
+			return trace.Errorf("unable to start systemd service")
+		}
+	}
+	s.Log.InfoContext(ctx, "Systemd service enabled.", unitKey, s.ServiceName, "now", now)
 	return nil
 }
 
@@ -388,15 +412,19 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	args := []string{"disable", s.ServiceName}
-	if now {
-		args = append(args, "--now")
-	}
-	code := s.systemctl(ctx, slog.LevelError, args...)
+	// The --now flag is not supported in systemd versions older than 220,
+	// so perform disable + stop commands instead.
+	code := s.systemctl(ctx, slog.LevelInfo, "disable", s.ServiceName)
 	if code != 0 {
 		return trace.Errorf("unable to disable systemd service")
 	}
-	s.Log.InfoContext(ctx, "Systemd service disabled.", unitKey, s.ServiceName)
+	if now {
+		code := s.systemctl(ctx, slog.LevelInfo, "stop", s.ServiceName)
+		if code != 0 {
+			return trace.Errorf("unable to stop systemd service")
+		}
+	}
+	s.Log.InfoContext(ctx, "Systemd service disabled.", unitKey, s.ServiceName, "now", now)
 	return nil
 }
 
@@ -404,6 +432,9 @@ func (s SystemdService) Disable(ctx context.Context, now bool) error {
 func (s SystemdService) IsEnabled(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
+	}
+	if hasSystemDBelow(ctx, 238) {
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "is-enabled", "--quiet", s.ServiceName)
 	switch {
@@ -434,6 +465,9 @@ func (s SystemdService) IsActive(ctx context.Context) (bool, error) {
 func (s SystemdService) IsPresent(ctx context.Context) (bool, error) {
 	if err := s.checkSystem(ctx); err != nil {
 		return false, trace.Wrap(err)
+	}
+	if hasSystemDBelow(ctx, 246) {
+		return false, trace.Wrap(ErrNotAvailable)
 	}
 	code := s.systemctl(ctx, slog.LevelDebug, "list-unit-files", "--quiet", s.ServiceName)
 	if code < 0 {
@@ -466,6 +500,32 @@ func hasSystemD() (bool, error) {
 	return true, nil
 }
 
+// hasSystemDBelow returns true the version of systemd can be determined, and it
+// is below the provided version.
+func hasSystemDBelow(ctx context.Context, i int) bool {
+	cmd := exec.CommandContext(ctx, "systemctl", "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	v, ok := parseSystemDVersion(out)
+	return ok && v < i
+}
+
+// parseSystemDVersion parses the SystemD version from systemctl command output.
+func parseSystemDVersion(out []byte) (int, bool) {
+	first, _, _ := strings.Cut(string(out), "\n")
+	parts := strings.SplitN(first, " ", 3)
+	if len(parts) < 2 || parts[0] != "systemd" {
+		return 0, false
+	}
+	version, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, false
+	}
+	return version, true
+}
+
 // systemctl returns a systemctl subcommand, converting the output to logs.
 // Output sent to stdout is logged at debug level.
 // Output sent to stderr is logged at the level specified by errLevel.
@@ -489,8 +549,71 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	return code
 }
 
+// ProcessGroup is a group of other Teleport processes.
+type ProcessGroup []Process
+
+func (p ProcessGroup) Name() string {
+	return "Teleport services"
+}
+
+// Reload reloads all processes in the process group.
+func (p ProcessGroup) Reload(ctx context.Context) error {
+	// TODO(sclevine): consider reloading in parallel if this is too slow for users
+	for _, process := range p {
+		if err := process.Reload(ctx); err != nil {
+			return trace.Wrap(err, "failed to reload %s", process.Name())
+		}
+	}
+	return nil
+}
+
+// Sync syncs only the first process in the group, and fails if no processes are present.
+// The systemctl daemon-reload command is global, so we only need to sync once.
+func (p ProcessGroup) Sync(ctx context.Context) error {
+	if len(p) == 0 {
+		return trace.Errorf("no services to sync")
+	}
+	return trace.Wrap(p[0].Sync(ctx))
+}
+
+// IsEnabled returns true if any processes in the group are enabled.
+func (p ProcessGroup) IsEnabled(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsEnabled(ctx)
+	})
+}
+
+// IsPresent returns true if any processes in the group are present.
+func (p ProcessGroup) IsPresent(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsPresent(ctx)
+	})
+}
+
+// IsActive returns true if any processes in the group are active.
+func (p ProcessGroup) IsActive(ctx context.Context) (bool, error) {
+	return p.anyAreTrue(ctx, func(ctx context.Context, p Process) (bool, error) {
+		return p.IsActive(ctx)
+	})
+}
+
+func (p ProcessGroup) anyAreTrue(ctx context.Context, f func(ctx context.Context, p Process) (bool, error)) (bool, error) {
+	for _, process := range p {
+		ok, err := f(ctx, process)
+		if err != nil {
+			return ok, trace.Wrap(err)
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // localExec runs a command locally, logging any output.
 type localExec struct {
+	// Dir specifies the working directory of the local command.
+	Dir string
 	// Log contains a slog logger.
 	// Defaults to slog.Default() if nil.
 	Log *slog.Logger
@@ -504,6 +627,7 @@ type localExec struct {
 // Outputs the status code, or -1 if out-of-range or unstarted.
 func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = c.Dir
 	stderr := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel, prefix: "[stderr] "}
 	stdout := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel, prefix: "[stdout] "}
 	cmd.Stderr = stderr
@@ -513,4 +637,23 @@ func (c *localExec) Run(ctx context.Context, name string, args ...string) (int, 
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
 	return code, trace.Wrap(err)
+}
+
+// Output runs the command and returns combined output from stdout and stderr.
+// Same arguments as exec.CommandContext.
+func (c *localExec) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
+	var buf bytes.Buffer
+	stderrLogger := &lineLogger{ctx: ctx, log: c.Log, level: c.ErrLevel, prefix: "[stderr] "}
+	stdoutLogger := &lineLogger{ctx: ctx, log: c.Log, level: c.OutLevel, prefix: "[stdout] "}
+
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = c.Dir
+	stderr := io.MultiWriter(&buf, stderrLogger)
+	stdout := io.MultiWriter(&buf, stdoutLogger)
+	cmd.Stderr = stderr
+	cmd.Stdout = stdout
+	err := cmd.Run()
+	stderrLogger.Flush()
+	stdoutLogger.Flush()
+	return buf.Bytes(), trace.Wrap(err)
 }

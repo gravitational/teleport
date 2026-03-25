@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -47,7 +49,7 @@ import (
 // EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
 // discovered clusters, instead of just proxying them.
 func (s *Server) startKubeIntegrationWatchers() error {
-	if len(s.getKubeIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -72,7 +74,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		s.Log.WarnContext(s.ctx,
 			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
 			"version", teleport.Version)
-		versionGetter = version.NewStaticGetter(teleport.Version, nil)
+		versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
+		if err != nil {
+			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+		}
 	} else {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
@@ -80,7 +85,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				"Failed to build a version client, falling back to Discovery service Teleport version.",
 				"error", err,
 				"version", teleport.Version)
-			versionGetter = version.NewStaticGetter(teleport.Version, nil)
+			versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
+			if err != nil {
+				return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+			}
 		}
 	}
 
@@ -120,7 +128,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
+				existingClusters, err := iterstream.Collect(clt.RangeKubernetesClusters(s.ctx, "", ""))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue
@@ -229,7 +237,7 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 	s.awsEKSTasks.reset()
 }
 
-func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
+func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion *semver.Version, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	mu.Lock()
 	for _, c := range clusters {
 		if _, ok := enrollingClusters[c.GetAWSConfig().Name]; !ok {
@@ -272,7 +280,7 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 			Region:             region,
 			EksClusterNames:    clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
-			AgentVersion:       agentVersion,
+			AgentVersion:       agentVersion.String(),
 		})
 		if err != nil {
 			s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
@@ -323,7 +331,7 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (string, error) {
+func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (*semver.Version, error) {
 	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
 }
 
@@ -398,9 +406,6 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		Scheme:  "https",
 		Host:    proxyPublicAddr,
 		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
-	}
-	if err != nil {
-		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
 	}
 
 	return version.FailoverGetter{

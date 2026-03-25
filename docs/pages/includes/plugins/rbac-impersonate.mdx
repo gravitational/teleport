@@ -7,11 +7,18 @@ If you are running a self-hosted Teleport Enterprise deployment and are using
 `tctl` from the Auth Service host, you will already have impersonation
 privileges.
 
-To grant your user impersonation privileges for `access-plugin`, define a role
-called `access-plugin-impersonator` by pasting the following YAML document into
-a file called `access-plugin-impersonator.yaml`:
+To grant your user impersonation privileges for `access-plugin`, define a user
+named `access-plugin` and a role named `access-plugin-impersonator` by adding
+the following YAML document into a file called `access-plugin-impersonator.yaml`:
 
 ```yaml
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+---
 kind: role
 version: v7
 metadata:
@@ -25,18 +32,18 @@ spec:
       - access-plugin
 ```
 
-Create the `access-plugin-impersonator` role: 
+Create the user and role:
 
 ```code
 $ tctl create -f access-plugin-impersonator.yaml
+user "access-plugin" has been created
+role "access-plugin-impersonator" has been created
 ```
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-If you are providing identity files to the plugin with Machine ID, assign the
-`access-plugin` role to the Machine ID bot user. Otherwise, assign this role to
-the user you plan to use to generate credentials for the `access-plugin` role
-and user:
+Assign this role to the user you plan to use to generate credentials for the
+`access-plugin` role and user:
 
 (!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
 

@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITheme, Terminal } from '@xterm/xterm';
-
+import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
   TerminalSearcher,
@@ -59,8 +56,7 @@ export default class TtyTerminal implements TerminalSearcher {
   _imageAddon = new ImageAddon();
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
-  _webglAddon: WebglAddon;
-  _canvasAddon = new CanvasAddon();
+  _webglAddon: WebglAddon | undefined;
 
   private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
@@ -100,6 +96,7 @@ export default class TtyTerminal implements TerminalSearcher {
       convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       theme: this.options.theme,
       allowProposedApi: true, // required for customizing SearchAddon properties
     });
@@ -108,29 +105,25 @@ export default class TtyTerminal implements TerminalSearcher {
     this.term.loadAddon(this._webLinksAddon);
     this.term.loadAddon(this._imageAddon);
     this.term.loadAddon(this._searchAddon);
-    // handle context loss and load webgl addon
+
     try {
-      // try to create a new WebglAddon. If webgl is not supported, this
-      // constructor will throw an error and fallback to canvas. We also fallback
-      // to canvas if the webgl context is lost after a timeout.
-      // The "wait for context" timeout for the webgl addon doesn't actually start until the app is
-      // able to have it back. For example, if the OS takes the gpu away from the browser, the timeout
-      // wont start looking for the context again until the OS has given the browser the context again.
-      // When the initial context lost event is fired, the webgl addon consumes the event
-      // and waits for a bit to see if it can get the context back. If it fails repeatedly, it
-      // will propagate the context loss event itself in which case we fall back to canvas
+      // The constructor may throw if WebGL is not supported.
+      // xterm.js can also asynchronously throw an error in Terminal.prototype.open()
+      // (`Uncaught Error: WebGL2 not supported`) that cannot be caught.
       this._webglAddon = new WebglAddon();
+      // Triggered if the addon fails to recover the WebGL context after multiple retries.
       this._webglAddon.onContextLoss(() => {
-        this.fallbackToCanvas();
+        logger.info('WebGL context lost. Using default renderer.');
+        this._webglAddon?.dispose();
       });
       this.term.loadAddon(this._webglAddon);
     } catch {
-      this.fallbackToCanvas();
+      this._webglAddon?.dispose();
+      logger.info('WebGL could not be loaded. Using default renderer.');
     }
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.focus();
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -146,6 +139,46 @@ export default class TtyTerminal implements TerminalSearcher {
 
     // subscribe to window resize events
     window.addEventListener('resize', this._debouncedResize);
+
+    // Xterm.js v6 removed the workaround that converted Alt+Arrow to Ctrl+Arrow sequences for word
+    // navigation (https://github.com/xtermjs/xterm.js/pull/5346). Re-add this behavior by sending
+    // the appropriate escape sequences, matching what VS Code does.
+    // https://github.com/microsoft/vscode/blob/5bb327de4bf14578c8c0bd1b553ee14dd2977e18/src/vs/workbench/contrib/terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.ts#L163-L182
+    //
+    // Terminal.app and iTerm2 have bindings only for Alt+Left/Right, so we follow their steps and
+    // send ESC b / ESC f (readline word navigation).
+    this.registerCustomKeyEventHandler(e => {
+      // Only handle pure Alt+Arrow. Other modifier combinations (e.g. Ctrl+Alt+Arrow,
+      // Shift+Alt+Arrow) have their own distinct escape sequences that Xterm.js already handles.
+      if (
+        e.type !== 'keydown' ||
+        !e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.shiftKey
+      ) {
+        return true;
+      }
+
+      let seq: string | undefined;
+      switch (e.key) {
+        case 'ArrowRight':
+          seq = '\x1bf';
+          break;
+        case 'ArrowLeft':
+          seq = '\x1bb';
+          break;
+      }
+
+      if (seq) {
+        this.term.input(seq, false /* wasUserInput */);
+        e.preventDefault();
+        // Event handled, do not process it in xterm.
+        return false;
+      }
+
+      return true;
+    });
 
     this.term.attachCustomKeyEventHandler(e => {
       for (const eventHandler of this.customKeyEventHandlers) {
@@ -163,21 +196,6 @@ export default class TtyTerminal implements TerminalSearcher {
     this.term.focus();
   }
 
-  fallbackToCanvas() {
-    logger.info('WebGL context lost. Falling back to canvas');
-    this._webglAddon?.dispose();
-    this._webglAddon = undefined;
-    try {
-      this.term.loadAddon(this._canvasAddon);
-    } catch {
-      logger.error(
-        'Canvas renderer could not be loaded. Falling back to default'
-      );
-      this._canvasAddon?.dispose();
-      this._canvasAddon = undefined;
-    }
-  }
-
   connect() {
     this.tty.connect(this.term.cols, this.term.rows);
   }
@@ -193,7 +211,6 @@ export default class TtyTerminal implements TerminalSearcher {
     this._imageAddon.dispose();
     this._searchAddon?.dispose();
     this._webglAddon?.dispose();
-    this._canvasAddon?.dispose();
     this._el.innerHTML = null;
     this.term?.dispose();
 

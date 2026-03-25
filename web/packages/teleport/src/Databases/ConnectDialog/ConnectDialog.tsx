@@ -33,10 +33,11 @@ import Dialog, {
 } from 'design/Dialog';
 import { NewTab as NewTabIcon } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { getDatabaseIconName } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
-import { DbProtocol } from 'shared/services/databases';
+import { DbProtocol, getDbNameRequirement } from 'shared/services/databases';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
@@ -56,32 +57,22 @@ export default function ConnectDialog({
     dbProtocol == 'dynamodb' || dbProtocol == 'clickhouse-http'
       ? 'proxy db --tunnel'
       : 'db connect';
-
   // Adjust `--db-name` flag based on db protocol, as it's required for
   // some, optional for some, and unsupported by some.
+  const dbNameReq = getDbNameRequirement(dbProtocol);
   let dbNameFlag: string;
-  switch (dbProtocol) {
-    case 'postgres':
-    case 'sqlserver':
-    case 'oracle':
-    case 'mongodb':
-    case 'spanner':
-      // Required
+  switch (dbNameReq) {
+    case 'required':
       dbNameFlag = ' --db-name=<name>';
       break;
-    case 'cassandra':
-    case 'clickhouse':
-    case 'clickhouse-http':
-    case 'dynamodb':
-    case 'opensearch':
-    case 'elasticsearch':
-    case 'redis':
-      // No flag
+    case 'unsupported':
       dbNameFlag = '';
       break;
-    default:
-      // Default to optional
+    case 'optional':
       dbNameFlag = ' [--db-name=<name>]';
+      break;
+    default:
+      assertUnreachable(dbNameReq);
   }
 
   const onConnect = () => {
@@ -137,7 +128,7 @@ export default function ConnectDialog({
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({

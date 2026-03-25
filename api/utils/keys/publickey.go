@@ -89,5 +89,5 @@ func ParsePublicKey(keyPEM []byte) (crypto.PublicKey, error) {
 	// If both parse functions returned an error, preferedErr is guaranteed to
 	// be set to the error from the parse function that usually matches the PEM
 	// block type.
-	return nil, trace.Wrap(preferredErr, "parsing public key PEM")
+	return nil, trace.BadParameter("parsing public key PEM: %s", preferredErr)
 }

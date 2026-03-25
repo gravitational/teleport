@@ -36,70 +36,22 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// selectConnectionUpgrade selects the requested upgrade type and returns the
-// corresponding handler.
-func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHandler, error) {
-	upgrades := append(
-		r.Header.Values(constants.WebAPIConnUpgradeTeleportHeader),
-		r.Header.Values(constants.WebAPIConnUpgradeHeader)...,
-	)
-
-	// Prefer WebSocket when multiple types are provided.
-	switch {
-	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeWebSocket):
-		return constants.WebAPIConnUpgradeTypeWebSocket, h.upgradeALPN, nil
-	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeALPNPing):
-		return constants.WebAPIConnUpgradeTypeALPNPing, h.upgradeALPNWithPing, nil
-	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeALPN):
-		return constants.WebAPIConnUpgradeTypeALPN, h.upgradeALPN, nil
-	default:
-		return "", nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
-	}
-}
-
 // connectionUpgrade handles connection upgrades.
-func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	upgradeType, upgradeHandler, err := h.selectConnectionUpgrade(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	upgrades := r.Header.Values(constants.WebAPIConnUpgradeHeader)
+	if !slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeWebSocket) {
+		return nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
 	}
 
-	if upgradeType == constants.WebAPIConnUpgradeTypeWebSocket {
-		return h.upgradeALPNWebSocket(w, r, upgradeHandler)
-	}
-
-	// TODO(greedy52) DELETE legacy upgrade in 17.0.
-	hj, ok := w.(http.Hijacker)
-	if !ok {
-		return nil, trace.BadParameter("failed to hijack connection")
-	}
-
-	conn, _, err := hj.Hijack()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	// Since w is hijacked, there is no point returning an error for response
-	// starting at this point.
-	if err := writeUpgradeResponse(conn, upgradeType); err != nil {
-		h.logger.ErrorContext(r.Context(), "Failed to write upgrade response.", "error", err)
-		return nil, nil
-	}
-
-	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
-		h.logger.ErrorContext(r.Context(), "Failed to handle upgrade request.", "type", upgradeType, "error", err)
-	}
-	return nil, nil
+	return h.upgradeALPNWebSocket(w, r, h.upgradeALPN)
 }
 
-func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (interface{}, error) {
+func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 		Subprotocols: []string{
@@ -141,7 +93,11 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
-		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.", "protocol", wsConn.Subprotocol(), "error", err)
+		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
+			"protocol", wsConn.Subprotocol(),
+			"error", err,
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
+		)
 	}
 	return nil, nil
 }
@@ -158,21 +114,6 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	defer waitConn.WaitForClose()
 
 	return h.cfg.ALPNHandler(ctx, waitConn)
-}
-
-func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {
-	if h.cfg.ALPNHandler == nil {
-		return trace.BadParameter("missing ALPNHandler")
-	}
-
-	pingConn := pingconn.New(conn)
-
-	// Cancel ping background goroutine when connection is closed.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go h.startPing(ctx, pingConn)
-
-	return h.upgradeALPN(ctx, pingConn)
 }
 
 type pingWriter interface {
@@ -196,21 +137,6 @@ func (h *Handler) startPing(ctx context.Context, pingConn pingWriter) {
 			}
 		}
 	}
-}
-
-func writeUpgradeResponse(w io.Writer, upgradeType string) error {
-	header := make(http.Header)
-	header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
-	header.Add(constants.WebAPIConnUpgradeTeleportHeader, upgradeType)
-	header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
-	response := &http.Response{
-		Status:     http.StatusText(http.StatusSwitchingProtocols),
-		StatusCode: http.StatusSwitchingProtocols,
-		Header:     header,
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-	}
-	return response.Write(w)
 }
 
 // waitConn is a net.Conn that provides a "WaitForClose" function to wait until

@@ -1,0 +1,27 @@
+389 339 0:52 / / rw,relatime - overlay overlay rw,lowerdir=/home/vagrant/.local/share/docker/overlay2/l/WY3WBGOVFAV3W2IFKYSKCYEJZF:/home/vagrant/.local/share/docker/overlay2/l/CBBQHDTJ4A2TXT7XPUMGDNZAE3,upperdir=/home/vagrant/.local/share/docker/overlay2/47df71e837b6d265aaf5f1f74558f80325984fe9ddbc306322b1547d22305dfb/diff,workdir=/home/vagrant/.local/share/docker/overlay2/47df71e837b6d265aaf5f1f74558f80325984fe9ddbc306322b1547d22305dfb/work,userxattr
+391 389 0:60 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+392 389 0:61 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755,uid=1000,gid=1000,inode64
+393 392 0:62 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=100004,mode=620,ptmxmode=666
+394 389 0:63 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+395 394 0:28 /user.slice/user-1000.slice/user@1000.service/user.slice/docker-6ed20f39d4e73785851dfefef19762dbdca0a7d797b780b28ecd857fa4b29a45.scope /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw,nsdelegate,memory_recursiveprot
+396 392 0:58 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+397 392 0:64 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k,uid=1000,gid=1000,inode64
+398 389 254:0 /home/vagrant/.local/share/docker/containers/6ed20f39d4e73785851dfefef19762dbdca0a7d797b780b28ecd857fa4b29a45/resolv.conf /etc/resolv.conf rw,relatime - ext4 /dev/mapper/debian--12--vg-root rw,errors=remount-ro
+399 389 254:0 /home/vagrant/.local/share/docker/containers/6ed20f39d4e73785851dfefef19762dbdca0a7d797b780b28ecd857fa4b29a45/hostname /etc/hostname rw,relatime - ext4 /dev/mapper/debian--12--vg-root rw,errors=remount-ro
+400 389 254:0 /home/vagrant/.local/share/docker/containers/6ed20f39d4e73785851dfefef19762dbdca0a7d797b780b28ecd857fa4b29a45/hosts /etc/hosts rw,relatime - ext4 /dev/mapper/debian--12--vg-root rw,errors=remount-ro
+401 392 0:5 /null /dev/null rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+402 392 0:5 /random /dev/random rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+403 392 0:5 /full /dev/full rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+404 392 0:5 /tty /dev/tty rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+405 392 0:5 /zero /dev/zero rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+406 392 0:5 /urandom /dev/urandom rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+340 391 0:60 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+341 391 0:60 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+342 391 0:60 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+343 391 0:60 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+344 391 0:60 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+345 391 0:65 / /proc/acpi ro,relatime - tmpfs tmpfs ro,uid=1000,gid=1000,inode64
+346 391 0:5 /null /proc/kcore rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+347 391 0:5 /null /proc/keys rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+348 391 0:5 /null /proc/timer_list rw,nosuid,relatime master:2 - devtmpfs udev rw,size=960668k,nr_inodes=240167,mode=755,inode64
+349 394 0:66 / /sys/firmware ro,relatime - tmpfs tmpfs ro,uid=1000,gid=1000,inode64

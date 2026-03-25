@@ -51,11 +51,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -69,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type Suite struct {
@@ -115,7 +115,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
 	rc := helpers.NewInstance(t, rCfg)
@@ -127,7 +127,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
@@ -195,7 +195,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *servicecfg.Config {
 		tconf := servicecfg.MakeDefaultConfig()
-		tconf.Logger = utils.NewSlogLoggerForTests()
+		tconf.Logger = logtest.NewLogger()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
 		tconf.SetAuthServerAddress(utils.NetAddr{
@@ -205,6 +205,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+		tconf.InsecureMode = true
 		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
@@ -235,7 +236,7 @@ func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helper
 
 	cmd := []string{"echo", "hello world"}
 	err = retryutils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		return trace.Wrap(err)
 	})
 	require.NoError(t, err)
@@ -328,6 +329,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -348,6 +350,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -518,7 +521,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 		config.Listener = helpers.MustCreateListener(t)
 	}
 	if config.ParentContext == nil {
-		config.ParentContext = context.TODO()
+		config.ParentContext = t.Context()
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(config)
@@ -652,16 +655,15 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	t.Setenv("AWS_REGION", "us-west-2")
 
 	node := uuid.NewString()
-	_, err = join.Register(context.TODO(), join.RegisterParams{
+	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: token,
 		ID: state.IdentityID{
-			Role:     types.RoleNode,
-			HostUUID: node,
+			Role:     types.RoleInstance,
 			NodeName: node,
 		},
 		ProxyServer: proxyAddr,
 		JoinMethod:  types.JoinMethodIAM,
-		Insecure:    lib.IsInsecureDevMode(),
+		Insecure:    true,
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }

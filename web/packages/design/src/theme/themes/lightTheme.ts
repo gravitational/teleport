@@ -202,6 +202,7 @@ const colors: ThemeColors = {
   tooltip: {
     background: 'rgba(0, 0, 0, 0.80)',
     inverseBackground: 'rgba(255, 255, 255, 0.5)',
+    inverseLinkDefault: '#009EFF',
   },
 
   progressBarColor: '#007D6B',
@@ -486,12 +487,68 @@ const colors: ThemeColors = {
   },
 
   editor: {
-    abbey: dataVisualisationColors.primary.abbey,
-    purple: dataVisualisationColors.primary.purple,
-    cyan: dataVisualisationColors.primary.cyan,
-    picton: dataVisualisationColors.primary.picton,
-    sunflower: dataVisualisationColors.primary.sunflower,
-    caribbean: dataVisualisationColors.primary.caribbean,
+    abbey: dataVisualisationColors.tertiary.abbey,
+    purple: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    picton: dataVisualisationColors.tertiary.picton,
+    sunflower: dataVisualisationColors.tertiary.sunflower,
+    caribbean: dataVisualisationColors.tertiary.caribbean,
+  },
+
+  sessionRecording: {
+    resource: '#004570',
+    user: '#311C79',
+    player: {
+      progressBar: {
+        background: 'rgba(0, 0, 0, 0.1)',
+        seeking: 'rgba(0, 0, 0, 0.15)',
+        progress: '#9F85FF',
+      },
+    },
+    riskLevels: {
+      low: '#007D6B',
+      medium: '#FFAB00',
+      high: '#CC372D',
+      critical: '#A32C24',
+    },
+  },
+
+  sessionRecordingTimeline: {
+    background: levels.deep,
+    headerBackground: 'rgba(0, 0, 0, 0.05)',
+    frameBorder: 'rgba(0, 0, 0, 0.2)',
+    progressLine: '#E53E3E',
+    border: {
+      default: '#9a9dab',
+      hover: '#5f659e',
+    },
+    cursor: 'rgba(0, 0, 0, 0.4)',
+    events: {
+      inactivity: {
+        background: 'rgba(81,47,201, 0.25)',
+        text: 'rgba(0, 0, 0, 0.6)',
+      },
+      resize: {
+        semiBackground: 'rgba(0, 0, 0, 0.8)',
+        border: '#26323c',
+        background: '#86c4ed',
+        text: '#26323c',
+      },
+      join: {
+        background: '#0073BA',
+        text: 'rgba(255, 255, 255, 0.8)',
+      },
+      default: {
+        background: 'rgba(0, 0, 0, 0.54)',
+        text: '#000',
+      },
+    },
+    timeMarks: {
+      primary: 'rgba(0,0,0,0.54)',
+      secondary: 'rgba(0,0,0,0.36)',
+      absolute: 'rgba(0,0,0,0.87)',
+      text: 'rgba(0,0,0,0.87)',
+    },
   },
 
   link: '#0073BA',

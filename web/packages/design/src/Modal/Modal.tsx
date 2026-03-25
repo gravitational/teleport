@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { cloneElement, ComponentProps, createRef } from 'react';
+import React, {
+  cloneElement,
+  ComponentProps,
+  MutableRefObject,
+  Ref,
+} from 'react';
 import { createPortal } from 'react-dom';
 import styled, { StyleFunction } from 'styled-components';
 
@@ -90,11 +95,17 @@ export type ModalProps = {
    * `disableEscapeKeyDown` is false and the modal is in focus.
    */
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
+
+  /**
+   * A ref to the modal container, as opposed to `ref`, which captures the
+   * dialog itself.
+   */
+  modalRef?: Ref<HTMLDivElement | null>;
 };
 
 export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
-  modalRef = createRef<HTMLDivElement>();
+  modalEl: HTMLDivElement | null = null;
   mounted = false;
 
   componentDidMount() {
@@ -121,18 +132,17 @@ export default class Modal extends React.Component<ModalProps> {
   }
 
   dialogEl = (): Element | null => {
-    const modalEl = this.modalRef.current;
-    if (!modalEl) {
+    if (!this.modalEl) {
       return null;
     }
 
     const isBackdropRenderedFirst = !this.props.hideBackdrop;
 
     if (isBackdropRenderedFirst) {
-      return modalEl.children[1];
+      return this.modalEl.children[1];
     }
 
-    return modalEl.firstElementChild;
+    return this.modalEl.firstElementChild;
   };
 
   handleOpen = () => {
@@ -145,8 +155,8 @@ export default class Modal extends React.Component<ModalProps> {
 
   handleOpened = () => {
     // Fix a bug on Chrome where the scroll isn't initially 0.
-    if (this.modalRef.current) {
-      this.modalRef.current.scrollTop = 0;
+    if (this.modalEl) {
+      this.modalEl.scrollTop = 0;
     }
   };
 
@@ -222,7 +232,18 @@ export default class Modal extends React.Component<ModalProps> {
         hiddenInDom={!open}
         modalCss={modalCss}
         data-testid="Modal"
-        ref={this.modalRef}
+        ref={el => {
+          this.modalEl = el;
+          const { modalRef } = this.props;
+          if (modalRef) {
+            if (typeof modalRef === 'function') {
+              modalRef(el);
+            } else {
+              (modalRef as MutableRefObject<HTMLDivElement | null>).current =
+                el;
+            }
+          }
+        }}
         className={className}
         onClick={e => e.stopPropagation()}
       >

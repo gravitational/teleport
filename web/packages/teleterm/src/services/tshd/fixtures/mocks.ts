@@ -17,6 +17,8 @@
  */
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { ConfigSource } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 
 import {
   makeApp,
@@ -26,27 +28,15 @@ import {
 import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { MockedUnaryCall } from '../cloneableClient';
-import { TshdClient, VnetClient } from '../createClient';
+import { AutoUpdateClient, TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  listDatabaseUsers = () =>
-    new MockedUnaryCall({
-      users: [],
-      totalCount: 0,
-      startKey: '',
-    });
   getRequestableRoles = () =>
     new MockedUnaryCall({
       roles: [],
       applicableRoles: [],
-    });
-  getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
     });
   assumeRole = () => new MockedUnaryCall({});
   deleteAccessRequest = () => new MockedUnaryCall({});
@@ -70,15 +60,16 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({
       localAuthEnabled: true,
       authProviders: [],
-      hasMessageOfTheDay: false,
+      messageOfTheDay: '',
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
+      clientVersionStatus: ClientVersionStatus.OK,
     });
-  removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
   logout = () => new MockedUnaryCall({});
+  clearStaleClusterClients = () => new MockedUnaryCall({});
   transferFile = undefined;
   reportUsageEvent = () => new MockedUnaryCall({});
   createConnectMyComputerRole = () =>
@@ -92,6 +83,10 @@ export class MockTshClient implements TshdClient {
   listUnifiedResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
+  listKubernetesServers = () =>
+    new MockedUnaryCall({ resources: [], nextPageToken: '' });
+  listDatabaseServers = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () =>
     new MockedUnaryCall({
@@ -113,13 +108,24 @@ export class MockTshClient implements TshdClient {
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
   getApp = () => new MockedUnaryCall({ app: makeApp() });
+  connectToDesktop = undefined;
+  setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
+  getServiceInfo = () =>
+    new MockedUnaryCall({
+      appDnsZones: [],
+      clusters: [],
+      sshConfigured: false,
+      vnetSshConfigPath:
+        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+    });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  checkInstallTimeRequirements = () =>
+    new MockedUnaryCall({ status: { oneofKind: undefined } });
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
@@ -128,4 +134,20 @@ export class MockVnetClient implements VnetClient {
       },
     });
   }
+  autoConfigureSSH = () => new MockedUnaryCall({});
+}
+
+export class MockAutoUpdateClient implements AutoUpdateClient {
+  getClusterVersions = () =>
+    new MockedUnaryCall({
+      reachableClusters: [],
+      unreachableClusters: [],
+    });
+  getConfig = () =>
+    new MockedUnaryCall({
+      cdnBaseUrl: { value: '', source: ConfigSource.UNSPECIFIED },
+      toolsVersion: { value: '', source: ConfigSource.UNSPECIFIED },
+    });
+  getInstallationMetadata = () =>
+    new MockedUnaryCall({ isPerMachineInstall: false });
 }

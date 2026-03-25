@@ -21,6 +21,7 @@ package limiter
 import (
 	"cmp"
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -101,6 +102,23 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 	return &limiter, nil
 }
 
+// IsRateLimited checks if the provided token is currently rate-limited without
+// consuming any tokens. Returns true if the token would be rate-limited, false otherwise.
+// This is useful for checking rate limit status before executing expensive operations.
+func (l *RateLimiter) IsRateLimited(token string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucketSet, ok := l.rateLimits.GetIfExists(token)
+	if !ok {
+		return false
+	}
+	bucket, ok := bucketSet.(*ratelimit.TokenBucketSet)
+	if !ok {
+		return false
+	}
+	return bucket.IsRateLimited()
+}
+
 // RegisterRequest increases number of requests for the provided token
 // Returns error if there are too many requests with the provided token.
 func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
@@ -131,6 +149,17 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 		return trace.LimitExceeded("rate limit exceeded, try again in %v", delay)
 	}
 	return nil
+}
+
+// RegisterRequestFromAddr increases the number of requests coming for the given
+// remote address, returning an error if the address is invalid or if there have
+// been too many requests from that address recently.
+func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr, customRate *ratelimit.RateSet) error {
+	token, err := clientIPFromAddr(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return l.RegisterRequest(token, customRate)
 }
 
 // Add rate limiter to the handle

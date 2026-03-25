@@ -26,11 +26,14 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,18 +47,24 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	cryptosuites.PrecomputeRSATestKeys(m)
-	os.Exit(m.Run())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 var parseProxyHostTestCases = []struct {
@@ -197,13 +206,13 @@ func TestParseProxyHostString(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	conf := Config{
-		Host:      "localhost",
-		HostLogin: "vincent",
-		HostPort:  22,
-		KeysDir:   t.TempDir(),
-		Username:  "localuser",
-		SiteName:  "site",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		Host:        "localhost",
+		HostLogin:   "vincent",
+		HostPort:    22,
+		Username:    "localuser",
+		SiteName:    "site",
+		Tracer:      tracing.NoopProvider().Tracer("test"),
+		ClientStore: NewMemClientStore(),
 	}
 	err := conf.ParseProxyHost("proxy")
 	require.NoError(t, err)
@@ -930,100 +939,121 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 
 type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
 
-func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+func (m mockRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	return m(ctx)
 }
 
 func TestCommandLimit(t *testing.T) {
 	t.Parallel()
+
+	auth, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "test",
+			ClusterID:   "test",
+			Dir:         t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, auth.Close()) })
+
 	cases := []struct {
 		name        string
 		mfaRequired bool
-		getter      roleGetter
+		roleGetter  roleGetter
+		roles       []types.RoleSpecV6
 		expected    int
 	}{
 		{
 			name:        "mfa required",
 			mfaRequired: true,
 			expected:    1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "failure getting roles",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+			roleGetter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
 				return nil, errors.New("fail")
 			}),
 		},
 		{
 			name:     "no roles",
+			expected: 1,
+		},
+		{
+			name:     "max_connections=0",
 			expected: -1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				return nil, nil
-			}),
+			roles: []types.RoleSpecV6{
+				{
+					Options: types.RoleOptions{MaxConnections: 0},
+				},
+			},
 		},
 		{
 			name:     "max_connections=1",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 1},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=2",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 2},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=500",
 			expected: 250,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
+			var getter roleGetter
+			if tt.roleGetter != nil {
+				getter = tt.roleGetter
+			} else {
+				roles := make([]types.Role, 0, len(tt.roles))
+				for _, spec := range tt.roles {
+					role, err := authtest.CreateRole(t.Context(), auth.Auth(), uuid.NewString(), spec)
+					require.NoError(t, err)
+					roles = append(roles, role)
+				}
+
+				user, err := authtest.CreateUser(t.Context(), auth.Auth(), uuid.NewString(), roles...)
+				require.NoError(t, err)
+
+				clt, err := auth.NewClient(authtest.TestUser(user.GetName()))
+				require.NoError(t, err)
+				getter = clt
+			}
+
+			require.Equal(t, tt.expected, commandLimit(t.Context(), getter, tt.mfaRequired))
 		})
 	}
 }
@@ -1157,13 +1187,11 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 }
 
 func TestConnectToProxyCancelledContext(t *testing.T) {
-	cfg := MakeDefaultConfig()
-
+	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
 	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
-	cfg.KeysDir = t.TempDir()
 	cfg.TLSRoutingEnabled = true
 
 	clt, err := NewClient(cfg)
@@ -1563,7 +1591,9 @@ Future versions of tsh will fail when incompatible versions are detected.
 			minClientVersion, err := semver.NewVersion(test.serverVersion)
 			require.NoError(t, err)
 			minClientVersion.Major = minClientVersion.Major - 1
-			warning, err := getClientIncompatibilityWarning(versions{
+			// Mirror what happens with teleport.MinClientSemVer.
+			minClientVersion.PreRelease = "aa"
+			warning, err := getClientIncompatibilityWarning(Versions{
 				MinClient: minClientVersion.String(),
 				Client:    test.clientVersion,
 				Server:    test.serverVersion,
@@ -1639,6 +1669,51 @@ func TestParsePortMapping(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.want, out)
 			}
+		})
+	}
+}
+
+func TestCalculateSSHLogins(t *testing.T) {
+	cases := []struct {
+		name              string
+		allowedLogins     []string
+		grantedPrincipals []string
+		expectedLogins    []string
+	}{
+		{
+			name:              "no matching logins",
+			allowedLogins:     []string{"llama"},
+			grantedPrincipals: []string{"fish"},
+		},
+		{
+			name:              "identical logins",
+			allowedLogins:     []string{"llama", "shark", "goose"},
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+			expectedLogins:    []string{"goose", "shark", "llama"},
+		},
+		{
+			name:              "subset of logins",
+			allowedLogins:     []string{"llama"},
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+			expectedLogins:    []string{"llama"},
+		},
+		{
+			name:              "no allowed logins",
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+		},
+		{
+			name:          "no granted logins",
+			allowedLogins: []string{"shark", "goose", "llama"},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			logins, err := CalculateSSHLogins(test.grantedPrincipals, test.allowedLogins)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
+				return strings.Compare(a, b) < 0
+			})))
 		})
 	}
 }

@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
 
@@ -107,7 +107,7 @@ type EngineConfig struct {
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// GCPClients provides access to Google Cloud API clients.
-	GCPClients cloud.GCPClients
+	GCPClients gcp.Clients
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -116,8 +116,6 @@ type EngineConfig struct {
 	Log *slog.Logger
 	// Users handles database users.
 	Users Users
-	// DataDir is the Teleport data directory
-	DataDir string
 	// GetUserProvisioner is automatic database users creation handler.
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
 	// UpdateProxiedDatabase finds the proxied database by name and uses the

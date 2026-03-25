@@ -34,11 +34,13 @@ import {
   disappear,
   Flex,
   H1,
+  LabelInput,
   Link,
   rotate360,
   Text,
 } from 'design';
 import { Check, Spinner } from 'design/Icon';
+import { LabelContent } from 'design/LabelInput/LabelInput';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
@@ -85,8 +87,10 @@ export function AppGateway(props: {
   const handleTargetPortChange =
     useDebouncedPortChangeHandler(changeTargetPort);
 
+  const isMcp = gateway.protocol === 'MCP';
+  const isHttpWebApp = gateway.protocol === 'HTTP';
   let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (gateway.protocol === 'HTTP') {
+  if (isHttpWebApp || isMcp) {
     address = `http://${address}`;
   }
 
@@ -145,6 +149,7 @@ export function AppGateway(props: {
     setUpAppGateway(ctx, targetUri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
+      targetProtocol: gateway.protocol,
     });
   };
 
@@ -160,7 +165,7 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>App Connection</H1>
+          <H1>{isMcp ? 'MCP Server Connection' : 'App Connection'}</H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -170,6 +175,8 @@ export function AppGateway(props: {
                 placeholder="Pick target port"
                 ButtonComponent={ButtonSecondary}
                 buttonText="Open New Connection"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
               />
             )}
             <ButtonSecondary size="small" onClick={props.disconnect}>
@@ -186,31 +193,30 @@ export function AppGateway(props: {
 
         <Flex as="form" gap={2}>
           <Validation>
-            <PortFieldInput
-              label={
-                <LabelWithAttemptStatus
-                  text="Local Port"
-                  attempt={changeLocalPortAttempt}
-                />
-              }
-              defaultValue={gateway.localPort}
-              onChange={handleLocalPortChange}
-              mb={0}
-            />
-            {isMultiPort && (
+            <LabelWithAttemptStatus
+              text="Local Port"
+              attempt={changeLocalPortAttempt}
+            >
               <PortFieldInput
-                label={
-                  <LabelWithAttemptStatus
-                    text="Target Port"
-                    attempt={changeTargetPortAttempt}
-                  />
-                }
-                required
-                defaultValue={gateway.targetSubresourceName}
-                onChange={handleTargetPortChange}
+                defaultValue={gateway.localPort}
+                onChange={handleLocalPortChange}
                 mb={0}
-                ref={targetPortRef}
               />
+            </LabelWithAttemptStatus>
+            {isMultiPort && (
+              <LabelWithAttemptStatus
+                text="Target Port"
+                attempt={changeTargetPortAttempt}
+                required
+              >
+                <PortFieldInput
+                  required
+                  defaultValue={gateway.targetSubresourceName}
+                  onChange={handleTargetPortChange}
+                  mb={0}
+                  ref={targetPortRef}
+                />
+              </LabelWithAttemptStatus>
             )}
           </Validation>
         </Flex>
@@ -218,7 +224,11 @@ export function AppGateway(props: {
 
       <Flex flexDirection="column" gap={2}>
         <div>
-          <Text>Access the app at:</Text>
+          <Text>
+            {isMcp
+              ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+              : 'Access the app at:'}
+          </Text>
           <TextSelectCopy mt={1} text={address} bash={false} />
         </div>
 
@@ -256,35 +266,49 @@ export function AppGateway(props: {
   );
 }
 
-const LabelWithAttemptStatus = (props: {
-  text: string;
-  attempt: Attempt<unknown>;
-}) => (
-  <Flex
-    alignItems="center"
-    justifyContent="space-between"
+const LabelWithAttemptStatus = (
+  props: PropsWithChildren<{
+    text: string;
+    attempt: Attempt<unknown>;
+    required?: boolean;
+  }>
+) => (
+  <LabelInput
+    mb={0}
     css={`
-      position: relative;
+      width: fit-content;
     `}
   >
-    {props.text}
-    {props.attempt.status === 'processing' && (
-      <AnimatedSpinner color="interactive.tonal.neutral.2" size="small" />
-    )}
-    {props.attempt.status === 'success' && (
-      // CSS animations are repeated whenever the parent goes from `display: none` to something
-      // else. As a result, we need to unmount the animated check so that the animation is not
-      // repeated when the user switches to this tab.
-      // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
-      <UnmountAfter timeoutMs={disappearanceDelayMs + disappearanceDurationMs}>
-        <DisappearingCheck
-          color="success.main"
-          size="small"
-          title={`${props.text} successfully updated`}
-        />
-      </UnmountAfter>
-    )}
-  </Flex>
+    <Flex
+      alignItems="center"
+      justifyContent="space-between"
+      mb={1}
+      css={`
+        position: relative;
+      `}
+    >
+      <LabelContent required={props.required}>{props.text}</LabelContent>
+      {props.attempt.status === 'processing' && (
+        <AnimatedSpinner color="interactive.tonal.neutral.2" size="small" />
+      )}
+      {props.attempt.status === 'success' && (
+        // CSS animations are repeated whenever the parent goes from `display: none` to something
+        // else. As a result, we need to unmount the animated check so that the animation is not
+        // repeated when the user switches to this tab.
+        // https://www.w3.org/TR/css-animations-1/#example-4e34d7ba
+        <UnmountAfter
+          timeoutMs={disappearanceDelayMs + disappearanceDurationMs}
+        >
+          <DisappearingCheck
+            color="success.main"
+            size="small"
+            title={`${props.text} successfully updated`}
+          />
+        </UnmountAfter>
+      )}
+    </Flex>
+    {props.children}
+  </LabelInput>
 );
 
 /**

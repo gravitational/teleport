@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentPropsWithRef } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, Flex, Text } from 'design';
@@ -56,7 +56,9 @@ export class AwsLaunchButton extends React.Component<Props> {
           textTransform="none"
           width={this.props.width || '90px'}
           size="small"
-          setRef={e => (this.anchorEl.current = e)}
+          ref={e => {
+            this.anchorEl.current = e;
+          }}
           onClick={this.onOpen}
         >
           Launch
@@ -193,7 +195,7 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
-  width?: string;
+  width?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
   isAwsIdentityCenterApp?: boolean;
 };
 

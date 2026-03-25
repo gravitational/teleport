@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { generatePath, matchPath, type RouteProps } from 'react-router';
+import { generatePath, matchPath, type PathMatch } from 'react-router';
 
 /*
  * Resource URIs
@@ -39,11 +39,13 @@ export type RootClusterKubeUri = string;
 export type RootClusterKubeResourceNamespaceUri = string;
 export type RootClusterDatabaseUri = string;
 export type RootClusterAppUri = string;
+export type RootClusterWindowsDesktopUri = string;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
   | RootClusterDatabaseUri
-  | RootClusterAppUri;
+  | RootClusterAppUri
+  | RootClusterWindowsDesktopUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri = string;
 export type LeafClusterServerUri = string;
@@ -51,11 +53,13 @@ export type LeafClusterKubeUri = string;
 export type LeafClusterKubeResourceNamespaceUri = string;
 export type LeafClusterDatabaseUri = string;
 export type LeafClusterAppUri = string;
+export type LeafClusterWindowsDesktopUri = string;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
   | LeafClusterDatabaseUri
-  | LeafClusterAppUri;
+  | LeafClusterAppUri
+  | LeafClusterWindowsDesktopUri;
 export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
 
 export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
@@ -67,8 +71,14 @@ export type KubeResourceNamespaceUri =
   | LeafClusterKubeResourceNamespaceUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
+export type WindowsDesktopUri =
+  | RootClusterWindowsDesktopUri
+  | LeafClusterWindowsDesktopUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
+
+/** General type for desktop URI. */
+export type DesktopUri = WindowsDesktopUri;
 
 /*
  * Document URIs
@@ -87,22 +97,27 @@ export type GatewayUri = string;
 
 export const paths = {
   // Resources.
+  // react-router v7 path patterns do not support regex segments like `(leaves)?`.
+  // We use separate *Root and *Leaf paths for each resource type and try both when parsing.
   rootCluster: '/clusters/:rootClusterId',
   leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
-  server:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
+  serverRoot: '/clusters/:rootClusterId/servers/:serverId',
   serverLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
-  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
+  kubeRoot: '/clusters/:rootClusterId/kubes/:kubeId',
   kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
-  kubeResourceNamespace:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId/namespaces/:kubeNamespaceId',
+  kubeResourceNamespaceRoot:
+    '/clusters/:rootClusterId/kubes/:kubeId/namespaces/:kubeNamespaceId',
   kubeResourceNamespaceLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId/namespaces/:kubeNamespaceId',
-  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  dbRoot: '/clusters/:rootClusterId/dbs/:dbId',
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
-  app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
-  appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
+  appRoot: '/clusters/:rootClusterId/apps/:appId',
+  appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/apps/:appId',
+  windowsDesktopRoot:
+    '/clusters/:rootClusterId/windows_desktops/:windowsDesktopId',
+  windowsDesktopLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/windows_desktops/:windowsDesktopId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -112,59 +127,90 @@ export const paths = {
 
 export const routing = {
   parseClusterUri(uri: string) {
-    const leafMatch = routing.parseUri(uri, paths.leafCluster);
-    const rootMatch = routing.parseUri(uri, paths.rootCluster);
+    // Use end: false to match resource URIs that extend beyond the cluster path
+    // e.g., /clusters/test/servers/123 should still match and extract rootClusterId
+    // Try leaf first (more specific), then root
+    const leafMatch = matchPath({ path: paths.leafCluster, end: false }, uri);
+    const rootMatch = matchPath({ path: paths.rootCluster, end: false }, uri);
     return leafMatch || rootMatch;
   },
 
   // Pass either a root or a leaf cluster URI to get back a root cluster URI.
   ensureRootClusterUri(uri: ClusterOrResourceUri) {
-    const { rootClusterId } = routing.parseClusterUri(uri).params;
+    // parseClusterUri returns null if the URI doesn't match a cluster pattern.
+    // Keep legacy behavior where invalid input throws on .params access.
+    const { rootClusterId } = routing.parseClusterUri(uri)!.params;
     return routing.getClusterUri({ rootClusterId }) as RootClusterUri;
   },
 
   // Pass any resource URI to get back a cluster URI.
   ensureClusterUri(uri: ClusterOrResourceUri) {
-    const params = routing.parseClusterUri(uri).params;
-    return routing.getClusterUri(params);
+    const { rootClusterId, leafClusterId } =
+      routing.parseClusterUri(uri)!.params;
+    return routing.getClusterUri({ rootClusterId, leafClusterId });
   },
 
   ensureKubeUri(uri: KubeResourceNamespaceUri) {
     const { kubeId, rootClusterId, leafClusterId } =
-      routing.parseKubeResourceNamespaceUri(uri).params;
+      routing.parseKubeResourceNamespaceUri(uri)!.params;
     return routing.getKubeUri({ kubeId, rootClusterId, leafClusterId });
   },
 
   parseKubeUri(uri: string) {
-    return routing.parseUri(uri, paths.kube);
+    // Try leaf path first (more specific), then root path
+    return (
+      routing.parseUri(uri, paths.kubeLeaf) ||
+      routing.parseUri(uri, paths.kubeRoot)
+    );
+  },
+
+  parseWindowsDesktopUri(uri: string) {
+    return (
+      routing.parseUri(uri, paths.windowsDesktopLeaf) ||
+      routing.parseUri(uri, paths.windowsDesktopRoot)
+    );
   },
 
   parseKubeResourceNamespaceUri(uri: string) {
-    return routing.parseUri(uri, paths.kubeResourceNamespace);
+    return (
+      routing.parseUri(uri, paths.kubeResourceNamespaceLeaf) ||
+      routing.parseUri(uri, paths.kubeResourceNamespaceRoot)
+    );
   },
 
   parseAppUri(uri: string) {
-    return routing.parseUri(uri, paths.app);
+    return (
+      routing.parseUri(uri, paths.appLeaf) ||
+      routing.parseUri(uri, paths.appRoot)
+    );
   },
 
   parseServerUri(uri: string) {
-    return routing.parseUri(uri, paths.server);
+    return (
+      routing.parseUri(uri, paths.serverLeaf) ||
+      routing.parseUri(uri, paths.serverRoot)
+    );
   },
 
   parseDbUri(uri: string) {
-    return routing.parseUri(uri, paths.db);
+    return (
+      routing.parseUri(uri, paths.dbLeaf) || routing.parseUri(uri, paths.dbRoot)
+    );
   },
 
-  parseUri(path: string, route: string | RouteProps) {
-    return matchPath<Params>(path, route);
+  // matchPath signature is (pattern, pathname).
+  parseUri(path: string, route: string): PathMatch<string> | null {
+    return matchPath(route, path);
   },
 
   /**
-   * parseClusterName should be used only when getting the cluster object from ClustersService is
-   * not possible.
+   * Returns the profile name for root clusters and the cluster name for leaf clusters.
    *
-   * rootClusterId in the URI is not the name of the cluster but rather just the hostname of the
-   * proxy. These two might be different.
+   * In the URI, `rootClusterId` may not be the root cluster's name but the hostname
+   * of its proxy (these may differ).
+   * `leafClusterId`, on the other hand, always matches the leaf cluster's name.
+   *
+   * TODO(gzdunek): Split this function into `parseProfileName` and `parseLeafClusterName`.
    */
   parseClusterName(clusterUri: string) {
     const parsed = routing.parseClusterUri(clusterUri);
@@ -197,71 +243,71 @@ export const routing = {
 
   getServerUri(params: Params) {
     if (params.leafClusterId) {
-      // paths.serverLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
       return generatePath(
         paths.serverLeaf,
         params as any
       ) as LeafClusterServerUri;
     } else {
-      return generatePath(paths.server, params as any) as RootClusterServerUri;
+      return generatePath(
+        paths.serverRoot,
+        params as any
+      ) as RootClusterServerUri;
     }
   },
 
   getAppUri(params: Params) {
     if (params.leafClusterId) {
-      // paths.appLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
       return generatePath(paths.appLeaf, params as any) as LeafClusterAppUri;
     } else {
-      return generatePath(paths.app, params as any) as RootClusterAppUri;
+      return generatePath(paths.appRoot, params as any) as RootClusterAppUri;
     }
   },
 
   getDbUri(params: Params) {
     if (params.leafClusterId) {
-      // paths.dbLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
       return generatePath(
         paths.dbLeaf,
         params as any
       ) as LeafClusterDatabaseUri;
     } else {
-      return generatePath(paths.db, params as any) as RootClusterDatabaseUri;
+      return generatePath(
+        paths.dbRoot,
+        params as any
+      ) as RootClusterDatabaseUri;
     }
   },
 
   getKubeUri(params: Params) {
     if (params.leafClusterId) {
-      // paths.kubeLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
       return generatePath(paths.kubeLeaf, params as any) as LeafClusterKubeUri;
     } else {
-      return generatePath(paths.kube, params as any) as RootClusterKubeUri;
+      return generatePath(paths.kubeRoot, params as any) as RootClusterKubeUri;
+    }
+  },
+
+  getWindowsDesktopUri(params: Params) {
+    if (params.leafClusterId) {
+      return generatePath(
+        paths.windowsDesktopLeaf,
+        params as any
+      ) as LeafClusterWindowsDesktopUri;
+    } else {
+      return generatePath(
+        paths.windowsDesktopRoot,
+        params as any
+      ) as RootClusterWindowsDesktopUri;
     }
   },
 
   getKubeResourceNamespaceUri(params: Params) {
     if (params.leafClusterId) {
-      // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.kubeResource instead, then the /leaves/ part of the URI would be missing.
       return generatePath(
         paths.kubeResourceNamespaceLeaf,
         params as any
       ) as LeafClusterKubeResourceNamespaceUri;
     } else {
       return generatePath(
-        paths.kubeResourceNamespace,
+        paths.kubeResourceNamespaceRoot,
         params as any
       ) as RootClusterKubeResourceNamespaceUri;
     }
@@ -327,6 +373,10 @@ export function isKubeUri(uri: string): uri is KubeUri {
   return !!routing.parseKubeUri(uri);
 }
 
+export function isWindowsDesktopUri(uri: string): uri is WindowsDesktopUri {
+  return !!routing.parseWindowsDesktopUri(uri);
+}
+
 export type Params = {
   rootClusterId?: string;
   leafClusterId?: string;
@@ -339,4 +389,5 @@ export type Params = {
   sid?: string;
   docId?: string;
   appId?: string;
+  windowsDesktopId?: string;
 };

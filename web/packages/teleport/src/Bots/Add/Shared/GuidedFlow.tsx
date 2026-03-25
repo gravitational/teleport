@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 
 import { H1, Text } from 'design';
 import Flex from 'design/Flex';
@@ -35,7 +35,7 @@ export type View = {
 
 export type FlowProps = {
   name: string;
-  title: string;
+  title?: string;
   views: View[];
   icon: JSX.Element;
 };
@@ -65,7 +65,7 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
 
   return (
     <>
-      <Flex pt="3">
+      <Flex pt="3" pb="4">
         {icon}
         <Text bold ml="2" mr="4">
           {name}
@@ -75,9 +75,7 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
           views={views.map(v => ({ title: v.name }))}
         />
       </Flex>
-      <H1 mt="4" mb="3">
-        {title}
-      </H1>
+      {title && <H1 mb="3">{title}</H1>}
       <Component nextStep={handleNextStep} prevStep={handlePrevStep} />
     </>
   );

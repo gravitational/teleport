@@ -82,6 +82,7 @@ describe('reconnecting when the gateway fails to be created', () => {
       origin: 'resource_table',
       title: '',
       status: '',
+      autoUserProvisioning: undefined,
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 
@@ -129,6 +130,7 @@ describe('reconnecting when the gateway fails to be created', () => {
       origin: 'resource_table',
       title: '',
       status: '',
+      autoUserProvisioning: undefined,
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 
@@ -153,13 +155,13 @@ describe('reconnecting when the gateway fails to be created', () => {
       await screen.findByText('Could not establish the connection')
     ).toBeInTheDocument();
 
-    const targetPortInput = screen.getByLabelText('Target Port');
+    const targetPortInput = screen.getByLabelText('Target Port *');
     await user.clear(targetPortInput);
     await user.type(targetPortInput, '4242');
     await user.click(screen.getByText('Reconnect'));
 
     expect(await screen.findByText('Close Connection')).toBeInTheDocument();
-    expect(screen.getByLabelText('Target Port')).toHaveValue(4242);
+    expect(screen.getByLabelText('Target Port *')).toHaveValue(4242);
 
     expect(appContext.tshd.createGateway).toHaveBeenLastCalledWith(
       expect.objectContaining({

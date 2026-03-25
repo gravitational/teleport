@@ -154,52 +154,25 @@ describe('restoring workspace', () => {
     };
     const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
     const workspaceBar: PersistedWorkspace = {
+      color: 'purple',
       localClusterUri: clusterBar.uri,
       documents: [],
       location: undefined,
     };
     const clusterBaz = makeRootCluster({ uri: '/clusters/baz' });
-    const workspaceBaz: PersistedWorkspace = {
-      localClusterUri: clusterBaz.uri,
-      documents: [],
-      location: undefined,
-    };
     const clusterQux = makeRootCluster({ uri: '/clusters/qux' });
-    const workspaceQux: PersistedWorkspace = {
-      localClusterUri: clusterQux.uri,
-      documents: [],
-      location: undefined,
-    };
     const clusterWaldo = makeRootCluster({ uri: '/clusters/waldo' });
-    const workspaceWaldo: PersistedWorkspace = {
-      localClusterUri: clusterWaldo.uri,
-      documents: [],
-      location: undefined,
-    };
     const clusterFred = makeRootCluster({ uri: '/clusters/fred' });
-    const workspaceFred: PersistedWorkspace = {
-      localClusterUri: clusterFred.uri,
-      documents: [],
-      location: undefined,
-    };
     const clusterGrault = makeRootCluster({ uri: '/clusters/grault' });
-    const workspaceGrault: PersistedWorkspace = {
-      localClusterUri: clusterGrault.uri,
-      documents: [],
-      location: undefined,
-    };
     const clusterPlugh = makeRootCluster({ uri: '/clusters/plugh' });
-    const workspacePlugh: PersistedWorkspace = {
-      localClusterUri: clusterPlugh.uri,
-      documents: [],
-      location: undefined,
-    };
 
     const { workspacesService } = getTestSetup({
       cluster: [
         clusterFoo,
-        clusterBar,
+        // The workspace for clusterBaz has no assigned color, but clusterBar's workspace does.
+        // Return clusterBaz first to verify that it receives a new, unused color.
         clusterBaz,
+        clusterBar,
         clusterQux,
         clusterWaldo,
         clusterFred,
@@ -209,20 +182,14 @@ describe('restoring workspace', () => {
       persistedWorkspaces: {
         [clusterFoo.uri]: workspaceFoo,
         [clusterBar.uri]: workspaceBar,
-        [clusterBaz.uri]: workspaceBaz,
-        [clusterQux.uri]: workspaceQux,
-        [clusterWaldo.uri]: workspaceWaldo,
-        [clusterFred.uri]: workspaceFred,
-        [clusterGrault.uri]: workspaceGrault,
-        [clusterPlugh.uri]: workspacePlugh,
       },
     });
 
     workspacesService.restorePersistedState();
 
     expect(workspacesService.getWorkspace(clusterFoo.uri).color).toBe('blue'); // read from disk
-    expect(workspacesService.getWorkspace(clusterBar.uri).color).toBe('purple'); // the first unused color
-    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green');
+    expect(workspacesService.getWorkspace(clusterBar.uri).color).toBe('purple'); // read from disk
+    expect(workspacesService.getWorkspace(clusterBaz.uri).color).toBe('green'); // the first unused color
     expect(workspacesService.getWorkspace(clusterQux.uri).color).toBe('yellow');
     expect(workspacesService.getWorkspace(clusterWaldo.uri).color).toBe('red');
     expect(workspacesService.getWorkspace(clusterFred.uri).color).toBe('cyan');
@@ -563,6 +530,58 @@ describe('setActiveWorkspace', () => {
     ]);
 
     expect(workspacesService.getRootClusterUri()).toStrictEqual(clusterBar.uri);
+  });
+
+  it('opens the documents-reopen dialog in the same tick as setting rootClusterUri', async () => {
+    const cluster = makeRootCluster();
+    const testWorkspace: PersistedWorkspace = {
+      localClusterUri: cluster.uri,
+      documents: [
+        {
+          kind: 'doc.terminal_shell',
+          uri: '/docs/terminal_shell_uri',
+          title: '/Users/alice/Documents',
+        },
+      ],
+      location: '/docs/terminal_shell_uri',
+    };
+
+    const { workspacesService, modalsService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: { [cluster.uri]: testWorkspace },
+    });
+
+    workspacesService.restorePersistedState();
+
+    // Queue a microtask before starting activation. If an await is ever introduced between setting
+    // rootClusterUri and opening the dialog, this microtask will execute before the dialog opens,
+    // causing the assertion below to fail. This invariant matters because e2e tests rely on React
+    // rendering rootClusterUri and the dialog in the same batch.
+    let microtaskRan = false;
+    queueMicrotask(() => {
+      microtaskRan = true;
+    });
+
+    jest
+      .spyOn(modalsService, 'openRegularDialog')
+      .mockImplementation(dialog => {
+        expect(dialog.kind).toEqual('documents-reopen');
+        expect(microtaskRan).toBe(false);
+        expect(workspacesService.getRootClusterUri()).toBe(cluster.uri);
+        if (dialog.kind === 'documents-reopen') {
+          dialog.onDiscard();
+        }
+
+        return {
+          closeDialog: () => {},
+        };
+      });
+
+    await workspacesService.setActiveWorkspace(cluster.uri);
+    expect(modalsService.openRegularDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'documents-reopen' }),
+      expect.any(AbortSignal)
+    );
   });
 });
 

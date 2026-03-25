@@ -67,7 +67,7 @@ func exhaustiveNonEmpty(value reflect.Value, ignore map[string]struct{}) bool {
 			return false
 		}
 
-		for i := 0; i < value.Len(); i++ {
+		for i := range value.Len() {
 			if exhaustiveNonEmpty(value.Index(i), ignore) {
 				return true
 			}
@@ -177,7 +177,7 @@ func findAllEmpty(value reflect.Value, ignore map[string]struct{}, path []string
 		}
 
 		var emptyPaths []string
-		for i := 0; i < value.Len(); i++ {
+		for i := range value.Len() {
 			emptyPaths = append(emptyPaths, findAllEmpty(value.Index(i), ignore, append(path, fmt.Sprintf("%d", i)))...)
 		}
 		return emptyPaths

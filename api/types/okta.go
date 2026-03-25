@@ -40,6 +40,8 @@ type OktaImportRule interface {
 
 	// GetMappings will return the list of mappings for the Okta import rule.
 	GetMappings() []OktaImportRuleMapping
+	// Clone returns a copy of the Okta import rule.
+	Clone() OktaImportRule
 }
 
 // NewOktaImportRule returns a new OktaImportRule.
@@ -54,6 +56,11 @@ func NewOktaImportRule(metadata Metadata, spec OktaImportRuleSpecV1) (OktaImport
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+// Clone returns a copy of the Okta import rule.
+func (o *OktaImportRuleV1) Clone() OktaImportRule {
+	return utils.CloneProtoMsg(o)
 }
 
 // GetPriority will return the priority of the Okta import rule.
@@ -221,6 +228,8 @@ type OktaAssignment interface {
 	SetFinalized(bool)
 	// Copy returns a copy of this Okta assignment resource.
 	Copy() OktaAssignment
+	// IsEqual determines if two Okta assignments are equivalent to one another.
+	IsEqual(OktaAssignment) bool
 }
 
 // NewOktaAssignment creates a new Okta assignment object.
@@ -362,8 +371,8 @@ func (o *OktaAssignmentV1) Copy() OktaAssignment {
 
 // String returns the Okta assignment rule string representation.
 func (o *OktaAssignmentV1) String() string {
-	return fmt.Sprintf("OktaAssignmentV1(Name=%v, Labels=%v)",
-		o.GetName(), o.GetAllLabels())
+	return fmt.Sprintf("OktaAssignmentV1(Name=%v, Labels=%v, User=%s, Status=%s, LastTransition=%s, CleanupTime=%s)",
+		o.GetName(), o.GetAllLabels(), o.GetUser(), o.GetStatus(), o.Spec.LastTransition.UTC().Format(time.RFC3339), o.Spec.CleanupTime.UTC().Format(time.RFC3339))
 }
 
 // MatchSearch goes through select field values and tries to
@@ -506,6 +515,48 @@ func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
 		return nil
 	}
 	return o.SyncSettings
+}
+
+func (o *PluginOktaSyncSettings) GetEnableUserSync() bool {
+	if o == nil {
+		return false
+	}
+	return o.SyncUsers
+}
+
+func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
+	if !o.GetEnableUserSync() {
+		return false
+	}
+	return !o.DisableSyncAppGroups
+}
+
+func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
+	if !o.GetEnableAppGroupSync() {
+		return false
+	}
+	return o.SyncAccessLists
+}
+
+func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
+	if !o.GetEnableAppGroupSync() {
+		return false
+	}
+	return !o.DisableBidirectionalSync
+}
+
+func (o *PluginOktaSyncSettings) GetEnableSystemLogExport() bool {
+	if o == nil {
+		return false
+	}
+	return o.EnableSystemLogExport
+}
+
+func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
+	if o == nil {
+		return false
+	}
+	return !o.DisableAssignDefaultRoles
 }
 
 type OktaUserSyncSource string

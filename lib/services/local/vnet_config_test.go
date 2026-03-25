@@ -44,7 +44,7 @@ func TestVnetConfigService(t *testing.T) {
 	vnetConfig := &vnet.VnetConfig{
 		Kind:     types.KindVnetConfig,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+		Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 		Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 	}
 
@@ -116,7 +116,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     "invalidKind",
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 			wantErr: true,
@@ -126,7 +126,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  "v2",
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
 			},
 			wantErr: true,
@@ -146,7 +146,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.300.0/24"},
 			},
 			wantErr: true,
@@ -156,7 +156,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec: &vnet.VnetConfigSpec{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
@@ -173,7 +173,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec: &vnet.VnetConfigSpec{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
@@ -190,7 +190,7 @@ func TestVnetConfigValidation(t *testing.T) {
 			config: &vnet.VnetConfig{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: vnetConfigSingletonName},
+				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
 				Spec: &vnet.VnetConfigSpec{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{

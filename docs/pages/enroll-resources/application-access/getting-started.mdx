@@ -1,7 +1,12 @@
 ---
 title: Protect a Web Application with Teleport
+sidebar_label: Getting Started
 description: Provides instructions to set up the Teleport Application Service and enable secure access to a web application.
 videoBanner: cvW4b96aPL0
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This tutorial demonstrates how to configure secure access to an application 
@@ -27,7 +32,7 @@ joins your Teleport cluster with a secure token. You configure the Application
 Service to protect a web application using a configuration file. After the
 Application Service joins the cluster, the Teleport Proxy Service routes
 requests from end users to the Teleport Application Service, and responses from
-the Application Serve back to end users. 
+the Application Service back to end users. 
 
 The Application Service authenticates user requests by validating a JSON web
 token (JWT) in the request against a CA maintained by the Teleport Auth Service.
@@ -138,7 +143,7 @@ $ helm install example-grafana grafana/grafana \
 
 <Tabs>
 <TabItem label="Docker">
-Select a Teleport edition, then follow the [Installation](../../installation.mdx) instructions 
+Select a Teleport edition, then follow the [Installation](../../installation/installation.mdx) instructions 
 for your environment.
 
 To install on Linux:
@@ -238,8 +243,8 @@ You are prompted to sign in if you haven't already been authenticated.
 
 Learn more about protecting applications with Teleport in the following topics:
 
-- [Connecting applications](./guides/connecting-apps.mdx).
+- [Connecting applications](protect-apps/connecting-apps.mdx).
 - Integrating with [JWT tokens](./jwt/introduction.mdx).
-- Accessing applications with [RESTful APIs](./guides/api-access.mdx).
-- Setting configuration options AND running CLI commands in the [Application Service reference](../../reference/agent-services/application-access.mdx).
+- Accessing applications with [RESTful APIs](protect-apps/api-access.mdx).
+- Setting configuration options AND running CLI commands in the [Application Service reference](reference.mdx).
 - Using the Let's Encrypt [ACME protocol](https://letsencrypt.org/how-it-works/).

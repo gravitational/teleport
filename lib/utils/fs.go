@@ -337,22 +337,16 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	defer f.Close()
 
 	if runtime.GOOS == "windows" {
-		// Windows can't unlink the file before overwriting.
-		if f != nil {
-			for i := 0; i < 3; i++ {
-				if err := overwriteFile(f, fi); err != nil {
-					break
-				}
-			}
-		}
-		// The file should be closed before removing it on Windows.
+		// On windows, os.Remove() will fail if there are any open handles to the
+		// file, including in other processes. Skip overwrite to avoid leaving
+		// files in a broken state.
 		closeErr := trace.ConvertSystemError(f.Close())
 		removeErr := trace.ConvertSystemError(os.Remove(filePath))
 		return trace.NewAggregate(closeErr, removeErr)
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}
@@ -422,15 +416,19 @@ func RecursiveChown(dir string, uid, gid int) error {
 	return nil
 }
 
-func CopyFile(src, dest string, perm os.FileMode) error {
+func CopyFile(src, dest string, perm os.FileMode) (err error) {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer srcFile.Close()
 	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer func() {
+		err = trace.NewAggregate(err, trace.Wrap(destFile.Close()))
+	}()
 	_, err = destFile.ReadFrom(srcFile)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -494,4 +492,14 @@ func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) 
 
 		return nil
 	}))
+}
+
+// CreateExclusiveFile creates a file only if it does not exist to prevent overwriting
+// existing files.
+func CreateExclusiveFile(path string, mode os.FileMode) (*os.File, error) {
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return out, nil
 }

@@ -1,0 +1,41 @@
+---
+title: User Resource Reference
+sidebar_label: User
+description: Provides a comprehensive list of fields for the Teleport user resource.
+---
+
+Teleport supports interactive local users, non-interactive local users (bots)
+and single-sign on users, and represents these with a dynamic resource: 
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: joe
+spec:
+  # roles is a list of roles assigned to this user
+  roles:
+  - admin
+  # status sets user temporarily locked in a Teleport system, for example
+  # when users exceed predefined amount of failed login attempts
+  status:
+    is_locked: false
+    lock_expires: 0001-01-01T00:00:00Z
+    locked_time: 0001-01-01T00:00:00Z
+  # traits are key, list of values pairs assigned to a user resource.
+  # Traits can be used in role templates as variables.
+  traits:
+    logins:
+    - joe
+    - root
+  # expires, if not empty, sets automatic expiry of the resource
+  expires: 0001-01-01T00:00:00Z
+  # created_by is a system property that tracks
+  # identity of the author of this user resource.
+  created_by:
+    time: 0001-01-01T00:00:00Z
+    user:
+      name: builtin-Admin
+```
+
+

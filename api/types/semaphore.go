@@ -327,17 +327,37 @@ type Semaphores interface {
 	CancelSemaphoreLease(ctx context.Context, lease SemaphoreLease) error
 	// GetSemaphores returns a list of semaphores matching supplied filter.
 	GetSemaphores(ctx context.Context, filter SemaphoreFilter) ([]Semaphore, error)
+	// ListSemaphores returns a page of semaphores matching supplied filter.
+	ListSemaphores(ctx context.Context, limit int, start string, filter *SemaphoreFilter) ([]Semaphore, string, error)
 	// DeleteSemaphore deletes a semaphore matching supplied filter.
 	DeleteSemaphore(ctx context.Context, filter SemaphoreFilter) error
 }
 
 // Match checks if the supplied semaphore matches this filter.
 func (f *SemaphoreFilter) Match(sem Semaphore) bool {
-	if f.SemaphoreKind != "" && f.SemaphoreKind != sem.GetSubKind() {
+	if f.GetSemaphoreKind() != "" && f.GetSemaphoreKind() != sem.GetSubKind() {
 		return false
 	}
-	if f.SemaphoreName != "" && f.SemaphoreName != sem.GetName() {
+	if f.GetSemaphoreName() != "" && f.GetSemaphoreName() != sem.GetName() {
 		return false
 	}
 	return true
+}
+
+// GetSemaphoreKind returns the semaphore kind to filter by if filter is non-nil
+func (f *SemaphoreFilter) GetSemaphoreKind() string {
+	if f == nil {
+		return ""
+	}
+
+	return f.SemaphoreKind
+}
+
+// GetSemaphoreName returns the semaphore name to filter by if filter is non-nil
+func (f *SemaphoreFilter) GetSemaphoreName() string {
+	if f == nil {
+		return ""
+	}
+
+	return f.SemaphoreName
 }

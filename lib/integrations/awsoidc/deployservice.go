@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
@@ -247,7 +247,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if r.TeleportConfigString == "" {
@@ -325,21 +325,22 @@ type DeployServiceClient interface {
 type defaultDeployServiceClient struct {
 	CallerIdentityGetter
 	*ecs.Client
-	tokenServiceClient TokenService
+	tokenGetter  TokenGetter
+	tokenCreator TokenCreator
 }
 
 // GetToken returns a provision token by name.
 func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	return d.tokenServiceClient.GetToken(ctx, name)
+	return d.tokenGetter.GetToken(ctx, name)
 }
 
 // UpsertToken creates or updates a provision token.
 func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
-	return d.tokenServiceClient.UpsertToken(ctx, token)
+	return d.tokenCreator.UpsertToken(ctx, token)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenServiceClient TokenService) (DeployServiceClient, error) {
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenGetter TokenGetter, tokenCreator TokenCreator) (DeployServiceClient, error) {
 	ecsClient, err := newECSClient(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,7 +354,8 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, to
 	return &defaultDeployServiceClient{
 		Client:               ecsClient,
 		CallerIdentityGetter: stsClient,
-		tokenServiceClient:   tokenServiceClient,
+		tokenGetter:          tokenGetter,
+		tokenCreator:         tokenCreator,
 	}, nil
 }
 

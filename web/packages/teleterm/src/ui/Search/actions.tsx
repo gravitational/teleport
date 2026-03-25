@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AppSubKind } from 'shared/services';
+
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import {
@@ -23,13 +25,15 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
 import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
+import { assertUnreachable } from 'teleterm/ui/utils';
+import { VnetLauncher } from 'teleterm/ui/Vnet';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -71,7 +75,7 @@ export type SearchAction = SimpleAction | ParametrizedAction;
 
 export function mapToAction(
   ctx: IAppContext,
-  launchVnet: () => Promise<[void, Error]>,
+  launchVnet: VnetLauncher,
   searchContext: SearchContext,
   result: SearchResult
 ): SearchAction {
@@ -89,15 +93,11 @@ export function mapToAction(
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () => {
-            const sshLogins = ctx.clustersService.findClusterByResource(
-              result.resource.uri
-            )?.loggedInUser?.sshLogins;
-            return sshLogins?.map(login => ({
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
               value: login,
               displayText: login,
-            }));
-          },
+            })),
           placeholder: 'Provide login',
         },
         perform: login => {
@@ -167,7 +167,34 @@ export function mapToAction(
               {
                 origin: 'search_bar',
               },
-              { arnForAwsApp: parameter.value }
+              { arnForAwsAppOrRoleForAwsIc: parameter.value }
+            ),
+        };
+      }
+
+      if (result.resource.subKind === AppSubKind.AwsIcAccount) {
+        return {
+          type: 'parametrized-action',
+          searchResult: result,
+          parameter: {
+            getSuggestions: async () =>
+              result.resource.permissionSets.map(p => ({
+                value: p.name,
+                displayText: p.name,
+              })),
+            allowOnlySuggestions: true,
+            noSuggestionsAvailableMessage: 'No permission sets found.',
+            placeholder: 'Select Permission Set',
+          },
+          perform: parameter =>
+            connectToApp(
+              ctx,
+              launchVnet,
+              result.resource,
+              {
+                origin: 'search_bar',
+              },
+              { arnForAwsAppOrRoleForAwsIc: parameter.value }
             ),
         };
       }
@@ -189,32 +216,93 @@ export function mapToAction(
         };
       }
 
+      const {
+        uri,
+        name,
+        protocol,
+        gcpProjectId,
+        autoUserProvisioning,
+        databaseUsers,
+        wildcardUserAllowed,
+      } = result.resource;
+
+      if (autoUserProvisioning) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () =>
+            connectToDatabase(
+              ctx,
+              {
+                uri,
+                name,
+                protocol,
+                gcpProjectId,
+                dbUser: databaseUsers?.[0] ?? '',
+                autoUserProvisioning,
+              },
+              { origin: 'search_bar' }
+            ),
+        };
+      }
+
       return {
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: () =>
-            retryWithRelogin(ctx, result.resource.uri, async () => {
-              const dbUsers = await ctx.resourcesService.getDbUsers(
-                result.resource.uri
-              );
-              return dbUsers.map(dbUser => ({
-                value: dbUser,
-                displayText: dbUser,
-              }));
-            }),
-          placeholder: 'Provide db username',
+          getSuggestions: async () =>
+            databaseUsers.map(dbUser => ({
+              value: dbUser,
+              displayText: dbUser,
+            })),
+          allowOnlySuggestions: !wildcardUserAllowed,
+          noSuggestionsAvailableMessage: 'No db username available',
+          placeholder: wildcardUserAllowed
+            ? 'Provide db username'
+            : 'Search by username',
         },
-        perform: dbUser => {
-          const { uri, name, protocol } = result.resource;
-          return connectToDatabase(
+        perform: dbUser =>
+          connectToDatabase(
             ctx,
             {
               uri,
               name,
               protocol,
+              gcpProjectId,
               dbUser: dbUser.value,
+              autoUserProvisioning: undefined,
             },
+            { origin: 'search_bar' }
+          ),
+      };
+    }
+    case 'windows_desktop': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
+      return {
+        type: 'parametrized-action',
+        searchResult: result,
+        parameter: {
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
+              value: login,
+              displayText: login,
+            })),
+          placeholder: 'Provide desktop user',
+          allowOnlySuggestions: true,
+          noSuggestionsAvailableMessage: 'No users found.',
+        },
+        perform: login => {
+          const { uri } = result.resource;
+          return connectToWindowsDesktop(
+            ctx,
+            { uri, login: login.value },
             {
               origin: 'search_bar',
             }

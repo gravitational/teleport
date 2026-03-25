@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { Box, Flex, Text } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
+import { AppSubKind } from 'shared/services';
 
 import {
   makeApp,
@@ -26,6 +28,7 @@ import {
   makeKube,
   makeRootCluster,
   makeServer,
+  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -38,11 +41,13 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
+  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 
 type StoryProps = {
   vnet: boolean;
   lotsOfMenuItems: boolean;
+  singleColumn: boolean;
 };
 
 const meta: Meta<StoryProps> = {
@@ -50,6 +55,7 @@ const meta: Meta<StoryProps> = {
   component: Buttons,
   argTypes: {
     vnet: { control: { type: 'boolean' } },
+    singleColumn: { control: { type: 'boolean' } },
     lotsOfMenuItems: {
       control: { type: 'boolean' },
       description:
@@ -60,13 +66,14 @@ const meta: Meta<StoryProps> = {
   args: {
     vnet: true,
     lotsOfMenuItems: false,
+    singleColumn: false,
   },
 };
 
 export default meta;
 
 export function Story(props: StoryProps) {
-  const platform = props.vnet ? 'darwin' : 'win32';
+  const platform = props.vnet ? 'darwin' : 'linux';
   const appContext = new MockAppContext({ platform });
   prepareAppContext(appContext);
 
@@ -83,7 +90,11 @@ export function Story(props: StoryProps) {
 
 function Buttons(props: StoryProps) {
   return (
-    <Flex gap={4}>
+    <Flex
+      gap={4}
+      flexWrap="wrap"
+      flexDirection={props.singleColumn ? 'column' : 'row'}
+    >
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
@@ -102,8 +113,28 @@ function Buttons(props: StoryProps) {
           <AwsConsole />
         </Box>
         <Box>
+          <Text>AWS IC</Text>
+          <AwsIc />
+        </Box>
+        <HoverTooltip tipContent="Connect doesn't support cloud apps properly yet and shows them as TCP apps instead.">
+          <Box>
+            <Text>Cloud app (GCP)</Text>
+            <CloudApp />
+          </Box>
+        </HoverTooltip>
+        <Box>
           <Text>SAML app</Text>
           <SamlApp />
+        </Box>
+        <HoverTooltip tipContent="Connect doesn't support MCP apps properly yet but it renders a div with consintent width.">
+          <Box>
+            <Text>MCP (Stdio)</Text>
+            <Mcp scheme={'mcp+stdio'} />
+          </Box>
+        </HoverTooltip>
+        <Box>
+          <Text>MCP (Streamable HTTP)</Text>
+          <Mcp scheme={'mcp+http'} />
         </Box>
       </Flex>
       <Box>
@@ -111,12 +142,32 @@ function Buttons(props: StoryProps) {
         <Server />
       </Box>
       <Box>
-        <Text>Database</Text>
-        <Database />
+        <Text>Database (no users, disabled)</Text>
+        <DatabaseNoUsers />
+      </Box>
+      <Box>
+        <Text>Database (known users, filter mode)</Text>
+        <DatabaseWithKnownUsers />
+      </Box>
+      <Box>
+        <Text>Database (wildcard, no known users)</Text>
+        <DatabaseWithWildcardNoUsers />
+      </Box>
+      <Box>
+        <Text>Database (wildcard + known users, input mode)</Text>
+        <DatabaseWithWildcardUsers />
+      </Box>
+      <Box>
+        <Text>Database (auto-user provisioning)</Text>
+        <DatabaseAutoUserProvisioning />
       </Box>
       <Box>
         <Text>Kube</Text>
         <Kube />
+      </Box>{' '}
+      <Box>
+        <Text>Windows desktop</Text>
+        <WindowsDesktop />
       </Box>
       <Flex gap={3} flexDirection="column">
         <Box>
@@ -137,7 +188,6 @@ function Buttons(props: StoryProps) {
 }
 
 const testCluster = makeRootCluster();
-testCluster.loggedInUser.sshLogins = ['ec2-user'];
 
 function prepareAppContext(appContext: MockAppContext): void {
   appContext.workspacesService.setState(d => {
@@ -146,7 +196,6 @@ function prepareAppContext(appContext: MockAppContext): void {
   appContext.clustersService.setState(d => {
     d.clusters.set(testCluster.uri, testCluster);
   });
-  appContext.resourcesService.getDbUsers = async () => ['postgres-user'];
 }
 
 function TcpApp() {
@@ -204,14 +253,47 @@ function AwsConsole() {
             display: 'foo',
             name: 'foo',
             accountId: '123456789012',
+            requiresRequest: false,
           },
           {
             arn: 'bar',
             display: 'bar',
             name: 'bar',
             accountId: '123456789012',
+            requiresRequest: false,
           },
         ],
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function AwsIc() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        name: 'bar',
+        subKind: AppSubKind.AwsIcAccount,
+        permissionSets: [
+          { arn: '1234', assignmentId: '5432', name: 'Foo' },
+          { arn: '9123847', assignmentId: '987324', name: 'Quux' },
+        ],
+        uri: `${testCluster.uri}/apps/bar`,
+        endpointUri:
+          'https://f-139847a43e.awsapps.com/start/#/console?account_id=198327403472',
+        publicAddr:
+          'https://f-139847a43e.awsapps.com/start/#/console?account_id=198327403472',
+      })}
+    />
+  );
+}
+
+function CloudApp() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: 'cloud://GCP',
         uri: `${testCluster.uri}/apps/bar`,
       })}
     />
@@ -230,6 +312,17 @@ function SamlApp() {
   );
 }
 
+function Mcp(props: { scheme: string }) {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        endpointUri: `${props.scheme}://localhost:3000`,
+        uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
 function Server() {
   return (
     <ConnectServerActionButton
@@ -240,11 +333,59 @@ function Server() {
   );
 }
 
-function Database() {
+function DatabaseNoUsers() {
   return (
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
+        wildcardUserAllowed: false,
+      })}
+    />
+  );
+}
+
+function DatabaseWithKnownUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        databaseUsers: ['alice', 'bob', 'charlie'],
+        wildcardUserAllowed: false,
+      })}
+    />
+  );
+}
+
+function DatabaseWithWildcardNoUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        wildcardUserAllowed: true,
+      })}
+    />
+  );
+}
+
+function DatabaseWithWildcardUsers() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        databaseUsers: ['alice', 'bob'],
+        wildcardUserAllowed: true,
+      })}
+    />
+  );
+}
+
+function DatabaseAutoUserProvisioning() {
+  return (
+    <ConnectDatabaseActionButton
+      database={makeDatabase({
+        uri: `${testCluster.uri}/dbs/bar`,
+        autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
+        wildcardUserAllowed: false,
       })}
     />
   );
@@ -255,6 +396,16 @@ function Kube() {
     <ConnectKubeActionButton
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
+      })}
+    />
+  );
+}
+
+function WindowsDesktop() {
+  return (
+    <ConnectWindowsDesktopActionButton
+      windowsDesktop={makeWindowsDesktop({
+        uri: `${testCluster.uri}/windows_desktops/bar`,
       })}
     />
   );

@@ -17,7 +17,7 @@
  */
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
@@ -41,7 +41,8 @@ test('fetch a single integration: fetchIntegration()', async () => {
       'integration-name'
     );
   expect(api.get).toHaveBeenCalledWith(
-    cfg.getIntegrationsUrl('integration-name')
+    cfg.getIntegrationsUrl('integration-name'),
+    undefined
   );
   expect(response).toEqual({
     kind: 'aws-oidc',
@@ -115,7 +116,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         kind: 'github',
         name: 'github-my-org',
         resourceType: 'integration',
-        details: 'GitHub Organization "my-org"',
+        details: 'GitHub repository access for organization "my-org"',
         spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
       },

@@ -15,10 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Meta } from '@storybook/react';
+import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
+import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -38,17 +39,36 @@ import { VnetSliderStep as Component } from './VnetSliderStep';
 type StoryProps = {
   startVnet: 'success' | 'error' | 'processing';
   autoStart: boolean;
-  dnsZones: string[];
-  listDnsZones:
+  appDnsZones: string[];
+  clusters: string[];
+  sshConfigured: boolean;
+  fetchStatus:
     | 'success'
     | 'error'
     | 'processing'
     | 'processing-with-previous-results';
-  vnetDiag: boolean;
   runDiagnostics: 'success' | 'error' | 'processing';
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
+  installTimeRequirementsCheck:
+    | 'success'
+    | 'windows-service-not-installed'
+    | 'windows-service-version-mismatch';
+};
+
+const defaultArgs: StoryProps = {
+  startVnet: 'success',
+  autoStart: true,
+  appDnsZones: ['teleport.example.com', 'company.test'],
+  clusters: ['teleport.example.com'],
+  sshConfigured: false,
+  fetchStatus: 'success',
+  runDiagnostics: 'success',
+  diagReport: 'ok',
+  isWorkspacePresent: true,
+  unexpectedShutdown: false,
+  installTimeRequirementsCheck: 'success',
 };
 
 const meta: Meta<StoryProps> = {
@@ -68,10 +88,13 @@ const meta: Meta<StoryProps> = {
       control: { type: 'inline-radio' },
       options: ['success', 'error', 'processing'],
     },
-    dnsZones: {
+    appDnsZones: {
       control: { type: 'object' },
     },
-    listDnsZones: {
+    clusters: {
+      control: { type: 'object' },
+    },
+    fetchStatus: {
       control: { type: 'inline-radio' },
       options: [
         'success',
@@ -92,23 +115,43 @@ const meta: Meta<StoryProps> = {
       description:
         "If there's no workspace, the button to open the diag report is disabled.",
     },
+    installTimeRequirementsCheck: {
+      control: { type: 'radio' },
+      options: [
+        'success',
+        'windows-service-not-installed',
+        'windows-service-version-mismatch',
+      ],
+      description: 'VNet-related checks performed before startup.',
+    },
   },
-  args: {
-    startVnet: 'success',
-    autoStart: true,
-    dnsZones: ['teleport.example.com', 'company.test'],
-    listDnsZones: 'success',
-    vnetDiag: true,
-    runDiagnostics: 'success',
-    diagReport: 'ok',
-    isWorkspacePresent: true,
-    unexpectedShutdown: false,
-  },
+  render: props => <VnetSliderStep {...props} />,
 };
 export default meta;
 
-export function VnetSliderStep(props: StoryProps) {
+function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
+
+  if (props.installTimeRequirementsCheck === 'windows-service-not-installed') {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+  }
+  if (
+    props.installTimeRequirementsCheck === 'windows-service-version-mismatch'
+  ) {
+    appContext.vnet.checkInstallTimeRequirements = () =>
+      new MockedUnaryCall({
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.VERSION_MISMATCH,
+        },
+      });
+  }
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
@@ -117,15 +160,11 @@ export function VnetSliderStep(props: StoryProps) {
   if (props.autoStart) {
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
     appContext.workspacesService.setState(draft => {
       draft.isInitialized = true;
     });
-  }
-
-  if (props.vnetDiag) {
-    appContext.configService.set('unstable.vnetDiag', true);
   }
 
   const pendingPromise = usePromiseRejectedOnUnmount();
@@ -150,22 +189,34 @@ export function VnetSliderStep(props: StoryProps) {
     };
   }
 
-  if (props.listDnsZones === 'processing') {
-    appContext.vnet.listDNSZones = () => pendingPromise;
+  if (props.fetchStatus === 'processing') {
+    appContext.vnet.getServiceInfo = () => pendingPromise;
   } else {
     let firstCall = true;
-    appContext.vnet.listDNSZones = () => {
-      if (props.listDnsZones === 'processing-with-previous-results') {
+    appContext.vnet.getServiceInfo = () => {
+      if (props.fetchStatus === 'processing-with-previous-results') {
         if (firstCall) {
           firstCall = false;
-          return new MockedUnaryCall({ dnsZones: props.dnsZones });
+          return new MockedUnaryCall({
+            appDnsZones: props.appDnsZones,
+            clusters: props.clusters,
+            sshConfigured: props.sshConfigured,
+            vnetSshConfigPath:
+              '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+          });
         }
         return pendingPromise;
       }
 
       return new MockedUnaryCall(
-        { dnsZones: props.dnsZones },
-        props.listDnsZones === 'error'
+        {
+          appDnsZones: props.appDnsZones,
+          clusters: props.clusters,
+          sshConfigured: props.sshConfigured,
+          vnetSshConfigPath:
+            '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
+        },
+        props.fetchStatus === 'error'
           ? new Error('something went wrong')
           : undefined
       );
@@ -206,8 +257,8 @@ export function VnetSliderStep(props: StoryProps) {
     >
       <ConnectionsContextProvider>
         <VnetContextProvider>
-          {props.listDnsZones === 'processing-with-previous-results' && (
-            <RerequestDNSZones />
+          {props.fetchStatus === 'processing-with-previous-results' && (
+            <RerequestServiceInfo />
           )}
           <Component
             refCallback={noop}
@@ -223,16 +274,73 @@ export function VnetSliderStep(props: StoryProps) {
   );
 }
 
-const RerequestDNSZones = () => {
-  const { listDNSZones, listDNSZonesAttempt } = useVnetContext();
+const RerequestServiceInfo = () => {
+  const { serviceInfoAttempt, refreshServiceInfoAttempt } = useVnetContext();
 
   useEffect(() => {
-    if (listDNSZonesAttempt.status === 'success') {
-      listDNSZones();
+    if (serviceInfoAttempt.status === 'success') {
+      refreshServiceInfoAttempt();
     }
-  }, [listDNSZonesAttempt, listDNSZones]);
+  }, [serviceInfoAttempt, refreshServiceInfoAttempt]);
 
   return null;
 };
 
 const noop = () => {};
+
+export const CloudCustomer: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['example.teleport.sh'],
+    clusters: ['example.teleport.sh'],
+  },
+};
+
+export const SelfHostedWithDifferentClusterName: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com'],
+    clusters: ['teleport-example'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndLeaf: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
+    clusters: ['teleport.example.com', 'leaf.example.com'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndDifferentLeaf: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'leaf.example.com'],
+    clusters: ['teleport.example.com', 'teleport-leaf'],
+  },
+};
+
+export const SelfHostedWithEqualNameAndCustomDNSZones: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: ['teleport.example.com', 'company.com', 'apps.company'],
+    clusters: ['teleport.example.com'],
+  },
+};
+
+export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    appDnsZones: [
+      'teleport.example.com',
+      'leaf.example.com',
+      'second-leaf.example.com',
+      'company.com',
+    ],
+    clusters: [
+      'teleport.example.com',
+      'teleport-leaf',
+      'second-leaf.example.com',
+    ],
+  },
+};

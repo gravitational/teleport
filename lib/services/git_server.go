@@ -40,8 +40,6 @@ type GitServers interface {
 	UpsertGitServer(ctx context.Context, item types.Server) (types.Server, error)
 	// DeleteGitServer removes the specified Git server resource.
 	DeleteGitServer(ctx context.Context, name string) error
-	// DeleteAllGitServers removes all Git server resources.
-	DeleteAllGitServers(ctx context.Context) error
 }
 
 // MarshalGitServer marshals the Git Server resource to JSON.

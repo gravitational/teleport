@@ -62,7 +62,13 @@ message DeviceCollectedData {
   string os_build = 7;
 
   // OS username (distinct from the Teleport user).
+  // Old tsh/Linux binaries incorrectly send the display name instead of the
+  // login user.
+  // See os_login_user.
+  // TODO(codingllama): DELETE IN 20. All clients send os_login_user by then.
   string os_username = 8;
+  // OS login user (distinct from the Teleport user).
+  string os_login_user = 16;
 
   // Jamf binary version, without the leading 'v'.
   // Example: "9.27" or "10.44.1-t1677509507".
@@ -103,4 +109,6 @@ message DeviceCollectedData {
   // for systems like macOS or Windows.
   // Example: "ubuntu", "centos", "fedora", "rhel".
   string os_id = 15;
+
+  // Next tag: 17.
 }

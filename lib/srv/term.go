@@ -38,8 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
 
@@ -63,12 +61,15 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
-	// WaitForChild blocks until the child process has completed any required
-	// setup operations before proceeding with execution.
-	WaitForChild() error
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine (placed in a cgroup).
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// KillUnderlyingShell tries to gracefully stop the terminal process.
@@ -120,7 +121,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -222,11 +223,10 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := t.serverContext.readyw.Close(); err != nil {
-		t.log.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
+		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
 	t.serverContext.readyw = nil
 
@@ -259,16 +259,25 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) WaitForChild() error {
-	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
-	closeErr := t.serverContext.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+// ReadAuditSessionID reads the unique audit session ID of the process
+// that will be used to correlate audit events to the SSH session for
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
+func (t *terminal) ReadAuditSessionID() (uint32, error) {
+	if !t.serverContext.recordWithBPF() {
+		return 0, nil
+	}
+
+	if err := t.serverContext.WaitForChild(t.serverContext.cancelContext); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return readAuditSessionID(t.pid)
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine (placed in a cgroup).
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (t *terminal) Continue() {
 	if err := t.serverContext.contw.Close(); err != nil {
 		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
@@ -369,11 +378,11 @@ func (t *terminal) closeTTY() error {
 func (t *terminal) closePTY() {
 	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed PTY")
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.pty == nil {
 		return
@@ -619,8 +628,8 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForChild() error {
-	return nil
+func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {
+	return 0, nil
 }
 
 // Continue does nothing for remote command execution.
@@ -718,13 +727,17 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
-// prepareRemoteSession prepares the more session for execution.
+// prepareRemoteSession prepares the remote session with env vars provided by the forwarding server or client.
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
-		teleport.SSHSessionID:           string(scx.SessionID()),
+		teleport.SSHSessionID:           scx.SessionID(),
+	}
+
+	if scx.GetSessionParams().WebProxyAddr != "" {
+		envs[teleport.SSHSessionWebProxyAddr] = scx.GetSessionParams().WebProxyAddr
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {

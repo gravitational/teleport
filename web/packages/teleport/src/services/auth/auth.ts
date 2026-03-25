@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { MfaState } from 'teleport/lib/useMfa';
 import api from 'teleport/services/api';
 import {
   DeviceType,
@@ -27,6 +28,7 @@ import {
 } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
+import { defaultHeaders } from '../api/api';
 import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
@@ -121,7 +123,13 @@ const auth = {
       second_factor_token: otpCode,
     };
 
-    return api.post(cfg.api.webSessionPath, data);
+    return api.postWithOptions(cfg.api.webSessionPath, {
+      data,
+      headers: {
+        ...defaultHeaders,
+        [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
+      },
+    });
   },
 
   loginWithWebauthn(creds?: UserCredentials) {
@@ -131,7 +139,6 @@ const auth = {
       .then(res =>
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
-          mediation: 'silent',
         })
       )
       .then(res => {
@@ -140,7 +147,13 @@ const auth = {
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
         };
 
-        return api.post(cfg.api.mfaLoginFinish, request);
+        return api.postWithOptions(cfg.api.mfaLoginFinish, {
+          data: request,
+          headers: {
+            ...defaultHeaders,
+            [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
+          },
+        });
       });
   },
 
@@ -218,10 +231,9 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSSOGet(transactionId: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
+  headlessSsoGet(transactionId: string, abortSignal?: AbortSignal) {
+    return api
+      .get(cfg.getHeadlessSsoPath(transactionId), abortSignal)
       .then((json: any) => {
         json = json || {};
 
@@ -231,18 +243,17 @@ const auth = {
       });
   },
 
-  headlessSSOAccept(transactionId: string) {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => {
-        const request = {
-          action: 'accept',
-          webauthnAssertionResponse: res.webauthn_response,
-        };
+  headlessSsoAccept(mfa: MfaState, transactionId: string) {
+    return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
+      const request = {
+        action: 'accept',
+        mfaResponse: res,
+        // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
+        webauthnAssertionResponse: res.webauthn_response,
+      };
 
-        return api.put(cfg.getHeadlessSsoPath(transactionId), request);
-      });
+      return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+    });
   },
 
   headlessSSOReject(transactionId: string) {
@@ -267,6 +278,7 @@ const auth = {
           challenge_scope: req.scope,
           challenge_allow_reuse: req.allowReuse,
           user_verification_requirement: req.userVerificationRequirement,
+          proxy_address: cfg.baseUrl,
         },
         abortSignal
       )
@@ -358,8 +370,8 @@ const auth = {
     abortController?: AbortController
   ) {
     // try to center the screen
-    const width = 1045;
-    const height = 550;
+    const width = 1024;
+    const height = 768;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
 
@@ -409,10 +421,11 @@ const auth = {
 };
 
 function checkMfaRequired(
+  clusterId: string,
   params: IsMfaRequiredRequest,
-  abortSignal?
+  abortSignal?: AbortSignal
 ): Promise<IsMfaRequiredResponse> {
-  return api.post(cfg.getMfaRequiredUrl(), params, abortSignal);
+  return api.post(cfg.getMfaRequiredUrl(clusterId), params, abortSignal);
 }
 
 function base64EncodeUnicode(str: string) {
@@ -531,3 +544,9 @@ export enum MfaChallengeScope {
   ADMIN_ACTION = 7,
   CHANGE_PASSWORD = 8,
 }
+
+/**
+ * Header which reports navigator.maxTouchPoints to the proxy service. This piece of information is
+ * later used by the Device Trust service.
+ */
+const HEADER_MAX_TOUCH_POINTS = 'Max-Touch-Points';

@@ -131,6 +131,12 @@ func (a *App) run(ctx context.Context) error {
 		select {
 		case <-timer.Chan():
 			if err := a.remindIfNecessary(ctx); err != nil {
+				// if the call returns NotImplemented, gracefully end the access list app,
+				// as we may be communicating with an OSS server, which does not support access lists.
+				if trace.IsNotImplemented(err) {
+					log.WarnContext(ctx, "Slack plugin is connected to an auth server that does not support access lists. Access list reminders will be disabled")
+					return nil
+				}
 				return trace.Wrap(err)
 			}
 			timer.Reset(jitter(reminderInterval))
@@ -157,7 +163,7 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		accessLists, nextToken, err = a.apiClient.ListAccessLists(ctx, 0 /* default page size */, nextToken)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				log.ErrorContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")
+				log.WarnContext(ctx, "access list endpoint is not implemented on this auth server, so the access list app is ceasing to run")
 				return trace.Wrap(err)
 			} else if trace.IsAccessDenied(err) {
 				const msg = "Slack bot does not have permissions to list access lists. Please add access_list read and list permissions " +
@@ -170,6 +176,9 @@ func (a *App) remindIfNecessary(ctx context.Context) error {
 		}
 
 		for _, accessList := range accessLists {
+			if !accessList.IsReviewable() {
+				continue
+			}
 			recipients, err := a.getRecipientsRequiringReminders(ctx, accessList)
 			if err != nil {
 				log.WarnContext(ctx, "Error getting recipients to notify for review due for access list",
@@ -225,7 +234,7 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 		return nil, nil
 	}
 
-	allRecipients := a.fetchRecipients(ctx, accessList, now, notificationStart)
+	allRecipients := a.fetchRecipients(ctx, accessList)
 	if len(allRecipients) == 0 {
 		return nil, trace.NotFound("no recipients could be fetched for access list %s", accessList.GetName())
 	}
@@ -254,7 +263,7 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 }
 
 // fetchRecipients will return all recipients.
-func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList, now, notificationStart time.Time) map[string]common.Recipient {
+func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList) map[string]common.Recipient {
 	log := logger.Get(ctx)
 
 	var allOwners []*accesslist.Owner

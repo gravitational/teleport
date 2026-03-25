@@ -120,7 +120,7 @@ type StatementExecutePacket struct {
 }
 
 // Parameters returns a slice of parameters.
-func (p *StatementExecutePacket) Parameters(definitions []mysql.Field) (parameters []interface{}, ok bool) {
+func (p *StatementExecutePacket) Parameters(definitions []mysql.Field) (parameters []any, ok bool) {
 	// TODO(greedy52) implement parsing of null bitmap, parameter types, and
 	// paramerter binary values.
 	return nil, true
@@ -186,7 +186,7 @@ type StatementBulkExecutePacket struct {
 }
 
 // Parameters returns a slice of parameters.
-func (p *StatementBulkExecutePacket) Parameters(definitions []mysql.Field) (parameters []interface{}, ok bool) {
+func (p *StatementBulkExecutePacket) Parameters(definitions []mysql.Field) (parameters []any, ok bool) {
 	// TODO(greedy52) implement parsing of parameters from
 	// COM_STMT_BULK_EXECUTE packet.
 	return nil, true
@@ -197,7 +197,7 @@ func (p *StatementBulkExecutePacket) Parameters(definitions []mysql.Field) (para
 func parseStatementPreparePacket(packetBytes []byte) (Packet, error) {
 	unread, ok := skipHeaderAndType(packetBytes)
 	if !ok {
-		return nil, trace.BadParameter("failed to parse COM_STMT_PREAPRE packet: %v", packetBytes)
+		return nil, trace.BadParameter("failed to parse COM_STMT_PREPARE packet: %v", packetBytes)
 	}
 
 	return &StatementPreparePacket{

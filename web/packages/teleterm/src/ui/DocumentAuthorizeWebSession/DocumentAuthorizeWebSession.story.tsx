@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { wait } from 'shared/utils/wait';
 
@@ -74,7 +74,7 @@ export function Story(props: StoryProps) {
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);
   });
-  appContext.clustersService.authenticateWebDevice = async () => {
+  appContext.tshd.authenticateWebDevice = async () => {
     await wait(2_000);
     return new MockedUnaryCall({
       confirmationToken: {

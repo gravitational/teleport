@@ -36,10 +36,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -49,7 +50,7 @@ func TestSend(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "send")
+	logger := logtest.With(teleport.ComponentKey, "send")
 	testCases := []struct {
 		desc   string
 		config Config
@@ -78,7 +79,6 @@ func TestSend(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			cmd, err := CreateCommand(tt.config)
@@ -113,7 +113,7 @@ func TestReceive(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "recv")
+	logger := logtest.With(teleport.ComponentKey, "recv")
 	testCases := []struct {
 		desc       string
 		config     Config
@@ -171,7 +171,6 @@ func TestReceive(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			logger := logger.With("test", tt.desc)
 			t.Parallel()
@@ -236,7 +235,7 @@ func TestSCPFailsIfNoSource(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5497
 func TestReceiveIntoExistingDirectory(t *testing.T) {
-	logger := utils.NewSlogLoggerForTests().With("test", t.Name())
+	logger := logtest.With("test", t.Name())
 	config := newTargetConfigWithFS("dir",
 		Flags{PreserveAttrs: true, Recursive: true},
 		newTestFS(logger, newDir("dir")),
@@ -279,7 +278,7 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5695
 func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
-	logger := utils.NewSlogLoggerForTests().With("test", t.Name())
+	logger := logtest.With("test", t.Name())
 	// Target configuration with no existing directory
 	root := t.TempDir()
 	config := newTargetConfigWithFS(filepath.Join(root, "dir"),
@@ -307,7 +306,7 @@ func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
 // TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories validates that copying a directory
 // into a remote '/path/to/remote' where '/path/to' does not exist causes an error.
 func TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories(t *testing.T) {
-	logger := utils.NewSlogLoggerForTests().With("test", t.Name())
+	logger := logtest.With("test", t.Name())
 
 	config := newTargetConfig("non-existing/remote_dir", Flags{Recursive: true})
 	sourceFS := newTestFS(logger, newDir("dir"))
@@ -361,7 +360,6 @@ func TestInvalidDir(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 

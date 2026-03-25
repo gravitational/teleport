@@ -4,7 +4,7 @@ shared secret, the unique identity of the host's Trusted Platform Module (TPM)
 and public key cryptography is used to authenticate the host.
 
 In environments where there is no other form of identity available to machines,
-e.g on-prem, this is the most secure method for joining. It avoids the need to
+e.g. on-prem, this is the most secure method for joining. It avoids the need to
 distribute a shared secret as is needed for the `token` join method.
 
 A Trusted Platform Module (TPM) is a secure, physical cryptoprocessor that is
@@ -28,5 +28,5 @@ such as Ansible to query the TPMs across your fleet and then generate join
 tokens.
 
 <Admonition type="warning">
-The `tpm` join method is currently not compatible with FIPS 140-2.
+The `tpm` join method is currently not compatible with FIPS.
 </Admonition>

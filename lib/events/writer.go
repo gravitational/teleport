@@ -65,6 +65,10 @@ func (w *WriterLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (
 	return nil, "", trace.NotImplemented(writerCannotRead)
 }
 
+func (w *WriterLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) (events []*auditlogpb.EventUnstructured, lastKey string, err error) {
+	return nil, "", trace.NotImplemented(writerCannotRead)
+}
+
 func (w *WriterLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented(writerCannotRead))
 }

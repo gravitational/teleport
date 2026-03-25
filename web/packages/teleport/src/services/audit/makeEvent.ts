@@ -163,6 +163,11 @@ export const formatters: Formatters = {
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
   },
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: {
+    type: 'access_request.expire',
+    desc: 'Access Request Expired',
+    format: ({ id }) => `Access request [${id}] has expired`,
+  },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
     desc: 'Session Command',
@@ -231,26 +236,26 @@ export const formatters: Formatters = {
     type: 'exec',
     desc: 'Command Execution',
     format: event => {
-      const { proto, kubernetes_cluster, user = '' } = event;
+      const { proto, kubernetes_cluster, user = '', sid } = event;
       if (proto === 'kube') {
         if (!kubernetes_cluster) {
-          return `User [${user}] executed a Kubernetes command`;
+          return `User [${user}] executed a Kubernetes command within session [${sid}]`;
         }
-        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}]`;
+        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}] within session [${sid}]`;
       }
 
       return `User [${user}] executed a command on node ${
         event['server_hostname'] || event['addr.local']
-      }`;
+      } within session [${sid}]`;
     },
   },
   [eventCodes.EXEC_FAILURE]: {
     type: 'exec',
     desc: 'Command Execution Failed',
-    format: ({ user, exitError, ...rest }) =>
+    format: ({ user, exitError, sid, ...rest }) =>
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
-      } failed [${exitError}]`,
+      } failed [${exitError}] within session [${sid}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
@@ -606,6 +611,14 @@ export const formatters: Formatters = {
         return `User [${user}] has connected to AWS console [${app_name}]`;
       }
       return `User [${user}] has connected to application [${app_name}]`;
+    },
+  },
+  [eventCodes.APP_SESSION_START_FAILURE]: {
+    type: 'app.session.start',
+    desc: 'App Session Start Failed',
+    format: event => {
+      const { user, app_name, message } = event;
+      return `User [${user}] failed to connect to application [${app_name}]: ${message}`;
     },
   },
   [eventCodes.APP_SESSION_END]: {
@@ -1206,7 +1219,7 @@ export const formatters: Formatters = {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
     format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
-      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
+      let message = `User [${user}] started session [${sid}] on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
         message += ` with domain [${windows_domain}]`;
       }
@@ -1232,57 +1245,101 @@ export const formatters: Formatters = {
       if (windows_domain) {
         desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session [${sid}] for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
-    format: ({ user, desktop_addr, length }) =>
-      `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, length, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: {
     type: 'desktop.clipboard.send',
     desc: 'Clipboard Data Sent',
-    format: ({ user, desktop_addr, length }) =>
-      `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, length, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Started',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, directory_name, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Start Failed',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, directory_name, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: {
     type: 'desktop.directory.read',
     desc: 'Directory Sharing Read',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: {
     type: 'desktop.directory.read',
     desc: 'Directory Sharing Read Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: {
     type: 'desktop.directory.write',
     desc: 'Directory Sharing Write',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: {
     type: 'desktop.directory.write',
     desc: 'Directory Sharing Write Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
@@ -1376,8 +1433,11 @@ export const formatters: Formatters = {
   [eventCodes.CERTIFICATE_CREATED]: {
     type: 'cert.create',
     desc: 'Certificate Issued',
-    format: ({ cert_type, identity: { user } }) => {
+    format: ({ cert_type, identity: { user, usage } }) => {
       if (cert_type === 'user') {
+        if (usage?.includes('usage:windows_desktop')) {
+          return `Windows desktop certificate issued for user [${user}]`;
+        }
         return `User certificate issued for [${user}]`;
       }
       return `Certificate of type [${cert_type}] issued for [${user}]`;
@@ -1414,15 +1474,15 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
     desc: 'Bot Join Failed',
-    format: ({ bot_name }) => {
-      return `Bot [${bot_name || 'unknown'}] failed to join the cluster`;
+    format: ({ bot_name, method, token_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.INSTANCE_JOIN]: {
@@ -1479,6 +1539,41 @@ export const formatters: Formatters = {
     desc: 'Workload Identity Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a Workload Identity [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: {
+    type: 'workload_identity_x509_issuer_override.create',
+    desc: 'Workload Identity X.509 Issuer Override Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: {
+    type: 'workload_identity_x509_issuer_override.delete',
+    desc: 'Workload Identity X.509 Issuer Override Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_CREATE]: {
+    type: 'sigstore_policy.create',
+    desc: 'Sigstore Policy Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: {
+    type: 'sigstore_policy.update',
+    desc: 'Sigstore Policy Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_DELETE]: {
+    type: 'sigstore_policy.delete',
+    desc: 'Sigstore Policy Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Sigstore Policy [${name}]`;
     },
   },
   [eventCodes.LOGIN_RULE_CREATE]: {
@@ -1623,116 +1718,130 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',
     desc: 'Access list created',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] created access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] created access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
     type: 'access_list.create',
     desc: 'Access list create failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to create access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to create access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_UPDATE]: {
     type: 'access_list.update',
     desc: 'Access list updated',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] updated access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] updated access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
     type: 'access_list.update',
     desc: 'Access list update failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to update access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to update access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_DELETE]: {
     type: 'access_list.delete',
     desc: 'Access list deleted',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] deleted access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] deleted access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
     type: 'access_list.delete',
     desc: 'Access list delete failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to delete access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to delete access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_REVIEW]: {
     type: 'access_list.review',
     desc: 'Access list reviewed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] reviewed access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] reviewed access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
     type: 'access_list.review',
     desc: 'Access list review failed',
-    format: ({ name, updated_by }) =>
-      `User [${updated_by}] failed to to review access list [${name}]`,
+    format: ({ access_list_title, name, updated_by }) => {
+      return `User [${updated_by}] failed to review access list [${access_list_title || name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',
     desc: 'Access list member added',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] added ${formatMembers(
-        members
-      )} to access list [${access_list_name}]`,
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] added ${formatMembers(members)} to access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
     type: 'access_list.member.create',
     desc: 'Access list member addition failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to add ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to add ${formatMembers(
         members
-      )} to access list [${access_list_name}]`,
+      )} to access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
     type: 'access_list.member.update',
     desc: 'Access list member updated',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] updated ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] updated ${formatMembers(
         members
-      )} in access list [${access_list_name}]`,
+      )} in access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
     type: 'access_list.member.update',
     desc: 'Access list member update failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to update ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to update ${formatMembers(
         members
-      )} in access list [${access_list_name}]`,
+      )} in access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removed',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] removed ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] removed ${formatMembers(
         members
-      )} from access list [${access_list_name}]`,
+      )} from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removal failure',
-    format: ({ access_list_name, members, updated_by }) =>
-      `User [${updated_by}] failed to remove ${formatMembers(
+    format: ({ access_list_title, members, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to remove ${formatMembers(
         members
-      )} from access list [${access_list_name}]`,
+      )} from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
     type: 'access_list.member.delete_all_members',
     desc: 'All members removed from access list',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] removed all members from access list [${access_list_name}]`,
+    format: ({ access_list_title, access_list_name, updated_by }) => {
+      return `User [${updated_by}] removed all members from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all members failure',
-    format: ({ access_list_name, updated_by }) =>
-      `User [${updated_by}] failed to remove all members from access list [${access_list_name}]`,
+    format: ({ access_list_title, access_list_name, updated_by }) => {
+      return `User [${updated_by}] failed to remove all members from access list [${access_list_title || access_list_name}]`;
+    },
   },
   [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: {
     type: 'user_login.invalid_access_list',
     desc: 'Access list skipped.',
-    format: ({ access_list_name, user, missing_roles }) =>
-      `Access list [${access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
+    format: ({ access_list_title, access_list_name, user, missing_roles }) =>
+      `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
     type: 'secreports.audit.query.run"',
@@ -2052,6 +2161,432 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
+    type: 'auto_update_config.create',
+    desc: 'Automatic Update Config Created',
+    format: ({ user }) => {
+      return `User ${user} created the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: {
+    type: 'auto_update_config.update',
+    desc: 'Automatic Update Config Updated',
+    format: ({ user }) => {
+      return `User ${user} updated the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: {
+    type: 'auto_update_config.delete',
+    desc: 'Automatic Update Config Deleted',
+    format: ({ user }) => {
+      return `User ${user} deleted the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: {
+    type: 'auto_update_version.create',
+    desc: 'Automatic Update Version Created',
+    format: ({ user }) => {
+      return `User ${user} created the Automatic Update Version`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: {
+    type: 'auto_update_version.update',
+    desc: 'Automatic Update Version Updated',
+    format: ({ user }) => {
+      return `User ${user} updated the Automatic Update Version`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: {
+    type: 'auto_update_version.delete',
+    desc: 'Automatic Update Version Deleted',
+    format: ({ user }) => {
+      return `User ${user} deleted the Automatic Update Version`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
+    type: 'health_check_config.create',
+    desc: 'Health Check Config Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
+    type: 'health_check_config.update',
+    desc: 'Health Check Config Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
+    type: 'health_check_config.delete',
+    desc: 'Health Check Config Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a health check config [${name}]`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
+    type: 'auto_update_agent_rollout.trigger',
+    desc: 'Automatic Update Agent Rollout Triggered',
+    format: ({ user, groups }) => {
+      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
+    type: 'auto_update_agent_rollout.force_done',
+    desc: 'Automatic Update Agent Rollout Forced Done.',
+    format: ({ user, groups }) => {
+      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
+    type: 'auto_update_agent_rollout.rollback',
+    desc: 'Automatic Update Agent Rollout Rollback',
+    format: ({ user, groups }) => {
+      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
+    },
+  },
+  [eventCodes.MCP_SESSION_START]: {
+    type: 'mcp.session.start',
+    desc: 'MCP Session Started',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has connected to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_END]: {
+    type: 'mcp.session.end',
+    desc: 'MCP Session Ended',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has disconnected from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_END_FAILURE]: {
+    type: 'mcp.session.end',
+    desc: 'MCP Session End Failure',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] failed to disconnect from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request',
+    format: ({ user, app_name, message }) => {
+      if (message.params?.name) {
+        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request Failure',
+    format: ({ user, app_name, message }) => {
+      if (message.params?.name) {
+        return `User [${user}] failed to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] failed to send an MCP request [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_NOTIFICATION]: {
+    type: 'mcp.session.notification',
+    desc: 'MCP Session Notification',
+    format: ({ user, app_name, message }) => {
+      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: {
+    type: 'mcp.session.notification',
+    desc: 'MCP Session Notification Failure',
+    format: ({ user, app_name, message }) => {
+      return `User [${user}] failed to send an MCP notification [${message.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: {
+    type: 'mcp.session.listen_sse_stream',
+    desc: 'MCP Session Listen',
+    format: ({ user, app_name }) => {
+      return `User [${user}] has started listening events from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: {
+    type: 'mcp.session.listen_sse_stream',
+    desc: 'MCP Session Listen Failure',
+    format: ({ user, app_name }) => {
+      return `User [${user}] failed to listen events from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: {
+    type: 'mcp.session.invalid_http_request',
+    desc: 'MCP Session Invalid Request',
+    format: ({ user, app_name }) => {
+      return `User [${user}] attempted to send an invalid request to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
+    type: 'join_token.bound_keypair.recovery',
+    desc: 'Bound Keypair Recovery',
+    format: ({ token_name, success, error, recovery_count }) => {
+      return success
+        ? `Bound Keypair token [${token_name}] was successfully used in a recovery attempt. New counter value: ${recovery_count}`
+        : `Bound Keypair token [${token_name}] was used to attempt a recovery and failed: ${error}`;
+    },
+  },
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: {
+    type: 'join_token.bound_keypair.rotation',
+    desc: 'Bound Keypair Rotation',
+    format: ({ token_name, success, error }) => {
+      return success
+        ? `Bound Keypair token [${token_name}] successfully rotated its public key during a join attempt`
+        : `Bound Keypair token [${token_name}] failed to rotate its public key during a join attempt: ${error}`;
+    },
+  },
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: {
+    type: 'join_token.bound_keypair.join_state_verification_failed',
+    desc: 'Bound Keypair Join Verification Failed',
+    format: ({ token_name, error }) => {
+      return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
+    },
+  },
+  [eventCodes.SCIM_RESOURCE_LIST]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Succeeded',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Failed',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_PATCH]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
+    type: 'cir.update',
+    desc: 'Client IP Restrictions update',
+    format: ({ user, client_ip_restrictions, success }) =>
+      success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
+        : `User [${user}] has failed to update  Client IP Restrictions.`,
+  },
+  [eventCodes.APPAUTHCONFIG_CREATE]: {
+    type: 'app_auth_config.create',
+    desc: 'App Auth Config created',
+    format: ({ user, name }) => {
+      return `User [${user}] created the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_UPDATE]: {
+    type: 'app_auth_config.update',
+    desc: 'App Auth Config updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_DELETE]: {
+    type: 'app_auth_config.delete',
+    desc: 'App Auth Config deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
+    type: 'app_auth_config.verify.success',
+    desc: 'App authentication succeeded',
+    format: ({ user, app_name, app_auth_config }) => {
+      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
+    type: 'app_auth_config.verify.failure',
+    desc: 'App authentication failed',
+    format: ({ error, app_auth_config }) => {
+      return `App authentication using [${app_auth_config}] failed: ${error}`;
+    },
+  },
+  [eventCodes.VNET_CONFIG_CREATE]: {
+    type: 'vnet.config.create',
+    desc: 'VNet config created',
+    format: ({ user }) => {
+      return `User [${user}] created the VNet config`;
+    },
+  },
+  [eventCodes.VNET_CONFIG_UPDATE]: {
+    type: 'vnet.config.update',
+    desc: 'VNet config updated',
+    format: ({ user }) => {
+      return `User [${user}] updated the VNet config`;
+    },
+  },
+  [eventCodes.VNET_CONFIG_DELETE]: {
+    type: 'vnet.config.delete',
+    desc: 'VNet config deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the VNet config`;
+    },
+  },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Created',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Updated',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Deleted',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_CREATE]: {
+    type: 'inference_model.create',
+    desc: 'Inference Model Created',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_UPDATE]: {
+    type: 'inference_model.update',
+    desc: 'Inference Model Updated',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_DELETE]: {
+    type: 'inference_model.delete',
+    desc: 'Inference Model Deleted',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_CREATE]: {
+    type: 'inference_secret.create',
+    desc: 'Inference Secret Created',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_UPDATE]: {
+    type: 'inference_secret.update',
+    desc: 'Inference Secret Updated',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_DELETE]: {
+    type: 'inference_secret.delete',
+    desc: 'Inference Secret Deleted',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_CREATE]: {
+    type: 'inference_policy.create',
+    desc: 'Inference Policy Created',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_UPDATE]: {
+    type: 'inference_policy.update',
+    desc: 'Inference Policy Updated',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_DELETE]: {
+    type: 'inference_policy.delete',
+    desc: 'Inference Policy Deleted',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.SESSION_SUMMARIZED]: {
+    type: 'session.summarized',
+    desc: 'Session Summarized',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
+    type: 'session.summarized',
+    desc: 'Session Summarization Failed',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
 };
 
 const unknownFormatter = {
@@ -2059,9 +2594,35 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
+// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
+const mfaFlowTypeLabels: Record<number, string> = {
+  0: 'UNSPECIFIED',
+  1: 'PER_SESSION_CERTIFICATE',
+  2: 'IN_BAND',
+};
+
+// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
+function formatRawEventForUI(json: any): any {
+  // For MFA events, convert the flow_type from a number to a human readable string.
+  if (
+    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
+    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
+  ) {
+    return {
+      ...json,
+      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
+    };
+  }
+
+  return json;
+}
+
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
+
+  const raw = formatRawEventForUI(json);
+
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2072,7 +2633,7 @@ export default function makeEvent(json: any): Event {
     code: json.code,
     user: json.user,
     time: new Date(json.time),
-    raw: json,
+    raw: raw,
   };
 }
 

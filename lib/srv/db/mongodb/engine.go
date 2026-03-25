@@ -23,10 +23,8 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/description"
-	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -53,7 +51,7 @@ type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is an incoming client connection.
-	clientConn net.Conn
+	clientConn *clientConnection
 	// maxMessageSize is the max message size.
 	maxMessageSize uint32
 	// serverConnected specifies whether server connection has been created.
@@ -61,8 +59,11 @@ type Engine struct {
 }
 
 // InitializeConnection initializes the client connection.
-func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
-	e.clientConn = clientConn
+func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
+	e.clientConn = &clientConnection{
+		Conn:             clientConn,
+		messagesReceived: common.GetMessagesFromClientMetric(sessionCtx.Database),
+	}
 	return nil
 }
 
@@ -97,13 +98,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.ErrorContext(ctx, "Failed to deactivate the user.", "error", err)
 		}
 	}()
-	// Establish connection to the MongoDB server.
-	serverConn, closeFn, err := e.connect(ctx, sessionCtx)
+	serverConn, err := e.connect(ctx, sessionCtx)
 	if err != nil {
 		cancelAutoUserLease()
 		return trace.Wrap(err, "error connecting to the database")
 	}
-	defer closeFn()
+	defer serverConn.close(ctx)
 
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
@@ -114,16 +114,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.serverConnected = true
 	observe()
 
-	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
-	msgFromServer := common.GetMessagesFromServerMetric(sessionCtx.Database)
-
 	// Start reading client messages and sending them to server.
 	for {
-		clientMessage, err := protocol.ReadMessage(e.clientConn, e.maxMessageSize)
+		clientMessage, err := e.clientConn.readMessage(e.maxMessageSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = e.handleClientMessage(ctx, sessionCtx, clientMessage, e.clientConn, serverConn, msgFromClient, msgFromServer)
+		err = e.handleClientMessage(ctx, sessionCtx, clientMessage, serverConn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -140,49 +137,25 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 //     after sending message to the server and wait for next client message.
 //  4. Server can also send multiple messages in a row in which case we exhaust
 //     them before returning to listen for next client message.
-func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
-	msgFromClient.Inc()
-
+func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, serverConn *serverConnection) error {
 	// First check the client command against user's role and log in the audit.
 	err := e.authorizeClientMessage(sessionCtx, clientMessage)
 	if err != nil {
-		return protocol.ReplyError(clientConn, clientMessage, err)
+		return protocol.ReplyError(e.clientConn, clientMessage, err)
 	}
 	// If RBAC is ok, pass the message to the server.
-	err = serverConn.WriteWireMessage(ctx, clientMessage.GetBytes())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Some client messages will not receive a reply.
-	if clientMessage.MoreToCome(nil) {
-		return nil
-	}
-	// Otherwise read the server's reply...
-	serverMessage, err := protocol.ReadServerMessage(ctx, serverConn, e.maxMessageSize)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	msgFromServer.Inc()
-
-	// Intercept handshake server response to proper configure the engine.
-	if protocol.IsHandshake(clientMessage) {
-		e.processHandshakeResponse(ctx, serverMessage)
-	}
-
-	// ... and pass it back to the client.
-	_, err = clientConn.Write(serverMessage.GetBytes())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Keep reading if server indicated it has more to send.
-	for serverMessage.MoreToCome(clientMessage) {
-		serverMessage, err = protocol.ReadServerMessage(ctx, serverConn, e.maxMessageSize)
+	var processedHandshake bool
+	isHandshake := protocol.IsHandshake(clientMessage)
+	for serverMessage, err := range serverConn.roundTrip(ctx, clientMessage, e.maxMessageSize) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		msgFromServer.Inc()
-		_, err = clientConn.Write(serverMessage.GetBytes())
-		if err != nil {
+		if isHandshake && !processedHandshake {
+			e.processHandshakeResponse(ctx, serverMessage)
+			processedHandshake = true
+		}
+		// ... and pass it back to the client.
+		if err := e.clientConn.writeMessage(serverMessage); err != nil {
 			return trace.Wrap(err)
 		}
 	}

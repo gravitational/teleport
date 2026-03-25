@@ -1,0 +1,130 @@
+```yaml
+kind: db
+version: v3
+metadata:
+  # Database resource name.
+  name: example
+
+  # Database resource description.
+  description: "Example database"
+
+  # Database resource static labels.
+  labels:
+    env: example
+
+spec:
+  # Database protocol. Valid options are:
+  # "cassandra"
+  # "clickhouse"
+  # "clickhouse-http"
+  # "cockroachdb"
+  # "dynamodb"
+  # "elasticsearch"
+  # "mongodb"
+  # "mysql"
+  # "oracle"
+  # "postgres"
+  # "redis"
+  # "snowflake"
+  # "spanner"
+  # "sqlserver"
+  protocol: "postgres"
+
+  # Database connection endpoint.
+  uri: "localhost:5432"
+
+  # Optional TLS configuration.
+  tls:
+    # TLS verification mode. Valid options are:
+    # 'verify-full' - performs full certificate validation (default).
+    # 'verify-ca' - the same as `verify-full`, but skips the server name validation.
+    # 'insecure' - accepts any certificate provided by database (not recommended).
+    mode: verify-full
+    # Optional database DNS server name. It allows to override the DNS name on
+    # a client certificate when connecting to a database.
+    # Use only with 'verify-full' mode.
+    server_name: db.example.com
+    # Optional CA for validating the database certificate.
+    ca_cert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+    # Optional configuration that allows Teleport to trust certificate
+    # authorities available on the host system. If not set (by default),
+    # Teleport only trusts self-signed databases with TLS certificates signed
+    # by Teleport's Database Server CA or the ca_cert specified in this TLS
+    # setting. For cloud-hosted databases, Teleport downloads the corresponding
+    # required CAs for validation.
+    trust_system_cert_pool: false
+
+  # Database admin user for automatic user provisioning.
+  admin_user:
+    # Database admin user name.
+    name: "teleport-admin"
+
+  # MySQL only options.
+  mysql:
+    # The MySQL server version reported by the Teleport Proxy Service.
+    # Teleport uses this string when reporting the server version to a 
+    # connecting client.
+    #
+    # When this option is not set, the Database Service will try to connect to
+    # a MySQL instance on startup and fetch the server version. Otherwise, 
+    # it will use the provided value without connecting to a database. 
+    #
+    # In both cases, the MySQL server version reported to a client will be 
+    # updated on the first successful connection made by a user.
+    # Teleport uses that string instead of default '8.0.0-Teleport' version when reporting
+    # the server version to a connecting client. When this option is not set, the Database Service will try
+    # to connect to MySQL instance on startup and fetch the server version.
+    # Otherwise, it will use the provided value without connecting to a database.
+    # In both cases MySQL server version reported to a client will be updated on the first successful
+    # connection made by a user.
+    server_version: 8.0.28
+
+  # Oracle only options.
+  oracle:
+    # Randomize host order per connection attempt to spread load. Optional.
+    shuffle_hostnames: true
+    # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+    retry_count: 5            
+
+  # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
+  aws:
+    # Region the database is deployed in.
+    region: "us-east-1"
+    # Optional AWS role that the Database Service will assume to access
+    # this database.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
+    # Redshift specific configuration.
+    redshift:
+      # Redshift cluster identifier.
+      cluster_id: "redshift-cluster-1"
+
+  # GCP configuration (required for Cloud SQL and Spanner databases).
+  gcp:
+    # GCP project ID.
+    project_id: "xxx-1234"
+    # Cloud SQL instance ID.
+    instance_id: "example"
+
+  # Settings specific to Active Directory authentication e.g. for SQL Server.
+  ad:
+    # Path to Kerberos keytab file.
+    keytab_file: /path/to/keytab
+    # Active Directory domain name.
+    domain: EXAMPLE.COM
+    # Service Principal Name to obtain Kerberos tickets for.
+    spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
+    # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+    krb5_file: /etc/krb5.conf
+
+  # Optional dynamic labels.
+  dynamic_labels:
+  - name: "hostname"
+    command: ["hostname"]
+    period: 1m0s
+```

@@ -19,10 +19,12 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -38,7 +40,10 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -203,6 +208,9 @@ type AuditLog struct {
 	// localLog is a local events log used
 	// to emit audit events if no external log has been specified
 	localLog *FileLog
+
+	// decrypter wraps session replay with decryption
+	decrypter DecryptionWrapper
 }
 
 // AuditLogConfig specifies configuration for AuditLog server
@@ -247,6 +255,14 @@ type AuditLogConfig struct {
 
 	// Context is audit log context
 	Context context.Context
+
+	// Decrypter wraps session replay with decryption
+	Decrypter DecryptionWrapper
+
+	// SessionSummarizerProvider provides session summarizers
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider provides recording metadata service
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -258,7 +274,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter UploadHandler")
+		return trace.BadParameter("missing parameter DownloadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
@@ -272,6 +288,12 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
 		a.DirMask = &mask
+	}
+	if a.SessionSummarizerProvider == nil {
+		a.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
+	if a.RecordingMetadataProvider == nil {
+		a.RecordingMetadataProvider = recordingmetadata.NewProvider()
 	}
 	if (a.GID != nil && a.UID == nil) || (a.UID != nil && a.GID == nil) {
 		return trace.BadParameter("if UID or GID is set, both should be specified")
@@ -304,6 +326,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
+		decrypter:       cfg.Decrypter,
 	}
 	// create a directory for audit logs, audit log does not create
 	// session logs before migrations are run in case if the directory
@@ -487,6 +510,23 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
+func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	g := l.log.With("event_type", req.EventTypes, "limit", req.Limit)
+	g.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = defaults.EventsIterationLimit
+	}
+	if limit > defaults.EventsMaxIterationLimit {
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
+	req.Limit = limit
+	if l.ExternalLog != nil {
+		return l.ExternalLog.SearchUnstructuredEvents(ctx, req)
+	}
+	return l.localLog.SearchUnstructuredEvents(ctx, req)
+}
+
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
 	if l.ExternalLog != nil {
@@ -521,58 +561,29 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
+	// TODO(tigrato): consider changing the implementation of Download* to return
+	// an io.ReadCloser instead of writing to a provided writer, which would allow
+	// us to avoid using io.Pipe here.
+	reader, writer := io.Pipe()
 
-	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
-	if err != nil {
-		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-	// The file is still perfectly usable after unlinking it, and the space it's
-	// using on disk will get reclaimed as soon as the file is closed (or the
-	// process terminates) - and if the session is small enough and we go
-	// through it quickly enough, we're likely not even going to end up with any
-	// bytes on the physical disk, anyway. We're using the same playback
-	// directory as the GetSessionChunk flow, which means that if we crash
-	// between creating the empty file and unlinking it, we'll end up with an
-	// empty file that will eventually be cleaned up by periodicCleanupPlaybacks
-	//
-	// TODO(espadolini): investigate the use of O_TMPFILE on Linux, so we don't
-	// even have to bother with the unlink and we avoid writing on the directory
-	if err := os.Remove(rawSession.Name()); err != nil {
-		_ = rawSession.Close()
-		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
-		close(sessionStartCh)
-		return c, e
-	}
-
-	start := time.Now()
-	if err := l.UploadHandler.Download(ctx, sessionID, rawSession); err != nil {
-		_ = rawSession.Close()
+	go func() {
+		err := l.UploadHandler.Download(ctx, sessionID, writer)
 		if errors.Is(err, fs.ErrNotExist) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
-		e <- trace.Wrap(err)
-		close(sessionStartCh)
-		return c, e
-	}
-	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
-		"duration", time.Since(start),
-		"session_id", string(sessionID),
-	)
+
+		// if the error is nil, it means the download was successful and closing the
+		// writer will signal the reader with io.EOF.
+		if err := writer.CloseWithError(err); err != nil {
+			l.log.WarnContext(ctx, "Failed to close the writer with error", "session_id", string(sessionID), "error", err)
+		}
+	}()
 
 	go func() {
-		defer rawSession.Close()
 		defer close(sessionStartCh)
+		defer reader.Close()
 
-		// this shouldn't be necessary as the position should be already 0 (Download
-		// takes an io.WriterAt), but it's better to be safe than sorry
-		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
-			e <- trace.Wrap(err)
-			return
-		}
-
-		protoReader := NewProtoReader(rawSession)
+		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
 
 		firstEvent := true
@@ -609,6 +620,83 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+// UploadEncryptedRecording uploads encrypted recordings using the AuditLog's configured UploadHandler.
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	sessID, err := session.ParseID(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upload, err := l.UploadHandler.CreateUpload(ctx, *sessID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
+
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
+	var streamParts []StreamPart
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
+	for {
+		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		nextPart, err, hasNext := next()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, add padding to meet the minimum upload size.
+		if hasNext && len(part) < MinUploadPartSizeBytes {
+			part = PadUploadPart(part, MinUploadPartSizeBytes)
+		}
+
+		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		if err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
+		partNumber++
+	}
+	err = l.UploadHandler.CompleteUpload(ctx, *upload, streamParts)
+	if err != nil {
+		return trace.Wrap(err, "completing upload")
+	}
+
+	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if err != nil || sessionEnd == nil {
+		return nil
+	}
+	if err := sessionpostprocessing.Process(
+		ctx,
+		sessionpostprocessing.Config{
+			SessionEnd:                sessionEnd,
+			SessionID:                 upload.SessionID,
+			SessionSummarizerProvider: l.SessionSummarizerProvider,
+			RecordingMetadataProvider: l.RecordingMetadataProvider,
+		},
+	); err != nil {
+		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
+	}
+	return nil
 }
 
 // getLocalLog returns the local (file based) AuditLogger.
@@ -726,4 +814,21 @@ func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback,
 	}
 
 	return cb, nil
+}
+
+// PadUploadPart adds padding to the given upload part to reach the minimum size.
+func PadUploadPart(uploadPart []byte, minSize int) []byte {
+	// Create padding to reach the target size. Note that the padding cannot
+	// be shorter than the header size.
+	paddingBytes := max(minSize-len(uploadPart), ProtoStreamV2PartHeaderSize)
+	paddedPart := make([]byte, paddingBytes)
+
+	paddedPartHeader := PartHeader{
+		ProtoVersion: ProtoStreamV2,
+		PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+		PartSize:     0,
+	}
+	copy(paddedPart, paddedPartHeader.Bytes())
+
+	return append(uploadPart, paddedPart...)
 }

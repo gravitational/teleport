@@ -35,13 +35,17 @@ import (
 // manner as configured by the Teleport configuration.
 type SlogTextHandler struct {
 	cfg SlogTextHandlerConfig
+	out slogTextHandlerWriter
 	// withCaller indicates whether the location the log was emitted from
 	// should be included in the output message.
 	withCaller bool
 	// withTimestamp indicates whether the times that the log was emitted at
 	// should be included in the output message.
 	withTimestamp bool
-	// component is the Teleport subcomponent that emitted the log.
+	// rawComponent is the Teleport subcomponent that emitted the log, e.g., "tsh".
+	rawComponent string
+	// component is rawComponent wrapped in square brackets and truncated if necessary to not exceed
+	// cfg.Padding, e.g., "[TSH]".
 	component string
 	// preformatted data from previous calls to WithGroup and WithAttrs.
 	preformatted []byte
@@ -54,14 +58,10 @@ type SlogTextHandler struct {
 	groups []string
 	// nOpenGroups the number of groups opened in preformatted.
 	nOpenGroups int
+}
 
-	// mu protects out - it needs to be a pointer so that all cloned
-	// SlogTextHandler returned from WithAttrs and WithGroup share the
-	// same mutex. Otherwise, output may be garbled since each clone
-	// will use its own copy of the mutex to protect out. See
-	// https://github.com/golang/go/issues/61321 for more details.
-	mu  *sync.Mutex
-	out io.Writer
+type slogTextHandlerWriter interface {
+	Write(bytes []byte, component string, level slog.Level) error
 }
 
 // SlogTextHandlerConfig allow the SlogTextHandler functionality
@@ -71,7 +71,12 @@ type SlogTextHandlerConfig struct {
 	Level slog.Leveler
 	// EnableColors allows the level to be printed in color.
 	EnableColors bool
-	// Padding to use for various components.
+	// Padding to use for [ComponentField] to ensure that the initial columns in the output line up.
+	// The component is wrapped in square brackets. If the length of the component exceeds Padding+2,
+	// the component is truncated. If the length is less than Padding+2, the component in square
+	// brackets is followed by spaces to pad it to the given Padding.
+	//
+	// If set to zero, no padding is done and components are not truncated.
 	Padding int
 	// ConfiguredFields are fields explicitly set by users to be included in
 	// the output message. If there are any entries configured, they will be honored.
@@ -90,10 +95,9 @@ func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler
 
 	handler := SlogTextHandler{
 		cfg:           cfg,
+		out:           newIOWriter(w),
 		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
 		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
-		out:           w,
-		mu:            &sync.Mutex{},
 	}
 
 	if handler.cfg.ConfiguredFields == nil {
@@ -148,6 +152,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
+	rawComponent := s.rawComponent
 	// Processing fields in this manner allows users to
 	// configure the level and component position in the output.
 	// This matches the behavior of the original logrus formatter. All other
@@ -179,6 +184,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 					return true
 				}
 
+				rawComponent = attr.Value.String()
 				component = formatComponent(attr.Value, s.cfg.Padding)
 				return false
 			})
@@ -228,10 +234,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	state.buf.WriteByte('\n')
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, err := s.out.Write(*state.buf)
-	return err
+	return s.out.Write(*state.buf, rawComponent, r.Level)
 }
 
 func formatLevel(value slog.Level, enableColors bool) string {
@@ -253,9 +256,6 @@ func formatLevel(value slog.Level, enableColors bool) string {
 	case slog.LevelError:
 		level = "ERROR"
 		color = red
-	case slog.LevelError + 1:
-		level = "FATAL"
-		color = red
 	default:
 		color = blue
 		level = value.String()
@@ -274,8 +274,12 @@ func formatLevel(value slog.Level, enableColors bool) string {
 }
 
 func formatComponent(value slog.Value, padding int) string {
-	component := fmt.Sprintf("[%v]", value)
-	component = strings.ToUpper(padMax(component, padding))
+	component := strings.ToUpper(fmt.Sprintf("[%v]", value))
+	if padding <= 0 {
+		return component
+	}
+
+	component = padMax(component, padding)
 	if component[len(component)-1] != ' ' {
 		component = component[:len(component)-1] + "]"
 	}
@@ -284,18 +288,17 @@ func formatComponent(value slog.Value, padding int) string {
 }
 
 func (s *SlogTextHandler) clone() *SlogTextHandler {
-	// We can't use assignment because we can't copy the mutex.
 	return &SlogTextHandler{
 		cfg:           s.cfg,
 		withCaller:    s.withCaller,
 		withTimestamp: s.withTimestamp,
 		component:     s.component,
+		rawComponent:  s.rawComponent,
 		preformatted:  slices.Clip(s.preformatted),
 		groupPrefix:   s.groupPrefix,
 		groups:        slices.Clip(s.groups),
 		nOpenGroups:   s.nOpenGroups,
 		out:           s.out,
-		mu:            s.mu, // mutex shared among all clones of this handler
 	}
 }
 
@@ -321,12 +324,15 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	for _, a := range attrs {
 		switch a.Key {
 		case teleport.ComponentKey:
-			component := fmt.Sprintf("[%v]", a.Value.String())
-			component = strings.ToUpper(padMax(component, s.cfg.Padding))
-			if component[len(component)-1] != ' ' {
-				component = component[:len(component)-1] + "]"
+			component := strings.ToUpper(fmt.Sprintf("[%v]", a.Value.String()))
+			if s.cfg.Padding > 0 {
+				component = padMax(component, s.cfg.Padding)
+				if component[len(component)-1] != ' ' {
+					component = component[:len(component)-1] + "]"
+				}
 			}
 			s2.component = component
+			s2.rawComponent = a.Value.String()
 		case teleport.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
@@ -361,4 +367,21 @@ func (s *SlogTextHandler) WithGroup(name string) slog.Handler {
 	s2 := s.clone()
 	s2.groups = append(s2.groups, name)
 	return s2
+}
+
+type ioWriter struct {
+	mu  sync.Mutex
+	out io.Writer
+}
+
+func newIOWriter(w io.Writer) *ioWriter {
+	return &ioWriter{out: w}
+}
+
+func (o *ioWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	_, err := o.out.Write(bytes)
+	return err
 }

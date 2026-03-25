@@ -29,8 +29,6 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/sync/errgroup"
 	"gvisor.dev/gvisor/pkg/tcpip"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -88,7 +86,7 @@ type Server struct {
 // NewServer returns a DNS server that handles the details of the DNS protocol and asks [resolver] to answer
 // DNS questions. If [resolver] has no answer, requests will be forwarded to the upstream nameservers provided
 // by [upstreamNameserverSource].
-func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSource) (*Server, error) {
+func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSource, logger *slog.Logger) (*Server, error) {
 	return &Server{
 		resolver:                 resolver,
 		upstreamNameserverSource: upstreamNameserverSource,
@@ -98,7 +96,7 @@ func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSou
 				return &buf
 			},
 		},
-		slog: slog.With(teleport.ComponentKey, "VNet.DNS"),
+		slog: logger,
 	}, nil
 }
 

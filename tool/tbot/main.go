@@ -34,11 +34,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -52,12 +54,9 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine ID
-
-Machine ID issues and renews short-lived certificates so your machines can
-access Teleport protected resources in the same way your engineers do!
-
-Find out more at https://goteleport.com/docs/machine-id/introduction/`
+const appHelp = `Teleport Machine & Workload Identity issues and renews
+short-lived certificates so your machines can access Teleport protected
+resources in the same way your engineers do.`
 
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
@@ -68,20 +67,22 @@ func Run(args []string, stdout io.Writer) error {
 	globalCfg := cli.NewGlobalArgs(app)
 
 	// Miscellaneous args exposed globally but handled here.
-	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
-	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
-	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
+	app.Flag("mem-profile", "Writes a memory profile to the given path.").Hidden().StringVar(&memProfile)
+	app.Flag("cpu-profile", "Writes a CPU profile to the given path.").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Writes a trace profile to the given path.").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
 	// Construct the top-level subcommands.
-	versionCmd := app.Command("version", "Print the version of your tbot binary.")
+	versionCmd := app.Command("version", "Prints the version of this tbot binary.")
 
-	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
+	kubeCmd := app.Command("kube", "Kubernetes helpers.").Hidden()
 
-	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
+	startCmd := app.Command("start", "Starts an instance of tbot.")
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
+	configureCmd.Flag("output", "Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
+
+	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
 
 	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
 
@@ -116,9 +117,24 @@ func Run(args []string, stdout io.Writer) error {
 			return onKubeCredentialsCommand(ctx, kubeCredentialsCmd)
 		}),
 
+		cli.NewKeypairCreateCommand(keypairCmd, func(keypairCreateCmd *cli.KeypairCreateCommand) error {
+			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
+		}),
+
+		cli.NewCopyBinariesCommand(app, func(cbc *cli.CopyBinariesCommand) error {
+			return onCopyBinariesCommand(ctx, cbc)
+		}),
+
+		cli.NewWaitCommand(app, func(wc *cli.WaitCommand) error {
+			return onWaitCommand(ctx, wc)
+		}),
+
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewNoopCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewNoopCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -141,9 +157,6 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
-		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
-
 		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
@@ -152,6 +165,15 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewWorkloadIdentityJWTCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityJWTCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityAWSRACommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityAWSRACommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewApplicationProxyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewApplicationProxyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really
@@ -161,7 +183,7 @@ func Run(args []string, stdout io.Writer) error {
 	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
 
 	tpmCommand := app.Command("tpm", "Commands related to managing TPM joining functionality.")
-	tpmIdentifyCommand := tpmCommand.Command("identify", "Output identifying information related to the TPM detected on the system.")
+	tpmIdentifyCommand := tpmCommand.Command("identify", "Outputs identifying information related to the TPM detected on the system.")
 
 	installSystemdCmdStr, installSystemdCmdFn := setupInstallSystemdCmd(app)
 
@@ -260,7 +282,7 @@ func Run(args []string, stdout io.Writer) error {
 		tpm.PrintQuery(query, globalCfg.Debug, os.Stdout)
 		return nil
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, os.Executable, os.Stdout)
+		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, autoupdate.StableExecutable, os.Stdout)
 	}
 
 	// Attempt to run each new-style command.
@@ -345,8 +367,13 @@ func onConfigure(
 		out = f
 	}
 
-	// Ensure they have provided a join method to use in the configuration.
-	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+	// Ensure they have provided either a valid joining URI, or a
+	// join method to use in the configuration.
+	if cfg.JoinURI != "" {
+		if _, err := joinuri.Parse(cfg.JoinURI); err != nil {
+			return trace.Wrap(err, "invalid joining URI")
+		}
+	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")
 	}
 

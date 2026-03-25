@@ -30,11 +30,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -45,6 +46,7 @@ const (
 
 // IdPIAMConfigureRequest represents a request to configure AWS OIDC integration.
 type IdPIAMConfigureRequest struct {
+	Insecure bool
 	// Cluster is the Teleport Cluster.
 	// Used for tagging the created Roles/IdP.
 	Cluster string
@@ -144,7 +146,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 	r.issuerURL = issuerURL.String()
 
-	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
+	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName, common.OriginIntegrationAWSOIDC)
 
 	switch r.IntegrationPolicyPreset {
 	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
@@ -263,7 +265,7 @@ func createOIDCIdPAction(ctx context.Context, clt IdPIAMConfigureClient, req IdP
 		thumbprint = req.fakeThumbprint
 	} else {
 		var err error
-		thumbprint, err = ThumbprintIdP(ctx, req.ProxyPublicAddress)
+		thumbprint, err = ThumbprintIdP(ctx, req.ProxyPublicAddress, req.Insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

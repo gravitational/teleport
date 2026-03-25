@@ -48,3 +48,21 @@ export type CreateLockRequest = {
   message: string;
   ttl: string;
 };
+
+export type ApiLock = {
+  name: string;
+  message?: string;
+  expires?: string;
+  createdAt?: string;
+  createdBy?: string;
+  targets: Partial<{
+    user: string;
+    role: string;
+    login: string;
+    node: string;
+    mfa_device: string;
+    windows_desktop: string;
+    device: string;
+    access_request: string;
+  }>;
+};

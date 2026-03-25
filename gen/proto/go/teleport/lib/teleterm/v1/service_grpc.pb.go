@@ -36,47 +36,49 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TerminalService_UpdateTshdEventsServerAddress_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
-	TerminalService_ListRootClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
-	TerminalService_ListLeafClusters_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
-	TerminalService_StartHeadlessWatcher_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
-	TerminalService_ListDatabaseUsers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers"
-	TerminalService_GetServers_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetServers"
-	TerminalService_GetAccessRequests_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
-	TerminalService_GetAccessRequest_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
-	TerminalService_DeleteAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
-	TerminalService_CreateAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
-	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
-	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
-	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
-	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
-	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
-	TerminalService_ListKubernetesResources_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
-	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
-	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
-	TerminalService_ListGateways_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
-	TerminalService_CreateGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
-	TerminalService_RemoveGateway_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
-	TerminalService_SetGatewayTargetSubresourceName_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
-	TerminalService_SetGatewayLocalPort_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
-	TerminalService_GetAuthSettings_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
-	TerminalService_GetCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
-	TerminalService_Login_FullMethodName                             = "/teleport.lib.teleterm.v1.TerminalService/Login"
-	TerminalService_LoginPasswordless_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
-	TerminalService_Logout_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/Logout"
-	TerminalService_TransferFile_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
-	TerminalService_ReportUsageEvent_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
-	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
-	TerminalService_CreateConnectMyComputerRole_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
-	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
-	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
-	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
-	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
-	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
-	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
-	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
-	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
-	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_UpdateTshdEventsServerAddress_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress"
+	TerminalService_ListRootClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters"
+	TerminalService_ListLeafClusters_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters"
+	TerminalService_StartHeadlessWatcher_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/StartHeadlessWatcher"
+	TerminalService_ListDatabaseServers_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers"
+	TerminalService_GetAccessRequests_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests"
+	TerminalService_GetAccessRequest_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest"
+	TerminalService_DeleteAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest"
+	TerminalService_CreateAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest"
+	TerminalService_ReviewAccessRequest_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
+	TerminalService_GetRequestableRoles_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
+	TerminalService_AssumeRole_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_PromoteAccessRequest_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
+	TerminalService_GetSuggestedAccessLists_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
+	TerminalService_ListKubernetesResources_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
+	TerminalService_ListKubernetesServers_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesServers"
+	TerminalService_AddCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
+	TerminalService_ListGateways_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
+	TerminalService_CreateGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
+	TerminalService_RemoveGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
+	TerminalService_SetGatewayTargetSubresourceName_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName"
+	TerminalService_SetGatewayLocalPort_FullMethodName                 = "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort"
+	TerminalService_GetAuthSettings_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings"
+	TerminalService_GetCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetCluster"
+	TerminalService_Login_FullMethodName                               = "/teleport.lib.teleterm.v1.TerminalService/Login"
+	TerminalService_LoginPasswordless_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
+	TerminalService_Logout_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/Logout"
+	TerminalService_ClearStaleClusterClients_FullMethodName            = "/teleport.lib.teleterm.v1.TerminalService/ClearStaleClusterClients"
+	TerminalService_TransferFile_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
+	TerminalService_ReportUsageEvent_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
+	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
+	TerminalService_CreateConnectMyComputerRole_FullMethodName         = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
+	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName    = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
+	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName    = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
+	TerminalService_DeleteConnectMyComputerNode_FullMethodName         = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
+	TerminalService_GetConnectMyComputerNodeName_FullMethodName        = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
+	TerminalService_ListUnifiedResources_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
+	TerminalService_GetUserPreferences_FullMethodName                  = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
+	TerminalService_UpdateUserPreferences_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
+	TerminalService_AuthenticateWebDevice_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
+	TerminalService_GetApp_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
+	TerminalService_ConnectToDesktop_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
+	TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -105,13 +107,8 @@ type TerminalServiceClient interface {
 	// StartHeadlessWatcher starts a headless watcher.
 	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
-	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
-	// Deprecated: Do not use.
-	// GetServers returns filtered, sorted, and paginated servers
-	//
-	// Deprecated: Use ListUnifiedResources instead.
-	GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error)
+	// ListDatabaseServers lists allowed users for the given database based on the role set.
+	ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(ctx context.Context, in *GetAccessRequestsRequest, opts ...grpc.CallOption) (*GetAccessRequestsResponse, error)
 	// GetAccessRequest retreives a single Access Request
@@ -133,10 +130,10 @@ type TerminalServiceClient interface {
 	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 	ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error)
+	// Lists Kubernetes servers.
+	ListKubernetesServers(ctx context.Context, in *ListKubernetesServersRequest, opts ...grpc.CallOption) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
-	// RemoveCluster removes a cluster from profile
-	RemoveCluster(ctx context.Context, in *RemoveClusterRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// ListGateways lists gateways
 	ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error)
 	// CreateGateway creates a gateway
@@ -175,8 +172,12 @@ type TerminalServiceClient interface {
 	// -> Receive the index number associated with the selected credential in list
 	// <- End
 	LoginPasswordless(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[LoginPasswordlessRequest, LoginPasswordlessResponse], error)
-	// ClusterLogin logs out a user from cluster
+	// Logs the user out of the cluster and cleans up associated resources.
+	// Optionally removes the profile.
+	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileTransferProgress], error)
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -217,6 +218,15 @@ type TerminalServiceClient interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error)
+	// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -267,21 +277,10 @@ func (c *terminalServiceClient) StartHeadlessWatcher(ctx context.Context, in *St
 	return out, nil
 }
 
-func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error) {
+func (c *terminalServiceClient) ListDatabaseServers(ctx context.Context, in *ListDatabaseServersRequest, opts ...grpc.CallOption) (*ListDatabaseServersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListDatabaseUsersResponse)
-	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseUsers_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetServersResponse)
-	err := c.cc.Invoke(ctx, TerminalService_GetServers_FullMethodName, in, out, cOpts...)
+	out := new(ListDatabaseServersResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListDatabaseServers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -388,20 +387,20 @@ func (c *terminalServiceClient) ListKubernetesResources(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *terminalServiceClient) AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error) {
+func (c *terminalServiceClient) ListKubernetesServers(ctx context.Context, in *ListKubernetesServersRequest, opts ...grpc.CallOption) (*ListKubernetesServersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Cluster)
-	err := c.cc.Invoke(ctx, TerminalService_AddCluster_FullMethodName, in, out, cOpts...)
+	out := new(ListKubernetesServersResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesServers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *terminalServiceClient) RemoveCluster(ctx context.Context, in *RemoveClusterRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+func (c *terminalServiceClient) AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, TerminalService_RemoveCluster_FullMethodName, in, out, cOpts...)
+	out := new(Cluster)
+	err := c.cc.Invoke(ctx, TerminalService_AddCluster_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +504,16 @@ func (c *terminalServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EmptyResponse)
 	err := c.cc.Invoke(ctx, TerminalService_Logout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearStaleClusterClientsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ClearStaleClusterClients_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -650,6 +659,29 @@ func (c *terminalServiceClient) GetApp(ctx context.Context, in *GetAppRequest, o
 	return out, nil
 }
 
+func (c *terminalServiceClient) ConnectToDesktop(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TerminalService_ServiceDesc.Streams[2], TerminalService_ConnectToDesktop_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopClient = grpc.BidiStreamingClient[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
+func (c *terminalServiceClient) SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetSharedDirectoryForDesktopSessionResponse)
+	err := c.cc.Invoke(ctx, TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -676,13 +708,8 @@ type TerminalServiceServer interface {
 	// StartHeadlessWatcher starts a headless watcher.
 	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
-	// ListDatabaseUsers lists allowed users for the given database based on the role set.
-	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
-	// Deprecated: Do not use.
-	// GetServers returns filtered, sorted, and paginated servers
-	//
-	// Deprecated: Use ListUnifiedResources instead.
-	GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error)
+	// ListDatabaseServers lists allowed users for the given database based on the role set.
+	ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error)
 	// GetAccessRequest retreives a single Access Request
@@ -704,10 +731,10 @@ type TerminalServiceServer interface {
 	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 	ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error)
+	// Lists Kubernetes servers.
+	ListKubernetesServers(context.Context, *ListKubernetesServersRequest) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
-	// RemoveCluster removes a cluster from profile
-	RemoveCluster(context.Context, *RemoveClusterRequest) (*EmptyResponse, error)
 	// ListGateways lists gateways
 	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error)
 	// CreateGateway creates a gateway
@@ -746,8 +773,12 @@ type TerminalServiceServer interface {
 	// -> Receive the index number associated with the selected credential in list
 	// <- End
 	LoginPasswordless(grpc.BidiStreamingServer[LoginPasswordlessRequest, LoginPasswordlessResponse]) error
-	// ClusterLogin logs out a user from cluster
+	// Logs the user out of the cluster and cleans up associated resources.
+	// Optionally removes the profile.
+	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -788,6 +819,15 @@ type TerminalServiceServer interface {
 	// GetApp returns details of an app resource. It does not include information about AWS roles and
 	// FQDN.
 	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
+	// ConnectToDesktop is a bidirectional stream for the desktop connection.
+	ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error
+	// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+	// If there is no active desktop session associated with the specified desktop_uri and login,
+	// the RPC returns an error.
+	//
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -810,11 +850,8 @@ func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *Lis
 func (UnimplementedTerminalServiceServer) StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartHeadlessWatcher not implemented")
 }
-func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetServers not implemented")
+func (UnimplementedTerminalServiceServer) ListDatabaseServers(context.Context, *ListDatabaseServersRequest) (*ListDatabaseServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequests not implemented")
@@ -846,11 +883,11 @@ func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Contex
 func (UnimplementedTerminalServiceServer) ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesResources not implemented")
 }
+func (UnimplementedTerminalServiceServer) ListKubernetesServers(context.Context, *ListKubernetesServersRequest) (*ListKubernetesServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesServers not implemented")
+}
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
-}
-func (UnimplementedTerminalServiceServer) RemoveCluster(context.Context, *RemoveClusterRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemoveCluster not implemented")
 }
 func (UnimplementedTerminalServiceServer) ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGateways not implemented")
@@ -881,6 +918,9 @@ func (UnimplementedTerminalServiceServer) LoginPasswordless(grpc.BidiStreamingSe
 }
 func (UnimplementedTerminalServiceServer) Logout(context.Context, *LogoutRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedTerminalServiceServer) ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearStaleClusterClients not implemented")
 }
 func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error {
 	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
@@ -920,6 +960,12 @@ func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context,
 }
 func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
+}
+func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ConnectToDesktop not implemented")
+}
+func (UnimplementedTerminalServiceServer) SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetSharedDirectoryForDesktopSession not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1014,38 +1060,20 @@ func _TerminalService_StartHeadlessWatcher_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDatabaseUsersRequest)
+func _TerminalService_ListDatabaseServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDatabaseServersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, in)
+		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TerminalService_ListDatabaseUsers_FullMethodName,
+		FullMethod: TerminalService_ListDatabaseServers_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, req.(*ListDatabaseUsersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetServersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetServers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_GetServers_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetServers(ctx, req.(*GetServersRequest))
+		return srv.(TerminalServiceServer).ListDatabaseServers(ctx, req.(*ListDatabaseServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1230,6 +1258,24 @@ func _TerminalService_ListKubernetesResources_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ListKubernetesServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListKubernetesServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListKubernetesServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListKubernetesServers(ctx, req.(*ListKubernetesServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TerminalService_AddCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddClusterRequest)
 	if err := dec(in); err != nil {
@@ -1244,24 +1290,6 @@ func _TerminalService_AddCluster_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).AddCluster(ctx, req.(*AddClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_RemoveCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).RemoveCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_RemoveCluster_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).RemoveCluster(ctx, req.(*RemoveClusterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1431,6 +1459,24 @@ func _TerminalService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).Logout(ctx, req.(*LogoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ClearStaleClusterClients_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearStaleClusterClientsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ClearStaleClusterClients_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, req.(*ClearStaleClusterClientsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1662,6 +1708,31 @@ func _TerminalService_GetApp_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ConnectToDesktop_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TerminalServiceServer).ConnectToDesktop(&grpc.GenericServerStream[ConnectToDesktopRequest, ConnectToDesktopResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TerminalService_ConnectToDesktopServer = grpc.BidiStreamingServer[ConnectToDesktopRequest, ConnectToDesktopResponse]
+
+func _TerminalService_SetSharedDirectoryForDesktopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSharedDirectoryForDesktopSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).SetSharedDirectoryForDesktopSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).SetSharedDirectoryForDesktopSession(ctx, req.(*SetSharedDirectoryForDesktopSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1686,12 +1757,8 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_StartHeadlessWatcher_Handler,
 		},
 		{
-			MethodName: "ListDatabaseUsers",
-			Handler:    _TerminalService_ListDatabaseUsers_Handler,
-		},
-		{
-			MethodName: "GetServers",
-			Handler:    _TerminalService_GetServers_Handler,
+			MethodName: "ListDatabaseServers",
+			Handler:    _TerminalService_ListDatabaseServers_Handler,
 		},
 		{
 			MethodName: "GetAccessRequests",
@@ -1734,12 +1801,12 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_ListKubernetesResources_Handler,
 		},
 		{
-			MethodName: "AddCluster",
-			Handler:    _TerminalService_AddCluster_Handler,
+			MethodName: "ListKubernetesServers",
+			Handler:    _TerminalService_ListKubernetesServers_Handler,
 		},
 		{
-			MethodName: "RemoveCluster",
-			Handler:    _TerminalService_RemoveCluster_Handler,
+			MethodName: "AddCluster",
+			Handler:    _TerminalService_AddCluster_Handler,
 		},
 		{
 			MethodName: "ListGateways",
@@ -1776,6 +1843,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _TerminalService_Logout_Handler,
+		},
+		{
+			MethodName: "ClearStaleClusterClients",
+			Handler:    _TerminalService_ClearStaleClusterClients_Handler,
 		},
 		{
 			MethodName: "ReportUsageEvent",
@@ -1825,6 +1896,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetApp",
 			Handler:    _TerminalService_GetApp_Handler,
 		},
+		{
+			MethodName: "SetSharedDirectoryForDesktopSession",
+			Handler:    _TerminalService_SetSharedDirectoryForDesktopSession_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1837,6 +1912,12 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "TransferFile",
 			Handler:       _TerminalService_TransferFile_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ConnectToDesktop",
+			Handler:       _TerminalService_ConnectToDesktop_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "teleport/lib/teleterm/v1/service.proto",

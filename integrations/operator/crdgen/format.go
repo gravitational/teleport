@@ -47,11 +47,14 @@ func formatAsCRD(crd apiextv1.CustomResourceDefinition, groupName, pluralName st
 var crdDocTmpl string = `---
 title: {{.Title}}
 description: {{.Description}}
-tocDepth: 3
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
 
 {{.Intro}}
 
@@ -171,6 +174,42 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 		switch v.Type {
 		case "object":
 			fieldType = "object"
+			if v.AdditionalProperties != nil && v.AdditionalProperties.Schema != nil {
+				valSchema := v.AdditionalProperties.Schema
+				valueType := ""
+
+				mapTable := PropertyTable{Name: tableName}
+				mapTable.Fields = []PropertyTableField{
+					{Name: "key", Type: "string"}, // keys are always strings for now
+				}
+
+				if valSchema.Type == "object" && len(valSchema.Properties) > 0 {
+					// create a subtable for the values
+					valTableName := tableName + ".value"
+					extra, err := propertyTable(valTableName, valSchema)
+					if err != nil {
+						return nil, err
+					}
+					valueType = fmt.Sprintf("[object](#%v)", strings.ReplaceAll(strings.ReplaceAll(valTableName, ".", ""), " ", "-"))
+					mapTable.Fields = append(mapTable.Fields, PropertyTableField{Name: "value", Type: valueType})
+					tables = append(tables, mapTable)
+					tables = append(tables, extra...)
+				} else {
+					// Simple values — derive type or default to string.
+					if valSchema.Type == "array" && valSchema.Items != nil && valSchema.Items.Schema != nil {
+						valueType = fmt.Sprintf("[]%v", valSchema.Items.Schema.Type)
+					} else if valSchema.Type != "" {
+						valueType = valSchema.Type // fallback to string/integer/boolean etc
+					} else {
+						valueType = "string"
+					}
+					mapTable.Fields = append(mapTable.Fields, PropertyTableField{Name: "value", Type: valueType})
+					tables = append(tables, mapTable)
+				}
+
+				fieldType = fmt.Sprintf("[object](#%v)", strings.ReplaceAll(strings.ReplaceAll(tableName, ".", ""), " ", "-"))
+				break
+			}
 			if len(v.Properties) == 0 {
 				break
 			}

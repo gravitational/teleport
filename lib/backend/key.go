@@ -41,8 +41,14 @@ const (
 // NewKey joins parts into path separated by [Separator],
 // makes sure path always starts with [Separator].
 func NewKey(components ...string) Key {
-	k := internalKey("", components...)
-	k.exactKey = k.s != "" && k.s[len(k.s)-1] == Separator
+	if len(components) < 1 {
+		return Key{}
+	}
+	k := Key{
+		components: slices.Clone(components),
+	}
+	k.s = SeparatorString + strings.Join(k.components, SeparatorString)
+	k.exactKey = k.s[len(k.s)-1] == Separator
 	return k
 }
 
@@ -51,7 +57,10 @@ func NewKey(components ...string) Key {
 // math child paths and not other paths that have the resulting path
 // as a prefix.
 func ExactKey(components ...string) Key {
-	k := NewKey(append(components, "")...)
+	k := Key{
+		components: slices.Concat(components, []string{""}),
+	}
+	k.s = SeparatorString + strings.Join(k.components, SeparatorString)
 	k.exactKey = true
 	return k
 }
@@ -69,19 +78,12 @@ func KeyFromString(s string) Key {
 		components: components,
 		s:          s,
 		exactKey:   s == SeparatorString || (s != "" && s[len(s)-1] == Separator),
-		noEnd:      s == string(noEnd),
+		noEnd:      s == noEnd,
 	}
 }
 
 func (k Key) IsZero() bool {
 	return len(k.components) == 0 && k.s == ""
-}
-
-func internalKey(internalPrefix string, components ...string) Key {
-	return Key{
-		components: components,
-		s:          strings.Join(append([]string{internalPrefix}, components...), SeparatorString),
-	}
 }
 
 // ExactKey appends a [Separator] to the key, if one does not already
@@ -100,7 +102,7 @@ func (k Key) ExactKey() Key {
 // each component concatenated together via the [Separator].
 func (k Key) String() string {
 	if k.noEnd {
-		return string(noEnd)
+		return noEnd
 	}
 
 	return k.s
@@ -130,10 +132,10 @@ func (k Key) PrependKey(p Key) Key {
 	}
 
 	newKey := Key{
-		components: append(slices.Clone(p.components), k.components...),
+		components: slices.Concat(p.components, k.components),
 	}
 	if strings.HasPrefix(p.s, SeparatorString) {
-		newKey.s = strings.Join(append([]string{""}, newKey.components...), SeparatorString)
+		newKey.s = SeparatorString + strings.Join(newKey.components, SeparatorString)
 	} else {
 		newKey.s = strings.Join(newKey.components, SeparatorString)
 	}
@@ -149,10 +151,10 @@ func (k Key) AppendKey(p Key) Key {
 	}
 
 	newKey := Key{
-		components: append(k.components, slices.Clone(p.components)...),
+		components: slices.Concat(k.components, p.components),
 	}
 	if strings.HasPrefix(k.s, SeparatorString) {
-		newKey.s = strings.Join(append([]string{""}, newKey.components...), SeparatorString)
+		newKey.s = SeparatorString + strings.Join(newKey.components, SeparatorString)
 	} else {
 		newKey.s = strings.Join(newKey.components, SeparatorString)
 	}

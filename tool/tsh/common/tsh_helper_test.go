@@ -49,7 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type suite struct {
@@ -96,13 +97,16 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.DisableDatabaseProxy = true
+	cfg.Proxy.IdP.SAMLIdP.Enabled = false
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
@@ -193,8 +197,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -203,6 +208,8 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.DisableDatabaseProxy = true
+	cfg.Proxy.IdP.SAMLIdP.Enabled = false
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
 			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
@@ -302,13 +309,13 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 			rt, err := s.root.GetAuthServer().GetTunnelConnections(s.leaf.Config.Auth.ClusterName.GetClusterName())
 			require.NoError(t, err)
 			return len(rt) == 1
-		}, time.Second*10, time.Second)
+		}, 10*time.Second, 100*time.Millisecond)
 	}
 
 	if options.validationFunc != nil {
 		require.Eventually(t, func() bool {
 			return options.validationFunc(s)
-		}, 10*time.Second, 500*time.Millisecond)
+		}, 10*time.Second, 100*time.Millisecond)
 	}
 
 	return s
@@ -472,7 +479,6 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	wg, _ := errgroup.WithContext(ctx)
 	wantNames := make([]string, 0, len(clusters))
 	for _, kc := range clusters {
-		kc := kc
 		wg.Go(func() error {
 			err := authSrv.CreateKubernetesCluster(ctx, kc)
 			return trace.Wrap(err)
@@ -481,15 +487,13 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	}
 	require.NoError(t, wg.Wait())
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		servers, err := authSrv.GetKubernetesServers(ctx)
-		assert.NoError(c, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotNames := map[string]struct{}{}
-		for _, ks := range servers {
+		for ks := range authSrv.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
 			gotNames[ks.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(c, gotNames, name, "missing kube cluster")
+			require.Contains(t, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
 }

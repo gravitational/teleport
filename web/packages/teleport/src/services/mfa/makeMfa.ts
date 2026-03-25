@@ -31,31 +31,10 @@ import {
 export function parseMfaRegistrationChallengeJson(
   challenge: MfaRegistrationChallengeJson
 ): MfaRegistrationChallenge {
-  // WebAuthn challenge contains Base64URL(byte) fields that needs to
-  // be converted to ArrayBuffer expected by navigator.credentials.create:
-  // - challenge
-  // - user.id
-  // - excludeCredentials[i].id
-  const webauthnPublicKeyFromJson = (
-    json: PublicKeyCredentialCreationOptionsJSON
-  ) =>
-    ({
-      ...json,
-      challenge: base64urlToBuffer(json.challenge),
-      user: {
-        ...json.user,
-        id: base64urlToBuffer(json.user?.id || ''),
-      },
-      excludeCredentials: json.excludeCredentials?.map(credential => ({
-        ...credential,
-        id: base64urlToBuffer(credential.id),
-      })),
-    }) as PublicKeyCredentialCreationOptions;
-
   return {
     qrCode: challenge.totp?.qrCode,
     webauthnPublicKey: challenge.webauthn
-      ? webauthnPublicKeyFromJson(challenge.webauthn.publicKey)
+      ? publicKeyCredentialCreationOptionsFromJson(challenge.webauthn.publicKey)
       : null,
   };
 }
@@ -72,27 +51,13 @@ export function parseMfaChallengeJson(
     return;
   }
 
-  // WebAuthn challenge contains Base64URL(byte) fields that needs to
-  // be converted to ArrayBuffer expected by navigator.credentials.get:
-  // - challenge
-  // - allowCredentials[i].id
-  const webauthnPublicKeyFromJson = (
-    json: PublicKeyCredentialRequestOptionsJSON
-  ) =>
-    ({
-      ...json,
-      challenge: base64urlToBuffer(json.challenge),
-      allowCredentials: json.allowCredentials?.map(credential => ({
-        ...credential,
-        id: base64urlToBuffer(credential.id),
-      })),
-    }) as PublicKeyCredentialRequestOptions;
-
   return {
     ssoChallenge: challenge.sso_challenge,
     totpChallenge: challenge.totp_challenge,
     webauthnPublicKey: challenge.webauthn_challenge
-      ? webauthnPublicKeyFromJson(challenge.webauthn_challenge.publicKey)
+      ? publicKeyCredentialRequestOptionsFromJson(
+          challenge.webauthn_challenge.publicKey
+        )
       : null,
   };
 }
@@ -162,6 +127,90 @@ export function makeWebauthnAssertionResponse(
       clientDataJSON: bufferToBase64url(assertionResponse?.clientDataJSON),
       signature: bufferToBase64url(assertionResponse?.signature),
       userHandle: bufferToBase64url(assertionResponse?.userHandle),
+    },
+  };
+}
+
+/**
+ * WebAuthn challenge contains Base64URL(byte) fields that needs to
+ * be converted to ArrayBuffer expected by `navigator.credentials.create`.
+ */
+function publicKeyCredentialCreationOptionsFromJson(
+  json: PublicKeyCredentialCreationOptionsJSON
+): PublicKeyCredentialCreationOptions {
+  return {
+    ...json,
+    attestation: json.attestation as AttestationConveyancePreference,
+    extensions:
+      json.extensions &&
+      authenticationExtensionsClientInputsFromJson(json.extensions),
+    challenge: base64urlToBuffer(json.challenge),
+    user: {
+      ...json.user,
+      id: base64urlToBuffer(json.user?.id || ''),
+    },
+    excludeCredentials: json.excludeCredentials?.map(credential => ({
+      ...credential,
+      type: credential.type as PublicKeyCredentialType,
+      transports: credential.transports as AuthenticatorTransport[],
+      id: base64urlToBuffer(credential.id),
+    })),
+  };
+}
+
+/**
+ * WebAuthn challenge contains Base64URL(byte) fields that needs to
+ * be converted to ArrayBuffer expected by `navigator.credentials.get`.
+ */
+function publicKeyCredentialRequestOptionsFromJson(
+  json: PublicKeyCredentialRequestOptionsJSON
+): PublicKeyCredentialRequestOptions {
+  return {
+    ...json,
+    userVerification: json.userVerification as UserVerificationRequirement,
+    challenge: base64urlToBuffer(json.challenge),
+    extensions:
+      json.extensions &&
+      authenticationExtensionsClientInputsFromJson(json.extensions),
+    allowCredentials: json.allowCredentials?.map(credential => ({
+      ...credential,
+      type: credential.type as PublicKeyCredentialType,
+      transports: credential.transports as AuthenticatorTransport[],
+      id: base64urlToBuffer(credential.id),
+    })),
+  };
+}
+
+function authenticationExtensionsClientInputsFromJson(
+  json: AuthenticationExtensionsClientInputsJSON
+): AuthenticationExtensionsClientInputs {
+  return {
+    ...json,
+    largeBlob: json.largeBlob && {
+      ...json.largeBlob,
+      write: base64urlToBuffer(json.largeBlob.write),
+    },
+    prf: json.prf && {
+      ...json.prf,
+      eval: json.prf.eval && {
+        ...json.prf.eval,
+        first: base64urlToBuffer(json.prf.eval.first),
+        second: json.prf.eval.second && base64urlToBuffer(json.prf.eval.second),
+      },
+      evalByCredential:
+        json.prf.evalByCredential &&
+        Object.fromEntries(
+          Object.entries(json.prf.evalByCredential).map(([credential, ev]) => {
+            return [
+              credential,
+              {
+                ...ev,
+                first: base64urlToBuffer(ev.first),
+                second: ev.second && base64urlToBuffer(ev.second),
+              },
+            ];
+          })
+        ),
     },
   };
 }

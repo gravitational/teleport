@@ -19,6 +19,7 @@
 package jwt
 
 import (
+	"cmp"
 	"testing"
 	"time"
 
@@ -37,46 +38,66 @@ var supportedAlgorithms = []cryptosuites.Algorithm{
 
 func TestSignAndVerify(t *testing.T) {
 	t.Parallel()
+	testIssuers := []struct {
+		name   string
+		issuer string
+	}{
+		{
+			name:   "implicit issuer (cluster name)",
+			issuer: "",
+		},
+		{
+			name:   "explicit issuer",
+			issuer: "https://teleport.example.com",
+		},
+	}
 	for _, alg := range supportedAlgorithms {
 		t.Run(alg.String(), func(t *testing.T) {
-			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
-			require.NoError(t, err)
+			for _, tc := range testIssuers {
+				t.Run(tc.name, func(t *testing.T) {
+					privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+					require.NoError(t, err)
 
-			clock := clockwork.NewFakeClockAt(time.Now())
+					clock := clockwork.NewFakeClockAt(time.Now())
 
-			// Create a new key that can sign and verify tokens.
-			key, err := New(&Config{
-				Clock:       clock,
-				PrivateKey:  privateKey,
-				ClusterName: "example.com",
-			})
-			require.NoError(t, err)
+					// Create a new key that can sign and verify tokens.
+					key, err := New(&Config{
+						Clock:       clock,
+						PrivateKey:  privateKey,
+						ClusterName: "example.com",
+					})
+					require.NoError(t, err)
 
-			// Sign a token with the new key.
-			token, err := key.Sign(SignParams{
-				Username: "foo@example.com",
-				Roles:    []string{"foo", "bar"},
-				Expires:  clock.Now().Add(1 * time.Minute),
-				URI:      "http://127.0.0.1:8080",
-			})
-			require.NoError(t, err)
+					// Sign a token with the new key.
+					token, err := key.Sign(SignParams{
+						Issuer:   tc.issuer,
+						Username: "foo@example.com",
+						Roles:    []string{"foo", "bar"},
+						Expires:  clock.Now().Add(1 * time.Minute),
+						URI:      "http://127.0.0.1:8080",
+					})
+					require.NoError(t, err)
 
-			//decode the signed token
-			decodedToken, err := josejwt.ParseSigned(token)
-			require.NoError(t, err)
+					// decode the signed token
+					decodedToken, err := josejwt.ParseSigned(token)
+					require.NoError(t, err)
 
-			// verify that the kid header is present, and not empty
-			require.NotEmpty(t, decodedToken.Headers[0].KeyID)
+					// verify that the kid header is present, and not empty
+					require.NotEmpty(t, decodedToken.Headers[0].KeyID)
 
-			// Verify that the token can be validated and values match expected values.
-			claims, err := key.Verify(VerifyParams{
-				Username: "foo@example.com",
-				RawToken: token,
-				URI:      "http://127.0.0.1:8080",
-			})
-			require.NoError(t, err)
-			require.Equal(t, "foo@example.com", claims.Username)
-			require.Equal(t, []string{"foo", "bar"}, claims.Roles)
+					// Verify that the token can be validated and values match expected values.
+					claims, err := key.Verify(VerifyParams{
+						Issuer:   tc.issuer,
+						Username: "foo@example.com",
+						RawToken: token,
+						URI:      "http://127.0.0.1:8080",
+					})
+					require.NoError(t, err)
+					require.Equal(t, "foo@example.com", claims.Username)
+					require.Equal(t, []string{"foo", "bar"}, claims.Roles)
+					require.Equal(t, cmp.Or(tc.issuer, "example.com"), claims.Issuer)
+				})
+			}
 		})
 	}
 }
@@ -374,6 +395,52 @@ func TestExpiry(t *testing.T) {
 				Username: "foo@example.com",
 				URI:      "http://127.0.0.1:8080",
 				RawToken: token,
+			})
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestKey_SignAndVerifyPluginToken(t *testing.T) {
+	t.Parallel()
+	for _, alg := range supportedAlgorithms {
+		t.Run(alg.String(), func(t *testing.T) {
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClockAt(time.Now())
+			const clusterName = "teleport-test"
+
+			// Create a new key that can sign and verify tokens.
+			key, err := New(&Config{
+				PrivateKey:  privateKey,
+				ClusterName: clusterName,
+				Clock:       clock,
+			})
+			require.NoError(t, err)
+
+			// Sign a token with the new key.
+			expiresIn := time.Minute * 5
+			token, err := key.SignPluginToken(PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:12345"},
+				Expires:  clock.Now().Add(expiresIn),
+			})
+			require.NoError(t, err)
+
+			_, err = key.VerifyPluginToken(token, PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:12345"},
+			})
+			require.NoError(t, err, token)
+
+			// Check that if params don't match verification fails
+			_, err = key.VerifyPluginToken(token, PluginTokenParam{
+				Issuer:   "https://localhost/",
+				Subject:  "system:proxy",
+				Audience: []string{"plugin:9999"},
 			})
 			require.Error(t, err)
 		})

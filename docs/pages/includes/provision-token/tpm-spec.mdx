@@ -6,8 +6,8 @@ metadata:
   # token, this name should be specified.
   name: tpm-token
 spec:
-  # For Machine ID and TPM joining, roles will always be "Bot" and
-  # join_method will always be "tpm".
+  # For Machine & Workload Identity via TPM joining, roles will always be "Bot"
+  # and join_method will always be "tpm".
   roles: [Bot]
   join_method: tpm
 
@@ -36,7 +36,7 @@ spec:
     allow:
         # description is a human-readable description of the rule. It has no
         # bearing on whether a TPM is allowed to join, but can be used to
-        # associate a rule with a specific host (e.g the asset tag of the server
+        # associate a rule with a specific host (e.g. the asset tag of the server
         # in which the TPM resides).
       - description: "example-build-server-100"
         # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format

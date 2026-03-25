@@ -46,30 +46,20 @@ func ConvertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	// Unwrap original error first.
-	var traceErr *trace.TraceErr
-	if errors.As(err, &traceErr) {
-		return ConvertError(trace.Unwrap(err))
-	}
-	var pgErr pgError
-	if errors.As(err, &pgErr) {
-		return ConvertError(pgErr.Unwrap())
-	}
 
-	var c causer
-	if errors.As(err, &c) {
-		return ConvertError(c.Cause())
-	}
-	if _, ok := status.FromError(err); ok {
-		return trail.FromGRPC(err)
-	}
-
+	var causeErr causer
 	var googleAPIErr *googleapi.Error
 	var awsRequestFailureErr *awshttp.ResponseError
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
+
+	// Unwrap trace error first.
 	switch err := trace.Unwrap(err); {
+	case errors.As(err, &causeErr):
+		return ConvertError(causeErr.Cause())
+	case isGRPCStatusError(err):
+		return trail.FromGRPC(err)
 	case errors.As(err, &googleAPIErr):
 		return convertGCPError(googleAPIErr)
 	case errors.As(err, &awsRequestFailureErr):
@@ -82,6 +72,11 @@ func ConvertError(err error) error {
 		return convertMySQLError(myError)
 	}
 	return err // Return unmodified.
+}
+
+func isGRPCStatusError(err error) bool {
+	_, ok := status.FromError(err)
+	return ok
 }
 
 // convertGCPError converts GCP errors to trace errors.
@@ -124,11 +119,6 @@ type causer interface {
 	Cause() error
 }
 
-// pgError defines an interface for errors wrapped by Postgres driver.
-type pgError interface {
-	Unwrap() error
-}
-
 // ConvertConnectError converts common connection errors to trace errors with
 // extra information/recommendations if necessary.
 func ConvertConnectError(err error, sessionCtx *Session) error {
@@ -155,7 +145,7 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	if trace.IsAccessDenied(err) {
 		switch sessionCtx.Database.GetType() {
-		case types.DatabaseTypeElastiCache:
+		case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
 			return createElastiCacheRedisAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeMemoryDB:
 			return createMemoryDBAccessDeniedError(err, sessionCtx)

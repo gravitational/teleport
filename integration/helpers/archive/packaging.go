@@ -35,9 +35,28 @@ import (
 	"github.com/gravitational/teleport"
 )
 
+// Option configures compression behavior.
+type Option func(*options)
+
+type options struct {
+	noCompress bool
+}
+
+// WithNoCompress disables compression.
+func WithNoCompress() Option {
+	return func(o *options) {
+		o.noCompress = true
+	}
+}
+
 // CompressDirToZipFile compresses a source directory into `.zip` format and stores at `archivePath`,
 // preserving the relative file path structure of the source directory.
-func CompressDirToZipFile(ctx context.Context, sourceDir, archivePath string) (err error) {
+func CompressDirToZipFile(ctx context.Context, sourceDir, archivePath string, opts ...Option) (err error) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	archive, err := os.Create(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -71,7 +90,16 @@ func CompressDirToZipFile(ctx context.Context, sourceDir, archivePath string) (e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		zipFileWriter, err := zipWriter.Create(relPath)
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		header.Name = relPath
+		header.Method = zip.Deflate
+		if o.noCompress {
+			header.Method = zip.Store
+		}
+		zipFileWriter, err := zipWriter.CreateHeader(header)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -92,7 +120,12 @@ func CompressDirToZipFile(ctx context.Context, sourceDir, archivePath string) (e
 
 // CompressDirToTarGzFile compresses a source directory into .tar.gz format and stores at `archivePath`,
 // preserving the relative file path structure of the source directory.
-func CompressDirToTarGzFile(ctx context.Context, sourceDir, archivePath string) (err error) {
+func CompressDirToTarGzFile(ctx context.Context, sourceDir, archivePath string, opts ...Option) (err error) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	archive, err := os.Create(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -108,7 +141,14 @@ func CompressDirToTarGzFile(ctx context.Context, sourceDir, archivePath string) 
 			}
 		}
 	}()
-	gzipWriter := gzip.NewWriter(archive)
+	level := gzip.DefaultCompression
+	if o.noCompress {
+		level = gzip.NoCompression
+	}
+	gzipWriter, err := gzip.NewWriterLevel(archive, level)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	tarWriter := tar.NewWriter(gzipWriter)
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

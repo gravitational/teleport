@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -37,7 +37,7 @@ import (
 func TestAzureMySQLFlexFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription(t, "sub123")
+	azureSub := makeAzureSubscription("sub123")
 	azMySQLFlexServer, azMySQLFlexDB := makeAzureMySQLFlexServer(t, "mysql-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
 	azureMatchers := []types.AzureMatcher{{
 		Types:        []string{types.AzureMatcherMySQL},
@@ -45,7 +45,7 @@ func TestAzureMySQLFlexFetchers(t *testing.T) {
 		Regions:      []string{"eastus"},
 	}}
 
-	clients := &cloud.TestCloudClients{
+	clients := &azuretest.Clients{
 		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub},
 		}),

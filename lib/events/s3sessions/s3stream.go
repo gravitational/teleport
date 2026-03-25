@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: aws.String(h.Bucket),
-		Key:    aws.String(h.path(sessionID)),
+		Key:    aws.String(h.recordingPath(sessionID)),
 	}
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
@@ -84,7 +85,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	}
 
 	start := time.Now()
-	uploadKey := h.path(upload.SessionID)
+	uploadKey := h.recordingPath(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -134,7 +135,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 }
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
-	uploadKey := h.path(upload.SessionID)
+	uploadKey := h.recordingPath(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -170,7 +171,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
-	uploadKey := h.path(upload.SessionID)
+	uploadKey := h.recordingPath(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -209,7 +210,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	uploadKey := h.path(upload.SessionID)
+	uploadKey := h.recordingPath(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -265,6 +266,13 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			return nil, awsutils.ConvertS3Error(err)
 		}
 		for _, upload := range page.Uploads {
+			if upload.Initiator != nil && upload.Initiator.DisplayName != nil && len(h.Config.CompleteInitiators) > 0 &&
+				!slices.Contains(h.Config.CompleteInitiators, *upload.Initiator.DisplayName) {
+				// Only complete uploads that we initiated.
+				// This can be useful when Teleport is not the only thing generating uploads in the bucket
+				// (replication rules, batch jobs, other software, etc.)
+				continue
+			}
 			uploads = append(uploads, events.StreamUpload{
 				ID:        aws.ToString(upload.UploadId),
 				SessionID: h.fromPath(aws.ToString(upload.Key)),

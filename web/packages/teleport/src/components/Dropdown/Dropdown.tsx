@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled, { css } from 'styled-components';
 
 export interface OpenProps {
@@ -47,7 +47,7 @@ export const Dropdown = styled.div<OpenProps>`
   transform: ${p => (p.open ? 'scale(1)' : 'scale(.8)')};
 
   top: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     top: ${p => p.theme.topBarHeight[1]}px;
   }
 `;

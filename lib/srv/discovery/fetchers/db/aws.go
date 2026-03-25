@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -189,4 +190,27 @@ func (f *awsFetcher) FetcherType() string {
 func (f *awsFetcher) String() string {
 	return fmt.Sprintf("awsFetcher(Type: %v, Region=%v, Labels=%v)",
 		f.cfg.Type, f.cfg.Region, f.cfg.Labels)
+}
+
+type awsPager[P, O any] interface {
+	HasMorePages() bool
+	NextPage(ctx context.Context, optFns ...func(O)) (P, error)
+}
+
+func pagesWithLimit[P, O any](ctx context.Context, p awsPager[P, O], log *slog.Logger) iter.Seq2[P, error] {
+	return func(yield func(page P, err error) bool) {
+		for i := uint(0); i < maxAWSPages && p.HasMorePages(); i++ {
+			page, err := p.NextPage(ctx)
+			if !yield(page, err) {
+				return
+			}
+		}
+		if !p.HasMorePages() {
+			return
+		}
+		log.DebugContext(ctx,
+			"Skipping AWS API response pages beyond max page limit",
+			"max_pages", maxAWSPages,
+		)
+	}
 }

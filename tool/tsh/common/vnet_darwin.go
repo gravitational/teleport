@@ -19,13 +19,12 @@ package common
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 	"github.com/gravitational/teleport/lib/vnet/diag"
@@ -38,49 +37,26 @@ import (
 // This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
-	// the unprivileged process.
-	socketPath string
-	// ipv6Prefix is the IPv6 prefix for the VNet.
-	ipv6Prefix string
-	// dnsAddr is the IP address for the VNet DNS server.
-	dnsAddr string
-	// egid of the user starting VNet. Unsafe for production use, as the egid comes from an unstrusted
-	// source.
-	egid int
-	// euid of the user starting VNet. Unsafe for production use, as the euid comes from an unstrusted
-	// source.
-	euid int
+	// addr is the local TCP address of the client application gRPC service.
+	addr string
+	// credPath is the path where credentials for IPC with the client
+	// application are found.
+	credPath string
 }
 
 func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
-	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
-	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
-	cmd.Flag("egid", "effective group ID of the user starting VNet").IntVar(&cmd.egid)
-	cmd.Flag("euid", "effective user ID of the user starting VNet").IntVar(&cmd.euid)
+	cmd.Flag("addr", "Client application service address.").Required().StringVar(&cmd.addr)
+	cmd.Flag("cred-path", "Path to TLS credentials for connecting to client application.").Required().StringVar(&cmd.credPath)
 	return cmd
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	homePath := os.Getenv(types.HomeEnvVar)
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return trace.BadParameter("%s must be set", types.HomeEnvVar)
-	}
 	config := daemon.Config{
-		SocketPath: c.socketPath,
-		IPv6Prefix: c.ipv6Prefix,
-		DNSAddr:    c.dnsAddr,
-		HomePath:   homePath,
-		ClientCred: daemon.ClientCred{
-			Valid: true,
-			Egid:  c.egid,
-			Euid:  c.euid,
-		},
+		ClientApplicationServiceAddr: c.addr,
+		ServiceCredentialPath:        c.credPath,
 	}
 	return trace.Wrap(vnet.RunDarwinAdminProcess(cf.Context, config))
 }
@@ -100,10 +76,9 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 	return vnetCommandNotSupported{}
 }
 
-func runVnetDiagnostics(ctx context.Context, nsi vnet.NetworkStackInfo) error {
-	fmt.Println("Running diagnostics.")
+func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: nsi.IfaceName,
+		VnetIfaceName: nsi.InterfaceName,
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})

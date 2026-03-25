@@ -172,7 +172,7 @@ func (q *Queue[I, O]) run(workfn func(I) O, cfg config) {
 	sem := make(chan struct{}, cfg.capacity)
 
 	// spawn workers
-	for i := 0; i < cfg.workers; i++ {
+	for range cfg.workers {
 		go func() {
 			for {
 				var itm item[I]

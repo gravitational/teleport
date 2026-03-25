@@ -50,7 +50,7 @@ func TestEncodePluginData(t *testing.T) {
 	assert.Equal(t, "3", dataMap["reviews_count"])
 	assert.Equal(t, "APPROVED", dataMap["resolution"])
 	assert.Equal(t, "foo ok", dataMap["resolve_reason"])
-	assert.Equal(t, "", dataMap["resources"])
+	assert.Empty(t, dataMap["resources"])
 	assert.Equal(
 		t,
 		messageData,

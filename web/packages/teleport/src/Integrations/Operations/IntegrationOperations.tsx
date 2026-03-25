@@ -18,6 +18,7 @@
 
 import { Integration, IntegrationKind } from 'teleport/services/integrations';
 
+import { DeleteAwsOidcIntegrationDialog } from '../DeleteAwsOidcIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
 import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
@@ -25,12 +26,16 @@ import {
   OperationType,
 } from './useIntegrationOperation';
 
+export type DeleteRequestOptions = {
+  deleteAssociatedResources?: boolean;
+};
+
 export type Props<UpdateRequest> = {
   operation: OperationType;
   integration: Integration;
   close(): void;
   edit(req: UpdateRequest): Promise<void>;
-  remove(): Promise<void>;
+  remove(opt?: DeleteRequestOptions): Promise<void>;
 };
 
 export function IntegrationOperations({
@@ -40,6 +45,16 @@ export function IntegrationOperations({
   edit,
   remove,
 }: Props<EditableIntegrationFields>) {
+  if (operation === 'delete' && integration.kind === IntegrationKind.AwsOidc) {
+    return (
+      <DeleteAwsOidcIntegrationDialog
+        integration={integration}
+        close={close}
+        remove={remove}
+      />
+    );
+  }
+
   if (operation === 'delete') {
     return (
       <DeleteIntegrationDialog

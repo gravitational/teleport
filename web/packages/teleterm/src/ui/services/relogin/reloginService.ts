@@ -35,11 +35,11 @@ export class ReloginService {
     private clustersService: ClustersService
   ) {}
 
-  relogin(
+  async relogin(
     request: ReloginRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    this.mainProcessClient.forceFocusWindow();
+    await this.mainProcessClient.forceFocusWindow();
     const reason = this.getReason(request);
 
     return new Promise((resolve, reject) => {

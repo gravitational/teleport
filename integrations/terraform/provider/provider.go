@@ -75,6 +75,8 @@ const (
 	attributeTerraformIdentityFile = "identity_file"
 	// attributeTerraformIdentityFileBase64 is the attribute containing the base64-encoded identity file used by the Terraform provider.
 	attributeTerraformIdentityFileBase64 = "identity_file_base64"
+	// attributeTerraformInsecure is the attribute used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
+	attributeTerraformInsecure = "insecure"
 	// attributeTerraformRetryBaseDuration is the attribute configuring the base duration between two Terraform provider retries.
 	attributeTerraformRetryBaseDuration = "retry_base_duration"
 	// attributeTerraformRetryCapDuration is the attribute configuring the maximum duration between two Terraform provider retries.
@@ -90,6 +92,9 @@ const (
 	// attributeTerraformJoinAudienceTag is the attribute configuring the audience tag when using the `terraform` join
 	// method.
 	attributeTerraformJoinAudienceTag = "audience_tag"
+	// attributeTerraformGitlabIDTokenEnvVar is the attribute configuring the environment variable used to fetch the ID
+	// token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`.
+	attributeTerraformGitlabIDTokenEnvVar = "gitlab_id_token_env_var"
 )
 
 type RetryConfig struct {
@@ -132,6 +137,8 @@ type providerData struct {
 	IdentityFile types.String `tfsdk:"identity_file"`
 	// IdentityFile identity file content encoded in base64
 	IdentityFileBase64 types.String `tfsdk:"identity_file_base64"`
+	// Insecure means the provider will skip verifying the proxy server's TLS certificate.
+	Insecure types.Bool `tfsdk:"insecure"`
 	// RetryBaseDuration is used to setup the retry algorithm when the API returns 'not found'
 	RetryBaseDuration types.String `tfsdk:"retry_base_duration"`
 	// RetryCapDuration is used to setup the retry algorithm when the API returns 'not found'
@@ -146,6 +153,11 @@ type providerData struct {
 	JoinToken types.String `tfsdk:"join_token"`
 	// AudienceTag is the audience  tag for the `terraform` join method
 	AudienceTag types.String `tfsdk:"audience_tag"`
+	// GitlabIDTokenEnvVar is the environment variable used to fetch the ID
+	// token issued by GitLab for the `gitlab` join method. If unset, this
+	// defaults to `TBOT_GITLAB_JWT`. Useful in cases where multiple Teleport
+	// clusters are managed by the same GitLab job.
+	GitlabIDTokenEnvVar types.String `tfsdk:"gitlab_id_token_env_var"`
 }
 
 // New returns an empty provider struct
@@ -160,7 +172,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			attributeTerraformAddress: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
+				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 3080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
 			},
 			attributeTerraformCertificates: {
 				Type:        types.StringType,
@@ -220,6 +232,11 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport identity file content base64 encoded. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFileBase64),
 			},
+			attributeTerraformInsecure: {
+				Type:        types.BoolType,
+				Optional:    true,
+				Description: fmt.Sprintf("Skip proxy certificate verification when joining the Teleport cluster. This is not recommended for production use. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformInsecure),
+			},
 			attributeTerraformRetryBaseDuration: {
 				Type:        types.StringType,
 				Sensitive:   false,
@@ -248,19 +265,25 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
+				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../../deployment/join-methods.mdx) for possible values. You must use [a delegated join method](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
 			},
 			attributeTerraformJoinToken: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
 			},
 			attributeTerraformJoinAudienceTag: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCloudJoinAudienceTag),
+			},
+			attributeTerraformGitlabIDTokenEnvVar: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
 			},
 		},
 	}, nil
@@ -301,6 +324,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	retryCapDurationStr := stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
 	maxTriesStr := stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
 	dialTimeoutDurationStr := stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
+	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
 
 	if !p.validateAddr(addr, resp) {
 		return
@@ -335,6 +359,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 				grpc.WaitForReady(true),
 			),
 		},
+		InsecureAddressDiscovery: insecure,
 	}
 
 	clt, diags := activeSources.BuildClient(ctx, clientConfig, config)
@@ -435,6 +460,16 @@ func stringFromConfigOrEnv(value types.String, env string, def string) string {
 	return configValue
 }
 
+func boolFromConfigOrEnv(value types.Bool, env string) bool {
+	envVar := os.Getenv(env)
+	if envVar != "" && (value.Unknown || value.Null) {
+		if b, err := strconv.ParseBool(envVar); err == nil {
+			return b
+		}
+	}
+	return value.Value
+}
+
 // validateAddr validates passed addr
 func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderResponse) bool {
 	if addr == "" {
@@ -477,7 +512,7 @@ func (p *Provider) configureLog() {
 		level = logutils.TraceLevel
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Severity: level.String(),
 		Format:   "text",
 	})
@@ -495,10 +530,12 @@ func (p *Provider) configureLog() {
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
+		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   resourceTeleportDatabaseType{},
+		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
@@ -513,11 +550,21 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                resourceTeleportAccessListType{},
+		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
+		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
+		"teleport_integration":                resourceTeleportIntegrationType{},
+		"teleport_inference_model":            resourceTeleportInferenceModelType{},
+		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
+		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
 	}, nil
 }
 
@@ -525,10 +572,12 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
+		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   dataSourceTeleportDatabaseType{},
+		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
@@ -542,10 +591,24 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
+		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
+		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
+		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
+		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
+		"teleport_integration":                dataSourceTeleportIntegrationType{},
+		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
+		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
+		// are fixed. The current problems with data sources include:
+		// - Data sources only perform a "shallow fill", which means only setting
+		//   leaf-level fields.
+		// - Data sources use the same schema as resources, which means that fields
+		//   required on a resource also need to be set on the data source
+		//   definition.
 	}, nil
 }
 

@@ -27,11 +27,7 @@ export default {
 export const Story = () => {
   return (
     <MockAppContextProvider>
-      <ClusterLogout
-        onClose={() => {}}
-        clusterUri="/clusters/foo"
-        clusterTitle="foo"
-      />
+      <ClusterLogout onClose={() => {}} clusterUri="/clusters/foo" />
     </MockAppContextProvider>
   );
 };

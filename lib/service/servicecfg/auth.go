@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -69,6 +70,10 @@ type AuthConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticScopedTokens are pre-defined, scoped host provisioning tokens supplied via config file
+	// for environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
@@ -202,6 +207,8 @@ type KeystoreConfig struct {
 	GCPKMS GCPKMSConfig
 	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
 	AWSKMS *AWSKMSConfig
+	// HealthCheck holds configuration parameters for keystore health checking.
+	HealthCheck *KeystoreHealthCheck
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -242,6 +249,8 @@ type PKCS11Config struct {
 	TokenLabel string
 	// PIN is the PKCS11 PIN for the given token.
 	PIN string
+	// MaxSessions is the upper limit of sessions allowed by the HSM.
+	MaxSessions int
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -253,6 +262,17 @@ func (cfg *PKCS11Config) CheckAndSetDefaults() error {
 	if cfg.SlotNumber == nil && cfg.TokenLabel == "" {
 		return trace.BadParameter("must provide one of SlotNumber or TokenLabel")
 	}
+
+	switch {
+	case cfg.MaxSessions < 0:
+		return trace.BadParameter("the value of PKCS11 MaxSessions must not be negative")
+	case cfg.MaxSessions == 1:
+		return trace.BadParameter("the minimum value for PKCS11 MaxSessions is 2")
+	case cfg.MaxSessions == 0:
+	// A value of zero is acceptable and indicates to the pkcs11 library to use the default value.
+	default:
+	}
+
 	return nil
 }
 
@@ -289,13 +309,10 @@ func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
 type AWSKMSConfig struct {
 	// AWSAccount is the AWS account ID where the keys will reside.
 	AWSAccount string
-	// AWSRegion is the AWS region where the keys will reside.
+	// AWSRegion is the region used for KMS key operations.
 	AWSRegion string
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion struct {
-		// Enabled configures new keys to be multi-region.
-		Enabled bool
-	}
+	MultiRegion MultiRegionKeyStore
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -313,4 +330,26 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("AWS region is required")
 	}
 	return nil
+}
+
+// MultiRegionKeyStore contains configuration for a multi-region keystore
+type MultiRegionKeyStore struct {
+	// Enabled configures new keys to be multi-region.
+	Enabled bool `yaml:"enabled"`
+	// PrimaryRegion is the region the primary key is located.
+	PrimaryRegion string `yaml:"primary_region"`
+	// ReplicaRegions is a list of regions keys will be replicated to.
+	ReplicaRegions []string `yaml:"replica_regions"`
+}
+
+// KeystoreHealthCheck contains configuration for keystore health checking.
+type KeystoreHealthCheck struct {
+	// Active configures active health checking for a keystore.
+	Active *KeystoreActiveHealthCheck `yaml:"active"`
+}
+
+// KeystoreActiveHealthCheck contains configuration for keystore active health checking.
+type KeystoreActiveHealthCheck struct {
+	// Enabled enables active health checking.
+	Enabled bool `yaml:"enabled"`
 }

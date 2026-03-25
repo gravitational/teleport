@@ -36,8 +36,8 @@ import (
 
 const (
 	k8sKindPrefix     = "Teleport"
-	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis"
-	statusPackageName = "resources"
+	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	statusPackageName = "teleportcr"
 	statusPackage     = statusPackagePath + "/" + statusPackageName
 	statusTypeName    = "Status"
 )
@@ -76,9 +76,10 @@ type SchemaVersion struct {
 	// Teleport resource, this is equal to the Teleport resource Version for
 	// compatibility purposes. For multi-version resource, the value is always
 	// "v1" as the version is already in the CR kind.
-	Version           string
-	Schema            *Schema
-	additionalColumns []apiextv1.CustomResourceColumnDefinition
+	Version              string
+	Schema               *Schema
+	additionalColumns    []apiextv1.CustomResourceColumnDefinition
+	additionalRootFields map[string]apiextv1.JSONSchemaProps
 }
 
 // Schema is a set of object properties.
@@ -110,11 +111,12 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
-	nameOverride        string
-	versionOverride     string
-	customSpecFields    []string
-	kindContainsVersion bool
-	additionalColumns   []apiextv1.CustomResourceColumnDefinition
+	nameOverride         string
+	versionOverride      string
+	customSpecFields     []string
+	additionalRootFields []string
+	kindContainsVersion  bool
+	additionalColumns    []apiextv1.CustomResourceColumnDefinition
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -131,16 +133,26 @@ func withNameOverride(name string) resourceSchemaOption {
 	}
 }
 
-// set this onlt on new multi-version resources
+// set this only on new multi-version resources
 func withVersionInKindOverride() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.kindContainsVersion = true
 	}
 }
 
+// withCustomSpecFields builds the CRD spec from the specified root-level proto
+// fields instead of the proto "spec" sub-message.
 func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.customSpecFields = customSpecFields
+	}
+}
+
+// withAdditionalRootFields adds fields from the root proto message as top-level
+// properties on the CRD.
+func withAdditionalRootFields(rootFields []string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.additionalRootFields = rootFields
 	}
 }
 
@@ -250,10 +262,28 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		// the Teleport version is also in the CR kind.
 		kubernetesVersion = "v1"
 	}
+
+	var rootFields map[string]apiextv1.JSONSchemaProps
+	if len(cfg.additionalRootFields) > 0 {
+		rootFields = make(map[string]apiextv1.JSONSchemaProps, len(cfg.additionalRootFields))
+		for _, fieldName := range cfg.additionalRootFields {
+			field, ok := rootMsg.GetField(fieldName)
+			if !ok {
+				return trace.NotFound("root field %q not found", fieldName)
+			}
+			prop, err := generator.prop(field)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			rootFields[fieldName] = prop
+		}
+	}
+
 	root.versions = append(root.versions, SchemaVersion{
-		Version:           kubernetesVersion,
-		Schema:            schema,
-		additionalColumns: cfg.additionalColumns,
+		Version:              kubernetesVersion,
+		Schema:               schema,
+		additionalColumns:    cfg.additionalColumns,
+		additionalRootFields: rootFields,
 	})
 
 	return nil
@@ -371,8 +401,36 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		return prop, nil
 	}
 
+	// maps should be represented in OpenAPI objects with additionalProperties describing the value. The key is always
+	// a string in JSON/YAML, so we only need to generate the schema for the map's value type.
+	if field.IsMap() {
+		prop.Type = "object"
+		mapMsg := field.TypeMessage()
+		if mapMsg == nil {
+			return prop, trace.Errorf("failed to get map entry type for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueField, ok := mapMsg.GetField("value")
+		if !ok {
+			return prop, trace.Errorf("failed to get map value field for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueSchema := &apiextv1.JSONSchemaProps{}
+		if err := generator.singularProp(valueField, valueSchema); err != nil {
+			return prop, trace.Wrap(err)
+		}
+		if valueField.IsNullable() && (valueSchema.Type == "array" || valueSchema.Type == "object") {
+			valueSchema.Nullable = true
+		}
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: valueSchema,
+		}
+		if field.IsNullable() {
+			prop.Nullable = true
+		}
+		return prop, nil
+	}
+
 	// Regular treatment
-	if field.IsRepeated() && !field.IsMap() {
+	if field.IsRepeated() {
 		prop.Type = "array"
 		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
 			Schema: &apiextv1.JSONSchemaProps{},
@@ -413,6 +471,8 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.IsInt64() || field.IsUint64():
 		prop.Type = "integer"
 		prop.Format = "int64"
+	case field.IsFloat() || field.IsDouble():
+		prop.Type = "number"
 	case field.TypeName() == ".wrappers.LabelValues":
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
@@ -429,13 +489,13 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
-	case strings.HasSuffix(field.TypeName(), ".v1.LoginRule.TraitsMapEntry"):
+	case field.TypeName() == ".google.protobuf.Struct":
+		// This is a fairly special well-known type that should/can hold any
+		// JSON object. We can't know the structure ahead of time and there can
+		// be many levels of nesting within this.
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Schema: &apiextv1.JSONSchemaProps{
-				Type:  "array",
-				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
-			},
+			Allows: true,
 		}
 	case field.IsMessage():
 		inner := field.TypeMessage()
@@ -513,8 +573,7 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 	for i, schemaVersion := range root.versions {
 
 		schema := schemaVersion.Schema
-
-		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
+		version := apiextv1.CustomResourceDefinitionVersion{
 			Name:   schemaVersion.Version,
 			Served: true,
 			// Storage the first version available.
@@ -542,7 +601,15 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 				},
 			},
 			AdditionalPrinterColumns: schemaVersion.additionalColumns,
-		})
+		}
+
+		// Add any additional root-level fields as siblings to spec/metadata/status.
+		for fieldName, fieldSchema := range schemaVersion.additionalRootFields {
+			version.Schema.OpenAPIV3Schema.Properties[fieldName] = fieldSchema
+		}
+
+		crd.Spec.Versions = append(crd.Spec.Versions, version)
+
 	}
 	return crd, nil
 }
@@ -565,7 +632,7 @@ func getStatusSchema(parser *crdtools.Parser) (apiextv1.JSONSchemaProps, error) 
 	}
 	var statusType crdtools.TypeIdent
 	for _, pkg := range pkgs {
-		if pkg.Name == "resources" {
+		if pkg.Name == statusPackageName {
 			parser.NeedPackage(pkg)
 			statusType = crdtools.TypeIdent{
 				Package: pkg,

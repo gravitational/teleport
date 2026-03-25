@@ -49,7 +49,6 @@ func DiscoverInstanceMetadata(ctx context.Context, providers []func(ctx context.
 	}
 
 	for _, client := range clients {
-		client := client
 		go func() {
 			if client.IsAvailable(ctx) {
 				c <- client

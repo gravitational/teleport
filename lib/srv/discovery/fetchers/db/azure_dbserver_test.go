@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -50,8 +50,8 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		subscription2 = "sub2"
 	)
 
-	azureSub1 := makeAzureSubscription(t, subscription1)
-	azureSub2 := makeAzureSubscription(t, subscription2)
+	azureSub1 := makeAzureSubscription(subscription1)
+	azureSub2 := makeAzureSubscription(subscription2)
 
 	azMySQLServer1, azMySQLDB1 := makeAzureMySQLServer(t, "server-1", subscription1, group1, eastus, map[string]string{"env": "prod"})
 	azMySQLServer2, _ := makeAzureMySQLServer(t, "server-2", subscription1, group1, eastus, map[string]string{"env": "dev"})
@@ -74,7 +74,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		inputClients  cloud.AzureClients
+		inputClients  azure.Clients
 		inputMatchers []types.AzureMatcher
 		wantDatabases types.Databases
 	}{
@@ -89,7 +89,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
@@ -127,7 +127,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -167,7 +167,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -201,7 +201,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -236,7 +236,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -275,7 +275,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &cloud.TestCloudClients{
+			inputClients: &azuretest.Clients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -298,7 +298,6 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -308,7 +307,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	}
 }
 
-func makeAzureSubscription(t *testing.T, subID string) *armsubscription.Subscription {
+func makeAzureSubscription(subID string) *armsubscription.Subscription {
 	return &armsubscription.Subscription{
 		SubscriptionID: &subID,
 		State:          to.Ptr(armsubscription.SubscriptionStateEnabled),
@@ -422,7 +421,6 @@ func withAzurePostgresVersion(version string) func(*armpostgresql.Server) {
 func labelsToAzureTags(labels map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(labels))
 	for k, v := range labels {
-		v := v
 		tags[k] = &v
 	}
 	return tags

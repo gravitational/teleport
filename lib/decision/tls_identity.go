@@ -41,6 +41,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 
 	return &tlsca.Identity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,
@@ -54,6 +55,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Traits:                  traitToWrappers(id.Traits),
 		RouteToApp:              routeToAppFromProto(id.RouteToApp),
 		TeleportCluster:         id.TeleportCluster,
+		OriginClusterName:       id.TeleportCluster,
 		RouteToDatabase:         routeToDatabaseFromProto(id.RouteToDatabase),
 		DatabaseNames:           id.DatabaseNames,
 		DatabaseUsers:           id.DatabaseUsers,
@@ -70,11 +72,14 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceId,
-		AllowedResourceIDs:      resourceIDsToTypes(id.AllowedResourceIds),
-		PrivateKeyPolicy:        keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
-		ConnectionDiagnosticID:  id.ConnectionDiagnosticId,
-		DeviceExtensions:        deviceExtensionsFromProto(id.DeviceExtensions),
-		UserType:                types.UserType(id.UserType),
+		JoinToken:               id.JoinToken,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIDs:       resourceIDsToTypes(id.AllowedResourceIds),
+		AllowedResourceAccessIDs: resourceAccessIDPointersToValues(id.AllowedResourceAccessIds),
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
+		ConnectionDiagnosticID:   id.ConnectionDiagnosticId,
+		DeviceExtensions:         deviceExtensionsFromProto(id.DeviceExtensions),
+		UserType:                 types.UserType(id.UserType),
 	}
 }
 
@@ -88,6 +93,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 
 	return &decisionpb.TLSIdentity{
 		Username:                id.Username,
+		ScopePin:                id.ScopePin,
 		Impersonator:            id.Impersonator,
 		Groups:                  id.Groups,
 		SystemRoles:             id.SystemRoles,
@@ -117,11 +123,14 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
-		AllowedResourceIds:      resourceIDsFromTypes(id.AllowedResourceIDs),
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		ConnectionDiagnosticId:  id.ConnectionDiagnosticID,
-		DeviceExtensions:        deviceExtensionsToProto(&id.DeviceExtensions),
-		UserType:                string(id.UserType),
+		JoinToken:               id.JoinToken,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
+		AllowedResourceAccessIds: resourceAccessIDValuesToPointers(id.AllowedResourceAccessIDs),
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		ConnectionDiagnosticId:   id.ConnectionDiagnosticID,
+		DeviceExtensions:         deviceExtensionsToProto(&id.DeviceExtensions),
+		UserType:                 string(id.UserType),
 	}
 }
 
@@ -129,7 +138,7 @@ func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
 	// nil or "zero" Timestamps are mapped to Go's zero time (0-0-0 0:0.0) instead
 	// of unix epoch. The latter avoids problems with tooling (eg, Terraform) that
 	// sets structs to their defaults instead of using nil.
-	if t == nil || (t.Seconds == 0 && t.Nanos == 0) {
+	if t.GetSeconds() == 0 && t.GetNanos() == 0 {
 		return time.Time{}
 	}
 	return t.AsTime()
@@ -161,15 +170,16 @@ func routeToAppFromProto(routeToApp *decisionpb.RouteToApp) tlsca.RouteToApp {
 	}
 
 	return tlsca.RouteToApp{
-		SessionID:         routeToApp.SessionId,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AWSRoleARN:        routeToApp.AwsRoleArn,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GcpServiceAccount,
-		URI:               routeToApp.Uri,
-		TargetPort:        int(routeToApp.TargetPort),
+		SessionID:                       routeToApp.SessionId,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AWSRoleARN:                      routeToApp.AwsRoleArn,
+		AWSCredentialProcessCredentials: routeToApp.AwsCredentialprocessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GCPServiceAccount:               routeToApp.GcpServiceAccount,
+		URI:                             routeToApp.Uri,
+		TargetPort:                      int(routeToApp.TargetPort),
 	}
 }
 
@@ -179,15 +189,16 @@ func routeToAppToProto(routeToApp *tlsca.RouteToApp) *decisionpb.RouteToApp {
 	}
 
 	return &decisionpb.RouteToApp{
-		SessionId:         routeToApp.SessionID,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		Name:              routeToApp.Name,
-		AwsRoleArn:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GcpServiceAccount: routeToApp.GCPServiceAccount,
-		Uri:               routeToApp.URI,
-		TargetPort:        int32(routeToApp.TargetPort),
+		SessionId:                       routeToApp.SessionID,
+		PublicAddr:                      routeToApp.PublicAddr,
+		ClusterName:                     routeToApp.ClusterName,
+		Name:                            routeToApp.Name,
+		AwsRoleArn:                      routeToApp.AWSRoleARN,
+		AwsCredentialprocessCredentials: routeToApp.AWSCredentialProcessCredentials,
+		AzureIdentity:                   routeToApp.AzureIdentity,
+		GcpServiceAccount:               routeToApp.GCPServiceAccount,
+		Uri:                             routeToApp.URI,
+		TargetPort:                      int32(routeToApp.TargetPort),
 	}
 }
 
@@ -217,6 +228,46 @@ func routeToDatabaseToProto(routeToDatabase *tlsca.RouteToDatabase) *decisionpb.
 		Database:    routeToDatabase.Database,
 		Roles:       routeToDatabase.Roles,
 	}
+}
+
+func resourceAccessIDPointersToValues(resourceAccessIDs []*types.ResourceAccessID) []types.ResourceAccessID {
+	if len(resourceAccessIDs) == 0 {
+		return nil
+	}
+
+	ret := make([]types.ResourceAccessID, len(resourceAccessIDs))
+	for i, r := range resourceAccessIDs {
+		ret[i] = types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     r.Id.ClusterName,
+				Kind:            r.Id.Kind,
+				Name:            r.Id.Name,
+				SubResourceName: r.Id.SubResourceName,
+			},
+			Constraints: r.Constraints,
+		}
+	}
+	return ret
+}
+
+func resourceAccessIDValuesToPointers(resourceAccessIDs []types.ResourceAccessID) []*types.ResourceAccessID {
+	if len(resourceAccessIDs) == 0 {
+		return nil
+	}
+
+	ret := make([]*types.ResourceAccessID, len(resourceAccessIDs))
+	for i, r := range resourceAccessIDs {
+		ret[i] = &types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     r.Id.ClusterName,
+				Kind:            r.Id.Kind,
+				Name:            r.Id.Name,
+				SubResourceName: r.Id.SubResourceName,
+			},
+			Constraints: r.Constraints,
+		}
+	}
+	return ret
 }
 
 func resourceIDsToTypes(resourceIDs []*decisionpb.ResourceId) []types.ResourceID {

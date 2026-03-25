@@ -28,34 +28,35 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 )
 
-// ListDatabaseUsers is used to list database user suggestions when the user is attempting to
-// establish a connection to a database through Teleterm.
-//
-// The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
-// `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
-func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.DbUri)
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*api.ListDatabaseServersResponse, error) {
+	resp, err := s.DaemonService.ListDatabaseServers(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	response := &api.ListDatabaseServersResponse{
+		NextKey: resp.NextKey,
 	}
 
-	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, proxyClient.CurrentCluster(), req.DbUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, server := range resp.Servers {
+		response.Resources = append(response.Resources, newAPIDatabaseServer(server))
 	}
-
-	return &api.ListDatabaseUsersResponse{
-		Users: dbUsers,
-	}, nil
+	return response, nil
 }
 
 func newAPIDatabase(db clusters.Database) *api.Database {
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(db.GetAllLabels()))
+
+	// ignore potential (and unlikely) errors
+	gcpProjectID, _ := db.GetGCPProjectID()
+
+	var autoUserProvisioning *api.AutoUserProvisioning
+	if db.AutoUserProvisioning != nil {
+		autoUserProvisioning = &api.AutoUserProvisioning{
+			DatabaseRoles: db.AutoUserProvisioning.DatabaseRoles,
+		}
+	}
 
 	return &api.Database{
 		Uri:      db.URI.String(),
@@ -64,5 +65,27 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 		Protocol: db.GetProtocol(),
 		Type:     db.GetType(),
 		Labels:   apiLabels,
+		TargetHealth: &api.TargetHealth{
+			Status:  db.TargetHealth.Status,
+			Error:   db.TargetHealth.TransitionError,
+			Message: db.TargetHealth.Message,
+		},
+		GcpProjectId:         gcpProjectID,
+		DatabaseUsers:        db.DatabaseUsers,
+		WildcardUserAllowed:  db.WildcardUserAllowed,
+		AutoUserProvisioning: autoUserProvisioning,
+	}
+}
+
+func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer {
+	return &api.DatabaseServer{
+		Uri:      dbServer.URI.String(),
+		Hostname: dbServer.GetHostname(),
+		HostId:   dbServer.GetHostID(),
+		TargetHealth: &api.TargetHealth{
+			Status:  dbServer.GetTargetHealth().Status,
+			Error:   dbServer.GetTargetHealth().TransitionError,
+			Message: dbServer.GetTargetHealth().Message,
+		},
 	}
 }

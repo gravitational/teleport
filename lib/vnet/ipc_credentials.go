@@ -194,7 +194,7 @@ const (
 )
 
 // write writes the credentials to the filesystem directory.
-func (c *credentials) write(dir string) (err error) {
+func (c *credentials) write(dir string, perm os.FileMode) (err error) {
 	// Attempt to clean up if returning an error for any reason.
 	defer func() {
 		if err == nil {
@@ -213,7 +213,7 @@ func (c *credentials) write(dir string) (err error) {
 		keyFileName:  keyPEM,
 	} {
 		filePath := filepath.Join(dir, fileName)
-		if err := os.WriteFile(filePath, data, 0600); err != nil {
+		if err := os.WriteFile(filePath, data, perm); err != nil {
 			return trace.Wrap(err, "writing service credential file %s", filePath)
 		}
 	}

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, useRef } from 'react';
+import { ComponentType, MouseEvent, useRef } from 'react';
 import styled from 'styled-components';
 
 import { ButtonIcon, Text } from 'design';
@@ -24,6 +24,7 @@ import * as Icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { Kind } from 'teleterm/ui/services/workspacesService/documentsService';
 
 import { useTabDnD } from './useTabDnD';
 
@@ -35,6 +36,7 @@ type TabItemProps = {
   nextActive?: boolean;
   closeTabTooltip?: string;
   isLoading?: boolean;
+  docKind?: Kind;
   onClick?(): void;
   onClose?(): void;
   onMoved?(oldIndex: number, newIndex: number): void;
@@ -53,6 +55,7 @@ export function TabItem(props: TabItemProps) {
     isLoading,
     onContextMenu,
     closeTabTooltip,
+    docKind,
   } = props;
   const ref = useRef<HTMLDivElement>(null);
   const canDrag = !!onMoved;
@@ -77,26 +80,30 @@ export function TabItem(props: TabItemProps) {
         min-width: 0;
       `}
     >
-      <TabContent ref={ref} active={active} dragging={isDragging} title={name}>
+      <TabContent
+        ref={ref}
+        active={active}
+        dragging={isDragging}
+        title={name}
+        role="tab"
+        aria-selected={active}
+        data-doc-kind={docKind}
+      >
         {props.Icon && <props.Icon size="small" pr={1} />}
         <Title color="inherit" fontWeight={500} fontSize="12px">
           {name}
         </Title>
         {isLoading && active && <LinearProgress transparentBackground={true} />}
         {onClose && (
-          <ButtonIcon
+          <StyledButtonIcon
             active={active}
             size={0}
             className="close"
             title={closeTabTooltip}
-            css={`
-              transition: none;
-              display: ${props => (props.active ? 'flex' : 'none')};
-            `}
             onClick={handleClose}
           >
             <Icons.Cross size="small" />
-          </ButtonIcon>
+          </StyledButtonIcon>
         )}
       </TabContent>
       {!active && !nextActive && <Separator />}
@@ -122,6 +129,11 @@ export function NewTabItem(props: NewTabItemProps) {
     </RelativeContainer>
   );
 }
+
+const StyledButtonIcon = styled(ButtonIcon)<{ active: boolean }>`
+  transition: none;
+  display: ${props => (props.active ? 'flex' : 'none')};
+`;
 
 const RelativeContainer = styled.div`
   position: relative;

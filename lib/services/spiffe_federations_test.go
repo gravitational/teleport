@@ -35,7 +35,7 @@ func TestValidateSPIFFEFederation(t *testing.T) {
 	_ = time.Date(2000, 11, 2, 12, 0, 0, 0, time.UTC)
 
 	var errContains = func(contains string) require.ErrorAssertionFunc {
-		return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		return func(t require.TestingT, err error, msgAndArgs ...any) {
 			require.ErrorContains(t, err, contains, msgAndArgs...)
 		}
 	}

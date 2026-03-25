@@ -69,6 +69,9 @@ type Config struct {
 	Username string
 	// WebProxyAddr
 	WebProxyAddr string
+	// RelayAddr, if set, is the address of the Relay service that should be
+	// used by protocols that support using a Relay.
+	RelayAddr string
 	// Logger is a component logger
 	Logger *slog.Logger
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
@@ -106,7 +109,7 @@ type OnExpiredCertFunc func(context.Context, Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	if !(c.TargetURI.IsDB() || c.TargetURI.IsKube() || c.TargetURI.IsApp()) {
+	if !c.TargetURI.IsDB() && !c.TargetURI.IsKube() && !c.TargetURI.IsApp() {
 		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
 	}
 

@@ -24,11 +24,12 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/google/shlex"
 	"github.com/gravitational/trace"
+	"github.com/mattn/go-shellwords"
 
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -147,7 +148,7 @@ func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeAr
 		return nil, trace.BadParameter("tsh alias %q requires %v arguments, but was invoked with %v", aliasName, maxMissing+1, len(runtimeArgs))
 	}
 
-	split, err := shlex.Split(expanded)
+	split, err := shellwords.Parse(expanded)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,10 +168,8 @@ func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeAr
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
 func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
 	// ignore aliases found in TSH_UNALIAS list
-	for _, usedAlias := range ar.getSeenAliases() {
-		if usedAlias == aliasCmd {
-			return "", false
-		}
+	if slices.Contains(ar.getSeenAliases(), aliasCmd) {
+		return "", false
 	}
 
 	aliasDef, ok := ar.aliases[aliasCmd]
@@ -188,7 +187,7 @@ func (ar *aliasRunner) markAliasSeen(alias string) error {
 func (ar *aliasRunner) getSeenAliases() []string {
 	var aliasesSeen []string
 
-	for _, val := range strings.Split(ar.getEnv(tshAliasEnvKey), ",") {
+	for val := range strings.SplitSeq(ar.getEnv(tshAliasEnvKey), ",") {
 		if strings.TrimSpace(val) != "" {
 			aliasesSeen = append(aliasesSeen, val)
 		}

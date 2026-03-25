@@ -20,24 +20,34 @@ import { renderHook } from '@testing-library/react';
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
+  makeApp,
+  makeDatabase,
   makeKube,
   makeLabelsList,
   makeLeafCluster,
   makeRootCluster,
   makeServer,
+  rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { SearchResult } from 'teleterm/ui/services/resources';
-import { ServerUri } from 'teleterm/ui/uri';
+import { SearchResult, SearchResultApp } from 'teleterm/ui/services/resources';
+import { routing, ServerUri, Params as UriParams } from 'teleterm/ui/uri';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
+import { mapToAction } from './actions';
 import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
 beforeEach(() => {
   jest.restoreAllMocks();
 });
+
+const currentWorkspace = {
+  workspaceUri: rootClusterUri,
+  localClusterUri: rootClusterUri,
+};
 
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
@@ -49,10 +59,10 @@ describe('rankResults', () => {
       kind: 'kube',
       resource: makeKube({ name: 'a' }),
     });
-    const sortedResults = rankResults([server, kube], '');
+    const sortedResults = rankResults([server, kube], '', currentWorkspace);
 
-    expect(sortedResults[0]).toEqual(kube);
-    expect(sortedResults[1]).toEqual(server);
+    expect(sortedResults[0].resource.uri).toEqual(kube.resource.uri);
+    expect(sortedResults[1].resource.uri).toEqual(server.resource.uri);
   });
 
   it('prefers accessible resources over requestable ones', () => {
@@ -74,7 +84,8 @@ describe('rankResults', () => {
     });
     const sortedResults = rankResults(
       [labelMatch, serverRequestable, serverAccessible],
-      'sales'
+      'sales',
+      currentWorkspace
     );
 
     expect(sortedResults[0].resource).toEqual(serverAccessible.resource);
@@ -90,7 +101,11 @@ describe('rankResults', () => {
       }),
     });
 
-    const { labelMatches } = rankResults([server], 'foo bar')[0];
+    const { labelMatches } = rankResults(
+      [server],
+      'foo bar',
+      currentWorkspace
+    )[0];
 
     labelMatches.forEach(match => {
       expect(match.score).toBeGreaterThan(0);
@@ -144,7 +159,7 @@ describe('rankResults', () => {
       })
     );
 
-    const sorted = rankResults(servers, 'bar');
+    const sorted = rankResults(servers, 'bar', currentWorkspace);
 
     expect(sorted).toHaveLength(10);
     // the item with the highest score is the first one
@@ -153,6 +168,131 @@ describe('rankResults', () => {
     expect(
       sorted.find(s => s.resource.uri === lowestScoreServerUri)
     ).toBeFalsy();
+  });
+
+  describe('prioritizing current workspace and cluster', () => {
+    const rootClusterParams: UriParams = {
+      rootClusterId: 'teleport-local.dev',
+    };
+    const leafClusterParams: UriParams = {
+      rootClusterId: 'teleport-local.dev',
+      leafClusterId: 'teleport-local-leaf',
+    };
+    const otherClusterParams: UriParams = {
+      rootClusterId: 'enterprise-local',
+    };
+    const rootClusterUri = routing.getClusterUri(rootClusterParams);
+    const workspace = {
+      workspaceUri: rootClusterUri,
+      localClusterUri: rootClusterUri,
+    };
+    // This test creates five apps with the following names:
+    //
+    // 1. example in the current cluster
+    // 2. example in the current workspace but other cluster
+    // 3. example outside of the current workspace
+    // 4. example1 in the current cluster
+    // 5. example2 in the current cluster
+    // 6. example1 outside of the current workspace
+    //
+    // and then simulates a search for "example" and verifies that the apps are sorted according to
+    // the order specified above.
+    //
+    // We want to avoid a situation in which an item that scores less in a name match (4) is higher
+    // than an item with a more direct match but from outside of the current workspace (3).
+    //
+    // This test operates on apps as they have the unique trait where a match on the app name is
+    // likely also a partial match on app's public address.
+    it('ranks higher the results from the current workspace and cluster', () => {
+      const exactMatchFromCurrentCluster = makeAppResourceResult(
+        routing.getAppUri({ ...rootClusterParams, appId: 'example' })
+      );
+      const exactMatchFromCurrentWorkspaceButDiffCluster =
+        makeAppResourceResult(
+          routing.getAppUri({ ...leafClusterParams, appId: 'example' })
+        );
+      const exactMatchFromOtherWorkspace = makeAppResourceResult(
+        routing.getAppUri({ ...otherClusterParams, appId: 'example' })
+      );
+      const partialMatchFromCurrentCluster1 = makeAppResourceResult(
+        routing.getAppUri({ ...rootClusterParams, appId: 'example1' })
+      );
+      const partialMatchFromCurrentCluster2 = makeAppResourceResult(
+        routing.getAppUri({ ...rootClusterParams, appId: 'example2' })
+      );
+      const partialMatchFromOtherWorkspace = makeAppResourceResult(
+        routing.getAppUri({ ...otherClusterParams, appId: 'example1' })
+      );
+
+      const searchResults = [
+        exactMatchFromCurrentWorkspaceButDiffCluster,
+        partialMatchFromOtherWorkspace,
+        partialMatchFromCurrentCluster1,
+        exactMatchFromCurrentCluster,
+        partialMatchFromCurrentCluster2,
+        exactMatchFromOtherWorkspace,
+      ];
+      const actual = rankResults(searchResults, 'example', workspace).map(
+        v => v.resource.uri
+      );
+      const expected = [
+        exactMatchFromCurrentCluster,
+        exactMatchFromCurrentWorkspaceButDiffCluster,
+        // exactMatchFromOtherWorkspace is expected to be above example1 and example2 from the current
+        // cluster since it has an exact match on the name.
+        exactMatchFromOtherWorkspace,
+        partialMatchFromCurrentCluster1,
+        partialMatchFromCurrentCluster2,
+        partialMatchFromOtherWorkspace,
+      ].map(v => v.resource.uri);
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('ranks higher partial matches from current cluster than partial matches from other workspaces', () => {
+      // This is a closer match in terms of a name match, but it does not belong to the current
+      // workspace.
+      const partialMatchFromOtherWorkspace1 = makeAppResourceResult(
+        routing.getAppUri({ ...otherClusterParams, appId: 'grafana-dev' })
+      );
+      const partialMatchFromOtherWorkspace2 = makeAppResourceResult(
+        routing.getAppUri({ ...otherClusterParams, appId: 'grafana-dev-1' })
+      );
+      const partialMatchFromCurrentCluster1 = makeAppResourceResult(
+        routing.getAppUri({ ...rootClusterParams, appId: 'grafana-dev-1' })
+      );
+      const partialMatchFromCurrentCluster2 = makeAppResourceResult(
+        routing.getAppUri({ ...rootClusterParams, appId: 'grafana-dev-2' })
+      );
+      // This is a match from the current cluster, but it has a much weaker match on the name than
+      // other results.
+      const partialMatchFromCurrentCluster3 = makeAppResourceResult(
+        routing.getAppUri({
+          ...rootClusterParams,
+          appId: 'grafana-staging-testing',
+        })
+      );
+
+      const searchResults = [
+        partialMatchFromOtherWorkspace2,
+        partialMatchFromCurrentCluster3,
+        partialMatchFromCurrentCluster1,
+        partialMatchFromOtherWorkspace1,
+        partialMatchFromCurrentCluster2,
+      ];
+      const actual = rankResults(searchResults, 'grafana', workspace).map(
+        v => v.resource.uri
+      );
+      const expected = [
+        partialMatchFromCurrentCluster1,
+        partialMatchFromCurrentCluster2,
+        partialMatchFromOtherWorkspace1,
+        partialMatchFromOtherWorkspace2,
+        partialMatchFromCurrentCluster3,
+      ].map(v => v.resource.uri);
+
+      expect(actual).toEqual(expected);
+    });
   });
 });
 
@@ -392,3 +532,89 @@ describe('useFiltersSearch', () => {
     expect(clusterFilters[0].resource).toEqual(clusterA);
   });
 });
+
+describe('mapToAction for database results', () => {
+  const stubSearchContext = {
+    inputValue: '',
+    filters: [],
+    setFilter: () => {},
+    removeFilter: () => {},
+    isOpen: false,
+    open: () => {},
+    close: () => {},
+    closeWithoutRestoringFocus: () => {},
+    resetInput: () => {},
+    changeActivePicker: () => {},
+    setInputValue: () => {},
+    activePicker: undefined,
+    inputRef: undefined,
+    pauseUserInteraction: async (cb: () => Promise<any>) => {
+      await cb();
+    },
+    addWindowEventListener: () => ({ cleanup: () => {} }),
+    makeEventListener: <T,>(cb: T) => cb,
+    advancedSearchEnabled: false,
+    toggleAdvancedSearch: () => {},
+  };
+
+  it('returns parametrized-action when autoUserProvisioning is not set, prompting for a db username', () => {
+    const appContext = new MockAppContext();
+    const result = makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase(),
+    });
+
+    const action = mapToAction(
+      appContext,
+      undefined,
+      stubSearchContext,
+      result
+    );
+
+    expect(action.type).toBe('parametrized-action');
+  });
+
+  it('returns simple-action when autoUserProvisioning is set, skipping db username prompt', () => {
+    const appContext = new MockAppContext();
+    const result = makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase({
+        autoUserProvisioning: {
+          databaseRoles: ['reader'],
+        },
+      }),
+    });
+
+    const action = mapToAction(
+      appContext,
+      undefined,
+      stubSearchContext,
+      result
+    );
+
+    expect(action.type).toBe('simple-action');
+  });
+});
+
+/**
+ * Constructs an app search result. Extracts root and leaf cluster ID from the URI and uses it to
+ * assemble publicAddr of the app in the form of <appId>.<leafClusterId || rootClusterId>.
+ */
+const makeAppResourceResult = (appUri: string): SearchResultApp => {
+  const { appId, rootClusterId, leafClusterId } =
+    routing.parseAppUri(appUri).params;
+  const publicAddr = `${appId}.${leafClusterId || rootClusterId}`;
+  const app = makeApp({
+    name: appId,
+    endpointUri: 'http://localhost:3000',
+    publicAddr,
+    fqdn: publicAddr,
+    uri: appUri,
+  });
+  const addrWithProtocol = getAppAddrWithProtocol(app);
+
+  return makeResourceResult({
+    kind: 'app',
+    resource: { ...app, addrWithProtocol },
+  }) as SearchResultApp;
+};

@@ -1,0 +1,54 @@
+diff --git a/lib/classes/CanvasRenderingContext2D.js b/lib/classes/CanvasRenderingContext2D.js
+index e1e4b8fe31826baadbdce3f48ee2a68455de8910..46dad56798ddc7fa094f911a7a7e0c97fb2a3770 100644
+--- a/lib/classes/CanvasRenderingContext2D.js
++++ b/lib/classes/CanvasRenderingContext2D.js
+@@ -15,7 +15,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
+ function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+ function _toPropertyKey(arg) { var key = _toPrimitive(arg, "string"); return typeof key === "symbol" ? key : String(key); }
+ function _toPrimitive(input, hint) { if (typeof input !== "object" || input === null) return input; var prim = input[Symbol.toPrimitive]; if (prim !== undefined) { var res = prim.call(input, hint || "default"); if (typeof res !== "object") return res; throw new TypeError("@@toPrimitive must return a primitive value."); } return (hint === "string" ? String : Number)(input); }
+-const testFuncs = ['setLineDash', 'getLineDash', 'setTransform', 'getTransform', 'getImageData', 'save', 'restore', 'createPattern', 'createRadialGradient', 'addHitRegion', 'arc', 'arcTo', 'beginPath', 'clip', 'closePath', 'scale', 'stroke', 'clearHitRegions', 'clearRect', 'fillRect', 'strokeRect', 'rect', 'resetTransform', 'translate', 'moveTo', 'lineTo', 'bezierCurveTo', 'createLinearGradient', 'ellipse', 'measureText', 'rotate', 'drawImage', 'drawFocusIfNeeded', 'isPointInPath', 'isPointInStroke', 'putImageData', 'strokeText', 'fillText', 'quadraticCurveTo', 'removeHitRegion', 'fill', 'transform', 'scrollPathIntoView', 'createImageData'];
++const testFuncs = ['setLineDash', 'getLineDash', 'setTransform', 'getTransform', 'getImageData', 'save', 'restore', 'createPattern', 'createRadialGradient', 'addHitRegion', 'arc', 'arcTo', 'beginPath', 'clip', 'closePath', 'scale', 'stroke', 'clearHitRegions', 'clearRect', 'fillRect', 'strokeRect', 'rect', 'roundRect', 'resetTransform', 'translate', 'moveTo', 'lineTo', 'bezierCurveTo', 'createLinearGradient', 'ellipse', 'measureText', 'rotate', 'drawImage', 'drawFocusIfNeeded', 'isPointInPath', 'isPointInStroke', 'putImageData', 'strokeText', 'fillText', 'quadraticCurveTo', 'removeHitRegion', 'fill', 'transform', 'scrollPathIntoView', 'createImageData'];
+ const compositeOperations = ['source-over', 'source-in', 'source-out', 'source-atop', 'destination-over', 'destination-in', 'destination-out', 'destination-atop', 'lighter', 'copy', 'xor', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity'];
+ function getTransformSlice(ctx) {
+   return ctx._transformStack[ctx._stackIndex].slice();
+@@ -909,6 +909,40 @@ class CanvasRenderingContext2D {
+     const event = (0, _createCanvasEvent.default)('restore', getTransformSlice(this), {});
+     this._events.push(event);
+   }
++  roundRect(x, y, width, height, radii) {
++    if (arguments.length < 4)
++      throw new TypeError(
++        "Failed to execute 'roundRect' on '" +
++        this.constructor.name +
++        "': 4 arguments required, but only " +
++        arguments.length +
++        ' present.'
++      );
++    if (radii.constructor === Array && (radii.length === 0 || radii.length > 4))
++      throw new TypeError(
++        "Failed to execute 'roundRect' on '" +
++        this.constructor.name +
++        "': " +
++        radii.length +
++        ' radii provided. Between one and four radii are necessary.'
++      );
++    if (!Number.isFinite(x + y + width + height)) return;
++
++    const xResult = Number(x);
++    const yResult = Number(y);
++    const widthResult = Number(width);
++    const heightResult = Number(height);
++    const event = (0, _createCanvasEvent.default)('roundRect', getTransformSlice(this), {
++      x: xResult,
++      y: yResult,
++      width: widthResult,
++      height: heightResult,
++      radii: radii,
++    });
++
++    this._events.push(event);
++    this._path.push(event);
++  }
+   rotate(angle) {
+     if (arguments.length < 1) throw new TypeError("Failed to execute 'rotate' on '" + this.constructor.name + "': 1 argument required, but only 0 present.");
+     angle = Number(angle);

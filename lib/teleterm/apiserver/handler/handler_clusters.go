@@ -22,9 +22,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -70,15 +72,6 @@ func (s *Handler) AddCluster(ctx context.Context, req *api.AddClusterRequest) (*
 	return newAPIRootCluster(cluster), nil
 }
 
-// RemoveCluster removes a cluster from local system
-func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RemoveCluster(ctx, req.ClusterUri); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.EmptyResponse{}, nil
-}
-
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
 	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
@@ -91,6 +84,17 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 	return apiRootClusterWithDetails, trace.Wrap(err)
 }
 
+// ClearStaleClusterClients closes root and leaf cluster clients that use outdated TLS certificates.
+func (s *Handler) ClearStaleClusterClients(_ context.Context, req *api.ClearStaleClusterClientsRequest) (*api.ClearStaleClusterClientsResponse, error) {
+	parsed, err := uri.Parse(req.RootClusterUri)
+	if err != nil {
+		return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
+	}
+
+	err = s.DaemonService.ClearStaleCachedClientsForRoot(parsed)
+	return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
+}
+
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	loggedInUser := cluster.GetLoggedInUser()
 
@@ -101,10 +105,10 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
 			Name:            loggedInUser.Name,
-			SshLogins:       loggedInUser.SSHLogins,
 			Roles:           loggedInUser.Roles,
 			ActiveRequests:  loggedInUser.ActiveRequests,
 			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
+			ValidUntil:      timestamppb.New(loggedInUser.ValidUntil),
 		},
 		SsoHost: cluster.SSOHost,
 	}
@@ -155,9 +159,8 @@ func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
 		Connected: leaf.Connected,
 		Leaf:      true,
 		LoggedInUser: &api.LoggedInUser{
-			Name:      leaf.LoggedInUser.Name,
-			SshLogins: leaf.LoggedInUser.SSHLogins,
-			Roles:     leaf.LoggedInUser.Roles,
+			Name:  leaf.LoggedInUser.Name,
+			Roles: leaf.LoggedInUser.Roles,
 		},
 	}
 }

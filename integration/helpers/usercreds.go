@@ -120,11 +120,11 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +134,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
-	sshCert, x509Cert, err := a.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+	sshCert, x509Cert, err := a.GenerateUserTestCertsWithContext(context.Background(), auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      sshPub,
 		TLSPubKey:      tlsPub,
 		Username:       req.Username,
@@ -146,7 +146,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

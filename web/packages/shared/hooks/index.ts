@@ -29,3 +29,5 @@ export {
   useInterval,
   useInfiniteScroll,
 };
+
+export { useStateRef } from './useStateRef';

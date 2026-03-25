@@ -16,8 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import type {
+  ClusterLifecycleEvent,
+  ProfileWatcherError,
+} from 'teleterm/mainProcess/clusterLifecycleManager';
+import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -49,6 +57,8 @@ export type RuntimeSettings = {
    * - Starting the app in dev mode with the CONNECT_INSECURE env var.
    */
   insecure: boolean;
+  /** User's home directory. */
+  homeDir: string;
   userDataDir: string;
   sessionDataDir: string;
   tempDataDir: string;
@@ -68,7 +78,7 @@ export type RuntimeSettings = {
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
-    homeDir: string;
+    defaultHomeDir: string;
   };
   sharedProcess: {
     requestedNetworkAddress: string;
@@ -138,11 +148,18 @@ export type MainProcessClient = {
   }>;
   configService: ConfigService;
   fileStorage: FileStorage;
-  removeKubeConfig(options: {
-    relativePath: string;
-    isDirectory?: boolean;
-  }): Promise<void>;
-  forceFocusWindow(): void;
+  /**
+   * Tells the OS to focus the window. If wait is true, polls periodically for window status and
+   * resolves when it's focused or after a short timeout.
+   *
+   * Most of the time wait shouldn't be used. It's for use cases where the app must be focused
+   * before carrying out the rest of the logic (e.g., the clipboard API requires focus). Even in
+   * those cases, the logic must handle a scenario where focus wasn't received as focus cannot be
+   * guaranteed. Any app can steal focus at any time.
+   */
+  forceFocusWindow(
+    args?: { wait?: false } | { wait: true; signal?: AbortSignal }
+  ): Promise<void>;
   /**
    * The promise returns true if tsh got successfully symlinked, false if the user closed the
    * osascript prompt. The promise gets rejected if osascript encountered an error.
@@ -183,7 +200,53 @@ export type MainProcessClient = {
    * interacted with the relevant modals during startup and is free to use the app.
    */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
-  refreshClusterList(): void;
+  /**
+   * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
+   * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
+   * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
+   *
+   * Returns selected directory name.
+   */
+  selectDirectoryForDesktopSession(args: {
+    desktopUri: string;
+    login: string;
+  }): Promise<string>;
+  changeAppUpdatesManagingCluster(
+    clusterUri: RootClusterUri | undefined
+  ): Promise<void>;
+  supportsAppUpdates(): boolean;
+  checkForAppUpdates(): Promise<void>;
+  downloadAppUpdate(): Promise<void>;
+  cancelAppUpdateDownload(): Promise<void>;
+  quitAndInstallAppUpdate(): Promise<void>;
+  subscribeToAppUpdateEvents(listener: (args: AppUpdateEvent) => void): {
+    cleanup: () => void;
+  };
+  subscribeToOpenAppUpdateDialog(listener: () => void): {
+    cleanup: () => void;
+  };
+  subscribeToIsInBackgroundMode(
+    listener: (opts: { isInBackgroundMode: boolean }) => void
+  ): {
+    cleanup: () => void;
+  };
+  addCluster(proxyAddress: string): Promise<Cluster>;
+  syncCluster(clusterUri: RootClusterUri): Promise<void>;
+  syncRootClusters(): Promise<Cluster[]>;
+  logout(clusterUri: RootClusterUri): Promise<void>;
+  subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
+    cleanup: () => void;
+  };
+  registerClusterLifecycleHandler(
+    listener: (event: ClusterLifecycleEvent) => Promise<void>
+  ): {
+    cleanup: () => void;
+  };
+  subscribeToProfileWatcherErrors(
+    listener: (args: ProfileWatcherError) => void
+  ): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -289,15 +352,32 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
+  OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
+  AppUpdateEvent = 'renderer-app-update-event',
+  IsInBackgroundMode = 'renderer-is-in-background-mode',
+  ProfileWatcherError = 'renderer-profile-watcher-error',
 }
 
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
-  RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
+  ForceFocusWindow = 'main-process-force-focus-window',
+  SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
+  CheckForAppUpdates = 'main-process-check-for-app-updates',
+  DownloadAppUpdate = 'main-process-download-app-update',
+  CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
+  QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
+  ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
+  SupportsAppUpdates = 'main-process-supports-app-updates',
+  InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',
+  SyncCluster = 'main-process-sync-cluster',
+  AddCluster = 'main-process-add-cluster',
+  SyncRootClusters = 'main-process-sync-root-clusters',
+  Logout = 'main-process-logout',
+  RegisterClusterLifecycleHandler = 'main-process-register-cluster-lifecycle-handler',
 }
 
 export enum WindowsManagerIpc {

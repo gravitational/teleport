@@ -22,8 +22,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const (
@@ -141,8 +140,6 @@ const (
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	// agents connect over a reverse tunnel to proxy, so we use insecure mode.
-	lib.SetInsecureDevMode(true)
+	logtest.InitLogger(testing.Verbose)
 	helpers.TestMainImplementation(m)
 }

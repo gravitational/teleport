@@ -67,6 +67,9 @@ service ClusterConfigService {
   rpc UpsertAccessGraphSettings(UpsertAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
   // ResetAccessGraphSettings restores the active cluster Access Graph to default settings.
   rpc ResetAccessGraphSettings(ResetAccessGraphSettingsRequest) returns (teleport.clusterconfig.v1.AccessGraphSettings);
+
+  // GetClusterName retrieves the cluster name.
+  rpc GetClusterName(GetClusterNameRequest) returns (types.ClusterNameV2);
 }
 
 // Request for GetClusterNetworkingConfig
@@ -149,3 +152,6 @@ message UpsertAccessGraphSettingsRequest {
 
 // Request for ResetAccessGraphSettings
 message ResetAccessGraphSettingsRequest {}
+
+// Request for GetClusterName
+message GetClusterNameRequest {}

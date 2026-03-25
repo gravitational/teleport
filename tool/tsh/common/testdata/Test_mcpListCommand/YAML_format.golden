@@ -1,0 +1,47 @@
+- kind: app
+  metadata:
+    description: description
+    labels:
+      env: dev
+      teleport.internal/app-sub-kind: mcp
+    name: allow-read
+  permissions:
+    mcp:
+      tools:
+        allowed:
+        - read_*
+  spec:
+    insecure_skip_verify: false
+    mcp:
+      args:
+      - arg
+      command: test
+      run_as_host_user: test
+    uri: mcp+stdio://
+  sub_kind: mcp
+  version: v3
+- kind: app
+  metadata:
+    description: description
+    labels:
+      env: dev
+      teleport.internal/app-sub-kind: mcp
+    name: deny-write
+  permissions:
+    mcp:
+      tools:
+        allowed:
+        - '*'
+        denied:
+        - write_*
+  spec:
+    insecure_skip_verify: false
+    mcp:
+      args:
+      - arg
+      command: test
+      run_as_host_user: test
+    uri: mcp+stdio://
+  sub_kind: mcp
+  version: v3
+

@@ -34,3 +34,28 @@ func ExampleMakeTable() {
 	// Write the table to stdout.
 	fmt.Println(t.AsBuffer().String())
 }
+
+func ExampleMakeColumnsAndRows() {
+	type dbResourceRow struct {
+		DatabaseName string `asciitable:"DB Name"` // This column will appear in the table under a custom name.
+		Skip         string `asciitable:"-"`       // This column will be skipped entirely.
+		ResourceID   string // It will derive the name "Resource ID"
+	}
+
+	rows := []dbResourceRow{
+		{DatabaseName: "orders", Skip: "ignored", ResourceID: "db-1"},
+		{DatabaseName: "users", Skip: "ignored", ResourceID: "db-2"},
+	}
+
+	// Build table columns + rows.
+	cols, data, err := MakeColumnsAndRows(rows, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create asciitable table.
+	table := MakeTable(cols, data...)
+
+	// Write the table to stdout.
+	fmt.Println(table.AsBuffer().String())
+}

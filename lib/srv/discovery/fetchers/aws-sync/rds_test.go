@@ -23,7 +23,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -170,7 +172,6 @@ func TestPollAWSRDS(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
-				protocmp.IgnoreFields(&accessgraphv1alpha.AWSRDSDatabaseV1{}, "last_sync_time"),
 			),
 			)
 
@@ -223,6 +224,8 @@ type fakeAWSClients struct {
 	rdsClient rdsClient
 	s3Client  s3Client
 	stsClient stsClient
+	kmsClient kmsClient
+	cwlClient cloudwatchlogs.FilterLogEventsAPIClient
 }
 
 func (f fakeAWSClients) getIAMClient(cfg aws.Config, optFns ...func(*iam.Options)) iamClient {
@@ -239,4 +242,12 @@ func (f fakeAWSClients) getS3Client(cfg aws.Config, optFns ...func(*s3.Options))
 
 func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
 	return f.stsClient
+}
+
+func (f fakeAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient {
+	return f.kmsClient
+}
+
+func (f fakeAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient {
+	return f.cwlClient
 }

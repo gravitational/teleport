@@ -93,7 +93,7 @@ func TestCRUD(t *testing.T) {
 func TestUserActivityReportSplitting(t *testing.T) {
 	recordCount := 10000
 	records := make([]*prehogv1.UserActivityRecord, 0, recordCount)
-	for i := 0; i < recordCount; i++ {
+	for range recordCount {
 		records = append(records, &prehogv1.UserActivityRecord{
 			UserName:    []byte("user"),
 			Logins:      100500,
@@ -142,6 +142,14 @@ func newResourcePresenceReport(startTime time.Time) *prehogv1.ResourcePresenceRe
 	}
 }
 
+func newIdentitySecuritySummariesGeneratedReport(startTime time.Time) *prehogv1.IdentitySecuritySummariesGeneratedReport {
+	u := uuid.New()
+	return &prehogv1.IdentitySecuritySummariesGeneratedReport{
+		ReportUuid: u[:],
+		StartTime:  timestamppb.New(startTime),
+	}
+}
+
 func TestResourcePresenceReporting(t *testing.T) {
 	ctx := context.Background()
 	clk := clockwork.NewFakeClock()
@@ -183,7 +191,7 @@ func TestResourcePresenceReportSplitting(t *testing.T) {
 			ResourceKind: kind,
 			ResourceIds:  make([]uint64, 0, resourceIdsPerReport),
 		}
-		for i := 0; i < resourceIdsPerReport; i++ {
+		for i := range resourceIdsPerReport {
 			kindReport.ResourceIds = append(kindReport.ResourceIds, uint64(i))
 		}
 		resKindReports = append(resKindReports, &kindReport)
@@ -214,7 +222,7 @@ func TestResourcePresenceReportSplitting(t *testing.T) {
 func TestBotInstanceActivityReportSplitting(t *testing.T) {
 	recordCount := 10000
 	records := make([]*prehogv1.BotInstanceActivityRecord, 0, recordCount)
-	for i := 0; i < recordCount; i++ {
+	for range recordCount {
 		records = append(records, &prehogv1.BotInstanceActivityRecord{
 			BotUserName:   []byte("user"),
 			BotInstanceId: []byte("foo"),

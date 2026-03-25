@@ -38,6 +38,7 @@ import sessionService from './services/session';
 import { storageService } from './services/storageService';
 import userService from './services/user';
 import userGroupService from './services/userGroups';
+import { yamlService } from './services/yaml/yaml';
 import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
 
@@ -62,6 +63,7 @@ class TeleportContext implements types.Context {
   userGroupService = userGroupService;
   mfaService = new MfaService();
   notificationService = new NotificationService();
+  yamlService = yamlService;
 
   notificationContentFactory = notificationContentFactory;
 
@@ -92,7 +94,7 @@ class TeleportContext implements types.Context {
   // The caller of this function provides the try/catch
   // block.
   // preferences are needed in TeleportContextE, but not in TeleportContext.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line no-unused-vars
   async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
@@ -108,6 +110,8 @@ class TeleportContext implements types.Context {
     }
 
     if (user.acl.accessGraph.list) {
+      storageService.resetAccessGraphEnabled();
+
       // If access graph is enabled, check what features are enabled and store them in local storage.
       // We await this so it is done by the time the page renders, otherwise the local storage event
       // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
@@ -204,20 +208,38 @@ class TeleportContext implements types.Context {
         userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
-      newLocks:
-        userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      addLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit, // Presumably because this is an upsert operation so needs both create and edit permissions
+      removeLocks: userContext.getLockAccess().remove,
       accessMonitoring: hasAccessMonitoringAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
-      tokens: userContext.getTokenAccess().create,
+      createTokens: userContext.getTokenAccess().create,
+      listTokens: userContext.getTokenAccess().list,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
+      readBots: userContext.getBotsAccess().read,
       addBots: userContext.getBotsAccess().create,
       editBots: userContext.getBotsAccess().edit,
       removeBots: userContext.getBotsAccess().remove,
       gitServers:
         userContext.getGitServersAccess().list &&
         userContext.getGitServersAccess().read,
+      readBotInstances: userContext.getBotInstancesAccess().read,
+      listBotInstances: userContext.getBotInstancesAccess().list,
+      readInstances: userContext.getInstancesAccess().read,
+      listInstances: userContext.getInstancesAccess().list,
+      listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
+      readAutoUpdateConfig: userContext.getAutoUpdateConfigAccess().read,
+      readAutoUpdateVersion: userContext.getAutoUpdateVersionAccess().read,
+      readAutoUpdateAgentRollout:
+        userContext.getAutoUpdateAgentRolloutAccess().read,
+      listAutoUpdateAgentReport:
+        userContext.getAutoUpdateAgentReportAccess().list,
+      sessionSummaries:
+        userContext.getInferencePolicyAccess().list ||
+        userContext.getInferenceModelAccess().list ||
+        userContext.getInferenceSecretAccess().list,
     };
   }
 }
@@ -237,7 +259,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   trustedClusters: false,
   users: false,
   newAccessRequest: false,
-  tokens: false,
+  createTokens: false,
+  listTokens: false,
   accessRequests: false,
   downloadCenter: false,
   supportLink: false,
@@ -248,16 +271,28 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrationsOrPlugins: false,
   enrollIntegrations: false,
   locks: false,
-  newLocks: false,
+  addLocks: false,
+  removeLocks: false,
   accessMonitoring: false,
   accessGraph: false,
   accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
+  readBots: false,
   editBots: false,
   removeBots: false,
   gitServers: false,
+  readBotInstances: false,
+  listBotInstances: false,
+  readInstances: false,
+  listInstances: false,
+  listWorkloadIdentities: false,
+  readAutoUpdateConfig: false,
+  readAutoUpdateVersion: false,
+  readAutoUpdateAgentRollout: false,
+  listAutoUpdateAgentReport: false,
+  sessionSummaries: false,
 };
 
 export default TeleportContext;

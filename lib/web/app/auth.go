@@ -21,7 +21,9 @@ package app
 import (
 	"crypto/subtle"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -184,9 +186,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 	// Validate that the caller is asking for a session that exists and that they have the secret
 	// session token for.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: req.CookieValue,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), req.CookieValue)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Request failed: session does not exist", "error", err)
 		return trace.AccessDenied("access denied")
@@ -225,25 +225,47 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	})
 
 	requiredApps := strings.Split(req.RequiredApps, ",")
-	if len(requiredApps) > 1 {
-		requiredApps := requiredApps[1:]
-		nextRequiredApp := requiredApps[0]
+	if len(requiredApps) <= 1 {
+		return nil
+	}
 
-		webLauncherURLParams := launcherURLParams{
-			publicAddr:          nextRequiredApp,
-			clusterName:         h.clusterName,
-			requiredAppFQDNs:    strings.Join(requiredApps, ","),
-			requiresAppRedirect: true,
-		}
-		addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	requiredApps = requiredApps[1:]
+	nextRequiredApp := requiredApps[0]
+
+	webLauncherURLParams := launcherURLParams{
+		publicAddr:          nextRequiredApp,
+		requiredAppFQDNs:    strings.Join(requiredApps, ","),
+		requiresAppRedirect: true,
+	}
+	addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var publicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, proxyAddr.Host())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), webLauncherURLParams)
-		// this request does not return a response, so we can pass this value through a custom header instead
-		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
+		publicAddrs = append(publicAddrs, proxyAddr.Host())
 	}
-
+	if len(publicAddrs) == 0 {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, h.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		reqAddr, err := utils.ParseAddr(r.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		port := reqAddr.Port(443)
+		publicAddrs = []string{net.JoinHostPort(h.clusterName, strconv.Itoa(port))}
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
+	// this request does not return a response, so we can pass this value through a custom header instead
+	w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	return nil
 }
 

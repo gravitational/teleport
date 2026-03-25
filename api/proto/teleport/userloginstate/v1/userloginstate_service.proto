@@ -24,6 +24,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // UserLoginStateService provides CRUD methods for user login state resources.
 service UserLoginStateService {
   // GetUserLoginStates returns a list of all user login states.
+  // Deprecated: Use ListUserLoginStates instead.
   rpc GetUserLoginStates(GetUserLoginStatesRequest) returns (GetUserLoginStatesResponse);
   // GetUserLoginState returns the specified user login state resource.
   rpc GetUserLoginState(GetUserLoginStateRequest) returns (UserLoginState);
@@ -33,6 +34,8 @@ service UserLoginStateService {
   rpc DeleteUserLoginState(DeleteUserLoginStateRequest) returns (google.protobuf.Empty);
   // DeleteAllUserLoginStates hard deletes all user login states.
   rpc DeleteAllUserLoginStates(DeleteAllUserLoginStatesRequest) returns (google.protobuf.Empty);
+  // ListUserLoginStates lists all user login states allowing for pagination.
+  rpc ListUserLoginStates(ListUserLoginStatesRequest) returns (ListUserLoginStatesResponse);
 }
 
 // GetUserLoginStatesRequest is the request for getting all user login states.
@@ -64,3 +67,19 @@ message DeleteUserLoginStateRequest {
 
 // DeleteAllUserLoginStatesRequest is the request for deleting all user login states.
 message DeleteAllUserLoginStatesRequest {}
+
+// ListUserLoginStatesRequest is the request for listing user login states with pagination.
+message ListUserLoginStatesRequest {
+  // page_size is the maximum number of user login states to return.
+  int32 page_size = 1;
+  // page_token is the token for the next page of results.
+  string page_token = 2;
+}
+
+// ListUserLoginStatesResponse is the response for listing user login states with pagination.
+message ListUserLoginStatesResponse {
+  // user_login_states is the list of user login states.
+  repeated UserLoginState user_login_states = 1;
+  // next_page_token is the token for the next page of results.
+  string next_page_token = 2;
+}

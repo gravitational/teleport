@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 // KubernetesV2Command implements `tbot start kubernetes` and
@@ -45,7 +46,7 @@ type KubernetesV2Command struct {
 	KubernetesClusterLabels []string
 }
 
-// NewKubernetesCommand initializes the command and flags for kubernetes outputs
+// NewKubernetesV2Command initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
 func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *KubernetesV2Command {
 	cmd := parentCmd.Command("kubernetes/v2", fmt.Sprintf("%s tbot with a Kubernetes V2 output.", mode)).Alias("k8s/v2")
@@ -72,9 +73,9 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 		return trace.Wrap(err)
 	}
 
-	selectors := []*config.KubernetesSelector{}
+	selectors := []*k8s.KubernetesSelector{}
 	for _, name := range c.KubernetesClusterNames {
-		selectors = append(selectors, &config.KubernetesSelector{
+		selectors = append(selectors, &k8s.KubernetesSelector{
 			Name: name,
 		})
 	}
@@ -85,7 +86,7 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 			return trace.Wrap(err)
 		}
 
-		selectors = append(selectors, &config.KubernetesSelector{
+		selectors = append(selectors, &k8s.KubernetesSelector{
 			Labels: labels,
 		})
 	}
@@ -94,7 +95,7 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 		return trace.BadParameter("at least one name-selector or label-selector must be provided")
 	}
 
-	cfg.Services = append(cfg.Services, &config.KubernetesV2Output{
+	cfg.Services = append(cfg.Services, &k8s.OutputV2Config{
 		Destination:       dest,
 		DisableExecPlugin: c.DisableExecPlugin,
 		Selectors:         selectors,

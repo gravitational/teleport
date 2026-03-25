@@ -1,0 +1,158 @@
+---
+title: Integrate your Identity Provider with Teleport
+sidebar_label: Integrate your Provider
+description: Configure user authentication to Teleport through your identity provider.
+---
+
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import entraIdSvg from "@site/src/components/Icon/svg/ms-entra-id.svg";
+import gSuiteSvg from "@site/src/components/Icon/svg/g-suite.svg";
+import oauth2OidcSvg from "@site/src/components/Icon/svg/oauth2-oidc.svg";
+import gitlabSvg from "@site/src/components/Icon/svg/gitlab.svg";
+import keycloakSvg from "@site/src/components/Icon/svg/keycloak.svg";
+import oneLoginSvg from "@site/src/components/Icon/svg/one-login.svg";
+import adfsSvg from "@site/src/components/Icon/svg/active-directory.svg";
+
+You can configure Teleport so that users authenticate with an external identity
+provider such as Okta or GitHub. To do so, you can create a Teleport resource
+called an **authentication connector** that contains information about your IdP
+and configures the Teleport roles that users assume once they authenticate.
+
+The guides in this section show you how to integrate your IdP with Teleport. 
+
+For an overview of how Teleport integrates with single sign-on providers, see
+[Single Sign-On](../sso.mdx).
+
+## Integrating your provider
+
+Integrating a provider with Teleport includes the following steps:
+
+1. **Configure your IdP** to register Teleport as an application, resulting in a
+   client ID, client secret, and other data about your application.
+1. **Determine a role mapping:** When a user authenticates to Teleport, Teleport
+   issues certificates containing the user's roles. A role mapping configures
+   how Teleport selects roles for the user based on the user's GitHub teams,
+   SAML attributes, or OIDC claims.
+1. **Apply an authentication connector:** The authentication connector includes
+   information about the role mapping and Teleport application, giving Teleport
+   the information it needs to exchange SAML, OIDC, and GitHub SSO messages with
+   your IdP and issue certificates to users. 
+1. **Apply a cluster authentication preference:** The cluster auth preference
+   resource selects an SSO provider as the default authentication method for
+   Teleport users.
+
+<br />
+<br />
+
+<EnterpriseFeatureCallout title="Enable Enterprise SSO for your team.">
+  Use GitHub SSO in Community Edition, or connect Okta, Google Workspace, and more with an Enterprise trial.
+</EnterpriseFeatureCallout>
+
+<Resources
+  title=""
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "GitHub",
+      iconComponent: githubSvg,
+      href: "./github-sso/",
+      editionTag: "Community",
+    },
+    {
+      title: "Okta",
+      iconComponent: oktaSvg,
+      href: "./okta/"
+    },
+    {
+      title: "Microsoft Entra ID (SAML)",
+      iconComponent: entraIdSvg,
+      href: "./entra-id/"
+    },
+    {
+      title: "Microsoft Entra ID (OIDC)",
+      iconComponent: entraIdSvg,
+      href: "./entra-id-oidc/"
+    },
+    {
+      title: "Google Workspace (G Suite)",
+      iconComponent: gSuiteSvg,
+      href: "./google-workspace/"
+    },
+    {
+      title: "GitLab",
+      iconComponent: gitlabSvg,
+      href: "./gitlab/"
+    },
+    {
+      title: "Keycloak",
+      iconComponent: keycloakSvg,
+      href: "./keycloak/"
+    },
+    {
+      title: "OneLogin",
+      iconComponent: oneLoginSvg,
+      href: "./one-login/"
+    },
+    {
+      title: "Active Directory Federation Services",
+      iconComponent: adfsSvg,
+      href: "./adfs/"
+    },
+    {
+      title: "Generic OIDC",
+      iconComponent: oauth2OidcSvg,
+      href: "./oidc/"
+    },
+  ]}
+    additionalLinks={{
+      links: [
+        {
+          title: "Multiple Identity Providers",
+          href: "../multiple-providers/"
+        },
+        {
+          title: "Login Rules",
+          href: "../login-rules/"
+        },
+        {
+          title: "SSO for MFA Checks",
+          href: "../sso-for-mfa/"
+        }
+     ]
+  }}
+/>
+
+
+## Provider-specific workarounds
+
+Certain SSO providers may require or benefit from changes to Teleport's SSO
+flow. These provider-specific changes can be enabled by setting the
+`spec.provider` property of the connector definition to one of the following
+values to match your identity provider:
+
+- `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
+  to the full [ADFS guide](adfs.mdx) for details.
+- `jumpcloud` (SAML): Required for compatibility with JumpCloud.
+- `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
+  the [OIDC guide](oidc.mdx) for details.
+- `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate).
+- `okta` (OIDC): Required when using Okta as an OIDC provider.
+
+At this time, the `spec.provider` field should not be set for any other identity providers.
+
+## Customizing authentication buttons 
+
+Use the `display` field in an authentication connector to control the appearance
+of SSO buttons in the Teleport Web UI.
+
+| Provider | YAML | Example |
+| - | - | - |
+| GitHub | `display: GitHub` | ![github](../../../../img/teleport-sso/github@2x.png) |
+| Microsoft | `display: Microsoft` | ![microsoft](../../../../img/teleport-sso/microsoft@2x.png) |
+| Google | `display: Google` | ![google](../../../../img/teleport-sso/google@2x.png) |
+| Bitbucket | `display: Bitbucket` | ![bitbucket](../../../../img/teleport-sso/bitbucket@2x.png) |
+| OpenID | `display: Okta` | ![Okta](../../../../img/teleport-sso/openId@2x.png) |

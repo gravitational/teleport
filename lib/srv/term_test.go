@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
 func TestGetOwner(t *testing.T) {
@@ -55,7 +57,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  5,
-			outMode: 0600,
+			outMode: 0o600,
 		},
 		// Group "tty" does not exist.
 		{
@@ -70,7 +72,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  1000,
-			outMode: 0620,
+			outMode: 0o620,
 		},
 	}
 
@@ -88,7 +90,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	t.Parallel()
 
 	srv := newMockServer(t)
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
 
 	shPath, err := exec.LookPath("sh")
 	require.NoError(t, err)
@@ -117,9 +119,6 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 
 		errors <- err
 	}()
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
 
 	// Continue execution
 	scx.execRequest.Continue()

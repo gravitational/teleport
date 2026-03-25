@@ -1,0 +1,239 @@
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app0-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app1-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app2-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app3-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app4-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app5-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app6-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app7-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app8-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3
+---
+kind: app
+metadata:
+  description: 'Dummy application'
+  labels:
+    application: SPACES
+    owner: test
+    read-only: ""
+    read-write: ""
+  name: app9-@@JOB_INDEX@@.example
+spec:
+  insecure_skip_verify: false
+  rewrite:
+    headers:
+      - name: X-TELEPORT-OWNER
+        value: test
+      - name: X-TELEPORT-READ-ONLY
+        value: ""
+      - name: X-TELEPORT-READ-WRITE
+        value: ""
+    jwt_claims: none
+  uri: https://localhost
+  use_any_proxy_public_addr: true
+version: v3

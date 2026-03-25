@@ -1,0 +1,142 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// GitHubAuditLogV1Cursor holds the necessary state for resuming GitHub audit log collection.
+message GitHubAuditLogV1Cursor {
+  // token is next cursor to use in subsequent requests.
+  string token = 1;
+  // last_event_id is the last event id received from github.
+  string last_event_id = 2;
+  // last_event_time is the time of the last event seen.
+  google.protobuf.Timestamp last_event_time = 3;
+}
+
+// GitHubAuditLogV1 bundles a batch of GitHub audit log events and the client's current resume cursor.
+message GitHubAuditLogV1 {
+  // A list of GitHub audit events, each as a flexible JSON-like structure.
+  repeated google.protobuf.Struct events = 1;
+  // Client's current GitHubAuditLogV1Cursor state, sent with this batch for resumable collection.
+  GitHubAuditLogV1Cursor cursor = 2;
+}
+
+// GitHubConfigV1 specifies configuration settings for GitHub audit log exports,
+// including the desired start date for log collection.
+message GitHubConfigV1 {
+  // The desired start date for exporting GitHub audit logs.
+  google.protobuf.Timestamp start_date = 1;
+  // The Github Organization name.
+  string organization = 2;
+}
+
+// GithubTokenV1 holds information about a GitHub access token,
+// such as its ID, owner, permissions, and expiration date.
+message GithubTokenV1 {
+  // id is the token id.
+  int64 id = 1;
+  // name is the token alias.
+  string name = 2;
+  // owner is the token owner
+  string owner = 3;
+  // expires is the token expiration time.
+  google.protobuf.Timestamp expires = 4;
+  // permissions are the token permissions.
+  repeated GithubTokenV1Permission permissions = 5;
+  // The GitHub organization context for this permission, ex.: "gravitational".
+  string organization = 6;
+}
+
+// GithubTokenV1Permission describes a single permission for a GitHub token,
+// including its domain, verb, object, and organization.
+message GithubTokenV1Permission {
+  // The area or category the permission applies to, ex.: "repo", "issues", "actions_secrets".
+  string domain = 1;
+  // The action allowed by the permission, ex.: "read", "write", "admin".
+  string verb = 2;
+  // The specific resource or target of the action, ex.: "my-webapp", "*", "dependabot_secrets".
+  string object = 3;
+  // The GitHub organization context for this permission, ex.: "gravitational".
+  string organization = 4;
+}
+
+// GithubRoleAssignmentV1 holds information about a user's assignment to a role in a GitHub organization.
+message GithubRoleAssignmentV1 {
+  // The GitHub role ID.
+  int64 role_id = 1;
+  // True if the user has the 'owner' (administrator) privileges in the organization.
+  bool owner = 2;
+  // The GitHub username of the user assigned to the role, ex.: "octocat".
+  string user = 3;
+  // The name of the GitHub organization where the role assignment is made, ex.: "gravitational".
+  string organization = 4;
+}
+
+// GithubRoleV1 represents a custom role defined within a GitHub organization.
+message GithubRoleV1 {
+  // The GitHub role ID.
+  int64 role_id = 1;
+  // The human-readable name of the custom role, ex.: "Triage Lead", "Security Auditor".
+  string name = 2;
+  // The GitHub organization where this custom role is defined, ex.: "gravitational".
+  string organization = 3;
+}
+
+// GithubRepositoryV1 represents a GitHub repository, including its name,
+// associated collaborators, and the organization it belongs to.
+message GithubRepositoryV1 {
+  // The name of the repository, ex.: "my-awesome-app", "project-x".
+  string name = 1;
+  // A list of GitHub usernames who are collaborators on this repository, ex.: ["octocat", "mona-lisa"].
+  repeated string collaborators = 2;
+  // The GitHub organization that owns or contains this repository, ex.: "gravitational".
+  string organization = 3;
+}
+
+// GithubSync is an empty message that signals a synchronization point,
+// ex.: indicating the end of an initial full data sync from the client.
+message GithubSync {}
+
+// GithubResourceList contains a list of GitHub resources,
+// used for sending multiple resources in a single operation (ex.: batch upsert or delete).
+message GithubResourceList {
+  repeated GithubResource resources = 1;
+}
+
+// GithubResource acts as a container that holds one specific type of GitHub resource,
+// such as a token, role assignment, role, or repository, using a 'oneof'.
+message GithubResource {
+  // Holds the actual specific GitHub resource data. Only one of these fields can be set.
+  oneof resource {
+    // A GitHub authentication token.
+    GithubTokenV1 token = 1;
+    // An assignment of a GitHub role to a user.
+    GithubRoleAssignmentV1 role_assignment = 2;
+    // A custom-defined GitHub role.
+    GithubRoleV1 role = 3;
+    // A GitHub repository.
+    GithubRepositoryV1 repository = 4;
+  }
+}

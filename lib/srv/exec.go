@@ -39,10 +39,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -79,12 +77,15 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
-	// WaitForChild blocks until the child process has completed any required
-	// setup operations before proceeding with execution.
-	WaitForChild() error
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine (placed in a cgroup).
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// PID returns the PID of the Teleport process that was re-execed.
@@ -102,10 +103,8 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a registered OpenSSH node or proxy recoding mode is
-	// enabled, execute the command on a remote host. This is used by
-	// in-memory forwarding nodes.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// If this is a forwarding node, execute the command on a remote host.
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -132,6 +131,8 @@ type localExec struct {
 
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
+
+	pid int
 }
 
 // GetCommand returns the command string.
@@ -187,9 +188,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := e.Ctx.readyw.Close(); err != nil {
-		logger.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
+		logger.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
 	e.Ctx.readyw = nil
+
+	// Save off the PID of the Teleport process under which the command is executing.
+	e.pid = e.Cmd.Process.Pid
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -228,16 +232,25 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
-func (e *localExec) WaitForChild() error {
-	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
-	closeErr := e.Ctx.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+// ReadAuditSessionID reads the unique audit session ID of the process
+// that will be used to correlate audit events to the SSH session for
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
+func (e *localExec) ReadAuditSessionID() (uint32, error) {
+	if !e.Ctx.recordWithBPF() {
+		return 0, nil
+	}
+
+	if err := e.Ctx.WaitForChild(e.Ctx.cancelContext); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return readAuditSessionID(e.pid)
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine (placed in a cgroup).
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (e *localExec) Continue() {
 	e.Ctx.contw.Close()
 
@@ -247,7 +260,7 @@ func (e *localExec) Continue() {
 
 // PID returns the PID of the Teleport process that was re-execed.
 func (e *localExec) PID() int {
-	return e.Cmd.Process.Pid
+	return e.pid
 }
 
 func (e *localExec) String() string {
@@ -259,12 +272,12 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		e.Ctx.GetServer().EmitAuditEvent(e.Ctx.CancelContext(), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.Ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -311,29 +324,25 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
-// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
-// received, it will stop waiting and exit.
-func waitForSignal(fd *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		// Reading from the file descriptor will block until it's closed.
-		_, err := fd.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
-		waitCh <- err
-	}()
-
-	// Timeout if no signal has been sent within the provided duration.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
-	case err := <-waitCh:
-		return err
+func readAuditSessionID(pid int) (uint32, error) {
+	if pid == 0 {
+		return 0, trace.BadParameter("pid is zero")
 	}
+
+	pidStr := strconv.Itoa(pid)
+	sessionIDPath := filepath.Join("/proc", pidStr, "sessionid")
+	sessionIDBytes, err := os.ReadFile(sessionIDPath)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	sessionIDStr := strings.TrimSpace(string(sessionIDBytes))
+
+	sessionID, err := strconv.ParseUint(sessionIDStr, 10, 32)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return uint32(sessionID), nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -364,12 +373,12 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)
@@ -418,7 +427,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild() error { return nil }
+func (e *remoteExec) ReadAuditSessionID() (uint32, error) { return 0, nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}
@@ -435,7 +444,7 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := ctx.GetServer().TargetMetadata()
+	serverMeta := ctx.GetServer().EventMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 
@@ -533,10 +542,10 @@ func getDefaultEnvPath(uid string, loginDefsPath string) string {
 	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
-			slog.InfoContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
+			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
 			return defaultEnvRootPath
 		}
-		slog.InfoContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
+		slog.DebugContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
 		return defaultEnvPath
 	}
 	defer f.Close()

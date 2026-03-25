@@ -88,6 +88,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -114,6 +115,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -141,6 +143,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -180,6 +183,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -209,6 +213,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -240,6 +245,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -258,6 +264,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -276,6 +283,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -294,6 +302,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
+						DatabaseLabels:   map[string]string{"env": "prod"},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -368,7 +377,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 // intercalateChunkedPacketMessages intercalates a chunked packet with a regular packet a specified number of times.
 func intercalateChunkedPacketMessages(chunkedPacket [][]byte, regularPacket []byte, repeat int) [][]byte {
 	var result [][]byte
-	for i := 0; i < repeat; i++ {
+	for range repeat {
 		result = append(result, chunkedPacket...)
 		result = append(result, regularPacket)
 	}

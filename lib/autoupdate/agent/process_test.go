@@ -292,7 +292,7 @@ func TestTickFile(t *testing.T) {
 					_ = os.RemoveAll(filePath)
 					switch {
 					case tick > 0:
-						err := os.WriteFile(filePath, []byte(fmt.Sprintln(tick)), os.ModePerm)
+						err := os.WriteFile(filePath, fmt.Appendln(nil, tick), os.ModePerm)
 						require.NoError(t, err)
 					case tick < 0:
 						err := os.Mkdir(filePath, os.ModePerm)
@@ -308,6 +308,50 @@ func TestTickFile(t *testing.T) {
 			}()
 			err := tickFile(ctx, filePath, ch, tickC)
 			require.Equal(t, tt.errored, err != nil)
+		})
+	}
+}
+
+func TestParseSystemdVersion(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		output  string
+		version int
+	}{
+		{
+			name:    "valid",
+			output:  "systemd 249 (249.4-1ubuntu1.1)\n+PAM +AUDIT\n",
+			version: 249,
+		},
+		{
+			name:    "short",
+			output:  "systemd 249\n",
+			version: 249,
+		},
+		{
+			name:    "stripped",
+			output:  "systemd 249",
+			version: 249,
+		},
+		{
+			name:   "missing",
+			output: "systemd",
+		},
+		{
+			name:   "bad",
+			output: "not found",
+		},
+		{
+			name: "empty",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v, ok := parseSystemDVersion([]byte(tt.output))
+			if tt.version == 0 {
+				require.False(t, ok)
+			}
+			require.Equal(t, tt.version, v)
 		})
 	}
 }

@@ -27,7 +27,6 @@ import (
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -79,7 +78,6 @@ func (a *Fetcher) fetchAWSRDSDatabases(ctx context.Context) (
 	}
 
 	for _, region := range a.Regions {
-		region := region
 		eG.Go(func() error {
 			awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
 			if err != nil {
@@ -120,9 +118,8 @@ func awsRDSInstanceToRDS(instance *rdstypes.DBInstance, region, accountID string
 			Engine:  aws.ToString(instance.Engine),
 			Version: aws.ToString(instance.EngineVersion),
 		},
-		IsCluster:    false,
-		ResourceId:   aws.ToString(instance.DbiResourceId),
-		LastSyncTime: timestamppb.Now(),
+		IsCluster:  false,
+		ResourceId: aws.ToString(instance.DbiResourceId),
 	}
 }
 
@@ -149,9 +146,8 @@ func awsRDSClusterToRDS(instance *rdstypes.DBCluster, region, accountID string) 
 			Engine:  aws.ToString(instance.Engine),
 			Version: aws.ToString(instance.EngineVersion),
 		},
-		IsCluster:    true,
-		ResourceId:   aws.ToString(instance.DbClusterResourceId),
-		LastSyncTime: timestamppb.Now(),
+		IsCluster:  true,
+		ResourceId: aws.ToString(instance.DbClusterResourceId),
 	}
 }
 

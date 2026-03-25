@@ -35,15 +35,33 @@ const logger = Logger.create('services/session');
 let sesstionCheckerTimerId = null;
 
 const session = {
+  _isRenewing: false,
+  _isDeviceTrustRequired: false,
+  _isDeviceTrusted: false,
+
   logout(rememberLocation = false) {
-    api.delete(cfg.api.webSessionPath).then(response => {
-      this.clear();
-      if (response.samlSloUrl) {
-        window.open(response.samlSloUrl, '_self');
-      } else {
-        history.goToLogin({ rememberLocation });
-      }
-    });
+    let samlSloUrl = '';
+
+    api
+      .delete(cfg.api.webSessionPath)
+      .then(response => {
+        samlSloUrl = response?.samlSloUrl;
+      })
+      .catch(err => {
+        // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
+        logger.error(
+          'Failed to delete session. This can happen if the session has already expired.',
+          err
+        );
+      })
+      .finally(() => {
+        this.clear();
+        if (samlSloUrl) {
+          window.open(samlSloUrl, '_self');
+        } else {
+          history.goToLogin({ rememberLocation });
+        }
+      });
   },
 
   logoutWithoutSlo({
@@ -190,17 +208,17 @@ const session = {
       });
   },
 
-  _setAndBroadcastIsRenewing(value) {
+  _setAndBroadcastIsRenewing(value: boolean) {
     this._setIsRenewing(value);
     storageService.broadcast(KeysEnum.TOKEN_RENEW, value);
   },
 
-  _setIsRenewing(value) {
+  _setIsRenewing(value: boolean) {
     this._isRenewing = value;
   },
 
   _getIsRenewing() {
-    return !!this._isRenewing;
+    return this._isRenewing;
   },
 
   setDeviceTrustRequired() {
@@ -208,11 +226,11 @@ const session = {
   },
 
   getDeviceTrustRequired() {
-    return !!this._isDeviceTrustRequired;
+    return this._isDeviceTrustRequired;
   },
 
   getIsDeviceTrusted() {
-    return !!this._isDeviceTrusted;
+    return this._isDeviceTrusted;
   },
 
   // a session will never be "downgraded" so we can just set to true

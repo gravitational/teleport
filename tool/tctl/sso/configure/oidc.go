@@ -25,14 +25,15 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gravitational/trace"
+	"github.com/zitadel/oidc/v3/pkg/client"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
@@ -288,7 +289,7 @@ func oidcRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.OIDC
 	}
 
 	// verify .well-known/openid-configuration is reachable
-	if _, err := oidc.NewProvider(ctx, spec.IssuerURL); err != nil {
+	if _, err := client.Discover(ctx, spec.IssuerURL, otelhttp.DefaultClient); err != nil {
 		if cmd.Config.Debug {
 			cmd.Logger.WarnContext(ctx, "Failed to load .well-known/openid-configuration for issuer URL", "issuer_url", spec.IssuerURL, "error", err)
 		}

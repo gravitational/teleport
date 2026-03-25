@@ -72,6 +72,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	}
 
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
+	permissionSets := makeAPIPermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	tcpPorts := make([]*api.PortRange, 0, len(app.GetTCPPorts()))
 	for _, portRange := range app.GetTCPPorts() {
@@ -79,18 +80,20 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 	}
 
 	return &api.App{
-		Uri:          clusterApp.URI.String(),
-		EndpointUri:  app.GetURI(),
-		Name:         app.GetName(),
-		Desc:         app.GetDescription(),
-		AwsConsole:   app.IsAWSConsole(),
-		PublicAddr:   app.GetPublicAddr(),
-		Fqdn:         clusterApp.FQDN,
-		AwsRoles:     awsRoles,
-		FriendlyName: types.FriendlyName(app),
-		SamlApp:      false,
-		Labels:       apiLabels,
-		TcpPorts:     tcpPorts,
+		Uri:            clusterApp.URI.String(),
+		EndpointUri:    app.GetURI(),
+		Name:           app.GetName(),
+		Desc:           app.GetDescription(),
+		AwsConsole:     app.IsAWSConsole(),
+		PublicAddr:     app.GetPublicAddr(),
+		Fqdn:           clusterApp.FQDN,
+		AwsRoles:       awsRoles,
+		FriendlyName:   types.FriendlyName(app),
+		SamlApp:        false,
+		Labels:         apiLabels,
+		TcpPorts:       tcpPorts,
+		SubKind:        app.GetSubKind(),
+		PermissionSets: permissionSets,
 	}
 }
 
@@ -108,4 +111,19 @@ func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider)
 		SamlApp:      true,
 		Labels:       apiLabels,
 	}
+}
+
+func makeAPIPermissionSets(sets []*types.IdentityCenterPermissionSet) []*api.IdentityCenterPermissionSet {
+	if sets == nil {
+		return nil
+	}
+	apiSets := make([]*api.IdentityCenterPermissionSet, len(sets))
+	for i, set := range sets {
+		apiSets[i] = &api.IdentityCenterPermissionSet{
+			Name:         set.Name,
+			Arn:          set.ARN,
+			AssignmentId: set.AssignmentID,
+		}
+	}
+	return apiSets
 }

@@ -1,5 +1,6 @@
 tls:
   existingCASecretName: helm-lint-existing-tls-secret-ca
+  existingCASecretKeyName: helm-lint-existing-tls-secret-key-name
 
 teleportAddress: "teleport.example.com:3080"
 token: "my-operator-bot"

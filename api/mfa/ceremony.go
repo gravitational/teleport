@@ -41,6 +41,7 @@ type Ceremony struct {
 // SSOMFACeremony is an SSO MFA ceremony.
 type SSOMFACeremony interface {
 	GetClientCallbackURL() string
+	GetProxyAddress() string
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	Close()
 }
@@ -79,6 +80,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 			}
 
 			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			req.ProxyAddress = ssoMFACeremony.GetProxyAddress()
 			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}
 	}

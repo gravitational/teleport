@@ -18,6 +18,7 @@ package quic
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -25,6 +26,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +43,7 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ServerConfig holds the parameters for [NewServer].
@@ -132,15 +135,25 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}
 
 	getClientCAs := cfg.GetClientCAs
+	str := new(sessionTicketRefresher)
 	tlsConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
 		clientCAs, err := getClientCAs(chi)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		utils.RefreshTLSConfigTickets(tlsConfig)
 		c := tlsConfig.Clone()
+		c.GetConfigForClient = nil
 		c.ClientCAs = clientCAs
+
+		// we are sharing session ticket keys and using VerifyPeerCertificate
+		// (as opposed to VerifyCertificate, which does get called on resumed
+		// connections) because we use TLS session resumption as if we were
+		// keeping a persistent connection between peer proxies; we might want
+		// to revisit this if proxy peering grew more capabilities, but since
+		// all it currently does is open bytestreams through tunnels, this is no
+		// worse than gRPC proxy peering with a single persistent TCP connection
+		c.SetSessionTicketKeys(str.getSessionTicketKeys())
 		return c, nil
 	}
 
@@ -209,19 +222,19 @@ func (s *Server) Serve(transport *quic.Transport) error {
 	}
 }
 
-func (s *Server) handleConn(conn quic.EarlyConnection) {
+func (s *Server) handleConn(conn *quic.Conn) {
 	log := s.log.With(
 		"remote_addr", conn.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
 	)
 	state := conn.ConnectionState()
-	log.InfoContext(conn.Context(),
+	log.Log(conn.Context(), logutils.TraceLevel,
 		"handling new peer connection",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
 	defer func() {
-		log.DebugContext(conn.Context(),
+		log.Log(conn.Context(), logutils.TraceLevel,
 			"peer connection closed",
 			"error", ignoreCodeZero(context.Cause(conn.Context())),
 		)
@@ -250,7 +263,7 @@ func (s *Server) handleConn(conn quic.EarlyConnection) {
 	}
 }
 
-func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log *slog.Logger) {
+func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Logger) {
 	log = log.With("stream_id", stream.StreamID())
 	log.DebugContext(conn.Context(), "handling stream")
 	defer log.DebugContext(conn.Context(), "done handling stream")
@@ -372,8 +385,9 @@ func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log
 			Addr:        req.GetDestination().GetAddr(),
 			AddrNetwork: req.GetDestination().GetNetwork(),
 		},
-		ServerID: req.GetTargetHostId(),
-		ConnType: types.TunnelType(req.GetConnectionType()),
+		ServerID:    req.GetTargetHostId(),
+		ConnType:    types.TunnelType(req.GetConnectionType()),
+		TargetScope: req.GetTargetScope(),
 	})
 	if err != nil {
 		sendErr(err)
@@ -475,4 +489,67 @@ func (r *replayStore) add(nonce uint64, now time.Time) (added bool) {
 	}
 	r.currentSet[nonce] = struct{}{}
 	return true
+}
+
+// sessionTicketRefresherState contains a non-empty slice of randomly generated
+// session tickets together with a slice of creation times that has the same
+// length and is in descending order.
+type sessionTicketRefresherState struct {
+	tickets [][32]byte
+	created []time.Time
+}
+
+// sessionTicketRefresher generates and rotates TLS session tickets suitable for
+// use with [tls.Config.SetSessionTicketKeys].
+type sessionTicketRefresher struct {
+	// state is either nil or a pointer to a valid (i.e. non-zero) state struct.
+	state atomic.Pointer[sessionTicketRefresherState]
+	// mu should be held before calculating and storing a new state, to avoid
+	// extra work.
+	mu sync.Mutex
+}
+
+// getSessionTicketKeys returns a slice of session tickets, potentially adding a
+// new one and rotating out expired old ones. A new ticket is created when the
+// most recent is a day old, and tickets are rotated away after a week or so.
+func (s *sessionTicketRefresher) getSessionTicketKeys() [][32]byte {
+	// same logic for the fast path as in crypto/tls, including the fact that
+	// the oldest ticket can actually be up to 8 days old since we don't check
+	// for expiry in the fast path
+	if state := s.state.Load(); state != nil && time.Since(state.created[0]) < 24*time.Hour {
+		return state.tickets
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state := s.state.Load()
+	now := time.Now()
+	if state != nil && now.Sub(state.created[0]) < 24*time.Hour {
+		return state.tickets
+	}
+
+	if state == nil {
+		state = new(sessionTicketRefresherState)
+	}
+	newState := &sessionTicketRefresherState{
+		tickets: make([][32]byte, 0, 1+len(state.tickets)),
+		created: make([]time.Time, 0, 1+len(state.tickets)),
+	}
+
+	var newTicket [32]byte
+	rand.Read(newTicket[:])
+	newState.tickets = append(newState.tickets, newTicket)
+	newState.created = append(newState.created, now)
+
+	for i := range state.tickets {
+		if now.Sub(state.created[i]) >= 7*24*time.Hour {
+			break
+		}
+		newState.tickets = append(newState.tickets, state.tickets[i])
+		newState.created = append(newState.created, state.created[i])
+	}
+	s.state.Store(newState)
+
+	return newState.tickets
 }

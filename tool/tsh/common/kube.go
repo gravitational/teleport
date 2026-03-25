@@ -69,6 +69,7 @@ import (
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -86,7 +87,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available Kubernetes clusters")
+	kube := app.Command("kube", "Manage available Kubernetes clusters.")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -162,7 +163,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for kubernetes cluster", "cluster", kubeCluster)
+			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -196,7 +197,11 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.AccessDenied("this cluster does not support Kubernetes")
 	}
 
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	// TODO(espadolini): joining requires hitting the agent handling a specific
+	// session, which is not currently implemented through the relay, once it's
+	// possible we should probably get rid of the whole ignoreRelay parameter
+	const ignoreRelayTrue = true
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayTrue)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,13 +213,49 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
-	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
+	tlsConfig.ServerName = kubeStatus.tlsServerNameForCluster(cluster, kubeCluster)
+	session, err := client.NewKubeSession(cf.Context,
+		client.KubeSessionConfig{
+			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
+			WebProxyAddr:                  tc.Config.WebProxyAddr,
+			TLSRoutingConnUpgradeRequired: tc.Config.TLSRoutingConnUpgradeRequired,
+			EnableEscapeSequences:         !tc.Config.DisableEscapeSequences,
+			Tracker:                       meta,
+			TLSConfig:                     tlsConfig,
+			Mode:                          types.SessionParticipantMode(c.mode),
+			AuthClient: func(ctx context.Context) (authclient.ClientI, error) {
+				clt, err := tc.ConnectToCluster(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				auth, err := clt.ConnectToCluster(ctx, meta.GetClusterName())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return authClientCloser{ClientI: auth, clusterClient: clt}, nil
+			},
+			Ceremony: tc.NewMFACeremony(),
+			Stdin:    tc.Config.Stdin,
+			Stdout:   tc.Config.Stdout,
+			Stderr:   tc.Config.Stderr,
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	session.Wait()
 	return trace.Wrap(session.Detach())
+}
+
+type authClientCloser struct {
+	authclient.ClientI
+	clusterClient *client.ClusterClient
+}
+
+func (a authClientCloser) Close() error {
+	return trace.NewAggregate(a.ClientI.Close(), a.clusterClient.Close())
 }
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
@@ -435,19 +476,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
-	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen.").Short('c').StringVar(&c.container)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
-	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
-	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
+	c.Flag("filename", "To use to exec into the resource.").Short('f').StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session.").Short('q').BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container.").Short('s').BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY.").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
-	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
-	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
+	c.Arg("target", "Pod or deployment name.").Required().StringVar(&c.target)
+	c.Arg("command", "Command to execute in the container.").Required().StringsVar(&c.command)
 	return c
 }
 
@@ -521,7 +562,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -562,7 +603,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	c := &kubeCredentialsCommand{
 		// This command is always hidden. It's called from the kubeconfig that
 		// tsh generates and never by users directly.
-		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
+		CmdClause: parent.Command("credentials", "Get credentials for kubectl access.").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
@@ -816,7 +857,7 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 
 	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+		return trace.NotFound("TLS credential for Kubernetes cluster %q not found", kubeClusterName)
 	}
 
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
@@ -1049,7 +1090,6 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
-		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -1182,13 +1222,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\".").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
-	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
+	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
@@ -1240,7 +1280,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err := client.RetryWithRelogin(cf.Context, tc, func() error {
 			var err error
-			kubeStatus, err = fetchKubeStatus(cf.Context, tc)
+			const ignoreRelayFalse = false
+			kubeStatus, err = fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 			return trace.Wrap(err)
 		})
 		if err != nil {
@@ -1457,15 +1498,20 @@ type kubernetesStatus struct {
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
 	credentials         *client.KeyRing
-	tlsServerName       string
+	tlsServerNameFunc   func(teleportClusterName, kubeClusterName string) string
+}
+
+func (s *kubernetesStatus) tlsServerNameForCluster(teleportClusterName, kubeClusterName string) string {
+	if s.tlsServerNameFunc == nil {
+		return ""
+	}
+	return s.tlsServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // fetchKubeStatus returns a kubernetesStatus populated from the given TeleportClient.
-func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernetesStatus, error) {
+func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient, ignoreRelay bool) (*kubernetesStatus, error) {
 	var err error
-	kubeStatus := &kubernetesStatus{
-		clusterAddr: tc.KubeClusterAddr(),
-	}
+	kubeStatus := &kubernetesStatus{}
 	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKeyRing()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1475,9 +1521,22 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 		return nil, trace.Wrap(err)
 	}
 
+	if !ignoreRelay && tc.RelayAddr != "" {
+		kubeStatus.clusterAddr = (&url.URL{
+			Scheme: "https",
+			Host:   tc.RelayAddr,
+		}).String()
+		kubeStatus.tlsServerNameFunc = kuberelay.FullSNIForKubeCluster
+		return kubeStatus, nil
+	}
+
+	kubeStatus.clusterAddr = tc.KubeClusterAddr()
 	if tc.TLSRoutingEnabled {
 		k8host, _ := tc.KubeProxyHostPort()
-		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
+		tlsServerName := client.GetKubeTLSServerName(k8host)
+		kubeStatus.tlsServerNameFunc = func(teleportClusterName, kubeClusterName string) string {
+			return tlsServerName
+		}
 	}
 
 	return kubeStatus, nil
@@ -1491,7 +1550,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
 		ProxyAddr:           cf.Proxy,
-		TLSServerName:       kubeStatus.tlsServerName,
+		TLSServerNameFunc:   kubeStatus.tlsServerNameFunc,
 		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
 		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
 		Namespace:           cf.kubeNamespace,
@@ -1556,7 +1615,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path, overrideCont
 	if _, err := tc.Ping(cf.Context); err != nil {
 		return trace.Wrap(err)
 	}
-	if tc.KubeProxyAddr == "" {
+	if tc.KubeProxyAddr == "" && tc.RelayAddr == "" {
 		// Kubernetes support disabled, don't touch kubeconfig.
 		return nil
 	}
@@ -1658,7 +1717,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	switch cf.RequestMode {
 	case accessRequestModeResource, "":
 		// Roles to request will be automatically determined on the backend.
-		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1712,7 +1771,7 @@ func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeCl
 func formatKubeNotFound(clusterFlag string, selectors resourceSelectors) string {
 	listCmd := formatKubeListCommand(clusterFlag)
 	if selectors.IsEmpty() {
-		return fmt.Sprintf("no kubernetes clusters found, check '%v' for a list of known clusters",
+		return fmt.Sprintf("no Kubernetes clusters found, check '%v' for a list of known clusters",
 			listCmd)
 	}
 	return fmt.Sprintf("%v not found, check '%v' for a list of known clusters",

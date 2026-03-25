@@ -37,10 +37,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type AppTestOptions struct {
@@ -65,11 +65,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	log := utils.NewSlogLoggerForTests()
-
-	// Insecure development mode needs to be set because the web proxy uses a
-	// self-signed certificate during tests.
-	lib.SetInsecureDevMode(true)
+	log := logtest.NewLogger()
 
 	p := &Pack{
 		rootAppName:        "app-01",
@@ -312,7 +308,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.flushAppURI = flushServer.URL
 	p.dumperAppURI = dumperServer.URL
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
@@ -346,6 +342,9 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	// Insecure development mode needs to be set because the web proxy uses a
+	// self-signed certificate during tests.
+	rcConf.InsecureMode = true
 	rcConf.Logger = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
@@ -363,6 +362,9 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Clock = opts.Clock
 
 	lcConf := servicecfg.MakeDefaultConfig()
+	// Insecure development mode needs to be set because the web proxy uses a
+	// self-signed certificate during tests.
+	lcConf.InsecureMode = true
 	lcConf.Logger = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true

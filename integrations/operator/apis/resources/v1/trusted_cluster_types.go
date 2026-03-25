@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -35,10 +35,10 @@ func init() {
 // TeleportTrustedClusterV2 is the Schema for the trusted_clusters API
 type TeleportTrustedClusterV2 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportTrustedClusterV2Spec `json:"spec,omitempty"`
-	Status resources.Status             `json:"status,omitempty"`
+	Spec   TeleportTrustedClusterV2Spec `json:"spec"`
+	Status teleportcr.Status            `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -46,7 +46,7 @@ type TeleportTrustedClusterV2 struct {
 // TeleportTrustedClusterV2List contains a list of TeleportTrustedClusterV2
 type TeleportTrustedClusterV2List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportTrustedClusterV2 `json:"items"`
 }
 
@@ -58,7 +58,7 @@ func (r TeleportTrustedClusterV2) ToTeleport() types.TrustedCluster {
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,
-			Description: r.Annotations[resources.DescriptionKey],
+			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.TrustedClusterSpecV2(r.Spec),
 	}

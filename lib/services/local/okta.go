@@ -172,7 +172,7 @@ func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 		// Only update the status if the given duration has passed.
 		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
 		if sinceLastTransition < timeHasPassed {
-			return trace.BadParameter("only %s has passed since last transition", sinceLastTransition)
+			return trace.BadParameter("only %s has passed since last transition (want at least %s)", sinceLastTransition, timeHasPassed)
 		}
 
 		if err := currentAssignment.SetStatus(status); err != nil {

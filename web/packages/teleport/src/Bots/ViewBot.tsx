@@ -28,7 +28,7 @@ import TextEditor from 'shared/components/TextEditor';
 import { ViewBotProps } from 'teleport/Bots/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { getWorkflowExampleYaml } from './Add/GitHubActions/AddBotToWorkflow';
+import { getWorkflowExampleYaml } from './Add/GitHubActionsSsh/AddBotToWorkflow';
 
 export function ViewBot({ bot, onClose }: ViewBotProps) {
   const ctx = useTeleport();
@@ -43,14 +43,13 @@ export function ViewBot({ bot, onClose }: ViewBotProps) {
   );
 
   return (
-    <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
+    <Dialog onClose={onClose} open={true}>
       <DialogHeader>
         <DialogTitle>{bot.name}</DialogTitle>
       </DialogHeader>
       <DialogContent width="640px">
         <Text mb="4">
           Below is an example GitHub Actions workflow to help you get started.
-          You can find this again from the bot’s options dropdown.
         </Text>
         <Flex height="500px" pt="3" pr="3" bg="levels.deep" borderRadius={3}>
           <TextEditor

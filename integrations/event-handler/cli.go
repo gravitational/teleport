@@ -19,15 +19,14 @@ package main
 import (
 	"context"
 	"log/slog"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/lib/stringset"
-
-	"github.com/gravitational/teleport/integrations/event-handler/lib"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // FluentdConfig represents fluentd instance configuration
@@ -35,21 +34,22 @@ type FluentdConfig struct {
 	// FluentdURL fluentd url for audit log events
 	FluentdURL string `help:"fluentd url" required:"true" env:"FDFWD_FLUENTD_URL"`
 
-	// FluentdSessionURL
-	FluentdSessionURL string `help:"fluentd session url" required:"true" env:"FDFWD_FLUENTD_SESSION_URL"`
+	// FluentdSessionURL is the base URL for session recording events.
+	// The event handler appends .<session-id>.log to this URL for each session.
+	FluentdSessionURL string `help:"fluentd session url (.<session-id>.log is appended per session)" required:"true" env:"FDFWD_FLUENTD_SESSION_URL"`
 
 	// FluentdCert is a path to fluentd cert
-	FluentdCert string `help:"fluentd TLS certificate file" type:"existingfile" env:"FDWRD_FLUENTD_CERT"`
+	FluentdCert string `help:"fluentd TLS certificate file" type:"existingfile" env:"FDFWD_FLUENTD_CERT,FDWRD_FLUENTD_CERT"`
 
 	// FluentdKey is a path to fluentd key
-	FluentdKey string `help:"fluentd TLS key file" type:"existingfile" env:"FDWRD_FLUENTD_KEY"`
+	FluentdKey string `help:"fluentd TLS key file" type:"existingfile" env:"FDFWD_FLUENTD_KEY,FDWRD_FLUENTD_KEY"`
 
 	// FluentdCA is a path to fluentd CA
-	FluentdCA string `help:"fluentd TLS CA file" type:"existingfile" env:"FDWRD_FLUENTD_CA"`
+	FluentdCA string `help:"fluentd TLS CA file" type:"existingfile" env:"FDFWD_FLUENTD_CA,FDWRD_FLUENTD_CA"`
 
 	// FluentdMaxConnections caps the number of connections to fluentd. Defaults to a dynamic value
 	// calculated relative to app-level concurrency.
-	FluentdMaxConnections int `help:"Maximum number of connections to fluentd" env:"FDWRD_MAX_CONNECTIONS"`
+	FluentdMaxConnections int `help:"Maximum number of connections to fluentd" env:"FDFWD_MAX_CONNECTIONS,FDWRD_MAX_CONNECTIONS"`
 }
 
 // TeleportConfig is Teleport instance configuration
@@ -72,7 +72,7 @@ type TeleportConfig struct {
 	TeleportCA string `help:"Teleport TLS CA file" type:"existingfile" env:"FDFWD_TELEPORT_CA"`
 
 	// TeleportCert is a path to Teleport cert file
-	TeleportCert string `help:"Teleport TLS certificate file" type:"existingfile" env:"FDWRD_TELEPORT_CERT"`
+	TeleportCert string `help:"Teleport TLS certificate file" type:"existingfile" env:"FDFWD_TELEPORT_CERT,FDWRD_TELEPORT_CERT"`
 
 	// TeleportKey is a path to Teleport key file
 	TeleportKey string `help:"Teleport TLS key file" type:"existingfile" env:"FDFWD_TELEPORT_KEY"`
@@ -80,8 +80,8 @@ type TeleportConfig struct {
 
 // Check verifies that a valid configuration is set
 func (cfg *TeleportConfig) Check() error {
-	provided := stringset.NewWithCap(3)
-	missing := stringset.NewWithCap(3)
+	provided := set.NewWithCapacity[string](3)
+	missing := set.NewWithCapacity[string](3)
 	if cfg.TeleportCert != "" {
 		provided.Add("`teleport.cert`")
 	} else {
@@ -103,8 +103,8 @@ func (cfg *TeleportConfig) Check() error {
 	if len(provided) > 0 && len(provided) < 3 {
 		return trace.BadParameter(
 			"configuration setting(s) %s are provided but setting(s) %s are missing",
-			strings.Join(provided.ToSlice(), ", "),
-			strings.Join(missing.ToSlice(), ", "),
+			strings.Join(provided.Elements(), ", "),
+			strings.Join(missing.Elements(), ", "),
 		)
 	}
 
@@ -125,17 +125,20 @@ type IngestConfig struct {
 	// BatchSize is a fetch batch size
 	BatchSize int `help:"Fetch batch size" default:"20" env:"FDFWD_BATCH" name:"batch"`
 
-	// Types are event types to log
-	Types []string `help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+	// TypesRaw are event types to log
+	TypesRaw []string `name:"types" help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+
+	// Types is a map generated from TypesRaw
+	Types map[string]struct{} `kong:"-"`
 
 	// SkipEventTypesRaw are event types to skip
-	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
+	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of audit log event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
 
 	// SkipEventTypes is a map generated from SkipEventTypesRaw
 	SkipEventTypes map[string]struct{} `kong:"-"`
 
 	// SkipSessionTypes are session event types to skip
-	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session event types to skip" default:"print" env:"FDFWD_SKIP_SESSION_TYPES"`
+	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session recording event types to skip" default:"print,desktop.recording" env:"FDFWD_SKIP_SESSION_TYPES"`
 
 	// SkipSessionTypes is a map generated from SkipSessionTypes
 	SkipSessionTypes map[string]struct{} `kong:"-"`
@@ -144,19 +147,19 @@ type IngestConfig struct {
 	StartTime *time.Time `help:"Minimum event time in RFC3339 format" env:"FDFWD_START_TIME"`
 
 	// Timeout is the time poller will wait before the new request if there are no events in the queue
-	Timeout time.Duration `help:"Polling timeout" default:"5s" env:"FDFWD_TIMEOUT"`
+	Timeout time.Duration `help:"Polling timeout" default:"10s" env:"FDFWD_TIMEOUT"`
 
 	// DryRun is the flag which simulates execution without sending events to fluentd
-	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate stroage is used. Debug flag."`
+	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate storage is used. Debug flag." env:"FDFWD_DRY_RUN"`
 
 	// ExitOnLastEvent exit when last event is processed
-	ExitOnLastEvent bool `help:"Exit when last event is processed"`
+	ExitOnLastEvent bool `help:"Exit when last event is processed" env:"FDFWD_EXIT_ON_LAST_EVENT"`
 
 	// Concurrency sets the number of concurrent sessions to ingest
-	Concurrency int `help:"Number of concurrent sessions" default:"5"`
+	Concurrency int `help:"Number of concurrent sessions" default:"5" env:"FDFWD_CONCURRENCY"`
 
-	//WindowSize is the size of the window to process events
-	WindowSize time.Duration `help:"Window size to process events" default:"24h"`
+	// WindowSize is the size of the window to process events
+	WindowSize time.Duration `help:"Window size to process events" default:"24h" env:"FDFWD_WINDOW_SIZE"`
 }
 
 // LockConfig represents locking configuration
@@ -239,8 +242,9 @@ func (c *StartCmdConfig) Validate() error {
 	if err := c.TeleportConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
-	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
+	c.Types = set.New(c.TypesRaw...)
+	c.SkipSessionTypes = set.New(c.SkipSessionTypesRaw...)
+	c.SkipEventTypes = set.New(c.SkipEventTypesRaw...)
 
 	if c.FluentdMaxConnections < 1 {
 		// 2x concurrency is effectively uncapped.
@@ -253,11 +257,20 @@ func (c *StartCmdConfig) Validate() error {
 // Dump dumps configuration values to the log
 func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	// Log configuration variables
+	log.DebugContext(ctx, "Initializing plugin",
+		"name", pluginName,
+		"version", slog.GroupValue(
+			slog.String("teleport", Version),
+			slog.String("teleport_git", Gitref),
+			slog.String("go", runtime.Version()),
+		),
+	)
+	log.InfoContext(ctx, "Using storage", "storage", c.StorageDir)
 	log.InfoContext(ctx, "Using batch size", "batch", c.BatchSize)
 	log.InfoContext(ctx, "Using concurrency", "concurrency", c.Concurrency)
 	log.InfoContext(ctx, "Using type filter", "types", c.Types)
-	log.InfoContext(ctx, "Using type exclude filter", "skip_event_types", c.SkipEventTypes)
-	log.InfoContext(ctx, "Skipping session events of type", "types", c.SkipSessionTypes)
+	log.InfoContext(ctx, "Skipping audit events of type", "types", c.SkipEventTypes)
+	log.InfoContext(ctx, "Skipping session recording events of type", "types", c.SkipSessionTypes)
 	log.InfoContext(ctx, "Using start time", "value", c.StartTime)
 	log.InfoContext(ctx, "Using timeout", "timeout", c.Timeout)
 	log.InfoContext(ctx, "Using Fluentd url", "url", c.FluentdURL)
@@ -283,10 +296,14 @@ func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	}
 
 	if c.LockEnabled {
-		log.InfoContext(ctx, "Auto-locking enabled", "count", c.LockFailedAttemptsCount, "period", c.LockPeriod)
+		log.InfoContext(ctx, "Auto-locking enabled", "count", c.LockFailedAttemptsCount, "period", c.LockPeriod, "for", c.LockFor)
 	}
 
 	if c.DryRun {
 		log.WarnContext(ctx, "Dry run! Events are not sent to Fluentd. Separate storage is used.")
+	}
+
+	if c.ExitOnLastEvent {
+		log.WarnContext(ctx, "Exit on last event setting enabled")
 	}
 }

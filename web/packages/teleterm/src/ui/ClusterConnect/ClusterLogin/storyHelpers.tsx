@@ -16,9 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ArgTypes } from '@storybook/react-vite';
 import { FC, PropsWithChildren } from 'react';
 
 import Dialog from 'design/Dialog';
+import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+
+import { makeAuthSettings } from 'teleterm/services/tshd/testHelpers';
 
 import { dialogCss } from '../spacing';
 import { ClusterLoginPresentationProps } from './ClusterLogin';
@@ -29,9 +33,33 @@ export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
   </Dialog>
 );
 
-export function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
+export interface StoryProps {
+  compatibility: 'compatible' | 'client-too-old' | 'client-too-new';
+  showUpdate: boolean;
+  showMessageOfTheDay: boolean;
+}
+
+export const compatibilityArgType: ArgTypes<StoryProps> = {
+  compatibility: {
+    control: { type: 'radio' },
+    options: ['compatible', 'client-too-old', 'client-too-new'],
+    description: 'Client compatibility',
+  },
+  showUpdate: {
+    type: 'boolean',
+    description: 'Show app update',
+  },
+  showMessageOfTheDay: {
+    type: 'boolean',
+    description: 'Show Message Of The Day (MOTD)',
+  },
+};
+
+export function makeProps(
+  storyProps: StoryProps
+): ClusterLoginPresentationProps {
+  const props: ClusterLoginPresentationProps = {
+    ssoPrompt: 'no-prompt',
     title: 'localhost',
     loginAttempt: {
       status: '',
@@ -42,14 +70,24 @@ export function makeProps(): ClusterLoginPresentationProps {
     initAttempt: {
       status: 'success',
       statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      },
+      data: makeAuthSettings({
+        messageOfTheDay: storyProps.showMessageOfTheDay
+          ? 'Authorized use only.\nBy continuing you consent to monitoring.\n' +
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod ' +
+            'tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam,' +
+            'quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ' +
+            'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu ' +
+            'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in ' +
+            'culpa qui officia deserunt mollit anim id est laborum.' +
+            'Proin ultrices leo ac nulla finibus, vitae accumsan mauris molestie. Vivamus ' +
+            'vitae massa sed odio lobortis blandit a vel neque. Aenean ultrices facilisis erat, ' +
+            'viverra rutrum ex varius sit amet. Phasellus fermentum facilisis cursus. ' +
+            'Cras ac turpis tellus. Cras vitae dictum dolor. Duis pretium molestie tortor sagittis ' +
+            'commodo. Aliquam non urna interdum, dignissim risus sit amet, congue erat. Quisque ' +
+            'vestibulum augue vitae libero fermentum, sed laoreet justo malesuada. ' +
+            'Donec quis augue nec lectus commodo commodo'
+          : '',
+      }),
     },
 
     loggedInUserName: null,
@@ -61,5 +99,90 @@ export function makeProps(): ClusterLoginPresentationProps {
     clearLoginAttempt: () => null,
     passwordlessLoginState: null,
     reason: undefined,
+    shouldSkipVersionCheck: false,
+    disableVersionCheck: () => {},
+    platform: 'darwin',
+    currentVersion: '14.7.2',
+    changeAppUpdatesManagingCluster: async () => {},
+    checkForAppUpdates: async () => {},
+    downloadAppUpdate: async () => {},
+    quitAndInstallAppUpdate: async () => {},
+    cancelAppUpdateDownload: async () => {},
+    appUpdateEvent: {
+      kind: 'update-not-available',
+      autoUpdatesStatus: {
+        enabled: false,
+        reason: 'no-cluster-with-auto-update',
+        options: {
+          unreachableClusters: [],
+          clusters: [],
+          highestCompatibleVersion: '',
+          managingClusterUri: '',
+        },
+      },
+    },
   };
+
+  switch (storyProps.compatibility) {
+    case 'client-too-old':
+      {
+        props.initAttempt.data.clientVersionStatus =
+          ClientVersionStatus.TOO_OLD;
+        props.initAttempt.data.versions = {
+          client: '16.0.0-dev',
+          minClient: '17.0.0',
+          server: '18.2.7',
+        };
+      }
+      break;
+    case 'client-too-new': {
+      props.initAttempt.data.clientVersionStatus = ClientVersionStatus.TOO_NEW;
+      props.initAttempt.data.versions = {
+        client: '18.0.0-dev',
+        minClient: '16.0.0',
+        server: '17.0.0',
+      };
+    }
+  }
+
+  if (storyProps.showUpdate) {
+    props.appUpdateEvent = {
+      kind: 'update-available',
+      update: {
+        version: '19.0.0',
+        files: [
+          {
+            url: 'https://cdn.teleport.dev/connect-update',
+            sha512: '',
+          },
+        ],
+        path: '',
+        releaseDate: '',
+        sha512: '',
+        requiresUacPrompt: false,
+      },
+      autoDownload: true,
+      autoUpdatesStatus: {
+        enabled: true,
+        source: 'highest-compatible',
+        version: '19.0.0',
+        options: {
+          unreachableClusters: [],
+          managingClusterUri: '',
+          clusters: [
+            {
+              clusterUri: '/clusters/foo',
+              toolsAutoUpdate: true,
+              minToolsVersion: '18.0.0',
+              toolsVersion: '19.0.0',
+              otherCompatibleClusters: [],
+            },
+          ],
+          highestCompatibleVersion: '19.0.0',
+        },
+      },
+    };
+  }
+
+  return props;
 }

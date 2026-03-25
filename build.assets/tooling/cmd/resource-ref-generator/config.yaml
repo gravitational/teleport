@@ -1,0 +1,109 @@
+source: "../../../../api"
+destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-resources"
+examples_directory: "./resource_examples"
+
+# Please alphabetize the resource list by type name.
+resources:
+  - type: AppV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: app
+    yaml_version: v3
+    introduction: |
+      The `app` resource represents an application that is dynamically
+      registered with Teleport. 
+
+      If you configure the Teleport Application Service with **dynamic resource
+      watchers**, the service queries the Teleport backend for `app` resources
+      that match their configured filters. For each matching `app`, the
+      Application Service creates an `app_server` resource configured to proxy
+      the target application.
+
+      To learn more about using the `app` resource, see [Dynamic App
+      Registration](../../../enroll-resources/application-access/configuration/dynamic-registration.mdx).
+
+      To learn more about the `app_server` resource, see the [reference
+      guide](app-server-v3.mdx).
+  - type: AppServerV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: app_server
+    yaml_version: v3
+    introduction: |
+      The `app_server` resource represents an application that has been
+      registered with Teleport. 
+
+      The Teleport Application Service creates an `app_server` in two situations:
+
+        1. It reads information about the target application in its
+           configuration file when it first starts.
+        1. It fetches a dynamically registered `app` resource from the Teleport
+           backend that matches its dynamic resource watchers.
+
+        There can be multiple instances of an `app_server` for a single
+        application, each corresponding to a different Teleport Application
+        Service instance that proxies the application. Read more about [High
+        Availability](../../../enroll-resources/agents/high-availability.mdx)
+        for the Teleport Application Service. Read the [reference
+        guide](./app-v3.mdx) for the `app` resource.
+  - type: BotInstance
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
+    yaml_kind: bot_instance
+    yaml_version: v1
+    introduction: |
+      The `bot_instance` resource tracks the internal state of a Machine ID Bot
+      registered with your Teleport cluster. It is possible to read and list
+      `bot_instance` resources with `tctl` but not to create, modify, or delete
+      them.
+  - type: DatabaseServerV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: db_server
+    yaml_version: v3
+  - type: DiscoveryConfig
+    package: github.com/gravitational/teleport/api/types/discoveryconfig
+    yaml_kind: discovery_config
+    yaml_version: v1
+  - type: InstallerV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: installer
+    yaml_version: v1
+  - type: OIDCConnectorV3
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: oidc
+    yaml_version: v3
+  - type: SAMLConnectorV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: saml
+    yaml_version: v2
+  - type: SAMLIdPServiceProviderV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: saml_idp_service_provider
+    yaml_version: v1
+  - type: ServerV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: node
+    yaml_version: v2
+
+camel_case_exceptions:
+  - AWS
+  - AlloyDB
+  - CORS
+  - DocumentDB
+  - EKS
+  - ElastiCache
+  - GCP
+  - GitHub
+  - GitLab
+  - HTTP
+  - IAM
+  - ID
+  - IdP
+  - MFA
+  - MemoryDB
+  - MySQL
+  - OIDC
+  - OpenSearch
+  - RDS
+  - SAML
+  - SQL
+  - SSO
+  - TLS
+  - TPM

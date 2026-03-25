@@ -22,6 +22,8 @@ import {
   requiredEmailLike,
   requiredField,
   requiredIamRoleName,
+  requiredIntegrationName,
+  requiredMaxLength,
   requiredPassword,
   requiredPort,
   requiredRoleArn,
@@ -105,6 +107,23 @@ describe('requiredIamRoleName', () => {
   });
 });
 
+describe('requiredIntegrationName', () => {
+  test.each`
+    name                     | expected
+    ${''}                    | ${{ valid: false, message: 'Integration name is required' }}
+    ${'zero_cool'}           | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'ZeroKewl'}            | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'0cool'}               | ${{ valid: false, message: 'Name must start with an alphabetic character' }}
+    ${'zero-cool-'}          | ${{ valid: false, message: 'Name must end with an alphanumeric character' }}
+    ${'my-cool-integration'} | ${{ valid: true }}
+    ${'my-integration-1'}    | ${{ valid: true }}
+  `('name: $name', ({ name, expected }) => {
+    expect(requiredIntegrationName(name)()).toEqual(
+      expect.objectContaining(expected)
+    );
+  });
+});
+
 describe('requiredConfirmedPassword', () => {
   const mismatchError = 'Password does not match';
   const confirmError = 'Please confirm your password';
@@ -153,6 +172,25 @@ describe('requiredPort', () => {
     ${'65535'} | ${{ valid: true }}
   `('port: $port', ({ port, expected }) => {
     expect(requiredPort(port)()).toEqual(expected);
+  });
+});
+
+describe('requiredMaxLength', () => {
+  const errMsg = 'message goes here';
+  const validator = requiredMaxLength(errMsg, 10);
+  test.each`
+    value                         | expected
+    ${'Lorem ipsum'}              | ${{ valid: false, message: errMsg }}
+    ${'Lorem ipsu'}               | ${{ valid: true }}
+    ${'   Lorem ipsu   '}         | ${{ valid: true }}
+    ${''}                         | ${{ valid: true }}
+    ${Array.from({ length: 11 })} | ${{ valid: false, message: errMsg }}
+    ${Array.from({ length: 10 })} | ${{ valid: true }}
+    ${[]}                         | ${{ valid: true }}
+    ${1}                          | ${{ valid: false, message: 'value must be a string or an array' }}
+    ${true}                       | ${{ valid: false, message: 'value must be a string or an array' }}
+  `('value: $value', ({ value, expected }) => {
+    expect(validator(value)()).toEqual(expected);
   });
 });
 

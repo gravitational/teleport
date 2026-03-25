@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 // ApplicationTunnelCommand implements `tbot start application-tunnel` and
@@ -47,7 +48,7 @@ func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAct
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("listen", "A socket URI, such as tcp://0.0.0.0:8080").Required().StringVar(&c.Listen)
+	cmd.Flag("listen", "The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.").Required().StringVar(&c.Listen)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
 
 	// Note: CLI will not support roles; all will be requested.
@@ -60,7 +61,7 @@ func (c *ApplicationTunnelCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.ApplicationTunnelService{
+	cfg.Services = append(cfg.Services, &application.TunnelConfig{
 		Listen:  c.Listen,
 		AppName: c.AppName,
 	})

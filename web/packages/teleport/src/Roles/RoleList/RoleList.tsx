@@ -70,6 +70,10 @@ export function RoleList({
           headerText: 'Name',
         },
         {
+          key: 'description',
+          headerText: 'Description',
+        },
+        {
           altKey: 'options-btn',
           render: (role: RoleResource) => (
             <ActionCell

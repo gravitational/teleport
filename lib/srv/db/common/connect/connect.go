@@ -24,27 +24,27 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// DatabaseServersGetter is an interface for retrieving information about
-// database proxy servers within a specific namespace.
-type DatabaseServersGetter interface {
-	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+// DatabaseServerWatcher defines an interface for watching database servers in a cluster.
+type DatabaseServerWatcher interface {
+	// CurrentResourcesWithFilter returns the current list of database servers in the cluster that match the provided filter function.
+	CurrentResourcesWithFilter(ctx context.Context, filter func(readonly.DatabaseServer) bool) ([]types.DatabaseServer, error)
 }
 
 // GetDatabaseServersParams contains the parameters required to retrieve
@@ -53,30 +53,27 @@ type GetDatabaseServersParams struct {
 	Logger *slog.Logger
 	// ClusterName is the cluster name to which the database belongs.
 	ClusterName string
-	// DatabaseServersGetter used to fetch the list of database servers.
-	DatabaseServersGetter DatabaseServersGetter
+	// Watcher is used to retrieve database servers registered in the cluster.
+	Watcher DatabaseServerWatcher
 	// Identity contains the identity information.
 	Identity tlsca.Identity
 }
 
 // GetDatabaseServers returns a list of database servers in a cluster that match
-// the routing information from the provided identity.
+// the routing information from the provided identity. It uses the cluster's
+// DatabaseServerWatcher for fast in-memory lookup.
 func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([]types.DatabaseServer, error) {
-	servers, err := params.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+	result, err := params.Watcher.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == params.Identity.RouteToDatabase.ServiceName
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	params.Logger.DebugContext(ctx, "Available database servers.", "cluster", params.ClusterName, "servers", servers)
-
-	// Find out which database servers proxy the database a user is
-	// connecting to using routing information from identity.
-	var result []types.DatabaseServer
-	for _, server := range servers {
-		if server.GetDatabase().GetName() == params.Identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
-		}
-	}
+	params.Logger.DebugContext(ctx, "Retrieved database servers from watcher",
+		"cluster", params.ClusterName,
+		"servers", logutils.StringerSliceAttr(result),
+	)
 
 	if len(result) != 0 {
 		return result, nil
@@ -218,7 +215,7 @@ type ConnectParams struct {
 }
 
 func (p *ConnectParams) CheckAndSetDefaults() error {
-	if p.Logger != nil {
+	if p.Logger == nil {
 		p.Logger = slog.Default()
 	}
 
@@ -300,10 +297,14 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		return nil, stats, trace.Wrap(err)
 	}
 
+	// group the servers by target health, shuffle each group, and then iterate
+	// over the concatenated groups in order ascending order of health.
+	params.ShuffleFunc(params.Servers)
+	groups := types.GroupByTargetHealthStatus(params.Servers)
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range params.ShuffleFunc(params.Servers) {
+	for _, server := range slices.Concat(groups.Healthy, groups.Unknown, groups.Unhealthy) {
 		stats.attemptedServers++
 		params.Logger.DebugContext(ctx, "Dialing to database service.", "server", server)
 		tlsConfig, err := GetServerTLSConfig(ctx, ServerTLSConfigParams{

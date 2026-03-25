@@ -17,7 +17,7 @@
  */
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -42,6 +42,7 @@ import { pluralize } from 'shared/utils/text';
 import shieldCheck from 'teleport/assets/shield-check.png';
 import cfg from 'teleport/config';
 import { TrashButton } from 'teleport/LocksV2/common';
+import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { lockService } from 'teleport/services/locks';
 
 import {
@@ -73,7 +74,7 @@ export const LockCheckout = forwardRef<HTMLDivElement, Props>(
     },
     ref
   ) => {
-    const sliderRef = useRef<HTMLDivElement>();
+    const sliderRef = useRef<HTMLDivElement>(null);
 
     const { attempt, setAttempt } = useAttempt('');
 
@@ -200,6 +201,7 @@ export const LockCheckout = forwardRef<HTMLDivElement, Props>(
           top: 0;
           left: 0;
           overflow: hidden;
+          z-index: ${zIndexMap.checkoutSidePanel};
         `}
       >
         <Dimmer className={transitionState} />
@@ -320,14 +322,8 @@ function SuccessActionComponent({ reset, onClose, locks }) {
         mb={3}
         width="100%"
         size="large"
-        to={
-          locks.length
-            ? {
-                pathname: cfg.getLocksRoute(),
-                state: { createdLocks: locks },
-              }
-            : cfg.getLocksRoute()
-        }
+        to={cfg.getLocksRoute()}
+        state={locks.length ? { createdLocks: locks } : undefined}
       >
         Back to Locks
       </ButtonPrimary>

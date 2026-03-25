@@ -50,9 +50,10 @@ type Collector struct {
 	coltracepb.TraceServiceServer
 	tlsConfing *tls.Config
 
-	spanLock  sync.RWMutex
-	spans     []*otlp.ScopeSpans
-	exportedC chan struct{}
+	spanLock      sync.RWMutex
+	spans         []*otlp.ScopeSpans
+	resourceSpans []*otlp.ResourceSpans
+	exportedC     chan struct{}
 }
 
 // CollectorConfig configures how a Collector should be created.
@@ -198,6 +199,7 @@ func (c *Collector) Export(ctx context.Context, req *coltracepb.ExportTraceServi
 	c.spanLock.Lock()
 	defer c.spanLock.Unlock()
 
+	c.resourceSpans = append(c.resourceSpans, req.ResourceSpans...)
 	for _, span := range req.ResourceSpans {
 		c.spans = append(c.spans, span.ScopeSpans...)
 	}
@@ -222,6 +224,20 @@ func (c *Collector) Spans() []*otlp.ScopeSpans {
 	copy(spans, c.spans)
 
 	c.spans = nil
+	c.resourceSpans = nil
 
 	return spans
+}
+
+// ResourceSpans returns all collected resource spans and resets the collector.
+func (c *Collector) ResourceSpans() []*otlp.ResourceSpans {
+	c.spanLock.Lock()
+	defer c.spanLock.Unlock()
+	resourceSpans := make([]*otlp.ResourceSpans, len(c.resourceSpans))
+	copy(resourceSpans, c.resourceSpans)
+
+	c.spans = nil
+	c.resourceSpans = nil
+
+	return resourceSpans
 }

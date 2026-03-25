@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -88,14 +89,29 @@ func agentIsPresent() bool {
 
 // agentSupportsSSHCertificates checks if the running agent supports SSH certificates.
 // This detection implementation is as described in RFD 18 and works by simply checking for
-// presence of gpg-agent which is a common agent known to not support SSH certificates.
-func agentSupportsSSHCertificates() bool {
+// presence of gpg-agent or 1password which are common agents known to not support SSH certificates.
+func agentSupportsSSHCertificates(goos string) bool {
 	agent := os.Getenv(teleport.SSHAuthSock)
-	return !strings.Contains(agent, "gpg-agent")
+
+	if strings.Contains(agent, "gpg-agent") {
+		return false
+	}
+
+	// Platform specific socket locations for 1Password  are described here:
+	// https://developer.1password.com/docs/ssh/agent/compatibility/#working-with-ssh-clients
+	if goos == "linux" && strings.Contains(agent, ".1password/agent.sock") {
+		return false
+	}
+
+	if goos == "darwin" && strings.Contains(agent, "Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock") {
+		return false
+	}
+
+	return true
 }
 
 func shouldAddKeysToAgent(addKeysToAgent string) bool {
-	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates()) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
+	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates(runtime.GOOS)) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
 }
 
 // LocalAgentConfig contains parameters for creating the local keys agent.
@@ -133,11 +149,17 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		a.systemAgent = connectToSSHAgent()
+		a.log.DebugContext(context.Background(), "Connecting to the system agent")
+		systemAgent, err := sshagent.NewSystemAgentClient()
+		if err != nil {
+			a.log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
+		} else {
+			a.systemAgent = systemAgent
+		}
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
 
-		if !agentSupportsSSHCertificates() && agentIsPresent() {
+		if !agentSupportsSSHCertificates(runtime.GOOS) && agentIsPresent() {
 			log.WarnContext(context.Background(), `Certificate was not loaded into agent because the agent at SSH_AUTH_SOCK does not appear
 to support SSH certificates. To force load the certificate into the running agent, use
 the --add-keys-to-agent=yes flag.`)
@@ -358,7 +380,7 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 
 	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: a.checkHostCertificateForClusters(clusters...),
+			IsHostAuthority: a.isHostAuthorityForClusters(clusters...),
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
@@ -375,11 +397,11 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 	return nil
 }
 
-// checkHostCertificateForClusters validates a host certificate and check if remote key matches the know
-// trusted cluster key based on  ~/.tsh/known_hosts. If server key is not known, the users is prompted to accept or
-// reject the server key.
-func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func(key ssh.PublicKey, addr string) bool {
-	return func(key ssh.PublicKey, addr string) bool {
+// isHostAuthorityForClusters validates a host certificate's issuer to see if it
+// matches the known trusted cluster CA keys in ~/.tsh/known_hosts. If the CA is
+// not known, the users is prompted to accept or reject it.
+func (a *LocalKeyAgent) isHostAuthorityForClusters(clusters ...string) func(authority ssh.PublicKey, addr string) bool {
+	return func(authority ssh.PublicKey, addr string) bool {
 		ctx := context.Background()
 
 		// Check the local cache (where all Teleport CAs are placed upon login) to
@@ -407,14 +429,14 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 		}
 
 		for i := range keys {
-			if sshutils.KeysEqual(key, keys[i]) {
+			if sshutils.KeysEqual(authority, keys[i]) {
 				return true
 			}
 		}
 
-		// If this certificate was not seen before, prompt the user essentially
-		// treating it like a key.
-		err = a.checkHostKey(addr, nil, key)
+		// If this CA was not seen before, prompt the user essentially treating
+		// it like a key.
+		err = a.checkHostKey(addr, nil, authority)
 		return err == nil
 	}
 }
@@ -531,6 +553,15 @@ func (a *LocalKeyAgent) AddAppKeyRing(keyRing *KeyRing) error {
 	return a.addKeyRing(keyRing)
 }
 
+// AddWindowsDesktopKeyRing activates a new signed desktop key by adding it into the keystore.
+// key must contain at least one desktop credential. ssh cert is not required.
+func (a *LocalKeyAgent) AddWindowsDesktopKeyRing(keyRing *KeyRing) error {
+	if len(keyRing.WindowsDesktopTLSCredentials) == 0 {
+		return trace.BadParameter("key ring must contain at least one Windows desktop access certificate")
+	}
+	return a.addKeyRing(keyRing)
+}
+
 // addKeyRing activates a new signed session key ring by adding it into the keystore.
 func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 	if keyRing == nil {
@@ -571,6 +602,8 @@ func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 // DeleteKey removes the key with all its certs from the key store
 // and unloads the key from the agent.
 func (a *LocalKeyAgent) DeleteKey() error {
+	// TODO(Joerger): Delete profile? Delete current profile if it matches?
+
 	// remove key from key store
 	err := a.clientStore.DeleteKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
 	if err != nil {
@@ -646,7 +679,7 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		agentSigners = append(signers, sshAgentSigners...)
+		agentSigners = append(agentSigners, sshAgentSigners...)
 	}
 
 	// Filter out non-certificates (like regular public SSH keys stored in the SSH agent).

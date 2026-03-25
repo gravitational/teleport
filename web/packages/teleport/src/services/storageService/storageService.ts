@@ -29,7 +29,6 @@ import {
 } from 'teleport/services/userPreferences/userPreferences';
 import { BearerToken } from 'teleport/services/websession';
 import { getPrefersDark } from 'teleport/ThemeProvider';
-import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -38,11 +37,16 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.ACCESS_LIST_PREFERENCES,
-  KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
   KeysEnum.RECENT_HISTORY,
+  KeysEnum.REMEMBERED_SSO_USERNAME,
+  KeysEnum.SESSION_RECORDINGS_VIEW_MODE,
+  KeysEnum.SESSION_RECORDINGS_DENSITY,
+  KeysEnum.ENABLE_TELEMETRY,
+  KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
+  KeysEnum.IDENTITY_SECURITY_RECOMMENDATIONS_UNIFIED_RESOURCES_CTA_SEEN,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -246,19 +250,16 @@ export const storageService = {
     window.localStorage.removeItem(messageType);
   },
 
-  // setRecommendFeature persists states used to determine if
-  // given feature needs to be recommended to the user.
-  // Currently, it only shows a red dot in the side navigation menu.
-  setRecommendFeature(d: RecommendFeature) {
-    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
-  },
-
-  getFeatureRecommendationStatus(): RecommendFeature {
-    return this.getParsedJSONValue(KeysEnum.RECOMMEND_FEATURE, null);
-  },
-
   getAccessGraphEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
+  },
+
+  resetAccessGraphEnabled() {
+    window.localStorage.removeItem(KeysEnum.ACCESS_GRAPH_ENABLED);
+  },
+
+  getAccessGraphIacEnabled(): boolean {
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_IAC_ENABLED, false);
   },
 
   getAccessGraphSQLEnabled(): boolean {
@@ -333,5 +334,17 @@ export const storageService = {
     );
 
     return newHistory;
+  },
+
+  setRememberedSsoUsername(username: string) {
+    window.localStorage.setItem(KeysEnum.REMEMBERED_SSO_USERNAME, username);
+  },
+
+  getRememberedSsoUsername(): string {
+    return window.localStorage.getItem(KeysEnum.REMEMBERED_SSO_USERNAME) || '';
+  },
+
+  clearRememberedSsoUsername() {
+    window.localStorage.removeItem(KeysEnum.REMEMBERED_SSO_USERNAME);
   },
 };

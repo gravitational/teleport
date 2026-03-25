@@ -20,8 +20,10 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,10 +36,15 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -60,7 +67,7 @@ discovery_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[interface{}]interface{}
+type cfgMap map[any]any
 
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -79,8 +86,8 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+func requireEqual(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual any, msgAndArgs ...any) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -236,8 +243,8 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "u2f",
 					"u2f": cfgMap{
 						"app_id": "https://graviton:3080",
-						"facets": []interface{}{"https://graviton:3080"},
-						"device_attestation_cas": []interface{}{
+						"facets": []any{"https://graviton:3080"},
+						"device_attestation_cas": []any{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
 						},
@@ -266,11 +273,11 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "webauthn",
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
-						"attestation_allowed_cas": []interface{}{
+						"attestation_allowed_cas": []any{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
 						},
-						"attestation_denied_cas": []interface{}{
+						"attestation_denied_cas": []any{
 							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
 							"testdata/u2f_attestation_ca.pam",
 						},
@@ -300,7 +307,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "on",
 					"u2f": cfgMap{
 						"app_id": "https://example.com",
-						"facets": []interface{}{
+						"facets": []any{
 							"https://example.com",
 						},
 					},
@@ -457,7 +464,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"signature_algorithm_suite": "balanced-v0",
 				}
 			},
-			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+			expectError: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.ErrorContains(t, err, "invalid value: balanced-v0")
 			},
 		}, {
@@ -477,6 +484,66 @@ func TestAuthenticationSection(t *testing.T) {
 					FirstUID: 100,
 					LastUID:  10,
 				},
+			},
+		}, {
+			desc: "Local auth with browser authentication enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "true",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowBrowserAuthentication: types.NewBoolOption(true),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowBrowserAuthentication: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled without WebAuthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                         "local",
+					"allow_browser_authentication": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                       "local",
+				AllowBrowserAuthentication: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication empty string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                         "local",
+					"allow_browser_authentication": "",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                       "local",
+				AllowBrowserAuthentication: &types.BoolOption{},
 			},
 		},
 	}
@@ -570,30 +637,225 @@ ssh_service:
 	}
 }
 
+func TestAuthenticationConfigScopedStaticToken(t *testing.T) {
+	t.Parallel()
+
+	tokenFilePath := filepath.Join(t.TempDir(), "scoped-token.yml")
+	tokenFile, err := os.Create(tokenFilePath)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tokenFile.Close()
+	})
+	tokenFile.WriteString(`
+name: file_scoped_token
+secret: secret_token_value
+roles: [node]
+scope: /test
+`)
+
+	tests := []struct {
+		desc         string
+		input        string
+		expectError  require.ErrorAssertionFunc
+		expectTokens []*joiningv1.ScopedToken
+	}{
+		{
+			desc: "fully defined static scoped token", input: `
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+      immutable_labels:
+        ssh:
+            hello: world
+teleport:
+  nodename: testing
+`,
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "fully_defined_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+						ImmutableLabels: &joiningv1.ImmutableLabels{
+							Ssh: map[string]string{
+								"hello": "world",
+							},
+						},
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+		{
+			desc: "file based token", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "file_scoped_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+		{
+			desc: "fully defined token with a path", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+      path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.Error,
+		},
+		{
+			desc: "multiple valid tokens", input: fmt.Sprintf(`
+auth_service:
+  enabled: yes
+  scoped_tokens:
+    - name: fully_defined_token
+      roles: [node]
+      secret: secret_token_value
+      scope: /test
+    - path: %s
+teleport:
+  nodename: testing
+`, tokenFilePath),
+			expectError: require.NoError,
+			expectTokens: []*joiningv1.ScopedToken{
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "fully_defined_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+				{
+					Version: types.V1,
+					Kind:    types.KindScopedToken,
+					Metadata: &headerv1.Metadata{
+						Name: "file_scoped_token",
+					},
+					Scope: "/",
+					Spec: &joiningv1.ScopedTokenSpec{
+						Roles:         []string{string(types.RoleNode)},
+						AssignedScope: "/test",
+						JoinMethod:    string(types.JoinMethodToken),
+						UsageMode:     string(joining.TokenUsageModeUnlimited),
+					},
+					Status: &joiningv1.ScopedTokenStatus{
+						Secret: "secret_token_value",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(tt.input))
+			assert.NoError(t, err)
+			tokens, err := cfg.Auth.StaticScopedTokens.Parse()
+			tt.expectError(t, err)
+			assert.Empty(t, cmp.Diff(tt.expectTokens, tokens.GetSpec().GetTokens(), protocmp.Transform()))
+		})
+	}
+}
+
 func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		desc  string
-		token string
+		desc      string
+		input     string
+		wantRoles []types.SystemRole
+		wantToken string
+		wantError string
 	}{
-		{desc: "file path on windows", token: `C:\path\to\some\file`},
-		{desc: "literal string", token: "some-literal-token"},
+		{
+			desc:      "file path on windows",
+			input:     `Auth,Node,Proxy:C:\path\to\some\file`,
+			wantToken: `C:\path\to\some\file`,
+			wantRoles: []types.SystemRole{
+				types.RoleAuth, types.RoleNode, types.RoleProxy,
+			},
+		},
+		{
+			desc:      "literal string",
+			input:     "Auth,Node,Proxy:some-literal-token",
+			wantToken: "some-literal-token",
+			wantRoles: []types.SystemRole{
+				types.RoleAuth, types.RoleNode, types.RoleProxy,
+			},
+		},
+		{
+			desc:      "reject bot role",
+			input:     "Bot:some-literal-token",
+			wantError: "role \"Bot\" is not allowed in static token configuration",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			staticToken := StaticToken("Auth,Node,Proxy:" + tt.token)
+			staticToken := StaticToken(tt.input)
 			provisionTokens, err := staticToken.Parse()
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				return
+			}
 			require.NoError(t, err)
 
 			require.Len(t, provisionTokens, 1)
 			provisionToken := provisionTokens[0]
 
 			want := types.ProvisionTokenV1{
-				Roles: []types.SystemRole{
-					types.RoleAuth, types.RoleNode, types.RoleProxy,
-				},
-				Token:   tt.token,
+				Roles:   tt.wantRoles,
+				Token:   tt.wantToken,
 				Expires: provisionToken.Expires,
 			}
 			require.Equal(t, want, provisionToken)
@@ -735,7 +997,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 	// Device trust mode=required is an Enterprise feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -754,7 +1016,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode": "optional",
 					},
@@ -769,7 +1031,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "yes",
@@ -823,7 +1085,7 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
-					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"second_factor": "otp",
 					"device_trust": cfgMap{
 						"mode":        "required",
 						"auto_enroll": "NOT A BOOLEAN", // invalid
@@ -981,6 +1243,119 @@ func TestSSHSection(t *testing.T) {
 	}
 }
 
+func TestHardwareKeyConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name                    string
+		mutate                  func(cfgMap)
+		expectReadError         require.ErrorAssertionFunc
+		expectParseError        require.ErrorAssertionFunc
+		expectHardwareKeyConfig *types.HardwareKey
+	}{
+		{
+			name: "OK empty",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{},
+		},
+		{
+			name: "OK piv_slot",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"piv_slot": "9a",
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				PIVSlot: "9a",
+			},
+		},
+		{
+			name: "NOK piv_slot unsupported slot",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"piv_slot": "8f",
+					},
+				}
+			},
+			expectParseError: func(t require.TestingT, err error, i ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
+			},
+		},
+		{
+			name: "OK serial_number_validation",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"serial_number_validation": cfgMap{
+							"enabled":                  true,
+							"serial_number_trait_name": "custom_trait_name",
+						},
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+					Enabled:               true,
+					SerialNumberTraitName: "custom_trait_name",
+				},
+			},
+		},
+		{
+			name: "OK pin_cache_ttl",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"pin_cache_ttl": "1m",
+					},
+				}
+			},
+			expectHardwareKeyConfig: &types.HardwareKey{
+				PinCacheTTL: types.Duration(time.Minute),
+			},
+		},
+		{
+			name: "NOK pin_cache_ttl not a duration",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"hardware_key": cfgMap{
+						"pin_cache_ttl": "1minute",
+					},
+				}
+			},
+			expectReadError: require.Error,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			if tc.expectReadError != nil {
+				tc.expectReadError(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			cap, err := cfg.Auth.Authentication.Parse()
+			if tc.expectParseError != nil {
+				tc.expectParseError(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			hardwareKeyConfig, err := cap.GetHardwareKey()
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectHardwareKeyConfig, hardwareKeyConfig)
+		})
+	}
+}
+
 func TestX11Config(t *testing.T) {
 	testCases := []struct {
 		desc              string
@@ -1084,7 +1459,7 @@ func TestX11Config(t *testing.T) {
 					"max_display":    100,
 				}
 			},
-			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
+			expectConfigError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1109,6 +1484,125 @@ func TestX11Config(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.expectX11Config, serverCfg)
+		})
+	}
+}
+
+func TestBackoffConfig(t *testing.T) {
+	testCases := []struct {
+		desc                   string
+		mutate                 func(cfgMap)
+		expectSvcBackoffConfig *servicecfg.AuthConnectionConfig
+		errorFn                func(t require.TestingT, err error, msgAndArgs ...interface{})
+	}{
+		{
+			desc:   "default",
+			mutate: func(cfg cfgMap) {},
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 90 * time.Second,
+				InitialConnectionDelay:   9 * time.Second,
+				BackoffStepDuration:      18 * time.Second,
+			},
+			errorFn: require.NoError,
+		},
+		{
+			desc: "negative values use defaults",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay":    "-1m",
+					"upper_limit_between_retries": "-5m",
+					"backoff_step_duration":       "-3s",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 90 * time.Second,
+				InitialConnectionDelay:   9 * time.Second,
+				BackoffStepDuration:      18 * time.Second,
+			},
+			errorFn: require.NoError,
+		},
+		{
+			desc: "use default ratio when only max is given",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"upper_limit_between_retries": "3m",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 3 * time.Minute,
+				InitialConnectionDelay:   18 * time.Second,
+				BackoffStepDuration:      36 * time.Second,
+			},
+			errorFn: require.NoError,
+		},
+		{
+			desc: "user specified",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay":    "1m",
+					"upper_limit_between_retries": "5m",
+					"backoff_step_duration":       "3s",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 5 * time.Minute,
+				InitialConnectionDelay:   time.Minute,
+				BackoffStepDuration:      3 * time.Second,
+			},
+			errorFn: require.NoError,
+		},
+		{
+			desc: "minimum upper range enforced",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"upper_limit_between_retries": "2ms",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be set below")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "cannot set initial delay above upper limit",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay": "2h",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be larger than upper_limit_between_retries")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "cannot set step above upper limit",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"backoff_step_duration": "2h",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be larger than upper_limit_between_retries")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			svccfg, err := cfg.AuthConnectionConfig.Parse()
+			tc.errorFn(t, err)
+
+			require.Equal(t, tc.expectSvcBackoffConfig, svccfg)
 		})
 	}
 }
@@ -1171,6 +1665,49 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+	})
+
+	t.Run("App role with MCP Demo server", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
+	})
+
+	t.Run("App name and MCP Demo Server", func(t *testing.T) {
+		_, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		_, err = MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.Error(t, err)
+
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			Roles:         "app",
+			AppURI:        "localhost:8080",
+			AppName:       "nginx",
+			MCPDemoServer: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "no", fc.SSH.EnabledFlag)
+		require.Equal(t, "no", fc.Proxy.EnabledFlag)
+		require.Equal(t, "no", fc.Auth.EnabledFlag)
+		require.Equal(t, "yes", fc.Apps.EnabledFlag)
+		require.True(t, fc.Apps.MCPDemoServer)
 	})
 
 	t.Run("Proxy role", func(t *testing.T) {

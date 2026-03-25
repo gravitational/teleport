@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode } from 'react';
+import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -50,6 +50,7 @@ export default function Table<T>(props: TableProps<T>) {
     isSearchable,
     fetching,
     className,
+    hideEmptyIcon,
     style,
     serversideProps,
     customSort,
@@ -104,10 +105,13 @@ export default function Table<T>(props: TableProps<T>) {
   const renderBody = (data: T[]) => {
     const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
-    data.map((item, rowIdx) => {
+    data.forEach((item, rowIdx) => {
       const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
         <tr
           key={rowIdx}
@@ -119,38 +123,55 @@ export default function Table<T>(props: TableProps<T>) {
       );
 
       const customRow = row?.customRow?.(item);
+      const renderAfter = row?.renderAfter?.(item);
+
       if (customRow) {
         rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
-        return;
+      } else {
+        const cells = columns.flatMap((column, columnIdx) => {
+          if (column.isNonRender) {
+            return []; // does not include this column.
+          }
+
+          const $cell = column.render ? (
+            column.render(item)
+          ) : (
+            <TextCell data={column.key ? item[column.key] : undefined} />
+          );
+
+          return (
+            <React.Fragment key={`${rowIdx} ${columnIdx}`}>
+              {$cell}
+            </React.Fragment>
+          );
+        });
+        rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
       }
 
-      const cells = columns.flatMap((column, columnIdx) => {
-        if (column.isNonRender) {
-          return []; // does not include this column.
-        }
-
-        const $cell = column.render ? (
-          column.render(item)
-        ) : (
-          <TextCell data={column.key ? item[column.key] : undefined} />
+      if (renderAfter) {
+        rows.push(
+          <React.Fragment key={`${rowIdx}-after`}>{renderAfter}</React.Fragment>
         );
-
-        return (
-          <React.Fragment key={`${rowIdx} ${columnIdx}`}>
-            {$cell}
-          </React.Fragment>
-        );
-      });
-      rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
+      }
     });
 
     if (rows.length) {
       return <tbody>{rows}</tbody>;
     }
 
+    // if we provide infiniteScrollProps, we want to not render anything if
+    // the fetch status is loading. this is so that the existing items dont dissapear
+    // during the fetch, but also, we dont want the empty text to show while fetching
+    // and lastly, the infinite scroll page will usually provide its own loading
+    // indicator at the bottom of the component
+    if (props.infiniteScrollProps?.fetchStatus === 'loading') {
+      return <tbody></tbody>;
+    }
+
     return (
       <EmptyIndicator
         emptyText={emptyText}
+        hideIcon={hideEmptyIcon}
         emptyHint={emptyHint}
         emptyButton={emptyButton}
         colSpan={columns.length}
@@ -346,7 +367,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        {serversideProps?.serversideSearchPanel}
+        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}
@@ -377,7 +398,9 @@ const EmptyIndicator = ({
   emptyHint,
   emptyButton,
   colSpan,
+  hideIcon = false,
 }: {
+  hideIcon?: boolean;
   emptyText: string;
   emptyHint: string | undefined;
   emptyButton: JSX.Element | undefined;
@@ -399,15 +422,18 @@ const EmptyIndicator = ({
             alignItems="flex-start"
             justifyContent="center"
           >
-            <Icons.Database
-              color="text.main"
-              // line-height and height must match line-height of Text below for the icon to be
-              // aligned to the first line of Text if Text spans multiple lines.
-              css={`
-                line-height: 32px;
-                height: 32px;
-              `}
-            />
+            {/* TODO (avatus) allow overriding this icon */}
+            {!hideIcon && (
+              <Icons.Database
+                color="text.main"
+                // line-height and height must match line-height of Text below for the icon to be
+                // aligned to the first line of Text if Text spans multiple lines.
+                css={`
+                  line-height: 32px;
+                  height: 32px;
+                `}
+              />
+            )}
             <Text textAlign="center" typography="h1" m="0" color="text.main">
               {emptyText}
             </Text>

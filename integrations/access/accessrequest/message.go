@@ -37,7 +37,7 @@ import (
 // for message section texts, so we truncate all reasons to a generous but
 // conservative limit
 const (
-	requestInlineLimit = 500
+	requestInlineLimit = 400
 	requestReasonLimit
 	resolutionReasonLimit
 	ReviewReasonLimit
@@ -46,7 +46,7 @@ const (
 var reviewReplyTemplate = template.Must(template.New("review reply").Parse(
 	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
-{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
+{{if .Reason}}Reason: {{.Reason}}{{end}}`,
 ))
 
 func MsgStatusText(tag pd.ResolutionTag, reason string) string {

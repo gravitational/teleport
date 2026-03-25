@@ -63,6 +63,12 @@ func IsElastiCacheClusterAvailable(cluster *ectypes.ReplicationGroup) bool {
 	return IsResourceAvailable(cluster, cluster.Status)
 }
 
+// IsElastiCacheServerlessCacheAvailable checks if the ElastiCache Serverless
+// cache is available.
+func IsElastiCacheServerlessCacheAvailable(cache *ectypes.ServerlessCache) bool {
+	return IsResourceAvailable(cache, cache.Status)
+}
+
 // IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
 func IsMemoryDBClusterAvailable(cluster *memorydbtypes.Cluster) bool {
 	return IsResourceAvailable(cluster, cluster.Status)
@@ -133,8 +139,7 @@ func IsRDSInstanceSupported(instance *rdstypes.DBInstance) bool {
 
 	// Min supported MariaDB version that supports IAM is 10.6
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
-	minIAMSupportedVer := semver.New("10.6.0")
-	return !ver.LessThan(*minIAMSupportedVer)
+	return !ver.LessThan(semver.Version{Major: 10, Minor: 6, Patch: 0})
 }
 
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.
@@ -201,6 +206,17 @@ func IsDocumentDBClusterSupported(cluster *rdstypes.DBCluster) bool {
 // supported.
 func IsElastiCacheClusterSupported(cluster *ectypes.ReplicationGroup) bool {
 	return aws.ToBool(cluster.TransitEncryptionEnabled)
+}
+
+// IsElastiCacheServerlessCacheSupported checks whether the ElastiCache
+// Serverless cache is supported.
+func IsElastiCacheServerlessCacheSupported(cache *ectypes.ServerlessCache) bool {
+	switch strings.ToLower(aws.ToString(cache.Engine)) {
+	case "redis", "valkey":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.

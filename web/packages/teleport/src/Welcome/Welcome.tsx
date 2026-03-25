@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+import { useLocation, useParams } from 'react-router';
+
 import { WelcomeWrapper } from 'teleport/components/Onboard';
-import {
-  Route,
-  Switch,
-  useLocation,
-  useParams,
-} from 'teleport/components/Router';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';

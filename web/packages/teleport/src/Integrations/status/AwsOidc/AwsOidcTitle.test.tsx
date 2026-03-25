@@ -19,9 +19,11 @@ import { within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { Status } from 'teleport/Integrations/types';
 import {
   IntegrationAwsOidc,
   IntegrationKind,
@@ -43,7 +45,12 @@ const testIntegration: IntegrationAwsOidc = {
 test('renders with resource', () => {
   render(
     <MemoryRouter>
-      <AwsOidcTitle integration={testIntegration} resource={AwsResource.ec2} />
+      <InfoGuidePanelProvider>
+        <AwsOidcTitle
+          integration={testIntegration}
+          resource={AwsResource.ec2}
+        />
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 
@@ -54,14 +61,16 @@ test('renders with resource', () => {
   expect(screen.getByText('EC2')).toBeInTheDocument();
   expect(screen.queryByText('some-name')).not.toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText('Running')
+    within(screen.getByLabelText('status')).getByText(Status.Healthy)
   ).toBeInTheDocument();
 });
 
 test('renders without resource', () => {
   render(
     <MemoryRouter>
-      <AwsOidcTitle integration={testIntegration} />
+      <InfoGuidePanelProvider>
+        <AwsOidcTitle integration={testIntegration} />
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 
@@ -71,14 +80,16 @@ test('renders without resource', () => {
   );
   expect(screen.getByText('some-name')).toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText('Running')
+    within(screen.getByLabelText('status')).getByText(Status.Healthy)
   ).toBeInTheDocument();
 });
 
 test('renders tasks', () => {
   render(
     <MemoryRouter>
-      <AwsOidcTitle integration={testIntegration} tasks={true} />
+      <InfoGuidePanelProvider>
+        <AwsOidcTitle integration={testIntegration} tasks={true} />
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 
@@ -88,6 +99,6 @@ test('renders tasks', () => {
   );
   expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText('Running')
+    within(screen.getByLabelText('status')).getByText(Status.Healthy)
   ).toBeInTheDocument();
 });

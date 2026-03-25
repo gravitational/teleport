@@ -21,8 +21,7 @@ import {
   ResourceIconName,
   resourceIconSpecs,
 } from 'design/ResourceIcon';
-
-import { AppSubKind } from 'teleport/services/apps';
+import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 
@@ -40,17 +39,20 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     return labelIconValue as ResourceIconName;
   }
 
-  if (awsConsole) {
-    return 'aws';
-  }
-  if (subKind === AppSubKind.AwsIcAccount) {
-    return 'awsaccount';
-  }
-
   const app = {
     name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
     friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
   };
+
+  if (awsConsole) {
+    if (match('quick', app) && (match('sight', app) || match('suite', app))) {
+      return 'awsquicksight';
+    }
+    return 'awsidentityandaccessmanagementiam';
+  }
+  if (subKind === AppSubKind.AwsIcAccount) {
+    return 'awsaccount';
+  }
 
   // Try a direct lookup first.
   if (resourceIconSpecs[app.name]) {

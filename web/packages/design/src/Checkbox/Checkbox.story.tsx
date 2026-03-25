@@ -85,7 +85,7 @@ export const Checkbox = () => (
         </td>
       </tr>
       <tr>
-        <th rowSpan={4}>Disabled</th>
+        <th rowSpan={3}>Disabled</th>
         <th>Default</th>
         <td>
           <CheckboxInput disabled />
@@ -116,6 +116,40 @@ export const Checkbox = () => (
         <td>
           <CheckboxInput size="small" disabled />
           <CheckboxInput size="small" disabled checked />
+        </td>
+      </tr>
+      <tr>
+        <th rowSpan={3}>Read Only</th>
+        <th>Default</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-hover">
+        <th>Hover</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
+        </td>
+      </tr>
+      <tr className="teleport-checkbox__force-active">
+        <th>Active</th>
+        <td>
+          <CheckboxInput readOnly />
+          <CheckboxInput readOnly checked />
+        </td>
+        <td>
+          <CheckboxInput size="small" readOnly />
+          <CheckboxInput size="small" readOnly checked />
         </td>
       </tr>
     </Table>

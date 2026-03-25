@@ -1,1 +1,2 @@
 $nrconf{override_rc}{qr(^teleport_test\.service)} = 0;
+$nrconf{override_rc}{qr(^tbot_test\.service)} = 0;

@@ -20,16 +20,24 @@ package db
 
 import (
 	"context"
+	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 var (
 	wildcardLabels = map[string]string{types.Wildcard: types.Wildcard}
@@ -58,7 +66,7 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 
 	fetcherFactory, err := NewAWSFetcherFactory(cfg)
 	require.NoError(t, err)
-	fetchers, err := fetcherFactory.MakeFetchers(context.Background(), matchers, discoveryConfigName)
+	fetchers, err := fetcherFactory.MakeFetchers(t.Context(), matchers, discoveryConfigName)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -69,10 +77,15 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 	return fetchers
 }
 
-func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
+func mustMakeAzureFetchers(t *testing.T, clients azure.Clients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAzureFetchers(clients, matchers, "" /* discovery config */)
+	fetchers, err := MakeAzureFetchers(t.Context(), func(ctx context.Context, integration string) (azure.Clients, error) {
+		if integration != "" {
+			return nil, trace.NotImplemented("expected empty integration, got %q", integration)
+		}
+		return clients, nil
+	}, matchers, "" /* discovery config */)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -88,7 +101,7 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 
 	var all types.Databases
 	for _, fetcher := range fetchers {
-		resources, err := fetcher.Get(context.TODO())
+		resources, err := fetcher.Get(t.Context())
 		require.NoError(t, err)
 
 		databases, err := resources.AsDatabases()
@@ -122,7 +135,6 @@ type awsFetcherTest struct {
 func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 	t.Helper()
 	for _, test := range tests {
-		test := test
 		fakeSTS := &mocks.STSClient{}
 		require.Nil(t, test.fetcherCfg.AWSConfigProvider, "testAWSFetchers injects a fake AWSConfigProvider, but the test input had already configured it. This is a test configuration error.")
 		test.fetcherCfg.AWSConfigProvider = &mocks.AWSConfigProvider{

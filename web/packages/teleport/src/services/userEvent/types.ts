@@ -48,6 +48,10 @@ export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
   Step = 'tp.ui.integrationEnroll.step',
+  SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
+  FieldComplete = 'tp.ui.integrationEnroll.fieldComplete',
+  CodeCopy = 'tp.ui.integrationEnroll.codeCopy',
+  LinkClick = 'tp.ui.integrationEnroll.linkClick',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -67,6 +71,7 @@ export enum IntegrationEnrollKind {
   ServiceNow = 'INTEGRATION_ENROLL_KIND_SERVICENOW',
   MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
   MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
+  MachineIDGitHubActionsKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES',
   MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
   MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
   MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
@@ -76,9 +81,14 @@ export enum IntegrationEnrollKind {
   MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
+  MachineIDArgoCD = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
   AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
+  GitHubRepoAccess = 'INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS',
+  AwsCloud = 'INTEGRATION_ENROLL_KIND_AWS_CLOUD',
+  AzureCloud = 'INTEGRATION_ENROLL_KIND_AZURE_CLOUD',
+  GoogleCloud = 'INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD',
 }
 
 /**
@@ -93,6 +103,24 @@ export enum IntegrationEnrollStep {
   ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
   IdentitySourceUploadSamlMetadata = 'INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA',
   ScimTestConnection = 'INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION',
+
+  /**
+   * GITHUBRA denotes GitHub Repo Access.
+   */
+  GitHubRaCreateIntegration = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION',
+  GitHubRaCreateGitServer = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER',
+  GitHubRaConfigureSshCert = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT',
+  GitHubRaCreateRole = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE',
+
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SWelcome = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME',
+  MWIGHAK8SConnectGitHub = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+  MWIGHAK8SConfigureAccess = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+  MWIGHAK8SSetupWorkflow = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
+
+  VerifyIntegration = 'INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION',
 }
 
 /**
@@ -105,6 +133,53 @@ export enum IntegrationEnrollStatusCode {
   Skipped = 'INTEGRATION_ENROLL_STATUS_CODE_SKIPPED',
   Error = 'INTEGRATION_ENROLL_STATUS_CODE_ERROR',
   Aborted = 'INTEGRATION_ENROLL_STATUS_CODE_ABORTED',
+}
+
+/**
+ * IntegrationEnrollSection identifies a section the user opened or expanded in
+ * an integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollSection {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesLabelPicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER',
+  MWIGHAK8SKubernetesAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesResourceRulePicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER',
+}
+
+/**
+ * IntegrationEnrollField identifies a field the user completed in an integration
+ * setup wizard. Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollField {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubRepositoryURL = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL',
+  MWIGHAK8SGitHubBranch = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH',
+  MWIGHAK8SGitHubWorkflow = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW',
+  MWIGHAK8SGitHubEnvironment = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT',
+  MWIGHAK8SGitHubRef = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF',
+  MWIGHAK8SGitHubEnterpriseSlug = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG',
+  MWIGHAK8SGitHubEnterpriseStaticJWKS = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS',
+  MWIGHAK8SKubernetesLabels = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS',
+  MWIGHAK8SKubernetesGroups = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS',
+  MWIGHAK8SKubernetesUsers = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS',
+  MWIGHAK8SKubernetesResourceRules = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES',
+  MWIGHAK8SKubernetesClusterName = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME',
+}
+
+/**
+ * IntegrationEnrollCodeType identifies the type of code that was copied in an
+ * integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollCodeType {
+  Terraform = 'INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM',
+  GitHubActionsYAML = 'INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML',
 }
 
 /**
@@ -132,6 +207,10 @@ export type IntegrationEnrollEventData = {
   kind: IntegrationEnrollKind;
   step?: IntegrationEnrollStep;
   status?: IntegrationEnrollStepStatus;
+  section?: IntegrationEnrollSection;
+  field?: IntegrationEnrollField;
+  codeType?: IntegrationEnrollCodeType;
+  link?: string;
 };
 
 /**
@@ -193,6 +272,7 @@ export enum DiscoverEventResource {
   DatabaseCassandraSelfHosted = 'DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED',
   DatabaseElasticSearchSelfHosted = 'DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED',
   DatabaseRedisElasticache = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE',
+  DatabaseRedisElastiCacheServerless = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE_SERVERLESS',
   DatabaseRedisMemoryDb = 'DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB',
   DatabaseRedisAzureCache = 'DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE',
   DatabaseRedisClusterSelfHosted = 'DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED',
@@ -217,6 +297,10 @@ export enum DiscoverEventResource {
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
+
+  MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
+  MCPSSE = 'DISCOVER_RESOURCE_MCP_SSE',
+  MCPStreamableHTTP = 'DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP',
 }
 
 export enum DiscoverEventStatus {
@@ -226,9 +310,13 @@ export enum DiscoverEventStatus {
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
 
-export type UserEvent = {
-  event: CaptureEvent;
+export type UserEvent<E = CaptureEvent> = {
+  event: E;
   alert?: string;
+};
+
+type UserEventWithData<E, D> = UserEvent<E> & {
+  eventData: D;
 };
 
 export type EventMeta = {
@@ -239,10 +327,10 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
-  event: DiscoverEvent;
-  eventData: DiscoverEventData;
-};
+export type DiscoverEventRequest = UserEventWithData<
+  DiscoverEvent,
+  DiscoverEventData
+>;
 
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
@@ -312,7 +400,13 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
+  CTA_IDENTITY_SECURITY = 14,
 }
+
+export type CtaEventRequest = UserEventWithData<
+  CaptureEvent.UiCallToActionClickEvent,
+  CtaEvent
+>;
 
 export enum Feature {
   FEATURES_UNSPECIFIED = 0,
@@ -329,3 +423,25 @@ export type FeatureRecommendationEvent = {
   Feature: Feature;
   FeatureRecommendationStatus: FeatureRecommendationStatus;
 };
+
+export type FeatureRecommendationEventRequest = UserEventWithData<
+  CaptureEvent.FeatureRecommendationEvent,
+  FeatureRecommendationEvent
+>;
+
+export enum RoleEditorMode {
+  Standard = 'standard',
+  Yaml = 'yaml',
+}
+
+export type CreateNewRoleSaveClickEventData = {
+  standardUsed: boolean;
+  yamlUsed: boolean;
+  modeWhenSaved: RoleEditorMode;
+  fieldsWithConversionErrors: string[];
+};
+
+export type CreateNewRoleSaveClickEvent = UserEventWithData<
+  CaptureEvent.CreateNewRoleSaveClickEvent,
+  CreateNewRoleSaveClickEventData
+>;

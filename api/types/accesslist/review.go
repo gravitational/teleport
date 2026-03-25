@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package accesslist
 
@@ -35,6 +37,11 @@ type Review struct {
 	// Spec is the specification for the access list review.
 	Spec ReviewSpec `json:"spec" yaml:"spec"`
 }
+
+const (
+	// reviewNotesMaxSizeBytes is the maximum size in bytes of review notes.
+	reviewNotesMaxSizeBytes = 200 * 1024 // 200 KB should be more than plenty
+)
 
 // ReviewSpec describes the specification of a review of an access list.
 type ReviewSpec struct {
@@ -72,16 +79,16 @@ type ReviewChanges struct {
 
 // NewReview will create a new access list review.
 func NewReview(metadata header.Metadata, spec ReviewSpec) (*Review, error) {
-	member := &Review{
+	review := &Review{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
 
-	if err := member.CheckAndSetDefaults(); err != nil {
+	if err := review.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return member, nil
+	return review, nil
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
@@ -105,6 +112,10 @@ func (r *Review) CheckAndSetDefaults() error {
 		return trace.BadParameter("review date is missing")
 	}
 
+	if len(r.Spec.Notes) > reviewNotesMaxSizeBytes {
+		r.Spec.Notes = r.Spec.Notes[:reviewNotesMaxSizeBytes]
+	}
+
 	return nil
 }
 
@@ -112,6 +123,16 @@ func (r *Review) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (r *Review) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(r.Metadata)
+}
+
+// Clone returns a copy of the review.
+func (a *Review) Clone() *Review {
+	if a == nil {
+		return nil
+	}
+	out := &Review{}
+	deriveDeepCopyReview(out, a)
+	return out
 }
 
 func (r *ReviewSpec) UnmarshalJSON(data []byte) error {

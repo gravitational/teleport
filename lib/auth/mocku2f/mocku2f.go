@@ -32,6 +32,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/binary"
+	"encoding/json"
 	"math/big"
 	"time"
 
@@ -82,6 +83,52 @@ type Key struct {
 	ReplyWithCredProps bool
 
 	counter uint32
+}
+
+var (
+	_ json.Marshaler   = (*Key)(nil)
+	_ json.Unmarshaler = (*Key)(nil)
+)
+
+func (k *Key) MarshalJSON() ([]byte, error) {
+	type alias Key
+
+	privateKey, err := x509.MarshalECPrivateKey(k.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := struct {
+		PrivateKey []byte `json:"PrivateKey"`
+		Counter    uint32 `json:"Counter"`
+		*alias
+	}{
+		PrivateKey: privateKey,
+		Counter:    k.counter,
+		alias:      (*alias)(k),
+	}
+	return json.Marshal(s)
+}
+
+func (k *Key) UnmarshalJSON(data []byte) error {
+	type alias Key
+	var s struct {
+		PrivateKey []byte `json:"PrivateKey"`
+		Counter    uint32 `json:"Counter"`
+		*alias
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+
+	privateKey, err := x509.ParseECPrivateKey(s.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err, "parsing private key")
+	}
+
+	*k = Key(*s.alias)
+	k.PrivateKey = privateKey
+	k.counter = s.Counter
+	return nil
 }
 
 func selfSignPublicKey(keyToSign *ecdsa.PublicKey) (cert []byte, err error) {

@@ -126,6 +126,19 @@
                     ],
                     "default": "otp"
                 },
+                "secondFactors": {
+                    "$id": "#/properties/authentication/properties/secondFactors",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "otp",
+                            "sso",
+                            "webauthn"
+                        ]
+                    },
+                    "default": []
+                },
                 "webauthn": {
                     "$id": "#/properties/authentication/properties/webauthn",
                     "type": "object",
@@ -699,7 +712,8 @@
             "type": "object",
             "required": [
                 "existingSecretName",
-                "existingCASecretName"
+                "existingCASecretName",
+                "existingCASecretKeyName"
             ],
             "properties": {
                 "existingSecretName": {
@@ -711,6 +725,11 @@
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
                 }
             }
         },

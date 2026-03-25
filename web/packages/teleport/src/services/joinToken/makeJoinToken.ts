@@ -22,14 +22,17 @@ import type { JoinToken } from './types';
 
 export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
 
-export default function makeToken(json): JoinToken {
+export default function makeToken(json: any): JoinToken {
   json = json || {};
   const {
     id,
     roles,
     isStatic,
+    isCloudSystem,
     allow,
     gcp,
+    github,
+    gitlab,
     bot_name,
     expiry,
     method,
@@ -43,11 +46,14 @@ export default function makeToken(json): JoinToken {
   return {
     id,
     isStatic,
+    isCloudSystem,
     safeName,
     bot_name,
     method,
     allow,
     gcp,
+    github,
+    gitlab,
     roles: roles?.sort((a, b) => a.localeCompare(b)) || [],
     suggestedLabels: labels,
     internalResourceId: extractInternalResourceId(labels),

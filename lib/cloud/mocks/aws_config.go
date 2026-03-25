@@ -30,6 +30,7 @@ import (
 
 type AWSConfigProvider struct {
 	Err                   error
+	AWSConfig             *aws.Config
 	STSClient             *STSClient
 	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
@@ -39,6 +40,10 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 		return aws.Config{}, f.Err
 	}
 
+	if f.AWSConfig != nil {
+		return *f.AWSConfig, nil
+	}
+
 	stsClt := f.STSClient
 	if stsClt == nil {
 		stsClt = &STSClient{}
@@ -46,7 +51,7 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 	optFns = append([]awsconfig.OptionsFn{
 		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
 		awsconfig.WithSTSClientProvider(
-			newAssumeRoleClientProviderFunc(stsClt),
+			NewAssumeRoleClientProviderFunc(stsClt),
 		),
 	}, optFns...)
 	return awsconfig.GetConfig(ctx, region, optFns...)

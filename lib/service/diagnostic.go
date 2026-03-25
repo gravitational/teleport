@@ -21,8 +21,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gravitational/teleport"
@@ -37,10 +35,6 @@ type diagnosticHandlerConfig struct {
 }
 
 func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerConfig, logger *slog.Logger) (http.Handler, error) {
-	if process.state == nil {
-		return nil, trace.BadParameter("teleport process state machine has not yet been initialized (this is a bug)")
-	}
-
 	mux := http.NewServeMux()
 
 	if config.enableMetrics {
@@ -55,7 +49,7 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 		})
-		mux.HandleFunc("/readyz", process.state.readinessHandler())
+		mux.HandleFunc("/readyz", process.HandleReadiness)
 	}
 
 	if config.enableLogLeveler {
@@ -68,15 +62,8 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 // newMetricsHandler creates a new metrics handler serving metrics both from the global prometheus registry and the
 // in-process one.
 func (process *TeleportProcess) newMetricsHandler() http.Handler {
-	// We gather metrics both from the in-process registry (preferred metrics registration method)
-	// and the global registry (used by some Teleport services and many dependencies).
-	gatherers := prometheus.Gatherers{
-		process.metricsRegistry,
-		prometheus.DefaultGatherer,
-	}
-
 	metricsHandler := promhttp.InstrumentMetricHandler(
-		process.metricsRegistry, promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
+		process.metricsRegistry, promhttp.HandlerFor(process, promhttp.HandlerOpts{
 			// Errors can happen if metrics are registered with identical names in both the local and the global registry.
 			// In this case, we log the error but continue collecting metrics. The first collected metric will win
 			// (the one from the local metrics registry takes precedence).

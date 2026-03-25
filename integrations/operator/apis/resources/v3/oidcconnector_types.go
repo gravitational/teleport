@@ -25,7 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -41,10 +41,10 @@ type TeleportOIDCConnectorSpec types.OIDCConnectorSpecV3
 // TeleportOIDCConnector is the Schema for the OIDCConnector API
 type TeleportOIDCConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportOIDCConnectorSpec `json:"spec,omitempty"`
-	Status resources.Status          `json:"status,omitempty"`
+	Spec   TeleportOIDCConnectorSpec `json:"spec"`
+	Status teleportcr.Status         `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -52,7 +52,7 @@ type TeleportOIDCConnector struct {
 // TeleportOIDCConnectorList contains a list of TeleportOIDCConnector
 type TeleportOIDCConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportOIDCConnector `json:"items"`
 }
 
@@ -63,7 +63,7 @@ func (c TeleportOIDCConnector) ToTeleport() types.OIDCConnector {
 		Metadata: types.Metadata{
 			Name:        c.Name,
 			Labels:      c.Labels,
-			Description: c.Annotations[resources.DescriptionKey],
+			Description: c.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.OIDCConnectorSpecV3(c.Spec),
 	}

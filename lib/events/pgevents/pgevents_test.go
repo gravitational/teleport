@@ -29,7 +29,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -37,11 +36,11 @@ import (
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -78,6 +77,10 @@ func TestPostgresEvents(t *testing.T) {
 	t.Run("SearchSessionEventsBySessionID", func(t *testing.T) {
 		truncateEvents(t)
 		suite.SearchSessionEventsBySessionID(t)
+	})
+	t.Run("SearchEventsBySearchTerm", func(t *testing.T) {
+		truncateEvents(t)
+		suite.SearchEventsBySearchTerm(t)
 	})
 }
 
@@ -137,13 +140,16 @@ func TestLog_nonStandardSessionID(t *testing.T) {
 		[]string{appStartEvent.Metadata.Type}, // eventTypes
 		nil,                                   // cond
 		appStartEvent.SessionID,
-		2, // limit
+		"", // search
+		2,  // limit
 		types.EventOrderAscending,
 		"", // startKey
 	)
 	require.NoError(t, err, "search session events")
-	want := []apievents.AuditEvent{appStartEvent}
-	if diff := cmp.Diff(want, appEvents, protocmp.Transform()); diff != "" {
+	wantFields, err := events.ToEventFields(appStartEvent)
+	require.NoError(t, err, "convert event to fields")
+	want := []events.EventFields{wantFields}
+	if diff := cmp.Diff(want, appEvents); diff != "" {
 		t.Errorf("searchEvents mismatch (-want +got)\n%s", diff)
 	}
 }
@@ -202,6 +208,11 @@ func TestConfig(t *testing.T) {
 			RetentionPeriod: defaultRetentionPeriod,
 			CleanupInterval: defaultCleanupInterval,
 		},
+		"postgres://foo#cert_reload_interval=1h": {
+			RetentionPeriod:    defaultRetentionPeriod,
+			CleanupInterval:    defaultCleanupInterval,
+			CertReloadInterval: time.Hour,
+		},
 
 		"postgres://foo#auth_mode=invalid-auth-mode": nil,
 	}
@@ -226,7 +237,7 @@ func TestConfig(t *testing.T) {
 }
 
 func TestBuildSchema(t *testing.T) {
-	testLog := utils.NewSlogLoggerForTests()
+	testLog := logtest.NewLogger()
 
 	testConfig := &Config{
 		Log: testLog,

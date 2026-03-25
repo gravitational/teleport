@@ -17,14 +17,20 @@ limitations under the License.
 package events
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
+// TestTrimToMaxSize tests TrimToMaxSize implementation of several events.
+// It also tests trimEventToMaxSize used by these events.
 func TestTrimToMaxSize(t *testing.T) {
 	type messageSizeTrimmer interface {
 		TrimToMaxSize(int) AuditEvent
@@ -45,7 +51,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: strings.Repeat("A", 7000),
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 5375),
+				DatabaseQuery: strings.Repeat("A", 5373),
 			},
 		},
 		{
@@ -59,7 +65,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				},
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: strings.Repeat("A", 590),
+				DatabaseQuery: strings.Repeat("A", 589),
 				DatabaseQueryParameters: []string{
 					strings.Repeat("A", 89),
 					strings.Repeat("A", 89),
@@ -99,7 +105,7 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: `{` + strings.Repeat(`"a": "b",`, 100) + "}",
 			},
 			want: &DatabaseSessionQuery{
-				DatabaseQuery: `{"a": "b","a":`,
+				DatabaseQuery: `{"a": "b","a"`,
 			},
 		},
 		// UserLogin
@@ -114,14 +120,134 @@ func TestTrimToMaxSize(t *testing.T) {
 			},
 			want: &UserLogin{
 				Status: Status{
-					Error:       strings.Repeat("A", 1336),
-					UserMessage: strings.Repeat("A", 1336),
+					Error:       strings.Repeat("A", 1335),
+					UserMessage: strings.Repeat("A", 1335),
 				},
 			},
 			cmpOpts: []cmp.Option{
 				// UserLogin.IdentityAttributes has an Equal method which gets used
 				// by cmp.Diff but fails whether nil or an empty struct is supplied.
 				cmpopts.IgnoreFields(UserLogin{}, "IdentityAttributes"),
+			},
+		},
+		{
+			name:    "MCPSessionInvalidHTTPRequest trimmed",
+			maxSize: 200,
+			in: &MCPSessionInvalidHTTPRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: strings.Repeat("/path", 10),
+				Body: bytes.Repeat([]byte("body"), 10),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 20)},
+					"B": {strings.Repeat("b", 20)},
+				},
+			},
+			want: &MCPSessionInvalidHTTPRequest{
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: "/path/path/path/",
+				Body: []byte("bodybodybodybody"),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 16)},
+					"B": {strings.Repeat("b", 16)},
+				},
+			},
+		},
+		{
+			name:    "SCIM Resource Event trimmed",
+			maxSize: 200,
+			in: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am the very model of a modern Major General",
+					UserMessage: "I have information animal, vegetable and mineral",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+					ResourceType: "ttttttttttttttttttttttttttttttttttttttttttt",
+					Request: &SCIMRequest{
+						ID:            "idididididididididididididididididididididid",
+						SourceAddress: "srcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrcsrc",
+						UserAgent:     "agentagentagentagentagentagentagentagentagent",
+						Method:        "PATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCHPATCH",
+						Path:          "/Users/teleport-user-with-a-long-name",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggggggggggggggggggggggggggggggggggggggg",
+						}),
+					},
+				},
+			},
+			want: &SCIMResourceEvent{
+				Metadata: Metadata{
+					Code: "TSCIM006I",
+					Type: "scim.patch",
+				},
+				Status: Status{
+					Success:     true,
+					Error:       "I am t",
+					UserMessage: "I have",
+				},
+				SCIMCommonData: SCIMCommonData{
+					Integration:  "iiiiii",
+					ResourceType: "tttttt",
+					Request: &SCIMRequest{
+						ID:            "ididid",
+						SourceAddress: "srcsrc",
+						UserAgent:     "agenta",
+						Method:        "PATCHP",
+						Path:          "/Users",
+						Body: MustEncodeMap(map[string]any{
+							"Alpha": "aaaaaa",
+						}),
+					},
+					Response: &SCIMResponse{
+						StatusCode: 404,
+						Body: MustEncodeMap(map[string]any{
+							"plain": "text",
+							"Gamma": "gggggg",
+						}),
+					},
+				},
+			},
+			cmpOpts: []cmp.Option{
+				cmp.Transformer("struct", func(s *Struct) map[string]any {
+					result, err := DecodeToMap(s)
+					require.NoError(t, err)
+					return result
+				}),
+			},
+		},
+		{
+			name:    "CertAuthorityOverrideEvent trimmed",
+			maxSize: 200,
+			in: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
+			},
+			want: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 70),
+					UserMessage: strings.Repeat("B", 70),
+				},
 			},
 		},
 	}
@@ -155,4 +281,95 @@ func TestTrimStr(t *testing.T) {
 	for _, test := range tests {
 		require.Equal(t, test.want, trimStr(test.have, maxLen))
 	}
+}
+
+func TestStructTrimToMaxSize(t *testing.T) {
+	testCases := []struct {
+		name    string
+		maxSize int
+		in      *Struct
+		want    *Struct
+	}{
+		{
+			name:    "Field key exceeds max limit size",
+			maxSize: 10,
+			in: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 100): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+			want: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.in.trimToMaxFieldSize(tc.maxSize)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestTrimMCPJSONRPCMessage(t *testing.T) {
+	m := MCPJSONRPCMessage{
+		JSONRPC: "2.0",
+		ID:      "some-id",
+		Method:  "tools/call",
+		Params: &Struct{
+			Struct: types.Struct{
+				Fields: map[string]*types.Value{
+					strings.Repeat("A", 100): {
+						Kind: &types.Value_StringValue{
+							StringValue: "A",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	orgSize := m.Size()
+	t.Run("not trimmed", func(t *testing.T) {
+		notTrimmed := m.trimToMaxFieldSize(10000)
+		require.Equal(t, orgSize, m.Size())
+		require.Equal(t, notTrimmed, m)
+	})
+
+	t.Run("trimmed", func(t *testing.T) {
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
+		require.Equal(t, orgSize, m.Size())
+		require.Less(t, trimmed.Size(), 50)
+		require.Equal(t, MCPJSONRPCMessage{
+			JSONRPC: "2.0",
+			ID:      "some-id",
+			Method:  "tools/ca",
+			Params: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		}, trimmed)
+	})
 }

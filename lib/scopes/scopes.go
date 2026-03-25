@@ -1,0 +1,822 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package scopes
+
+import (
+	"fmt"
+	"iter"
+	"regexp"
+	"strings"
+	"unicode"
+
+	"github.com/gravitational/trace"
+)
+
+// segmentRegexp is the regular expression used to validate scope segments. It allows
+// lowercase alphanumeric characters, hyphens, underscores, and periods. It also requires
+// that the segment starts and ends with an alphanumeric character.
+var segmentRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\_\.]*[a-z0-9]$`)
+
+const (
+	// separator is the character used to separate segments in a scope and is the the value of the root scope.
+	separator = "/"
+
+	// exclusiveChildGlobSegment is the string used to indicate a wildcard match for child segments, used to construct
+	// the exclusive child glob suffix.
+	exclusiveChildGlobSegment = "**"
+
+	// exclusiveChildGlobSuffix is a special suffix used in roles to indicate that the role can be
+	// assigned to any *child* of a given scope, but not to the scope itself (e.g. an assignable scope of
+	// `/aa/**` allows assignment to `/aa/bb`, but not to `/aa`).
+	exclusiveChildGlobSuffix = separator + exclusiveChildGlobSegment
+
+	// maxScopeSize is the maximum size of a scope, including separators.
+	maxScopeSize = 64
+
+	// maxSegmentSize is the maximum size of a segment, excluding separators.
+	maxSegmentSize = 32
+
+	// minSegmentSize is the minimum size of a segment, excluding separators.
+	minSegmentSize = 2
+
+	// breakingChars is a special set of characters that we explicitly consider to be invalid
+	// members even when performing looser/weaker validation. This it intended to be an additional
+	// guardrail against erroneous interpretation of future extensions to scope syntax by outdated
+	// agents in the event of improper cross-version compat logic.
+	breakingChars = "\\@(){}\"'%*?#$!+=|<>,;~`&[]/"
+)
+
+// Root is the root scope. Non-policy resources being grandfathered into scoping should use this
+// as their default scope value, which will exclude the resource from administration by any policy
+// other than non-scoped policies and root-scoped policies. Note that there is no sane default scoping
+// for a policy. Policy resources should never use this or any other default scope value.
+const Root = separator
+
+// StrongValidate checks if the scope is valid according to all scope formatting rules. This function
+// *must* be called on all scope values received from user input and/or cluster-external sources (e.g.
+// an identity provider). Use of this function should be avoided when checking the validity of scopes
+// from the control-plane in logic that may be run agent-side. Prefer [WeakValidate] in those cases, which
+// is more forgiving of changes to scope formatting rules.
+func StrongValidate(scope string) error {
+	if scope == "" {
+		return trace.BadParameter("scope is empty")
+	}
+
+	if !strings.HasPrefix(scope, separator) {
+		return trace.BadParameter("scope %q is missing required prefix %q", scope, separator)
+	}
+
+	if scope != separator && strings.HasSuffix(scope, separator) {
+		return trace.BadParameter("scope %q has dangling separator %q", scope, separator)
+	}
+
+	for segment := range DescendingSegments(scope) {
+		if err := StrongValidateSegment(segment); err != nil {
+			return trace.BadParameter("scope %q is invalid: %v", scope, err)
+		}
+	}
+
+	if len(scope) > maxScopeSize {
+		return trace.BadParameter("scope %q is too long (max characters %d)", scope, maxScopeSize)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidate(scope); err != nil {
+		return trace.BadParameter("scope would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
+// WeakValidate performs a weak form of validation on a scope. This is useful primarily for ensuring
+// that scopes received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidate] for scopes received from
+// external sources (e.g. user input or identity provider).
+func WeakValidate(scope string) error {
+	if scope == "" {
+		return trace.BadParameter("scope is empty")
+	}
+
+	for segment := range DescendingSegments(scope) {
+		if err := WeakValidateSegment(segment); err != nil {
+			return trace.BadParameter("scope %q is invalid: %v", scope, err)
+		}
+	}
+
+	return nil
+}
+
+// StrongValidateSegment checks if the scope segment is valid according to all scope formatting rules. This function
+// *must* be called on all scope segment values received from user input and/or cluster-external sources (e.g.
+// an identity provider). Use of this function should be avoided when checking the validity of segments
+// from the control-plane in logic that may be run agent-side. Prefer [WeakValidateSegment] in those cases, which
+// is more forgiving of changes to scope formatting rules.
+func StrongValidateSegment(segment string) error {
+	if segment == "" {
+		return trace.BadParameter("segment is empty")
+	}
+
+	if len(segment) < minSegmentSize {
+		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range segment {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("segment %q contains uppercase character(s)", segment)
+		}
+	}
+
+	if !segmentRegexp.MatchString(segment) {
+		return trace.BadParameter("segment %q is malformed", segment)
+	}
+
+	if len(segment) > maxSegmentSize {
+		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidateSegment(segment); err != nil {
+		return trace.BadParameter("segment would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
+// WeakValidateSegment performs a weak form of validation on a scope segment. This is useful primarily for ensuring
+// that segments received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidateSegment] for segments received from
+// external sources (e.g. user input or identity provider).
+func WeakValidateSegment(segment string) error {
+	// check for spaces and control characters
+	for _, b := range []byte(segment) {
+		if !isNonSpacePrintableASCII(b) {
+			return trace.BadParameter("segment %q contains invalid character", segment)
+		}
+	}
+
+	// check for breaking characters
+	if strings.ContainsAny(segment, breakingChars) {
+		return trace.BadParameter("segment %q contains invalid character", segment)
+	}
+
+	return nil
+}
+
+// isNonSpacePrintableASCII checks if a byte is a non-space printable ASCII character (i.e. a byte in the range
+// [33, 126] inclusive). This is used for weak validation of scope segments and globs.
+func isNonSpacePrintableASCII(b byte) bool {
+	if b < 33 || b > 126 {
+		return false
+	}
+
+	return true
+}
+
+// StrongValidateGlob checks if the scope glob is valid according to all scope formatting rules. This function
+// *must* be called on all scope glob values received from user input and/or cluster-external sources (e.g.
+// an identity provider). Use of this function should be avoided when checking the validity of scope globs
+// from the control-plane in logic that may be run agent-side. Prefer [WeakValidateGlob] in those cases, which
+// is more forgiving of changes to scope glob formatting rules.
+func StrongValidateGlob(scope string) error {
+	if scope == "" {
+		return trace.BadParameter("scope glob is empty")
+	}
+
+	if scope == exclusiveChildGlobSuffix {
+		// this is just a matcher for any child of root
+		return nil
+	}
+
+	if err := StrongValidate(strings.TrimSuffix(scope, exclusiveChildGlobSuffix)); err != nil {
+		return trace.BadParameter("scope glob %q is invalid: %v", scope, err)
+	}
+
+	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
+	// construct a weak check that rejects something that would otherwise pass a strong check. strong
+	// validation is not used in perf-critical paths, so there isn't any real downside to a little
+	// defensiveness here.
+	if err := WeakValidateGlob(scope); err != nil {
+		return trace.BadParameter("scope glob would not pass weak validation: %v", err)
+	}
+
+	return nil
+}
+
+// WeakValidateGlob is a weaker form of validation for scope globs. This is useful primarily for ensuring
+// that scope globs received from trusted sources haven't been altered beyond our ability to reason effectively
+// about them (e.g. due to significant version drift). Prefer using [StrongValidateGlob] for globs received from
+// external sources (e.g. user input or identity provider).
+func WeakValidateGlob(scope string) error {
+	if scope == "" {
+		return trace.BadParameter("scope glob is empty")
+	}
+
+	for segment := range DescendingSegments(scope) {
+		if segment == exclusiveChildGlobSegment {
+			continue
+		}
+
+		if err := WeakValidateSegment(segment); err != nil {
+			return trace.BadParameter("scope glob %q is invalid: %v", scope, err)
+		}
+	}
+
+	return nil
+}
+
+// DescendingSegments produces an iterator over the segments of a scope in descending order.
+// e.g. `DescendingSegments("/a/b/c")` will result in an iterator that returns `a`, `b`, and
+// `c` in that order. `DescendingSegments("/")` will return an empty iterator.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func DescendingSegments(scope string) iter.Seq[string] {
+	if scope == "" || scope == separator {
+		return func(yield func(string) bool) {}
+	}
+	return strings.SplitSeq(trimForSplit(scope), separator)
+}
+
+// Split splits the scope into its component segments and returns them as a slice.
+// e.g. `Split("/a/b/c")` will return `[]string{"a", "b", "c"}`. `Split("/")` will return
+// an empty slice.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func Split(scope string) []string {
+	if scope == "" || scope == separator {
+		return nil
+	}
+
+	return strings.Split(trimForSplit(scope), separator)
+}
+
+// Depth returns the depth of a scope (i.e., the number of segments) e.g. `Depth("/a/b/c")` returns 3,
+// `Depth("/")` returns 0, etc. This is equivalent to `len(Split(scope))` but avoids allocation.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func Depth(scope string) int {
+	if scope == "" || scope == separator {
+		return 0
+	}
+
+	trimmed := trimForSplit(scope)
+	if trimmed == "" {
+		return 0
+	}
+
+	return strings.Count(trimmed, separator) + 1
+}
+
+func trimForSplit(scope string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(scope, separator), separator)
+}
+
+// DescendingScopes produces an iterator over the canonical representations of the parents of
+// a scope in descending order, ending with the canonical representation of the scope itself.
+// e.g. `DescendingScopes("/a/b/c")` will result in an iterator that returns `/`, `/a`, `/a/b`,
+// and `/a/b/c` in that order. `DescendingScopes("/")` will return a single-element iterator, and
+// `DescendingScopes("")` will return an empty iterator.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func DescendingScopes(scope string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if scope == "" {
+			return
+		}
+
+		// start with the root scope
+		if !yield(separator) {
+			return
+		}
+
+		var segments []string
+		// iterate over the segments in descending order
+		for segment := range DescendingSegments(scope) {
+			segments = append(segments, segment)
+
+			if !yield(Join(segments...)) {
+				return
+			}
+		}
+	}
+}
+
+// AscendingScopes produces an iterator over the canonical representations of a scope and its
+// parents in ascending order, starting with the canonical representation of the scope itself
+// and ending with the canonical representation of the root scope.
+// e.g. `AscendingScopes("/a/b/c")` will result in an iterator that returns `/a/b/c`, `/a/b`, `/a`, and `/` in that order.
+// // Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func AscendingScopes(scope string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if scope == "" {
+			return
+		}
+
+		segments := make([]string, 0, strings.Count(scope, separator))
+
+		// iterate over the segments in descending order, building the scope as we go
+		for segment := range DescendingSegments(scope) {
+			segments = append(segments, segment)
+		}
+
+		// now yield the scopes in ascending order
+		for i := len(segments); i >= 0; i-- {
+			if !yield(Join(segments[:i]...)) {
+				return
+			}
+		}
+	}
+
+}
+
+// Join joins the given segments into a single scope string. Note that this function
+// does not perform validation and will produce invalid scopes if one or more segments
+// are invalid.
+func Join(segments ...string) string {
+	scope := separator + strings.Join(segments, separator)
+
+	// a tricky bit of how scope splitting/joining works is that an empty scope component
+	// as the last component is represented by `/aa//` not `/aa/`, because we chose not to assign trailing
+	// separators any meaning (i.e. `/aa/` does not imply the existence of an empty scope segment
+	// after `aa`).  Trailing separators and empty scope segments are both considered invalid, but adding
+	// this behavior ensures that our splitting/joining logic cannot cannot change the meaning of a scope
+	// value when applied to one-another's outputs. If we don't add this logic, then
+	// DescendingSegments(Join([]string{"aa", ""}...)) will produce []string{"aa"}. We could just as easily amend
+	// `DescendingSegments` to emit an empty segment in the event of a trailing separator, but
+	// we judged that to be the higher risk behavior since that would effectively "move" a value to a new
+	// scope in the event of a trailing separator making it past validation. Our chosen behavior only "moves" an assignment
+	// in the event of a double-separator getting through, which is a much more visually obvious and intuitively incorrect
+	// value, and therefore less likely to be hit during processing of user input.
+	if len(segments) > 0 && segments[len(segments)-1] == "" {
+		scope += separator
+	}
+
+	return scope
+}
+
+// NormalizeForEquality attempts to normalize a scope s.t. equivalent scopes will have identical string representations. The only way
+// scopes can currently be equivalent without being identical is by lacking a leading separator or containing a trailing separator.
+// In general, we prefer to avoid modifying scope values as a verson incompatibility or bug that causes modification of a scope to change
+// the result of scope comparison could result in a security issue. Normalizing on separators is the exception because separators
+// are purely syntactic and have no semantic meaning beyond delimiting segments, and we effectively are already forced to normalize
+// on separators (especially where scope caching is concerned, as scoped values must be organized by segment hierarchy for efficient
+// lookups).
+//
+// NOTE: it generally holds that NormalizeForEquality(x) == NormalizeForEquality(x) if Compare(x, y) == Equivalent and vice versa, *except*
+// in the case of two empty scopes. Empty scopes are invalid and considered orthogonal to one another, a proprerty which isn't really reasonable
+// to preserve in this normalization function. Avoid using this function in contexts where scope values may be empty.
+func NormalizeForEquality(scope string) string {
+	if scope == "" {
+		return ""
+	}
+
+	segments := make([]string, 0, strings.Count(scope, separator))
+	for segment := range DescendingSegments(scope) {
+		segments = append(segments, segment)
+	}
+
+	return Join(segments...)
+}
+
+// Relationship describes the relationship between two scopes, as determined by the [Compare] function. Note
+// that direct use of this type in access-control logic is discouraged, as it is easier to accidentally
+// misuse than the provided helpers (e.g. [ScopeOfOrigin]).
+type Relationship int
+
+const (
+	// Orthogonal indicates that the scopes are divergents/unrelated (e.g. '/foo' and '/bar').
+	Orthogonal Relationship = iota
+	// Equivalent indicates that the scopes are equal. Some non-equal scope strings are still
+	// considered equivalent by [Compare] (e.g. 'foo' and '/foo/'), though the canonical representations
+	// (e.g. '/foo') will also have string equality.
+	Equivalent
+	// Ancestor indicates that one scope is an ancestor of another (including multi-level ancestors,
+	// e.g. '/foo' is an ancestor of '/foo/bar' and '/foo/bar/bin', and '/' is an ancestor to all
+	// other scope values).
+	Ancestor
+	// Descendant indicates that one scope is a descendant of another (including multi-level descendants,
+	// e.g. '/foo/bar/bin' is a descendant of '/foo/bar' and '/foo', and all other scope values are
+	// descendants of '/').
+	Descendant
+)
+
+// String returns the human-readable representation of the relationship.
+func (rel Relationship) String() string {
+	switch rel {
+	case Orthogonal:
+		return "Orthogonal"
+	case Equivalent:
+		return "Equivalent"
+	case Ancestor:
+		return "Ancestor"
+	case Descendant:
+		return "Descendant"
+	default:
+		return fmt.Sprintf("Unknown(%d)", rel)
+	}
+}
+
+// Compare compares the relationship between two scopes. The returned value is the
+// relationship of the second scope to the first. I.e. if Compare(x, y) returns Ancestor,
+// then y is an ancestor of x.
+//
+// Returns:
+//
+//	Compare(/aa, /aa)    => Equivalent
+//	Compare(/aa, /bb)    => Orthogonal
+//	Compare(/aa, /aa/bb) => Descendant
+//	Compare(/aa/bb, /aa) => Ancestor
+//
+// Prefer using one of the provided helpers (e.g. [ScopeOfOrigin]) over using this function directly,
+// as direct usage of this function can lead to ambiguity and accidental misuse.
+//
+// Note that this function does not perform validation, and may return unexpected results when
+// called against invalid scope values.
+func Compare(lhs, rhs string) Relationship {
+	if lhs == "" || rhs == "" {
+		// empty scopes are always orthogonal, including to one-another
+		return Orthogonal
+	}
+
+	lNext, lStop := iter.Pull(DescendingSegments(lhs))
+	defer lStop()
+
+	rNext, rStop := iter.Pull(DescendingSegments(rhs))
+	defer rStop()
+
+	for {
+		lVal, lOk := lNext()
+		rVal, rOk := rNext()
+
+		switch {
+		case lOk && rOk:
+			// both scopes have segments left to compare
+			if lVal == rVal {
+				// scopes are still equivalent at this level, continue processing
+				continue
+			}
+			// scopes have diverged
+			return Orthogonal
+		case lOk && !rOk:
+			// the right hand side scope is an ancestor of the left hand side scope
+			return Ancestor
+		case !lOk && rOk:
+			// the left hand side scope is an ancestor of the right hand side scope
+			return Descendant
+		case !lOk && !rOk:
+			// scopes are equivalent
+			return Equivalent
+		}
+	}
+}
+
+// Sort is a helper function for sorting scopes. Scope sort order differs from lexographic sort of
+// a scope's string representation in some cases. For example, the lexicographically sorted sequence
+// of scopes ['/aa', '/aa-bb', '/aa/bb'] is different from the scope-sorted sequence
+// ['/aa', '/aa/bb', '/aa-bb']. This function conforms to the standard go comparison contract, returning
+// a negative integer if lhs < rhs, zero if lhs == rhs, and a positive integer if lhs > rhs.
+func Sort(lhs, rhs string) int {
+	if lhs == rhs {
+		return 0
+	}
+
+	lNext, lStop := iter.Pull(DescendingSegments(lhs))
+	defer lStop()
+
+	rNext, rStop := iter.Pull(DescendingSegments(rhs))
+	defer rStop()
+
+	for {
+		lVal, lOk := lNext()
+		rVal, rOk := rNext()
+
+		switch {
+		case lOk && rOk:
+			// both scopes have segments left to compare
+			if c := strings.Compare(lVal, rVal); c == 0 {
+				// scopes are still equivalent at this level, continue processing
+				continue
+			} else {
+				// scopes have diverged
+				return c
+			}
+		case lOk && !rOk:
+			// the right hand side scope is an ancestor of the left hand side scope
+			return 1
+		case !lOk && rOk:
+			// the left hand side scope is an ancestor of the right hand side scope
+			return -1
+		case !lOk && !rOk:
+			// scopes are equivalent
+			return 0
+		}
+	}
+}
+
+// ScopeOfOrigin is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ScopeOfOrigin(roleScope).IsAssignableToScopeOfEffect(assignmentScope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type ScopeOfOrigin string
+
+// IsAssignableToScopeOfEffect checks if the Scope of Origin is compatible with the specified Scope of Effect. More
+// specifically, this method returns true if a policy originating from this Scope of Origin is able to be assigned
+// to the provided Scope of Effect. Policies may only have Scopes of Effect that are equivalent or descendant. A policy
+// originating from a child scope being effectual in a parent scope would violate scope isolation principles.
+func (s ScopeOfOrigin) IsAssignableToScopeOfEffect(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Descendant
+}
+
+// ScopeOfEffect is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ScopeOfEffect(assignment.ScopeOfEffect).IsAssignableFromScopeOfOrigin(assignment.ScopeOfOrigin) { ... }
+//
+//	if scopes.ScopeOfEffect(assignment.ScopeOfEffect).AppliesToResourceScope(node.Scope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type ScopeOfEffect string
+
+// IsAssignableFromScopeOfOrigin checks if the Scope of Effect is compatible with the specified Scope of Origin. See
+// [ScopeOfOrigin.IsAssignableToScopeOfEffect] for discussion of the importance of this check.
+func (s ScopeOfEffect) IsAssignableFromScopeOfOrigin(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Ancestor
+}
+
+// AppliesToResourceScope checks if this scope of effect applies to the specified resource scope. See [ResourceScope.IsSubjectToScopeOfEffect]
+// for discussion of the importance of this check.
+func (s ScopeOfEffect) AppliesToResourceScope(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Descendant
+}
+
+// ResourceScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ResourceScope(nodeScope).IsSubjectToScopeOfEffect(roleAssignmentScope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type ResourceScope string
+
+// IsSubjectToScopeOfEffect checks if this resource scope is subject to the specified policy Scope of Effect. Scoped
+// policies always apply only to a given scope and its descendants. This method tells us if the resource scope in
+// question falls under the purview of the specified Scope of Effect. Policies whose Scope of Effect does not apply
+// to a resource must have no effect on that resource in order to preserve scope isolation.
+func (s ResourceScope) IsSubjectToScopeOfEffect(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Ancestor
+}
+
+// PolicyResourceScope is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Compare function directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.PolicyResourceScope(assignment.Scope).CanDependOnStateFromPolicyResourceAtScope(role.Scope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope values.
+type PolicyResourceScope string
+
+// CanDependOnStateFromPolicyResourceAtScope checks if this policy resource scope can depend on state from a policy
+// resource at the specified scope. Policy state must always flow from ancestor/equivalent scopes to descendant/equivalent
+// scopes (e.g. a role assignment can only reference roles in its scope or its ancestor scopes).
+func (s PolicyResourceScope) CanDependOnStateFromPolicyResourceAtScope(scope string) bool {
+	rel := Compare(string(s), scope)
+	return rel == Equivalent || rel == Ancestor
+}
+
+// ScopeOfEffectGlob is a helper for constructing unambiguous checks in access control logic. Prefer helpers like
+// this over using the Glob type directly, as it improves readability and reduces the risk of misuse. Ex:
+//
+//	if scopes.ScopeOfEffectGlob(role.Spec.AssignableScopes[0]).MatchesScopeOfEffect(assignment.ScopeOfEffect) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid glob values.
+type ScopeOfEffectGlob string
+
+// MatchesScopeOfEffectLiteral checks if the Scope of Effect glob matches the specified Scope of Effect literal. If the assignability
+// of a policy is constrained by a ScopeOfEffectGlob, this function can be used to determine if a given Scope of Effect will
+// be compatible with that constraint.
+func (s ScopeOfEffectGlob) MatchesScopeOfEffectLiteral(scope string) bool {
+	return Glob(s).MatchesScopeLiteral(scope)
+}
+
+// IsAlwaysAssignableFromScopeOfOrigin checks if the Scope of Effect glob will exclusively match Scope of Effect literals
+// that are considered assignable from the specified Scope of Origin. Policy resources such as scoped roles sometimes constrain
+// the scopes they are assignable to using globs. This function ensures that a glob being used in this manner will never match a
+// Scope of Effect that would be invalid given the Scope of Origin of the policy.
+func (s ScopeOfEffectGlob) IsAlwaysAssignableFromScopeOfOrigin(scope string) bool {
+	return Glob(s).OnlyMatchesSubjectsOf(scope)
+}
+
+// Glob is a helper for matching scope globs against scopes. This is currently used to support exactly
+// one piece of special syntax, the use of `/component/**` to indicate that a role can be assigned to any child of
+// the specified scope, but not to the scope itself. Ex:
+//
+//	if scopes.Glob(assignableScope).Matches(assignmentScope) { ... }
+//
+// Note that this helper does not perform validation, and may produce unexpected results when used against
+// invalid scope or glob values.
+type Glob string
+
+// MatchesScopeLiteral checks if the given scope literal matches this scope glob.
+func (s Glob) MatchesScopeLiteral(scope string) bool {
+	return matchGlob(string(s), scope)
+}
+
+// OnlyMatchesSubjectsOf checks if this scope glob only matches scopes that are subjects of the specified scope literal. In this
+// case "subjects of" means "descendants of or equivalent to".
+func (s Glob) OnlyMatchesSubjectsOf(scope string) bool {
+	return globOnlyMatchesSubjectsOfScope(string(s), scope)
+}
+
+// matchGlob implements glob matching. note that this function technically supports some limited
+// matching behaviors that we don't actually currently allow the use of. e.g. `/foo/**/bar` would match
+// `/foo/baz/bar` (but not  `/foo/baz/bin/bar` or `/foo/bar/`), but we only permit the use of the double-wildcard
+// syntax in the trailing segment for simplicity's sake.
+func matchGlob(glob string, scope string) bool {
+	if glob == "" || scope == "" {
+		return false
+	}
+
+	gNext, gStop := iter.Pull(DescendingSegments(glob))
+	defer gStop()
+
+	sNext, sStop := iter.Pull(DescendingSegments(scope))
+	defer sStop()
+
+	for {
+		gVal, gOk := gNext()
+		sVal, sOk := sNext()
+
+		switch {
+		case gOk && sOk:
+			// both values have segments left to compare
+			if gVal == sVal {
+				// segments are equivalent, descend into the next segment
+				continue
+			}
+			if gVal == exclusiveChildGlobSegment {
+				// double-wildcard matches any segment, continue
+				continue
+			}
+			// scopes have diverged
+			return false
+		case gOk && !sOk:
+			// the scope is an ancestor of the glob
+			return false
+		case !gOk && sOk:
+			// the glob is an ancestor of the scope
+			return true
+		case !gOk && !sOk:
+			// literal match
+			return true
+		}
+	}
+}
+
+// globOnlyMatchesSubjectsOfScope checks if the given glob only matches scopes that are subjects of the specified scope
+// literal. In this case "subjects of" means "descendants of or equivalent to".
+func globOnlyMatchesSubjectsOfScope(glob string, scope string) bool {
+	if glob == "" || scope == "" {
+		return false
+	}
+
+	gNext, gStop := iter.Pull(DescendingSegments(glob))
+	defer gStop()
+
+	sNext, sStop := iter.Pull(DescendingSegments(scope))
+	defer sStop()
+
+	for {
+		gVal, gOk := gNext()
+		sVal, sOk := sNext()
+
+		switch {
+		case gOk && sOk:
+			// both values have segments left to compare
+			if gVal == sVal {
+				// segments are equivalent, descend into the next segment
+				continue
+			}
+			if gVal == exclusiveChildGlobSegment {
+				// we've hit the first wildcard segment and are still descending
+				// through the segments of the scope. this means that the glob may
+				// match a scope orthogonal to the resource scope and therefore does
+				// not conform to subjugation rules.
+				return false
+			}
+			// scopes have diverged
+			return false
+		case gOk && !sOk:
+			// the scope is an ancestor of the glob, anything the glob matches
+			// will be subject to the scope.
+			return true
+		case !gOk && sOk:
+			// the glob is an ancestor of the scope, and is therefore trivially not
+			// subject to the scope.
+			return false
+		case !gOk && !sOk:
+			// literal match, the glob is subject by equivalence to the scope.
+			return true
+		}
+	}
+}
+
+// EnforcementPoint combines a Scope of Origin and Scope of Effect to define specific point or target that
+// one or more policies may be defined for. Since each policy has some scope it originates *from* and some
+// scope it applies *to*, any given scoped policy (e.g. a scoped role) should exist "at" a specific enforcement
+// point during access-control evaluation. Policy evaluation order and precedence is determined primarily by the
+// enforcement point at which the policy exists, with policies at more ancestral origin scopes taking precedence
+// over those at more descendant origin scopes, and within a given origin scope, policies at more specific effect
+// scopes taking precedence over those at more general effect scopes.
+//
+// This type is primarily intended to be used in conjunction with [EnforcementPointsForResourceScope] to
+// help determine ordering of policy evaluation during access checks.
+type EnforcementPoint struct {
+	// ScopeOfOrigin is the scope from which a policy originates. This represents the authority/provenance
+	// of the policy. Policies with more ancestral Scopes of Origin take precedence.
+	ScopeOfOrigin string
+
+	// ScopeOfEffect is the scope at which a policy's effects apply. Within a given Scope of Origin,
+	// policies with more descendant/specific Scopes of Effect take precedence.
+	ScopeOfEffect string
+}
+
+// EnforcementPointsForResourceScope yields all (ScopeOfOrigin, ScopeOfEffect) pairs that should be evaluated when
+// checking access to a resource at the given scope. The pairs are yielded in evaluation order:
+//   - First by Scope of Origin (root to resourceScope, preserving scope hierarchy)
+//   - Then by Scope of Effect (resourceScope to ScopeOfOrigin, most specific first)
+//
+// This iterator is intended to be the core building block for higher-level policy evaluation logic. Policy
+// evaluation logic should use this iterator to determine the primary order in which policies should be evaluated
+// (though it should be noted that multiple policies may exist at any given enforcement point).
+//
+// Ex: EnforcementPointsForResourceScope("/staging/west") yields:
+//   - (/,              /staging/west)  - root origin, specific effect
+//   - (/,              /staging)       - root origin, less specific effect
+//   - (/,              /)              - root origin, root effect
+//   - (/staging,       /staging/west)  - staging origin, specific effect
+//   - (/staging,       /staging)       - staging origin, staging effect
+//   - (/staging/west,  /staging/west)  - west origin, west effect
+func EnforcementPointsForResourceScope(resourceScope string) iter.Seq[EnforcementPoint] {
+	return func(yield func(EnforcementPoint) bool) {
+		// iterate through all Scopes of Origin from root to resourceScope
+		for scopeOfOrigin := range DescendingScopes(resourceScope) {
+			// For each Scope of Origin, iterate through Scopes of Effect from resourceScope
+			// UP to (and including) the current Scope of Origin. This ensures more specific
+			// policies are evaluated before more general ones within each origin level.
+			// We use AscendingScopes to go from most specific (resourceScope) to least specific (scopeOfOrigin).
+			for scopeOfEffect := range AscendingScopes(resourceScope) {
+				// Only yield if the Scope of Origin permits assignment to this Scope of Effect.
+				// A scope of effect cannot be more ancestral than its origin (that would violate
+				// the rule that policies cannot reach up to affect parent scopes).
+				if !ScopeOfOrigin(scopeOfOrigin).IsAssignableToScopeOfEffect(scopeOfEffect) {
+					// we've reached scopes of effect that are too ancestral for this origin
+					break
+				}
+
+				if !yield(EnforcementPoint{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+				}) {
+					return
+				}
+			}
+		}
+	}
+}

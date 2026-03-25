@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 const (
@@ -165,11 +166,11 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	// retry is lazily initialized as-needed.
 	var retry *retryutils.RetryV2
 TxnLoop:
-	for i := 0; i < maxTxnAttempts; i++ {
+	for i := range maxTxnAttempts {
 		if i != 0 {
 			if retry == nil {
 				// ideally we want one of the concurrently canceled transactions to retry immediately, with the rest holding back. since we
-				// can't control wether that happens, the next best thing is to configure our backoff to use exponential scaling + full jitter,
+				// can't control whether that happens, the next best thing is to configure our backoff to use exponential scaling + full jitter,
 				// which strikes a nice balance between retrying quickly when under low contention, and rapidly spreading out retries when under
 				// high contention.
 				retry, err = retryutils.NewRetryV2(retryutils.RetryV2Config{
@@ -250,7 +251,7 @@ TxnLoop:
 		}
 
 		if i > 0 {
-			backend.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
+			backendmetrics.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
 		}
 
 		if n := i + 1; n > 2 {

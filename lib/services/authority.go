@@ -22,10 +22,8 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"slices"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -37,23 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
-// This differs from normal equality only in that resource IDs are ignored.
-func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs,
-		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		// Optimize types.CAKeySet comparison.
-		cmp.Comparer(func(a, b types.CAKeySet) bool {
-			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
-			// plus using proto.Equal is more efficient than cmp.Equal.
-			aClone := a.Clone()
-			bClone := b.Clone()
-			return proto.Equal(&aClone, &bClone)
-		}),
-	)
-}
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
@@ -68,12 +49,16 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
 	case types.SPIFFECA:
 		err = checkSPIFFECA(ca)
+	case types.AWSRACA:
+		err = checkAWSRACA(ca)
+	case types.WindowsCA:
+		err = checkWindowsCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -90,6 +75,17 @@ func checkSPIFFECA(cai types.CertAuthority) error {
 	}
 	if len(ca.Spec.ActiveKeys.JWT) == 0 {
 		return trace.BadParameter("certificate authority missing JWT key pairs")
+	}
+	return nil
+}
+
+func checkAWSRACA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
 	return nil
 }
@@ -127,30 +123,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
 
-	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
-	}
-
-	for _, pair := range ca.GetTrustedTLSKeyPairs() {
-		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
-			var err error
-			if len(pair.Cert) > 0 {
-				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
-			} else {
-				_, err = keys.ParsePrivateKey(pair.Key)
-			}
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			_, err := tlsca.ParseCertificatePEM(pair.Cert)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
+	return trace.Wrap(checkTLSKeys(ca))
 }
 
 // checkOpenSSHCA checks if provided certificate authority contains a valid SSH key pair.
@@ -223,26 +196,38 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
 
+	return trace.Wrap(checkTLSKeys(ca))
+}
+
+func checkWindowsCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	return trace.Wrap(checkTLSKeys(ca))
+}
+
+func checkTLSKeys(ca *types.CertAuthorityV2) error {
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("missing SAML IdP CA")
+		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
 	}
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {
-		if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
-			var err error
-			if len(pair.Cert) > 0 {
-				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
-			} else {
-				_, err = keys.ParsePrivateKey(pair.Key)
+		// Note: A non-empty pair.Cert is required by pair.CheckAndSetDefaults().
+
+		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			if _, err := tls.X509KeyPair(pair.Cert, pair.Key); err != nil {
+				return trace.Wrap(err, "private key and certificate")
 			}
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			continue
 		}
+
 		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "certificate")
 		}
 	}
+
 	return nil
 }
 
@@ -261,7 +246,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = append([]byte{}, pair.Cert...)
+		out[i] = slices.Clone(pair.Cert)
 	}
 	return out
 }
@@ -271,7 +256,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, append([]byte{}, pair.PublicKey...))
+		out = append(out, slices.Clone(pair.PublicKey))
 	}
 	return out
 }

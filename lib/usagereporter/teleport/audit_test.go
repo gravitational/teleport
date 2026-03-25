@@ -277,6 +277,41 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "MCPSessionStart",
+			event: &apievents.MCPSessionStart{
+				UserMetadata: apievents.UserMetadata{User: "alice"},
+				AppMetadata: apievents.AppMetadata{
+					AppName: "mcp-everything",
+					AppURI:  "mcp+http://localhost:12345/mcp",
+				},
+				IngressAuthType: "ingress-auth",
+				EgressAuthType:  "egress-auth",
+				ClientInfo:      "client/1.0.0",
+				ServerInfo:      "server/1.0.0",
+				ProtocolVersion: "protocol-version",
+			},
+			expected: &SessionStartEvent{
+				SessionType: MCPAppSessionType,
+				UserName:    "alice",
+				Mcp: &prehogv1a.SessionStartMCPMetadata{
+					Transport:       "Streamable HTTP",
+					ProtocolVersion: "protocol-version",
+					ClientName:      "client/1.0.0",
+					ServerName:      "server/1.0.0",
+					IngressAuthType: "ingress-auth",
+					EgressAuthType:  "egress-auth",
+				},
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+					SessionStartV2: &prehogv1a.SessionStartEvent{
+						SessionType: MCPAppSessionType,
+						UserName:    anonymizer.AnonymizeString("alice"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {

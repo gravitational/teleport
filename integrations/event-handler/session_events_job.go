@@ -16,17 +16,14 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 )
 
 const (
@@ -47,6 +44,10 @@ type session struct {
 	UploadTime time.Time
 }
 
+// processSessionFunc mimics the signature of
+// [SessionEventsJob.processSession].
+type processSessionFunc func(ctx context.Context, s session, processingAttempt int) error
+
 // SessionEventsJob incapsulates session events consumption logic
 type SessionEventsJob struct {
 	lib.ServiceJob
@@ -56,6 +57,7 @@ type SessionEventsJob struct {
 	logLimiter             *rate.Limiter
 	backpressureLogLimiter *rate.Limiter
 	sessionsProcessed      atomic.Uint64
+	processSessionFunc     processSessionFunc
 }
 
 // NewSessionEventsJob creates new EventsJob structure
@@ -68,6 +70,7 @@ func NewSessionEventsJob(app *App) *SessionEventsJob {
 		backpressureLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 1),
 	}
 
+	j.processSessionFunc = j.processSession
 	j.ServiceJob = lib.NewServiceJob(j.run)
 
 	return j
@@ -110,33 +113,9 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
-			log := j.app.log.With(
-				"id", s.ID,
-				"index", s.Index,
-			)
-
-			if j.logLimiter.Allow() {
-				log.DebugContext(ctx, "Starting session ingest")
+			if err := j.ingestSession(ctx, s, 0, nil); err != nil {
+				j.app.log.WarnContext(ctx, "Unable to ingest session event", "error", err)
 			}
-
-			select {
-			case j.semaphore <- struct{}{}:
-			case <-ctx.Done():
-				log.ErrorContext(ctx, "Failed to acquire semaphore", "error", ctx.Err())
-				return nil
-			}
-
-			func(s session, log *slog.Logger) {
-				j.app.SpawnCritical(func(ctx context.Context) error {
-					defer func() { <-j.semaphore }()
-
-					if err := j.processSession(ctx, s, 0); err != nil {
-						return trace.Wrap(err)
-					}
-
-					return nil
-				})
-			}(s, log)
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return nil
@@ -144,6 +123,35 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+}
+
+func (j *SessionEventsJob) ingestSession(ctx context.Context, s session, attempt int, semaphore chan struct{}) error {
+	log := j.app.log.With(
+		"id", s.ID,
+		"index", s.Index,
+	)
+	if j.logLimiter.Allow() {
+		log.DebugContext(ctx, "Starting session ingest")
+	}
+
+	if semaphore == nil {
+		semaphore = j.semaphore
+	}
+	select {
+	case semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+
+	go func() {
+		defer func() { <-semaphore }()
+
+		if err := j.processSessionFunc(ctx, s, attempt); err != nil {
+			log.ErrorContext(ctx, "Failed processing session recording", "error", err)
+		}
+	}()
+
+	return nil
 }
 
 func (j *SessionEventsJob) processSession(ctx context.Context, s session, processingAttempt int) error {
@@ -166,11 +174,20 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		"id", s.ID,
 		"index", s.Index,
 	)
-	backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
 	attempt := sessionBackoffNumTries
 
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(sessionBackoffBase),
+		First:  sessionBackoffBase,
+		Max:    sessionBackoffMax,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	for {
-		retry, err := j.consumeSession(ctx, s)
+		shouldRetry, err := j.consumeSession(ctx, s)
 		switch {
 		case trace.IsNotFound(err):
 			// If the session was not found, and it was from more
@@ -187,7 +204,7 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			// Otherwise, mark that the session was failed to be processed
 			// so that it can be tried again in the background.
 			return trace.NewAggregate(j.app.State.SetMissingRecording(s, processingAttempt+1), j.app.State.RemoveSession(s.ID))
-		case err != nil && retry:
+		case err != nil && shouldRetry:
 			// If the number of retries has been exceeded, then
 			// abort processing the session any further.
 			attempt--
@@ -206,8 +223,10 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			)
 
 			// Perform backoff before retrying the session again.
-			if err := backoff.Do(ctx); err != nil {
-				return trace.Wrap(err)
+			select {
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			case <-retry.After():
 			}
 		case err != nil:
 			// Abort on any errors that don't require a retry.
@@ -228,9 +247,8 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 // from session recordings that were previously not found.
 func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 	const (
-		initialProcessingDelay      = time.Minute
-		processingInterval          = 3 * time.Minute
-		maxNumberOfInflightSessions = 10
+		initialProcessingDelay = time.Minute
+		processingInterval     = 3 * time.Minute
 	)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -243,7 +261,6 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 	timer := time.NewTimer(jitter(initialProcessingDelay))
 	defer timer.Stop()
 
-	semaphore := make(chan struct{}, maxNumberOfInflightSessions)
 	for {
 		select {
 		case <-timer.C:
@@ -252,21 +269,9 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		}
 
 		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
-			select {
-			case semaphore <- struct{}{}:
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
+			semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
 
-			go func() {
-				defer func() { <-semaphore }()
-
-				if err := j.processSession(ctx, sess, attempts); err != nil {
-					j.app.log.DebugContext(ctx, "Failed processing session recording", "error", err)
-				}
-			}()
-
-			return nil
+			return j.ingestSession(ctx, sess, attempts, semaphore)
 		})
 		if err != nil && !lib.IsCanceled(err) {
 			j.app.log.WarnContext(ctx, "Unable to load previously failed sessions for processing", "error", err)

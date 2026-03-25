@@ -210,9 +210,7 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		for _, proxy := range proxyTargets {
-			proxy := proxy
 			testName := fmt.Sprintf("%s %s", proxy.name, tt.name)
 			t.Run(testName, func(t *testing.T) {
 				t.Parallel()

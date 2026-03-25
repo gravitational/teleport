@@ -74,7 +74,7 @@ func TestSessionWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, part := range parts {
-			reader := events.NewProtoReader(bytes.NewReader(part))
+			reader := events.NewProtoReader(bytes.NewReader(part), nil)
 			out, err := reader.ReadAll(test.ctx)
 			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
@@ -142,7 +142,7 @@ func TestSessionWriter(t *testing.T) {
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 0, int(streamResumed.Load()), "Stream not resumed.")
 		require.Equal(t, 2, int(streamCreated.Load()), "Stream created twice.")
@@ -199,7 +199,7 @@ func TestSessionWriter(t *testing.T) {
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
 		require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
@@ -211,7 +211,7 @@ func TestSessionWriter(t *testing.T) {
 		terminateConnection.Store(1)
 
 		submitEvents := 600
-		hangCtx, hangCancel := context.WithCancel(context.TODO())
+		hangCtx, hangCancel := context.WithCancel(t.Context())
 		defer hangCancel()
 
 		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
@@ -291,7 +291,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
-		require.Equal(t, len(inEvents), len(emittedEvents))
+		require.Len(t, inEvents, len(emittedEvents))
 		for _, event := range emittedEvents {
 			require.Equal(t, "cluster", event.GetClusterName())
 		}
@@ -352,7 +352,9 @@ func withBackoff(timeout, dur time.Duration) sessionWriterOption {
 
 func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
-	uploader := eventstest.NewMemoryUploader(eventsCh)
+	uploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsCh,
+	})
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 	})
@@ -367,7 +369,7 @@ func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessi
 		streamer = protoStreamer
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 
 	sid := session.NewID()
 	preparer, err := events.NewPreparer(events.PreparerConfig{
@@ -420,7 +422,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	for _, part := range parts {
 		readers = append(readers, bytes.NewReader(part))
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
 	t.Logf("Reader stats :%v", reader.GetStats().ToFields())

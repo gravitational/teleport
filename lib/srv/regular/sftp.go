@@ -27,9 +27,10 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -76,7 +77,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
+			ServerMetadata: serverCtx.GetServer().EventMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted
@@ -105,7 +106,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	defer auditPipeIn.Close()
 
 	// Create child process to handle SFTP connection
-	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubsystem)
+	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubCommand)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -167,7 +168,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := serverCtx.GetServer().TargetMetadata()
+		serverMeta := serverCtx.GetServer().EventMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
@@ -188,7 +189,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 			}
 
 			var oneOfEvent apievents.OneOf
-			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &oneOfEvent)
+			err = (&jsonpb.Unmarshaler{}).Unmarshal(strings.NewReader(eventStr[:len(eventStr)-1]), &oneOfEvent)
 			if err != nil {
 				s.logger.WarnContext(ctx, "Failed to unmarshal SFTP event", "error", err)
 				continue
@@ -235,7 +236,7 @@ func (s *sftpSubsys) Wait() error {
 	})
 
 	errs := []error{waitErr}
-	for i := 0; i < copyingGoroutines; i++ {
+	for range copyingGoroutines {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.logger.WarnContext(ctx, "Connection problem", "error", err)

@@ -70,8 +70,7 @@ function getReconnectCopy(docKind: types.DocumentTerminal['kind']) {
     }
     case 'doc.gateway_cli_client':
     case 'doc.gateway_kube':
-    case 'doc.terminal_shell':
-    case 'doc.terminal_tsh_kube': {
+    case 'doc.terminal_shell': {
       return {
         message: 'Ran into an error when starting the terminal session.',
         buttonText: 'Retry',

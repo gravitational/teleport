@@ -23,23 +23,32 @@ import { Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+import {
+  getFilterKindName,
+  ResourceFilterKind,
+} from 'shared/components/UnifiedResources';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
 import cfg from 'teleport/config';
-import { ResourceIdKind } from 'teleport/services/agents';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
-import { NavigationSection, NavigationSubsection } from './Navigation';
+import {
+  NavigationSection,
+  NavigationSubsection,
+  useFloatingUiWithRestMs,
+} from './Navigation';
 import {
   CustomChildrenSection,
   RightPanel,
   RightPanelHeader,
+  SectionFooter,
   SubsectionItem,
   verticalPadding,
 } from './Section';
+import { useDefaultNavigation } from './useDefaultNavigation';
 
 /**
  * getResourcesSection returns a NavigationSection for resources,
@@ -63,7 +72,7 @@ type GetSubsectionProps = {
 
 function encodeUrlQueryParamsWithTypedKinds(
   params: Omit<EncodeUrlQueryParamsProps, 'kinds'> & {
-    kinds?: ResourceIdKind[];
+    kinds?: ResourceFilterKind[];
   }
 ) {
   return encodeUrlQueryParams(params);
@@ -109,7 +118,7 @@ function getResourcesSubsections({
     preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED;
 
   // isKindActive returns true if we are currently filtering for only the provided kind of resource.
-  const isKindActive = (kind: ResourceIdKind) => {
+  const isKindActive = (kind: ResourceFilterKind) => {
     // This subsection for this kind should only be marked active when it is the only kind being filtered for,
     // if there are multiple kinds then the "All Resources" button should be active.
     return currentKinds.length === 1 && currentKinds[0] === kind;
@@ -153,6 +162,11 @@ function getResourcesSubsections({
     kinds: ['git_server'],
     pinnedOnly: false,
   });
+  const mcpOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
+    pathname: baseRoute,
+    kinds: ['mcp'],
+    pinnedOnly: false,
+  });
 
   return [
     {
@@ -163,10 +177,11 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!matchPath(currentViewRoute, {
-          path: cfg.routes.unifiedResources,
-          exact: false,
-        }) &&
+        !!currentViewRoute &&
+        !!matchPath(
+          { path: cfg.routes.unifiedResources, end: false },
+          currentViewRoute
+        ) &&
         !isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(false),
@@ -179,16 +194,17 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!matchPath(currentViewRoute, {
-          path: cfg.routes.unifiedResources,
-          exact: false,
-        }) &&
+        !!currentViewRoute &&
+        !!matchPath(
+          { path: cfg.routes.unifiedResources, end: false },
+          currentViewRoute
+        ) &&
         isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),
     },
     {
-      title: 'Applications',
+      title: getFilterKindName('app'),
       icon: Icons.Application,
       route: applicationsOnlyRoute,
       searchableTags: ['resources', 'apps', 'applications'],
@@ -199,7 +215,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Databases',
+      title: getFilterKindName('db'),
       icon: Icons.Database,
       route: databasesOnlyRoute,
       searchableTags: ['resources', 'dbs', 'databases'],
@@ -210,7 +226,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Desktops',
+      title: getFilterKindName('windows_desktop'),
       icon: Icons.Desktop,
       route: desktopsOnlyRoute,
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
@@ -221,7 +237,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Git Servers',
+      title: getFilterKindName('git_server'),
       icon: Icons.GitHub,
       route: gitOnlyRoute,
       searchableTags: ['resources', 'git', 'github', 'git servers'],
@@ -232,7 +248,7 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'Kubernetes',
+      title: getFilterKindName('kube_cluster'),
       icon: Icons.Kubernetes,
       route: kubesOnlyRoute,
       searchableTags: ['resources', 'k8s', 'kubes', 'kubernetes'],
@@ -243,7 +259,18 @@ function getResourcesSubsections({
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
     {
-      title: 'SSH Resources',
+      title: getFilterKindName('mcp'),
+      icon: Icons.ModelContextProtocol,
+      route: mcpOnlyRoute,
+      searchableTags: ['resources', 'mcp', 'mcp servers'],
+      category: NavigationCategory.Resources,
+      exact: false,
+      customRouteMatchFn: () => isKindActive('mcp'),
+      onClick: () => setPinnedUserPreference(false),
+      subCategory: CustomNavigationSubcategory.FilteredViews,
+    },
+    {
+      title: getFilterKindName('node'),
       icon: Icons.Server,
       route: nodesOnlyRoute,
       searchableTags: ['resources', 'servers', 'nodes', 'ssh resources'],
@@ -264,6 +291,7 @@ export function ResourcesSection({
   stickyMode,
   toggleStickyMode,
   canToggleStickyMode,
+  showPoweredByLogo,
 }: {
   expandedSection: NavigationSection;
   previousExpandedSection: NavigationSection;
@@ -272,6 +300,7 @@ export function ResourcesSection({
   stickyMode: boolean;
   toggleStickyMode: () => void;
   canToggleStickyMode: boolean;
+  showPoweredByLogo: boolean;
 }) {
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
@@ -285,7 +314,7 @@ export function ResourcesSection({
 
   const isExpanded = expandedSection?.category === NavigationCategory.Resources;
 
-  const subsections = getResourcesSubsections({
+  section.subsections = getResourcesSubsections({
     clusterId,
     preferences,
     updatePreferences,
@@ -294,74 +323,96 @@ export function ResourcesSection({
 
   const currentViewRoute = currentView?.route;
 
+  const { refs, getReferenceProps, getFloatingProps } = useFloatingUiWithRestMs(
+    {
+      open: isExpanded,
+      onOpenChange: open => open && handleSetExpandedSection(section),
+    }
+  );
+
   return (
     <CustomChildrenSection
+      ref={refs.setReference}
       key="resources"
       section={section}
       $active={currentView?.route === baseRoute}
-      onExpandSection={() => handleSetExpandedSection(section)}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
+      showPoweredByLogo={showPoweredByLogo}
+      {...getReferenceProps()}
+      {...useDefaultNavigation(section)}
     >
       <RightPanel
+        ref={refs.setFloating}
         isVisible={isExpanded}
         skipAnimation={!!previousExpandedSection}
         id={`panel-resources`}
         onFocus={() => handleSetExpandedSection(section)}
+        {...getFloatingProps()}
       >
-        <Box
-          css={`
-            overflow-y: auto;
-            padding: 3px;
-          `}
+        <Flex
+          flexDirection="column"
+          justifyContent="space-between"
+          height="100%"
         >
-          <RightPanelHeader
-            title={section.category}
-            stickyMode={stickyMode}
-            toggleStickyMode={toggleStickyMode}
-            canToggleStickyMode={canToggleStickyMode}
+          <Box
+            css={`
+              overflow-y: auto;
+              padding: 3px;
+            `}
+          >
+            <RightPanelHeader
+              title={section.category}
+              stickyMode={stickyMode}
+              toggleStickyMode={toggleStickyMode}
+              canToggleStickyMode={canToggleStickyMode}
+            />
+            {section.subsections
+              .filter(section => !section.subCategory)
+              .map(section => (
+                <SubsectionItem
+                  $active={section.customRouteMatchFn(currentViewRoute)}
+                  to={section.route}
+                  key={section.title}
+                  onClick={section.onClick}
+                  exact={section.exact}
+                >
+                  <section.icon size={16} />
+                  <Text typography="body2">{section.title}</Text>
+                </SubsectionItem>
+              ))}
+
+            <Divider />
+            <Flex py={verticalPadding} px={3}>
+              <Text typography="h3" color="text.slightlyMuted">
+                Filtered Views
+              </Text>
+            </Flex>
+
+            {section.subsections
+              .filter(
+                section =>
+                  section.subCategory ===
+                  CustomNavigationSubcategory.FilteredViews
+              )
+              .map(section => (
+                <SubsectionItem
+                  $active={section.customRouteMatchFn(currentViewRoute)}
+                  to={section.route}
+                  key={section.title}
+                  onClick={section.onClick}
+                  exact={section.exact}
+                >
+                  <section.icon size={16} />
+                  <Text typography="body2">{section.title}</Text>
+                </SubsectionItem>
+              ))}
+          </Box>
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
           />
-          {subsections
-            .filter(section => !section.subCategory)
-            .map(section => (
-              <SubsectionItem
-                $active={section.customRouteMatchFn(currentViewRoute)}
-                to={section.route}
-                key={section.title}
-                onClick={section.onClick}
-                exact={section.exact}
-              >
-                <section.icon size={16} />
-                <Text typography="body2">{section.title}</Text>
-              </SubsectionItem>
-            ))}
-
-          <Divider />
-          <Flex py={verticalPadding} px={3}>
-            <Text typography="h3" color="text.slightlyMuted">
-              Filtered Views
-            </Text>
-          </Flex>
-
-          {subsections
-            .filter(
-              section =>
-                section.subCategory ===
-                CustomNavigationSubcategory.FilteredViews
-            )
-            .map(section => (
-              <SubsectionItem
-                $active={section.customRouteMatchFn(currentViewRoute)}
-                to={section.route}
-                key={section.title}
-                onClick={section.onClick}
-                exact={section.exact}
-              >
-                <section.icon size={16} />
-                <Text typography="body2">{section.title}</Text>
-              </SubsectionItem>
-            ))}
-        </Box>
+        </Flex>
       </RightPanel>
     </CustomChildrenSection>
   );

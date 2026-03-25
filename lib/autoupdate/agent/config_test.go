@@ -125,3 +125,111 @@ func TestNewRevisionFromDir(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateConfigSpec(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		config   UpdateSpec
+		override UpdateSpec
+		result   UpdateSpec
+		errMatch string
+	}{
+		{
+			name: "overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			override: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+		},
+		{
+			name: "default overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			override: UpdateSpec{
+				Proxy:   "default",
+				Path:    "default",
+				Group:   "default",
+				BaseURL: "default",
+			},
+			result: UpdateSpec{
+				Proxy: "default",
+				Path:  "default",
+			},
+		},
+		{
+			name: "only overrides",
+			override: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+		},
+		{
+			name: "no overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+		},
+		{
+			name: "BaseURL validation fails",
+			override: UpdateSpec{
+				BaseURL: "http://example.com",
+			},
+			errMatch: "must use TLS",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := updateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
+			if tt.errMatch != "" {
+				require.ErrorContains(t, err, tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.result, tt.config)
+		})
+	}
+}

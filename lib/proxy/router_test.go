@@ -32,14 +32,16 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -75,6 +77,7 @@ func (t testSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) 
 }
 
 type server struct {
+	scope    string
 	name     string
 	hostname string
 	addr     string
@@ -90,6 +93,7 @@ func createServers(srvs []server) []types.Server {
 			Metadata: types.Metadata{
 				Name: s.name,
 			},
+			Scope: s.scope,
 			Spec: types.ServerSpecV2{
 				Addr:      s.addr,
 				Hostname:  s.hostname,
@@ -110,13 +114,156 @@ func (r *mockHostResolver) LookupHost(ctx context.Context, host string) (addrs [
 	return r.hosts[host], nil
 }
 
+// TestScopePinning verifies expected routing behavior for scoped nodes.
+func TestScopePinning(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// set up servers across varioous scopes with various hostname collision
+	// scenarios (parent/child, same-scope, orthogonal scopes, etc).
+	servers := createServers([]server{
+		{
+			scope:    "",
+			name:     uuid.NewString(),
+			hostname: "unscoped.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "unique-parent.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging/west",
+			name:     uuid.NewString(),
+			hostname: "unique-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "orthogonal.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/prod",
+			name:     uuid.NewString(),
+			hostname: "orthogonal.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     uuid.NewString(),
+			hostname: "parent-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging/west",
+			name:     uuid.NewString(),
+			hostname: "parent-child.example.com",
+			addr:     "1.2.3.4:0",
+		},
+	})
+
+	tts := []struct {
+		name      string
+		host      string
+		pin       *scopesv1.Pin
+		ambiguous bool
+		unmatched bool
+	}{
+		{
+			name: "unscoped node reachable when unpinned",
+			host: "unscoped.example.com",
+			pin:  nil,
+		},
+		{
+			name:      "unscoped node unreachable when pinned",
+			host:      "unscoped.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging"},
+			unmatched: true,
+		},
+		{
+			name: "parent scoped node reachable when pinned to exact scope",
+			host: "unique-parent.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name:      "parent scoped node unreachable when pinned to child scope",
+			host:      "unique-parent.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging/west"},
+			unmatched: true,
+		},
+		{
+			name: "child scoped node reachable when pinned to child scope",
+			host: "unique-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging/west"},
+		},
+		{
+			name: "child scoped node reachable when pinned to parent scope",
+			host: "unique-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name: "no collisions from orthogonal scopes when pinned",
+			host: "orthogonal.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging"},
+		},
+		{
+			name:      "parent/child conflict when pinned to parent",
+			host:      "parent-child.example.com",
+			pin:       &scopesv1.Pin{Scope: "/staging"},
+			ambiguous: true,
+		},
+		{
+			name: "parent/child doesn't conflict when pinned to child",
+			host: "parent-child.example.com",
+			pin:  &scopesv1.Pin{Scope: "/staging/west"},
+		},
+		{
+			name:      "parent/child conflict when unpinned",
+			host:      "parent-child.example.com",
+			pin:       nil,
+			ambiguous: true,
+		},
+	}
+
+	// use strict routing to ensure only one match is possible per test case.
+	site := &testSite{
+		cfg: &types.ClusterNetworkingConfigV2{
+			Spec: types.ClusterNetworkingConfigSpecV2{
+				RoutingStrategy: types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			},
+		},
+		nodes: servers,
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, err := getServer(ctx, tt.pin, tt.host, "0", site)
+			switch {
+			case tt.ambiguous:
+				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
+			case tt.unmatched:
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "offline or does not exist")
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, srv)
+			}
+		})
+	}
+
+}
+
 // TestRouteScoring verifies expected behavior in the specific cases where multiple matches
 // of different quality are made.
 func TestRouteScoring(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up various servers with overlapping IPs and hostnames
 	servers := createServers([]server{
@@ -231,7 +378,7 @@ func TestRouteScoring(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			srv, err := getServerWithResolver(ctx, tt.host, tt.port, site, resolver)
+			srv, err := getServerWithResolver(ctx, nil /*scopePin*/, tt.host, tt.port, site, resolver)
 			if tt.ambiguous {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 				return
@@ -382,10 +529,12 @@ func TestGetServers(t *testing.T) {
 		serverAssertion func(t *testing.T, srv types.Server)
 	}{
 		{
-			name:         "no matches for hostname",
-			site:         testSite{cfg: &unambiguousCfg},
-			host:         "test",
-			errAssertion: require.NoError,
+			name: "no matches for hostname",
+			site: testSite{cfg: &unambiguousCfg},
+			host: "test",
+			errAssertion: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsConnectionProblem(err), "Expected connection error but got %v", err)
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
@@ -394,7 +543,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for uuid",
 			site: testSite{cfg: &mostRecentCfg},
 			host: uuid.NewString(),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -405,7 +554,7 @@ func TestGetServers(t *testing.T) {
 			name: "no matches for ec2 id",
 			site: testSite{cfg: &unambiguousCfg},
 			host: "123456789012-i-1234567890abcdef0",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -416,7 +565,7 @@ func TestGetServers(t *testing.T) {
 			name: "ambiguous match fails",
 			site: testSite{cfg: &unambiguousCfg, nodes: servers},
 			host: "sheep",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -488,7 +637,7 @@ func TestGetServers(t *testing.T) {
 			name: "case-insensitive ambiguous",
 			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
 			host: "platypus",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, teleport.ErrNodeIsAmbiguous)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -521,7 +670,7 @@ func TestGetServers(t *testing.T) {
 			name: "git server not found",
 			site: testSite{cfg: &unambiguousCfg, gitServers: gitServers},
 			host: "org-not-found.teleport-github-org",
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			errAssertion: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
@@ -533,7 +682,7 @@ func TestGetServers(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			srv, err := getServer(ctx, tt.host, tt.port, tt.site)
+			srv, err := getServer(ctx, nil /*scopePin*/, tt.host, tt.port, tt.site)
 			tt.errAssertion(t, err)
 			tt.serverAssertion(t, srv)
 		})
@@ -541,7 +690,7 @@ func TestGetServers(t *testing.T) {
 }
 
 func serverResolver(srv types.Server, err error) serverResolverFn {
-	return func(ctx context.Context, host, port string, site site) (types.Server, error) {
+	return func(ctx context.Context, scopePin *scopesv1.Pin, host, port string, site cluster) (types.Server, error) {
 		return srv, err
 	}
 }
@@ -627,19 +776,18 @@ func TestCheckedPrefixWriter(t *testing.T) {
 	})
 }
 
-type tunnel struct {
-	reversetunnelclient.Tunnel
-
-	site reversetunnelclient.RemoteSite
-	err  error
+type fakeClusterGetter struct {
+	ClusterGetter
+	cluster reversetunnelclient.Cluster
+	err     error
 }
 
-func (t tunnel) GetSite(cluster string) (reversetunnelclient.RemoteSite, error) {
-	return t.site, t.err
+func (t fakeClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return t.cluster, t.err
 }
 
 type testRemoteSite struct {
-	reversetunnelclient.RemoteSite
+	reversetunnelclient.Cluster
 
 	params reversetunnelclient.DialParams
 
@@ -660,12 +808,8 @@ func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 	return nil, nil
 }
 
-type testSiteGetter struct {
-	site reversetunnelclient.RemoteSite
-}
-
-func (s testSiteGetter) GetSite(clusterName string) (reversetunnelclient.RemoteSite, error) {
-	return s.site, nil
+func (r testRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+	return nil, nil
 }
 
 type fakeConn struct {
@@ -712,7 +856,7 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	agentGetter := func() (teleagent.Agent, error) {
+	agentGetter := func() (sshagent.Client, error) {
 		return nil, nil
 	}
 	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
@@ -743,9 +887,9 @@ func TestRouter_DialHost(t *testing.T) {
 		{
 			name: "failure looking up cluster",
 			router: Router{
-				clusterName: "leaf",
-				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -757,7 +901,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial failure",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+				localCluster:   &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
@@ -771,7 +915,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
@@ -781,14 +925,16 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NotNil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
 				require.NotNil(t, conn)
+				require.Contains(t, params.Principals, "host")
+				require.Contains(t, params.Principals, "host.test")
 			},
 		},
 		{
 			name: "dial success to agentless node",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessSrv, nil),
 			},
@@ -797,16 +943,17 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
+				require.Contains(t, params.Principals, "host")
+				require.Contains(t, params.Principals, "host.test")
 			},
 		},
 		{
 			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
 			},
@@ -815,7 +962,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
@@ -825,11 +971,11 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, nil /*scopePin*/, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
-			if tt.router.localSite != nil {
-				params = tt.router.localSite.(*testRemoteSite).params
+			if tt.router.localCluster != nil {
+				params = tt.router.localCluster.(*testRemoteSite).params
 			}
 
 			tt.assertion(t, params, conn, err)
@@ -846,7 +992,7 @@ func TestRouter_DialSite(t *testing.T) {
 		name      string
 		cluster   string
 		localSite testRemoteSite
-		tunnel    tunnel
+		tunnel    fakeClusterGetter
 		assertion func(t *testing.T, conn net.Conn, err error)
 	}{
 		{
@@ -880,8 +1026,8 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "failure to dial remote site",
 			cluster: "leaf",
-			tunnel: tunnel{
-				site: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+			tunnel: fakeClusterGetter{
+				cluster: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -892,7 +1038,7 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "unknown cluster",
 			cluster: "fake",
-			tunnel: tunnel{
+			tunnel: fakeClusterGetter{
 				err: trace.NotFound("unknown cluster"),
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -904,8 +1050,8 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "successfully  dial remote site",
 			cluster: "leaf",
-			tunnel: tunnel{
-				site: &testRemoteSite{conn: fakeConn{}},
+			tunnel: fakeClusterGetter{
+				cluster: &testRemoteSite{conn: fakeConn{}},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.NoError(t, err)
@@ -919,13 +1065,77 @@ func TestRouter_DialSite(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
-				clusterName: cluster,
-				localSite:   &tt.localSite,
-				siteGetter:  tt.tunnel,
-				tracer:      tracing.NoopTracer(cluster),
+				clusterName:   cluster,
+				localCluster:  &tt.localSite,
+				clusterGetter: tt.tunnel,
+				tracer:        tracing.NoopTracer(cluster),
 			}
 
 			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
+			tt.assertion(t, conn, err)
+		})
+	}
+}
+
+func TestRouter_DialWindowsDesktop(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		router    Router
+		assertion func(t *testing.T, conn net.Conn, err error)
+	}{
+		{
+			name: "failure looking up cluster",
+			router: Router{
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "failure connecting to desktop service",
+			router: Router{
+				clusterName:  "test",
+				tracer:       tracing.NoopTracer("test"),
+				localCluster: &testRemoteSite{},
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return nil, "", trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsConnectionProblem(err))
+				require.Nil(t, conn)
+			},
+		},
+		{
+			name: "dial success",
+			router: Router{
+				clusterName:  "test",
+				localCluster: &testRemoteSite{conn: fakeConn{}},
+				tracer:       tracing.NoopTracer("test"),
+				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
+					return fakeConn{}, "18.0.0", nil
+				},
+			},
+			assertion: func(t *testing.T, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, conn)
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, err := tt.router.DialWindowsDesktop(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "test", nil)
 			tt.assertion(t, conn, err)
 		})
 	}

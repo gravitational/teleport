@@ -1,6 +1,7 @@
 const { env, platform } = require('process');
 const fs = require('fs');
-const { spawnSync } = require('child_process');
+const path = require('path');
+const { spawn } = require('child_process');
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
 
@@ -41,16 +42,38 @@ let tshAppPlist;
 // protocols.name below.
 const appId = 'gravitational.teleport.connect';
 
+// Remap Teleport env vars to electron-builder equivalents if they are set.
+// TEAMID is provided automatically by `make release-connect`.
+if (process.env.APPLE_USERNAME) {
+  process.env.APPLE_ID = process.env.APPLE_USERNAME;
+}
+if (process.env.APPLE_PASSWORD) {
+  process.env.APPLE_APP_SPECIFIC_PASSWORD = process.env.APPLE_PASSWORD;
+}
+if (process.env.TEAMID) {
+  process.env.APPLE_TEAM_ID = process.env.TEAMID;
+}
+
+/**
+ * Describes whether there will be an attempt by electron-builder to sign the app on macOS.
+ */
+const shouldBeSignedOnMacOS =
+  process.env.APPLE_ID ||
+  process.env.APPLE_APP_SPECIFIC_PASSWORD ||
+  process.env.APPLE_TEAM_ID;
+
+const entitlementsMacOS = shouldBeSignedOnMacOS
+  ? 'build_resources/entitlements.mac.plist'
+  : 'build_resources/entitlements.mac.adhoc-signed.plist';
+
 /**
  * @type { import('electron-builder').Configuration }
  */
 module.exports = {
   appId,
   asar: true,
+  publish: [{ provider: 'custom' }],
   asarUnpack: '**\\*.{node,dll}',
-  // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
-  // mac target.
-  afterSign: 'notarize.js',
   afterPack: packed => {
     // @electron-universal adds the `ElectronAsarIntegrity` key to every .plist
     // file it finds, causing signature verification to fail for tsh.app that gets
@@ -64,9 +87,9 @@ module.exports = {
       return;
     }
 
-    const path = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    const plistPath = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
     if (packed.appOutDir.endsWith('mac-universal-x64-temp')) {
-      tshAppPlist = fs.readFileSync(path);
+      tshAppPlist = fs.readFileSync(plistPath);
     }
     if (packed.appOutDir.endsWith('mac-universal')) {
       if (!tshAppPlist) {
@@ -74,7 +97,7 @@ module.exports = {
           'Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.'
         );
       }
-      fs.writeFileSync(path, tshAppPlist);
+      fs.writeFileSync(plistPath, tshAppPlist);
     }
   },
   files: ['build/app'],
@@ -99,19 +122,23 @@ module.exports = {
     },
   ],
   mac: {
-    target: 'dmg',
+    // ZIP target is used only for app updates.
+    target: ['zip', 'dmg'],
     category: 'public.app-category.developer-tools',
     type: 'distribution',
-    // TODO(ravicious): Migrate from custom notarize.js script to using the notarize field of the
-    // mac target.
-    notarize: false,
+    notarize: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,
+    entitlements: entitlementsMacOS,
+    // Use the same entitlements for Electron subprocesses (e.g., renderer, GPU)
+    // as those defined for the main app.
+    entitlementsInherit: entitlementsMacOS,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
     // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
-    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
+    x64ArchFiles:
+      '{Contents/MacOS/tsh.app/Contents/MacOS/tsh,Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/**}',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
     // `extraFiles` instead of `extraResources`.
     // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
@@ -132,6 +159,8 @@ module.exports = {
       },
     ].filter(Boolean),
   },
+  // Copy the tray icon to resources.
+  extraResources: ['build_resources/icon-macTemplate@2x.png'],
   dmg: {
     artifactName: '${productName}-${version}-${arch}.${ext}',
     // Turn off blockmaps since we don't support automatic updates.
@@ -152,56 +181,73 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
-    // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
-    // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
-    signingHashAlgorithms: ['sha256'],
-    sign: customSign => {
-      if (process.env.CI !== 'true') {
-        console.warn('Not running in CI pipeline: signing will be skipped');
-        return;
-      }
+    signtoolOptions: {
+      // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+      // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+      signingHashAlgorithms: ['sha256'],
+      sign: async customSign => {
+        if (process.env.CI !== 'true') {
+          console.warn('Not running in CI pipeline: signing will be skipped');
+          return;
+        }
 
-      spawnSync(
-        'powershell',
-        [
-          '-noprofile',
-          '-executionpolicy',
-          'bypass',
-          '-c',
-          "$ProgressPreference = 'SilentlyContinue'; " +
-            "$ErrorActionPreference = 'Stop'; " +
-            '. ../../../build.assets/windows/build.ps1; ' +
-            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
-        ],
-        { stdio: 'inherit' }
-      );
+        await promisifiedSpawn(
+          'powershell',
+          [
+            '-noprofile',
+            '-executionpolicy',
+            'bypass',
+            '-c',
+            "$ProgressPreference = 'SilentlyContinue'; " +
+              "$ErrorActionPreference = 'Stop'; " +
+              '$PSNativeCommandUseErrorActionPreference = $true; ' +
+              '. ../../../build.assets/windows/build.ps1; ' +
+              `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+          ],
+          { stdio: 'inherit' }
+        );
+      },
     },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
+        // Keep in sync with lib/teleterm/autoupdate/per_machine_windows.go.
         to: './bin/tsh.exe',
       },
       env.CONNECT_WINTUN_DLL_PATH && {
         from: env.CONNECT_WINTUN_DLL_PATH,
         to: './bin/wintun.dll',
       },
+      env.CONNECT_MSGFILE_DLL_PATH && {
+        from: env.CONNECT_MSGFILE_DLL_PATH,
+        to: './bin/msgfile.dll',
+      },
+      // Copy the tray icon to resources.
+      'build_resources/icon-win.ico',
     ].filter(Boolean),
   },
   nsis: {
+    // Static app guid, calculated from appId and electron-builder's UUID.
+    guid: '22539266-67e8-54a3-83b9-dfdca7b33ee1',
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
-    // Use a per-machine installation to support VNet.
-    // VNet installs a Windows service per-machine, and tsh.exe must be
-    // installed in a path that is not user-writable.
-    perMachine: true,
+    // Per-machine and per-user modes differ in features.
+    // VNet is available only in per-machine mode.
+    perMachine: false,
+    oneClick: false,
+    selectPerMachineByDefault: true,
+    // In installer.nsh, the `selectUserMode` message is overridden to display information
+    // about VNet availability. The message is only in English, so the multi-language
+    // installer should be disabled to avoid mixing languages in the installation wizard.
+    multiLanguageInstaller: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
     // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
     // Connect's rpm next to other Electron apps.
     // https://github.com/gravitational/teleport/issues/18859
@@ -209,8 +255,8 @@ module.exports = {
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
+    afterInstall: 'build_resources/linux/after-install.sh.tmpl',
+    afterRemove: 'build_resources/linux/after-remove.sh.tmpl',
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],
@@ -223,9 +269,39 @@ module.exports = {
         to: './bin/tsh',
       },
       {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/polkit/org.teleport.vnet1.policy'
+        ),
+        to: './vnet/polkit/org.teleport.vnet1.policy',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.conf'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.conf',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.service'
+        ),
+        to: './vnet/dbus/org.teleport.vnet1.service',
+      },
+      {
+        from: path.resolve(
+          __dirname,
+          '../../../examples/systemd/vnet/teleport-vnet.service'
+        ),
+        to: './vnet/teleport-vnet.service',
+      },
+      {
         from: 'build_resources/linux/apparmor-profile',
         to: './apparmor-profile',
       },
+      // Copy the tray icon to resources.
+      'build_resources/icon-linux/tray.png',
     ].filter(Boolean),
   },
   directories: {
@@ -233,3 +309,26 @@ module.exports = {
     output: 'build/release',
   },
 };
+
+function promisifiedSpawn(cmd, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, options);
+
+    child.on('error', reject);
+
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const codeOrSignal = [
+          // code can be 0, so we cannot just check it the same way as the signal.
+          code != null && `code ${code}`,
+          signal && `signal ${signal}`,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        reject(new Error(`Exited with ${codeOrSignal}`));
+      }
+    });
+  });
+}

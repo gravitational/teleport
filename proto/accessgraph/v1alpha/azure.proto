@@ -18,8 +18,6 @@
 syntax = "proto3";
 package accessgraph.v1alpha;
 
-import "google/protobuf/timestamp.proto";
-
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // AzureResourceList is a list of Azure resources
@@ -43,12 +41,12 @@ message AzureResource {
 
 // AzureVirtualMachine is an Azure virtual machine
 message AzureVirtualMachine {
+  reserved 3;
+  reserved "last_sync_time";
   // id is the ID of the virtual machine
   string id = 1;
   // subscription_id is the ID of the subscription to which the virtual machine belongs
   string subscription_id = 2;
-  // last_sync_time is when the virtual machine was last fetched from Azure
-  google.protobuf.Timestamp last_sync_time = 3;
   // name is the given name of the virtual machine
   string name = 4;
   // resource_group is the name of the resource group to which the virtual machine belongs
@@ -71,12 +69,12 @@ message AzureIdentity {
 
 // AzurePrincipal is a Graph API principal (user, group, service principal)
 message AzurePrincipal {
+  reserved 3;
+  reserved "last_sync_time";
   // id is the ID of the principal
   string id = 1;
   // subscription_id is the ID of the subscription to which the principal belongs
   string subscription_id = 2;
-  // last_sync_time is when the principal was last fetched from Azure
-  google.protobuf.Timestamp last_sync_time = 3;
   // display_name is the given name for the principal, e.g. a user's first+last name
   string display_name = 4;
   // member_of lists the groups and directories the principal is assigned to
@@ -89,12 +87,12 @@ message AzurePrincipal {
 
 // AzureRoleAssignment links an Azure principal to a role definition with a scope
 message AzureRoleAssignment {
+  reserved 3;
+  reserved "last_sync_time";
   // id is the ID of the role assignment
   string id = 1;
   // subscription_id is the ID of the subscription to which the role assignment belongs
   string subscription_id = 2;
-  // last_sync_time is when the role assignment was last fetched from Azure
-  google.protobuf.Timestamp last_sync_time = 3;
   // principal_id is the ID of the principal being assigned a role
   string principal_id = 4;
   // role_definition_id is the ID of the role definition assigned to the principal
@@ -107,12 +105,12 @@ message AzureRoleAssignment {
 
 // AzureRoleDefinition defines a role by its permissions
 message AzureRoleDefinition {
+  reserved 3;
+  reserved "last_sync_time";
   // id is the ID of the role definition
   string id = 1;
   // subscription_id is the ID of the subscription to which the role definition belongs
   string subscription_id = 2;
-  // last_sync_time is when the role definition was last fetched from Azure
-  google.protobuf.Timestamp last_sync_time = 3;
   // name is the given name for the role definition
   string name = 4;
   // description provides additional detail about the role definition

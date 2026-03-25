@@ -1,13 +1,10 @@
-Set up the Teleport Helm repository.
-
-Allow Helm to install charts that are hosted in the Teleport Helm repository:
+Configure Helm to fetch Teleport charts from the Teleport Helm repository:
 
 ```code
 $ helm repo add teleport (=teleport.helm_repo_url=)
 ```
 
-Update the cache of charts from the remote repository so you can upgrade to all
-available releases:
+Refresh the local Helm cache by fetching the latest charts:
 
 ```code
 $ helm repo update

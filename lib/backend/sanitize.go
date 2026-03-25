@@ -20,8 +20,7 @@ package backend
 
 import (
 	"context"
-	"regexp"
-	"strings"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -31,29 +30,45 @@ import (
 // errorMessage is the error message to return when invalid input is provided by the caller.
 const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens, dots, and plus signs: %q"
 
-// allowPattern is the pattern of allowed characters for each key within
-// the path.
-var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
+// isValidKeyByte checks if the byte is a valid character for a key.
+func isValidKeyByte(b byte) bool {
+	switch b {
+	case
+		// Digits
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+
+		// Lowercase letters
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+
+		// Uppercase letters
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+
+		// Allowed symbols
+		'@', '_', ':', '.', '-', '+':
+		return true
+	default:
+		return false
+	}
+}
 
 // IsKeySafe checks if the passed in key conforms to whitelist
 func IsKeySafe(key Key) bool {
-	components := key.Components()
-	for i, k := range components {
+	for i, k := range key.components {
 		switch k {
-		case string(noEnd):
+		case noEnd:
 			continue
 		case ".", "..":
 			return false
 		case "":
-			return key.exactKey && i == len(components)-1
+			return key.exactKey && i == len(key.components)-1
 		}
 
-		if strings.Contains(k, string(Separator)) {
-			return false
-		}
-
-		if !allowPattern.MatchString(k) {
-			return false
+		for _, b := range []byte(k) {
+			if !isValidKeyByte(b) {
+				return false
+			}
 		}
 	}
 	return true
@@ -83,6 +98,10 @@ func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit in
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
 }
 
+func (s *Sanitizer) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
+	return s.backend.Items(ctx, params)
+}
+
 // Create creates item if it does not exist
 func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
 	if !IsKeySafe(i.Key) {
@@ -99,6 +118,17 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 	}
 
 	return s.backend.Put(ctx, i)
+}
+
+// PutBatch puts multiple values into backend.
+func (s *Sanitizer) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	for _, item := range items {
+		if !IsKeySafe(item.Key) {
+			return nil, trace.BadParameter(errorMessage, item.Key)
+		}
+	}
+	out, err := PutBatch(ctx, s.backend, items)
+	return out, trace.Wrap(err)
 }
 
 // Update updates value in the backend

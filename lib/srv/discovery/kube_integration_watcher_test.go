@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"testing"
 	"time"
 
@@ -43,13 +44,14 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
-	libutils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServer_getKubeFetchers(t *testing.T) {
@@ -140,7 +142,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	)
 
 	// Create and start test auth server.
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -152,6 +154,17 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		RoleARN: roleArn,
 	})
 	require.NoError(t, err)
+
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// AWS OIDC integration.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+
+	err = testAuthServer.AuthServer.UpsertProxy(t.Context(), proxy)
+	require.NoError(t, err)
+
 	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
 		proxies: nil,
 		integrations: map[string]types.Integration{
@@ -187,8 +200,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		},
 	}
 
-	getDc := func() *discoveryconfig.DiscoveryConfig {
-		dc, _ := discoveryconfig.NewDiscoveryConfig(
+	getDc := func(t *testing.T) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: uuid.NewString()},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
@@ -201,6 +214,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 		return dc
 	}
 
@@ -252,7 +266,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		{
 			name: "no clusters in auth server, discover two clusters from EKS",
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -280,7 +294,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one cluster in auth server, discover one cluster from EKS and ignore another one",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[0], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -310,7 +324,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one non-matching cluster in auth server, discover two cluster from EKS",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[2], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc()
+				return getDc(t)
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -345,7 +359,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 			ctx := context.Background()
 			// Create and start test auth server.
-			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
@@ -356,7 +370,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 			// Auth client for discovery service.
-			identity := auth.TestServerID(types.RoleDiscovery, "hostID")
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
 			authClient, err := tlsServer.NewClient(identity)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
@@ -400,13 +414,13 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						eksClusters:       eksMockClusters[:2],
 					},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
+					KubernetesClient: fake.NewClientset(),
 					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
 					},
 					Emitter:        authClient,
-					Log:            libutils.NewSlogLoggerForTests(),
+					Log:            logtest.NewLogger(),
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -468,9 +482,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 
 func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
 	eksTags := make(map[string]string, len(eksCluster.Tags))
-	for k, v := range eksCluster.Tags {
-		eksTags[k] = v
-	}
+	maps.Copy(eksTags, eksCluster.Tags)
 	eksTags[types.OriginLabel] = types.OriginCloud
 	eksTags[types.InternalResourceIDLabel] = resourceID
 
@@ -518,6 +530,11 @@ func (m *mockIntegrationsTokenGenerator) GetIntegration(ctx context.Context, nam
 // GetProxies returns a list of registered proxies.
 func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
+}
+
+// ListProxyServers returns a paginated list of registered proxies.
+func (m *mockIntegrationsTokenGenerator) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.

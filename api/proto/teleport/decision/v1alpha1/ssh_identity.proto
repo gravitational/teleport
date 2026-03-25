@@ -18,9 +18,19 @@ package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/decision/v1alpha1/tls_identity.proto";
+import "teleport/legacy/types/resources.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
+
+// SSHAuthority identifies the authority that issued an SSHIdentity.
+message SSHAuthority {
+  // ClusterName is the name of the issuing cluster.
+  string cluster_name = 1;
+  // AuthorityType is the type of authority that issued the identity.
+  string authority_type = 2;
+}
 
 // SSHIdentity is the identity used for SSH connections.
 message SSHIdentity {
@@ -147,6 +157,28 @@ message SSHIdentity {
   // GitHubUsername indicates the GitHub username identified by the GitHub
   // connector.
   string github_username = 33;
+
+  // JoinToken is the name of the join token used for bot joining. It is unset
+  // for other identity types, or for bots using the `token` join method.
+  string join_token = 34;
+
+  // ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+  // set, the Roles field must not be set.
+  teleport.scopes.v1.Pin scope_pin = 35;
+
+  // The scope associated with a host identity.
+  string agent_scope = 36;
+
+  // AllowedResourceAccessIDs lists the resources the user should be able to access,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, AllowedResourceAccessIDs should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated types.ResourceAccessID allowed_resource_access_ids = 37;
+
+  // The hash of the immutable labels assigned to the identity.
+  string immutable_label_hash = 38;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

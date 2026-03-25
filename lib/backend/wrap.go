@@ -20,6 +20,7 @@ package backend
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"time"
 
@@ -73,6 +74,10 @@ func (s *Wrapper) GetRange(ctx context.Context, startKey, endKey Key, limit int)
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
 }
 
+func (s *Wrapper) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
+	return s.backend.Items(ctx, params)
+}
+
 // Create creates item if it does not exist
 func (s *Wrapper) Create(ctx context.Context, i Item) (*Lease, error) {
 	return s.backend.Create(ctx, i)
@@ -106,6 +111,11 @@ func (s *Wrapper) Get(ctx context.Context, key Key) (*Item, error) {
 // and replaces is with replaceWith item
 func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) (*Lease, error) {
 	return s.backend.CompareAndSwap(ctx, expected, replaceWith)
+}
+
+// PutBatch puts multiple values into backend.
+func (s *Wrapper) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	return PutBatch(ctx, s.backend, items)
 }
 
 // Delete deletes item by key

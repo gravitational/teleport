@@ -7,7 +7,7 @@ check_access = $(addprefix check-chart-ref-access-,$(access))
 render_access = $(addprefix render-chart-ref-access-,$(access))
 
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-tbot $(render_access)  # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-teleport-relay render-chart-ref-tbot render-chart-ref-tbot-spiffe-daemon-set $(render_access) render-chart-ref-event-handler # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:
@@ -25,6 +25,11 @@ render-chart-ref-teleport-kube-agent:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-kube-agent/ -output ../../docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx
 
+.PHONY: render-chart-ref-teleport-relay
+render-chart-ref-teleport-relay:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-relay/ -output ../../docs/pages/includes/helm-reference/zz_generated.teleport-relay.mdx
+
 .PHONY: render-chart-ref-teleport-operator
 render-chart-ref-teleport-operator:
 	cd ../../build.assets/tooling && \
@@ -35,13 +40,23 @@ render-chart-ref-tbot:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx
 
+.PHONY: render-chart-ref-tbot-spiffe-daemon-set
+render-chart-ref-tbot-spiffe-daemon-set:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot-spiffe-daemon-set -output ../../docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx
+
 .PHONY: render-chart-ref-access-%
 render-chart-ref-access-%:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/$* -output ../../docs/pages/includes/helm-reference/zz_generated.access-$*.mdx
 
+.PHONY: render-chart-ref-event-handler
+render-chart-ref-event-handler:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/event-handler -output ../../docs/pages/includes/helm-reference/zz_generated.event-handler.mdx
+
 .PHONY: check-chart-ref
-check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-tbot $(check_access) #check-chart-ref-teleport-cluster
+check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-teleport-relay check-chart-ref-tbot check-chart-ref-tbot-spiffe-daemon-set $(check_access) check-chart-ref-event-handler #check-chart-ref-teleport-cluster
 
 .PHONY: check-chart-ref-example
 check-chart-ref-example:
@@ -64,6 +79,13 @@ check-chart-ref-teleport-kube-agent:
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-kube-agent -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
 
+.PHONY: check-chart-ref-teleport-relay
+check-chart-ref-teleport-relay:
+	@ echo "Checking teleport-relay reference"
+	@ cd ../../build.assets/tooling && \
+	GOWORK=off go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-relay -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.teleport-relay.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
+
 .PHONY: check-chart-ref-teleport-operator
 check-chart-ref-teleport-operator:
 	@echo "Checking teleport-operator reference"
@@ -78,9 +100,23 @@ check-chart-ref-tbot:
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
 
+.PHONY: check-chart-ref-tbot-spiffe-daemon-set
+check-chart-ref-tbot-spiffe-daemon-set:
+	@echo "Checking tbot-spiffe-daemon-set reference"
+	@ cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot-spiffe-daemon-set -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
+
 .PHONY: check-chart-ref-access-%
 check-chart-ref-access-%:
 	@echo "Checking access/$* reference"
 	@ cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/$* -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.access-$*.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
+
+.PHONY: check-chart-ref-event-handler
+check-chart-ref-event-handler:
+	@echo "Checking event-handler reference"
+	@ cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/event-handler -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.event-handler.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )

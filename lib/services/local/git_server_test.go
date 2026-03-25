@@ -124,7 +124,7 @@ func TestGitServerCRUD(t *testing.T) {
 
 	t.Run("delete not found", func(t *testing.T) {
 		err := service.DeleteGitServer(ctx, "doesnotexist")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("delete", func(t *testing.T) {

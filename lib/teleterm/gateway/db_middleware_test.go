@@ -39,7 +39,7 @@ import (
 )
 
 func TestDBMiddleware_OnNewConnection(t *testing.T) {
-	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
+	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
 	require.NoError(t, err)
 	tlsCert, err := keys.X509KeyPair(testCert.Cert, testCert.PrivateKey)
 	require.NoError(t, err)
@@ -102,8 +102,7 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			hasCalledOnExpiredCert := false
 

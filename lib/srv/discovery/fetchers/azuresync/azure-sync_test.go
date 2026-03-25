@@ -25,7 +25,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type testRoleDefCli struct {
@@ -106,6 +110,108 @@ func newVm(id string, name string) *armcompute.VirtualMachine {
 		ID:   &id,
 		Name: &name,
 	}
+}
+
+type mockOIDCCredentials struct {
+	integration types.Integration
+}
+
+func (m *mockOIDCCredentials) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
+	return "oidc-token", nil
+}
+
+func (m *mockOIDCCredentials) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	if m.integration == nil {
+		return nil, trace.NotFound("integration %q not found", name)
+	}
+	return m.integration, nil
+}
+
+func TestNewFetcher(t *testing.T) {
+	tests := []struct {
+		name            string
+		integrationName string
+		integration     types.Integration
+		wantErr         string
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name:            "valid azure integration",
+			integrationName: "azure",
+			integration: &types.IntegrationV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    types.KindIntegration,
+					SubKind: types.IntegrationSubKindAzureOIDC,
+					Version: types.V1,
+					Metadata: types.Metadata{
+						Name:      "azure",
+						Namespace: defaults.Namespace,
+					},
+				},
+				Spec: types.IntegrationSpecV1{
+					SubKindSpec: &types.IntegrationSpecV1_AzureOIDC{
+						AzureOIDC: &types.AzureOIDCIntegrationSpecV1{
+							ClientID: "baz-quux",
+							TenantID: "foo-bar",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:            "integration not found",
+			integrationName: "azure",
+			integration:     nil,
+			wantErr:         `integration "azure" not found`,
+		},
+		{
+			name:            "invalid integration type",
+			integrationName: "azure",
+			integration: &types.IntegrationV1{
+				ResourceHeader: types.ResourceHeader{
+					Kind:    types.KindIntegration,
+					SubKind: types.IntegrationSubKindAWSOIDC,
+					Version: types.V1,
+					Metadata: types.Metadata{
+						Name:      "azure",
+						Namespace: defaults.Namespace,
+					},
+				},
+				Spec: types.IntegrationSpecV1{
+					SubKindSpec: &types.IntegrationSpecV1_AWSOIDC{
+						AWSOIDC: &types.AWSOIDCIntegrationSpecV1{
+							RoleARN: "arn:aws:iam::123456789012:role/teleport",
+						},
+					},
+				},
+			},
+			wantErr: `expected "azure" to be an "azure-oidc" integration, was "aws-oidc" instead`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := NewFetcher(Config{
+				SubscriptionID:      "dummy-subscription-id",
+				Integration:         tt.integrationName,
+				DiscoveryConfigName: "dummy-discovery-config",
+				OIDCCredentials: &mockOIDCCredentials{
+					integration: tt.integration,
+				},
+			}, t.Context())
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				require.NotNil(t, f)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Nil(t, f)
+			}
+		})
+	}
+
 }
 
 func TestPoll(t *testing.T) {

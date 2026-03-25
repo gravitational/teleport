@@ -89,7 +89,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
 ) {
   const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
   const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>();
+  const asyncTask = useRef<Promise<AttemptData>>(undefined);
 
   const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {
@@ -105,10 +105,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
       return promise.then(
         data => {
           if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
 
           setState(prevState => ({
@@ -121,10 +121,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
         },
         err => {
           if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
 
           setState(() => ({
@@ -158,8 +158,15 @@ function useIsMounted() {
   return useCallback(() => isMounted.current, []);
 }
 
-export class CanceledError extends Error {
-  constructor() {
+export class CanceledError<AttemptData> extends Error {
+  constructor(
+    /**
+     * stalePromise is the promise which result was ignored because another useAsync run was
+     * started. This gives the callsite a chance to use a result from this stale run, even after
+     * another run was started.
+     */
+    public stalePromise?: Promise<AttemptData>
+  ) {
     super('Ignored response from stale useAsync request');
     this.name = 'CanceledError';
   }

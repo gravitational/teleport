@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestAWSIAM tests RDS, Aurora and Redshift IAM auto-configuration.
@@ -76,7 +75,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+		AWS:      types.AWS{Region: "us-east-1", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -85,7 +84,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+		AWS:      types.AWS{Region: "us-east-1", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -94,7 +93,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
+		AWS:      types.AWS{Region: "us-east-1", AccountID: "123456789012", RDSProxy: types.RDSProxy{Name: "rds-proxy", ResourceID: "rds-proxy-resource-id"}},
 	})
 	require.NoError(t, err)
 
@@ -103,7 +102,7 @@ func TestAWSIAM(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost",
-		AWS:      types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+		AWS:      types.AWS{Region: "us-east-1", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 	})
 	require.NoError(t, err)
 
@@ -116,6 +115,20 @@ func TestAWSIAM(t *testing.T) {
 			AccountID: "123456789012",
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	elasticacheServerlessDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache-serverless",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "example.serverless.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: "example",
 			},
 		},
 	})
@@ -220,6 +233,13 @@ func TestAWSIAM(t *testing.T) {
 				return true // it always is for ElastiCache.
 			},
 		},
+		"ElastiCache Serverless": {
+			database:           elasticacheServerlessDB,
+			wantPolicyContains: elasticacheServerlessDB.GetAWS().ElastiCacheServerless.CacheName,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for ElastiCache.
+			},
+		},
 		"MemoryDB": {
 			database:           memDB,
 			wantPolicyContains: memDB.GetAWS().MemoryDB.ClusterName,
@@ -299,7 +319,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}{
 		{
 			name: "RDS database",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
+			meta: types.AWS{Region: "us-east-1", AccountID: "123456789012", RDS: types.RDS{InstanceID: "postgres-rds", ResourceID: "postgres-rds-resource-id"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
@@ -308,7 +328,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Aurora cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
+			meta: types.AWS{Region: "us-east-1", AccountID: "123456789012", RDS: types.RDS{ClusterID: "postgres-aurora", ResourceID: "postgres-aurora-resource-id"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
@@ -317,7 +337,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "RDS database missing metadata",
-			meta: types.AWS{Region: "localhost", RDS: types.RDS{ClusterID: "postgres-aurora"}},
+			meta: types.AWS{Region: "us-east-1", RDS: types.RDS{ClusterID: "postgres-aurora"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				rdsClient: &mocks.RDSClient{Unauth: true},
@@ -326,7 +346,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "Redshift cluster",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "us-east-1", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				stsClient: stsClient,
@@ -334,7 +354,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "ElastiCache",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
+			meta: types.AWS{Region: "us-east-1", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{Unauth: true},
 				stsClient: stsClient,
@@ -342,7 +362,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 		},
 		{
 			name: "IAM UnmodifiableEntityException",
-			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
+			meta: types.AWS{Region: "us-east-1", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			awsClients: fakeAWSClients{
 				iamClient: &mocks.IAMMock{
 					Error: &iamtypes.UnmodifiableEntityException{
@@ -406,7 +426,7 @@ type mockAccessPoint struct {
 	authclient.DatabaseAccessPoint
 }
 
-func (m *mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (m *mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "cluster.local",
 		ClusterID:   "cluster-id",

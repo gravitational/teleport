@@ -30,6 +30,7 @@ import (
 	"net/http/httputil"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgproto3/v2"
@@ -236,7 +237,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(l.cfg.SNI, cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,7 +262,7 @@ func (l *LocalProxy) HandleTCPConnector(ctx context.Context, connector func() (n
 		return trace.Wrap(err)
 	}
 
-	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(l.cfg.SNI, cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -299,20 +300,20 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig(certs ...tls.Certificate) client.ALPNDialerConfig {
+func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certificate) client.ALPNDialerConfig {
 	return client.ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         l.cfg.SNI,
+			ServerName:         serverName,
 			Certificates:       certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
 	}
 }
 
-func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.ReverseProxy {
+func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certificate) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
@@ -322,8 +323,8 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
-				errHeader = strings.Replace(errHeader, " \t", "\n\t", -1)
-				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
+				errHeader = strings.ReplaceAll(errHeader, " \t", "\n\t")
+				errHeader = strings.ReplaceAll(errHeader, " User Message:", "\n\n\tUser Message:")
 				l.cfg.Log.WarnContext(response.Request.Context(), "Server response contained an error header", "error_header", errHeader)
 			}
 			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {
@@ -341,7 +342,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(certs...)).DialContext,
+			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
 		},
 	}
 }
@@ -404,15 +405,27 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 }
 
 func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
-	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
-	if trace.IsNotImplemented(err) {
-		return l.makeHTTPReverseProxy(l.getCert()), nil
-	} else if err != nil {
+	serverName, ok, err := l.cfg.HTTPMiddleware.GetServerName(req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if ok {
+		l.cfg.Log.DebugContext(req.Context(), "got SNI from middleware", "server_name", serverName)
+	} else {
+		serverName = l.cfg.SNI
+	}
 
-	l.cfg.Log.DebugContext(req.Context(), "overwrote certs")
-	return l.makeHTTPReverseProxy(certs...), nil
+	certs, ok, err := l.cfg.HTTPMiddleware.GetClientCerts(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ok {
+		l.cfg.Log.DebugContext(req.Context(), "got certs from middleware")
+	} else {
+		certs = []tls.Certificate{l.getCert()}
+	}
+
+	return l.makeHTTPReverseProxy(serverName, certs...), nil
 }
 
 // getCert returns the local proxy's configured TLS certificate.
@@ -422,8 +435,11 @@ func (l *LocalProxy) getCert() tls.Certificate {
 	return l.cfg.Cert
 }
 
-// CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
-func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+// CheckDBCertWithLeeway checks the proxy certificates for expiration and that
+// the cert subject matches a database route. The provided leeway value is added
+// to the current time when checking certificate expiration and can be used to
+// account for potential client-side clock drift.
+func (l *LocalProxy) CheckDBCertWithLeeway(ctx context.Context, dbRoute tlsca.RouteToDatabase, leeway time.Duration) error {
 	l.cfg.Log.DebugContext(ctx, "checking local proxy database certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
@@ -438,15 +454,22 @@ func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatab
 	}
 
 	// Check for cert expiration.
-	if err := utils.VerifyCertificateExpiry(cert, l.cfg.Clock); err != nil {
+	if err := utils.VerifyCertificateExpiryWithLeeway(cert, l.cfg.Clock, leeway); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(CheckDBCertSubject(cert, dbRoute))
 }
 
-// CheckCertExpiry checks the proxy certificates for expiration.
-func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+// CheckDBCert checks the proxy certificates for expiration and that the cert subject matches a database route.
+func (l *LocalProxy) CheckDBCert(ctx context.Context, dbRoute tlsca.RouteToDatabase) error {
+	return l.CheckDBCertWithLeeway(ctx, dbRoute, 0)
+}
+
+// CheckCertExpiryWithLeeway checks the proxy certificates for expiration. The
+// provided leeway value is added to the current time when compared to the cert
+// expiration and can be used to account for potential client-side clock drift.
+func (l *LocalProxy) CheckCertExpiryWithLeeway(ctx context.Context, leeway time.Duration) error {
 	l.cfg.Log.DebugContext(ctx, "checking local proxy certs")
 	l.certMu.RLock()
 	defer l.certMu.RUnlock()
@@ -460,7 +483,12 @@ func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(utils.VerifyCertificateExpiry(cert, l.cfg.Clock))
+	return trace.Wrap(utils.VerifyCertificateExpiryWithLeeway(cert, l.cfg.Clock, leeway))
+}
+
+// CheckCertExpiry checks the proxy certificates for expiration.
+func (l *LocalProxy) CheckCertExpiry(ctx context.Context) error {
+	return trace.Wrap(l.CheckCertExpiryWithLeeway(ctx, 0))
 }
 
 // CheckDBCertSubject checks if the route to the database from the cert matches the provided route in

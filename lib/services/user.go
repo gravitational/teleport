@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -54,17 +52,6 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 		}
 	}
 	return nil
-}
-
-// UsersEquals checks if the users are equal
-func UsersEquals(u types.User, other types.User) bool {
-	return cmp.Equal(u, other,
-		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
-			return a.Metadata.Name < b.Metadata.Name
-		}),
-	)
 }
 
 // LoginAttempt represents successful or unsuccessful attempt for user to login
@@ -142,4 +129,27 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 // local user.
 func UsernameForRemoteCluster(localUsername, localClusterName string) string {
 	return fmt.Sprintf("remote-%v-%v", localUsername, localClusterName)
+}
+
+// UsernameForClusterConfig is a configuration struct for UsernameForCluster.
+type UsernameForClusterConfig struct {
+	// User is the username.
+	User string
+	// OriginClusterName is the cluster name where the user is authenticated.
+	OriginClusterName string
+	// LocalClusterName is the local cluster name.
+	LocalClusterName string
+}
+
+// UsernameForCluster returns an username that is prefixed with "remote-"
+// and suffixed with cluster name if the user is from a remote cluster,
+// otherwise returns the local username.
+func UsernameForCluster(cfg UsernameForClusterConfig) string {
+	// originClusterName == "" is a special case for backward compatibility
+	// with older clients that do not send origin cluster name.
+	// In this case we assume the user is local.
+	if cfg.OriginClusterName == cfg.LocalClusterName || cfg.OriginClusterName == "" {
+		return cfg.User
+	}
+	return UsernameForRemoteCluster(cfg.User, cfg.OriginClusterName)
 }

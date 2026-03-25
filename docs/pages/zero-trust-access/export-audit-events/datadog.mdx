@@ -1,0 +1,164 @@
+---
+title: Export Teleport Audit Events with Datadog
+sidebar_label: Datadog
+description: How to configure the Teleport Event Handler plugin and Fluentd to send audit event logs to Datadog
+tags:
+ - how-to
+ - zero-trust
+ - audit
+---
+
+Teleport's Event Handler plugin receives audit events from the Teleport Auth
+Service and forwards them to your log management solution, letting you perform
+historical analysis, detect unusual behavior, and form a better understanding of
+how users interact with your Teleport cluster.
+
+Datadog is a SAAS monitoring and security platform. In this guide, we'll explain
+how to forward Teleport audit events to Datadog using Fluentd.
+
+## How it works
+
+The Teleport Event Handler authenticates to the Teleport Auth Service to receive
+audit events over a gRPC stream, then sends those events to Fluentd as JSON
+payloads over a secure channel established via mutual TLS:
+
+![Architecture of the setup shown in this guide](../../../img/management/datadog-diagram.png)
+
+Since the Datadog Agent can only receive logs from remote sources as
+JSON-encoded bytes over a [TCP or UDP
+connection](https://docs.datadoghq.com/agent/logs/?tab=tailfiles#custom-log-collection),
+the Teleport Event Handler needs to send its HTTPS payloads without using the
+Datadog Agent. Fluentd handles authentication to the Datadog API.
+
+## Prerequisites
+
+- A [Datadog](https://www.datadoghq.com/) account.
+- Fluentd version v(=fluentd.version=) or greater. The Teleport Event Handler
+  will create a new `fluent.conf` file you can integrate into an existing Fluentd
+  system, or use with a fresh setup.
+- A server, virtual machine, Kubernetes cluster, or Docker environment to run the
+  Teleport Event Handler plugin.
+
+This guide requires you to have completed one of the Event Handler setup guides:
+
+- [Set up the Event Handler with tctl](event-handler-setup.mdx)
+- [Set up the Event Handler with the Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
+
+The instructions below demonstrate a local test of the Event Handler plugin on
+your workstation. You will need to adjust paths, ports, and domains for other
+environments.
+
+## Step 1/2. Install the Fluentd output plugin for Datadog
+
+In order for Fluentd to communicate with Datadog, it requires the [Fluentd output
+plugin for Datadog](https://github.com/DataDog/fluent-plugin-datadog). Install
+the plugin on your Fluentd host using either `gem` or the `td-agent`, if installed:
+
+```code
+# Using Gem
+$ gem install fluent-plugin-datadog
+
+# Using td-agent
+$ /usr/sbin/td-agent-gem install fluent-plugin-datadog
+```
+
+<Admonition type="tip" title="Testing Locally?">
+
+If you're running Fluentd in a local Docker container for testing, you can adjust
+the entrypoint to an interactive shell as the root user, so you can install the
+plugin before starting Fluentd:
+
+```code
+$ docker run -u $(id -u root):$(id -g root) -p 8888:8888 -v $(pwd):/keys -v \
+$(pwd)/fluent.conf:/fluentd/etc/fluent.conf --entrypoint=/bin/sh -i --tty  fluent/fluentd:edge
+# From the container shell:
+$ gem install fluent-plugin-datadog
+$ fluentd -c /fluentd/etc/fluent.conf
+```
+
+</Admonition>
+
+### Configure Fluentd
+
+We will modify the `fluent.conf` file generated in the prerequisite setup guide.
+
+1. Visit Datadog and generate an API key for Fluentd by following the [Datadog
+   documentation](https://docs.datadoghq.com/account_management/api-app-keys).
+
+1. Copy the API key and use it to add a new `<match>` block to `fluent.conf`:
+
+   ```ini
+   <match test.log>
+   
+     @type datadog
+     @id awesome_agent
+     api_key (=presets.tokens.first=)
+   
+     host http-intake.logs.us5.datadoghq.com
+   
+     # Optional parameters
+     dd_source teleport
+   
+   </match>
+   ```
+
+1. Edit your configuration as follows:
+
+   - Add your API key to the `api_key` field.
+   - Adjust the `host` value to match your Datadog site. See the Datadog [Log
+     Collection and
+     Integrations](https://docs.datadoghq.com/logs/log_collection/?tab=host)
+     guide to determine the correct value.
+   - `dd_source` is an optional field you can use to filter these logs in the
+     Datadog UI.
+   - Adjust `ca_path`, `cert_path` and `private_key_path` to point to the
+     credential files generated in the prerequisite setup guide. If you're testing locally, the Docker
+     command above already mounted the current working directory to `keys/` in
+     the container.
+
+1. Restart Fluentd after saving the changes to `fluent.conf`.
+
+## Step 2/2. Run the Event Handler plugin
+
+In this section, you will modify the Event Handler configuration you generated
+and run the Event Handler to test your configuration.
+
+### Configure the Event Handler
+
+Edit the configuration for the Event Handler, depending on your installation method.
+
+(!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
+
+Update the following fields.
+
+(!docs/pages/includes/plugins/finish-event-handler-fields.mdx!)
+
+### Start the Event Handler
+
+(!docs/pages/includes/plugins/start-event-handler.mdx!)
+
+The Logs view in Datadog should now report your Teleport cluster events:
+
+![Datadog Logs](../../../img/management/datadog-logs.png)
+
+## Troubleshooting connection issues
+
+If the Teleport Event Handler is displaying error logs while connecting to your
+Teleport Cluster, ensure that:
+
+- The certificate the Teleport Event Handler is using to connect to your
+  Teleport cluster is not past its expiration date. This is the value of the
+  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
+- In your Teleport Event Handler configuration file, you have provided
+  the correct host *and* port for the Teleport Proxy Service.
+- Start the Fluentd container prior to starting the Teleport Event Handler. The 
+  Event Handler will attempt to connect to Fluentd immediately upon startup.
+
+## Next steps
+
+- Review the Fluentd output plugin for Datadog [README
+file](https://github.com/DataDog/fluent-plugin-datadog/blob/master/README.md)
+to learn how to customize the log format entering Datadog.
+- To see all of the options you can set in the values file for the
+`teleport-plugin-event-handler` Helm chart, consult our [reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).

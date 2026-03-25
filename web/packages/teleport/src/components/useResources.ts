@@ -20,13 +20,18 @@ import { useState } from 'react';
 
 import { Kind, Resource } from 'teleport/services/resources';
 
+type StateItem<T extends Kind> = {
+  status: EditingStatus;
+  item: Resource<T>;
+};
+
 export default function useResources<T extends Kind>(
   resources: Resource<T>[],
   templates: Templates<T>
 ) {
-  const [state, setState] = useState({
-    status: 'reading' as EditingStatus,
-    item: null as Resource<T>,
+  const [state, setState] = useState<StateItem<T>>({
+    status: 'empty',
+    item: null,
   });
 
   const create = (kind: T) => {
@@ -65,7 +70,7 @@ export default function useResources<T extends Kind>(
     });
   };
 
-  return { ...state, create, edit, disregard, remove };
+  return { ...state, create, edit, disregard, remove, setState };
 }
 
 export type State = ReturnType<typeof useResources>;

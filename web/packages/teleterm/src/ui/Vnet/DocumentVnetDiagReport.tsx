@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import { Button, Alert as DesignAlert, Flex, H1, Link, Stack } from 'design';
 import { AlertProps } from 'design/Alert/Alert';
-import Table, { TextCell } from 'design/DataTable';
+import Table, { Cell, TextCell } from 'design/DataTable';
 import { displayDateTime } from 'design/datetime';
 import {
   Copy,
@@ -35,10 +35,13 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import { useAsync } from 'shared/hooks/useAsync';
+import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
-import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import {
+  reportOneOfIsRouteConflictReport,
+  reportOneOfIsSSHConfigurationReport,
+} from 'teleterm/helpers';
 import { getReportFilename, reportToText } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
@@ -68,6 +71,11 @@ export function DocumentVnetDiagReport(props: {
     useCallback(async () => {
       const [report, error] = await runDiagnostics();
       if (error) {
+        // If the manual run is made stale by VNet context executing a periodic run, use the result
+        // of the manual run anyway.
+        if (error instanceof CanceledError && error.stalePromise) {
+          return error.stalePromise as Promise<diag.Report>;
+        }
         throw error;
       }
       return report;
@@ -129,7 +137,7 @@ export function DocumentVnetDiagReport(props: {
       <Stack
         gap={4}
         maxWidth="680px"
-        width="100%"
+        fullWidth
         mx="auto"
         mt={4}
         p={5}
@@ -139,13 +147,8 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Stack gap={2} width="100%" alignItems="stretch">
-          <Flex
-            flexWrap="wrap"
-            width="100%"
-            gap={2}
-            justifyContent="space-between"
-          >
+        <Stack gap={2} fullWidth alignItems="stretch">
+          <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
             <H1>VNet Diagnostic Report</H1>
 
             <Flex gap={2}>
@@ -243,7 +246,7 @@ const CheckAttempt = ({
   const displayDetails = reportOneofDisplayDetails[reportOneof];
 
   return (
-    <Stack gap={2} width="100%">
+    <Stack gap={2} fullWidth>
       {!displayDetails ? (
         <Alert kind="danger">
           Cannot display the result from an unsupported check {reportOneof}
@@ -296,6 +299,10 @@ const reportOneofDisplayDetails: Record<
   routeConflictReport: {
     errorTitle: 'inspect network routes',
     Component: CheckReportRouteConflict,
+  },
+  sshConfigurationReport: {
+    errorTitle: 'inspect SSH configuration',
+    Component: CheckReportSSHConfiguration,
   },
 };
 
@@ -350,8 +357,8 @@ function CheckReportRouteConflict({
         emptyText=""
         data={routeConflicts}
         columns={[
-          { key: 'dest', headerText: 'Conflicting destination' },
           { key: 'vnetDest', headerText: 'VNet destination' },
+          { key: 'dest', headerText: 'Conflicting destination' },
           { key: 'interfaceName', headerText: 'Interface' },
           {
             key: 'interfaceApp',
@@ -363,6 +370,99 @@ function CheckReportRouteConflict({
         ]}
         row={{ getStyle: () => ({ fontFamily: 'monospace' }) }}
       />
+    </>
+  );
+}
+
+function CheckReportSSHConfiguration({
+  checkReport: { report },
+}: {
+  checkReport: diag.CheckReport;
+}) {
+  const { openSSHConfigurationModal } = useVnetContext();
+  if (!reportOneOfIsSSHConfigurationReport(report)) {
+    return null;
+  }
+  const {
+    userOpensshConfigPath,
+    vnetSshConfigPath,
+    userOpensshConfigIncludesVnetSshConfig,
+    userOpensshConfigExists,
+    userOpensshConfigContents,
+  } = report.sshConfigurationReport;
+  const pathsTable = (
+    <Table
+      emptyText=""
+      data={[
+        {
+          desc: 'User OpenSSH config file',
+          path: userOpensshConfigPath,
+        },
+        {
+          desc: 'VNet SSH config file',
+          path: vnetSshConfigPath,
+        },
+      ]}
+      columns={[
+        { key: 'desc', headerText: 'File description' },
+        {
+          key: 'path',
+          headerText: 'Path',
+          render: row => (
+            <Cell>
+              <code>{row.path}</code>
+            </Cell>
+          ),
+        },
+      ]}
+    />
+  );
+  if (userOpensshConfigIncludesVnetSshConfig) {
+    return (
+      <>
+        <Stack>
+          <P1>
+            <Success /> VNet SSH is configured correctly.
+          </P1>
+          <P2>
+            The user's default SSH configuration file correctly includes VNet's
+            generated configuration file.
+          </P2>
+        </Stack>
+        {pathsTable}
+      </>
+    );
+  }
+  return (
+    <>
+      <Stack>
+        <P1>
+          <Warning /> VNet SSH is not configured.
+        </P1>
+        <P2 m={0}>
+          The user's default SSH configuration file does not include VNet's
+          generated SSH configuration file. SSH clients will not be able to make
+          connections to VNet SSH addresses by default.{' '}
+        </P2>
+        <Button
+          intent="neutral"
+          onClick={() =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: vnetSshConfigPath,
+            })
+          }
+        >
+          Resolve
+        </Button>
+      </Stack>
+      {userOpensshConfigExists ? (
+        <details>
+          <Summary>
+            Current contents of <code>{userOpensshConfigPath}</code>
+          </Summary>
+          <Pre>{userOpensshConfigContents}</Pre>
+        </details>
+      ) : null}
     </>
   );
 }
@@ -390,5 +490,5 @@ const Success = styled(SuccessIcon).attrs({
 `;
 
 const Alert = (props: Pick<AlertProps, 'children' | 'details' | 'kind'>) => (
-  <DesignAlert m={0} width="100%" {...props} />
+  <DesignAlert m={0} {...props} />
 );

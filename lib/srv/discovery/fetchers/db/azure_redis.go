@@ -32,14 +32,14 @@ import (
 
 // newAzureRedisFetcher creates a fetcher for Azure Redis.
 func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*armredis.ResourceInfo, azure.RedisClient](config, &azureRedisPlugin{})
+	return newAzureFetcher(config, &azureRedisPlugin{})
 }
 
 // azureRedisPlugin implements azureFetcherPlugin for Azure Redis.
 type azureRedisPlugin struct{}
 
-func (p *azureRedisPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisClient, error) {
-	client, err := cfg.AzureClients.GetAzureRedisClient(subID)
+func (p *azureRedisPlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.RedisClient, error) {
+	client, err := cfg.AzureClients.GetRedisClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

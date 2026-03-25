@@ -1,7 +1,7 @@
-CREATE PROCEDURE teleport_delete_user(IN username VARCHAR(80))
+CREATE PROCEDURE teleport_delete_user(IN username TEXT)
 BEGIN
     -- Defaults to dropping user.
-    DECLARE state VARCHAR(5);
+    DECLARE state TEXT;
     DECLARE is_active INT DEFAULT 0;
     DECLARE view_count INT DEFAULT 0;
     DECLARE procedure_count INT DEFAULT 0;

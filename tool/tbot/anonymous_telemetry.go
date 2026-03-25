@@ -34,6 +34,9 @@ import (
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 const (
@@ -81,10 +84,10 @@ func sendTelemetry(
 ) error {
 	start := time.Now()
 	if !telemetryEnabled(envGetter) {
-		log.InfoContext(ctx, "Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at https://goteleport.com/docs/machine-id/reference/telemetry/")
+		log.InfoContext(ctx, "Anonymous telemetry is not enabled. Find out more about anonymous telemetry at https://goteleport.com/docs/reference/machine-workload-identity/machine-id/telemetry/")
 		return nil
 	}
-	log.InfoContext(ctx, "Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at https://goteleport.com/docs/machine-id/reference/telemetry/")
+	log.InfoContext(ctx, "Anonymous telemetry is enabled. Find out more about anonymous telemetry at https://goteleport.com/docs/reference/machine-workload-identity/machine-id/telemetry/")
 
 	data := &prehogv1a.TbotStartEvent{
 		RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
@@ -100,11 +103,11 @@ func sendTelemetry(
 	}
 	for _, output := range cfg.Services {
 		switch output.(type) {
-		case *config.ApplicationOutput:
+		case *application.OutputConfig:
 			data.DestinationsApplication++
-		case *config.DatabaseOutput:
+		case *database.OutputConfig:
 			data.DestinationsDatabase++
-		case *config.KubernetesOutput:
+		case *k8s.OutputV1Config:
 			data.DestinationsKubernetes++
 		default:
 			data.DestinationsOther++

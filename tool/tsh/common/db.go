@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/client/db/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -62,6 +64,9 @@ import (
 // onListDatabases implements "tsh db ls" command.
 func onListDatabases(cf *CLIConf) error {
 	if cf.ListAll {
+		if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+			return trace.BadParameter("--all cannot be specified with --headless/--auth=headless")
+		}
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
 
@@ -70,10 +75,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	tc.AllowHeadless = true
 
 	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -90,12 +92,17 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -157,7 +164,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		errors     []error
 	)
 	for _, cluster := range clusters {
-		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -251,7 +257,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -316,15 +322,9 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-				RouteToCluster: tc.SiteName,
-				RouteToDatabase: proto.RouteToDatabase{
-					ServiceName: dbInfo.ServiceName,
-					Protocol:    dbInfo.Protocol,
-					Username:    dbInfo.Username,
-					Database:    dbInfo.Database,
-					Roles:       dbInfo.Roles,
-				},
-				AccessRequests: profile.ActiveRequests,
+				RouteToCluster:  tc.SiteName,
+				RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
+				AccessRequests:  profile.ActiveRequests,
 			})
 			return trace.Wrap(err)
 		}); err != nil {
@@ -373,7 +373,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName)
+	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -453,7 +453,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -515,7 +515,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -542,11 +542,14 @@ func onDatabaseConfig(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case dbFormatCommand:
-		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster, getDatabase,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(logger),
-			dbcmd.WithGetDatabaseFunc(getDatabase),
-		).GetConnectCommand(cf.Context)
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cmd, err := cb.GetConnectCommand(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -613,7 +616,10 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	requires *dbLocalProxyRequirement,
 ) ([]dbcmd.ConnectCommandFunc, error) {
 	if !requires.localProxy {
-		return nil, nil
+		// Even when local proxy is not required, we need to build the base
+		// options for database command.
+		baseOpts, err := makeDatabaseCommandOptions(ctx, tc, dbInfo)
+		return baseOpts, trace.Wrap(err)
 	}
 	if requires.tunnel {
 		logger.DebugContext(ctx, "Starting local proxy tunnel", "reasons", requires.tunnelReasons)
@@ -658,8 +664,11 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
 	// validation, so connect to localhost.
 	host := "localhost"
-	cmdOpts := []dbcmd.ConnectCommandFunc{
+	cmdOpts, err := makeDatabaseCommandOptions(ctx, tc, dbInfo,
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -757,7 +766,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -789,20 +798,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	opts = append(opts,
-		dbcmd.WithLogger(logger),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
-	)
 
-	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
+	bb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, dbInfo.getDatabaseForDBCmd, opts...)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
-		return trace.Wrap(err)
-	}
-	opts = maybeAddOracleOptions(cf.Context, tc, dbInfo, opts)
-
-	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
 	cmd, err := bb.GetConnectCommand(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -818,7 +818,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
 	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
 
-	err = cmd.Run()
+	err = cf.RunCommand(cmd)
 	if err != nil {
 		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
 	}
@@ -923,7 +923,7 @@ func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) 
 		Name:        db.GetName(),
 	}}
 
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	return req, trace.Wrap(err)
 }
 
@@ -972,52 +972,71 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		}
 		return trace.Wrap(err)
 	}
+
 	// ensure the route protocol matches the db.
 	d.Protocol = db.GetProtocol()
 
 	needDBUser := d.Username == "" && isDatabaseUserRequired(d.Protocol)
 	needDBName := d.Database == "" && isDatabaseNameRequired(d.Protocol)
-	if !needDBUser && !needDBName {
-		return nil
+	if needDBUser || needDBName {
+		checker, err := d.getChecker(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if needDBUser {
+			dbUser, err := getDefaultDBUser(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
+			d.Username = dbUser
+		}
+		if needDBName {
+			dbName, err := getDefaultDBName(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
+			d.Database = dbName
+		}
 	}
 
+	adjusted, newUsername := gcp.AdjustDatabaseUsername(d.Username, db)
+	if adjusted {
+		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", newUsername)
+		d.Username = newUsername
+	}
+
+	return nil
+}
+
+func (d *databaseInfo) getChecker(ctx context.Context, tc *client.TeleportClient) (services.AccessChecker, error) {
+	if d.checker != nil {
+		return d.checker, nil
+	}
 	var clusterClient *client.ClusterClient
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err = tc.ConnectToCluster(cf.Context)
+	var err error
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err = tc.ConnectToCluster(ctx)
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer clusterClient.Close()
 
+	return makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+}
+
+func makeAccessChecker(ctx context.Context, tc *client.TeleportClient, auth services.CurrentUserRoleGetter) (services.AccessChecker, error) {
 	profile, err := tc.ProfileStatus()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if needDBUser {
-		dbUser, err := getDefaultDBUser(db, checker)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
-		d.Username = dbUser
-	}
-	if needDBName {
-		dbName, err := getDefaultDBName(db, checker)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
-		d.Database = dbName
-	}
-	return nil
+	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, auth)
+	return checker, trace.Wrap(err)
 }
 
 // databaseInfo wraps a RouteToDatabase and the corresponding database.
@@ -1030,6 +1049,7 @@ type databaseInfo struct {
 	database types.Database
 	// isActive indicates an active database matched this db info.
 	isActive bool
+	checker  services.AccessChecker
 	mu       sync.Mutex
 }
 
@@ -1091,7 +1111,10 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 			"%v not found, use '%v' to see registered databases", selectors,
 			formatDatabaseListCommand(cf.SiteName))
 	}
-	errMsg := formatAmbiguousDB(cf, selectors, databases)
+	errMsg, err := formatAmbiguousDB(cf, selectors, databases)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return nil, trace.BadParameter("%s", errMsg)
 }
 
@@ -1311,8 +1334,8 @@ func isDatabaseNameRequired(protocol string) bool {
 		return true
 	}
 	switch protocol {
-	case defaults.ProtocolOracle:
-		// Always require database name for the Oracle protocol.
+	// Always require database name for these protocols.
+	case defaults.ProtocolOracle, defaults.ProtocolSQLServer:
 		return true
 	}
 	return false
@@ -1362,7 +1385,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.Rou
 		}
 	}
 	found := false
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1817,10 +1840,10 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 
 // formatAmbiguousDB is a helper func that formats an ambiguous database error
 // message.
-func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
+func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) (string, error) {
 	var activeDBs []tlsca.RouteToDatabase
 	if profile, err := cf.ProfileStatus(); err == nil {
-		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.getClientStore()); err == nil {
 			activeDBs = dbs
 		}
 	}
@@ -1833,7 +1856,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()
-	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample), nil
 }
 
 // resourceSelectors is a helper struct for gathering up the selectors for a

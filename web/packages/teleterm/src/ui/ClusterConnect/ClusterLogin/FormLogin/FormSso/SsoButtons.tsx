@@ -17,9 +17,9 @@
  */
 
 import { Flex, Text } from 'design';
+import { AuthProvider } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
-
-import * as types from 'teleterm/ui/services/clusters/types';
+import { AuthProviderType } from 'shared/services';
 
 const SSOBtnList = ({
   providers,
@@ -31,7 +31,7 @@ const SSOBtnList = ({
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
     const title = displayName || `${prefixText} ${name}`;
-    const ssoType = guessProviderType(title, type as types.AuthProviderType);
+    const ssoType = guessProviderType(title, type as AuthProviderType);
     return (
       <ButtonSso
         key={index}
@@ -61,8 +61,8 @@ const SSOBtnList = ({
 type Props = {
   prefixText: string;
   isDisabled: boolean;
-  onClick(provider: types.AuthProvider): void;
-  providers: types.AuthProvider[];
+  onClick(provider: AuthProvider): void;
+  providers: AuthProvider[];
   // autoFocus focuses on the first button in list.
   autoFocus?: boolean;
 };

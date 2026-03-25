@@ -57,7 +57,15 @@ export interface StatePersistenceState {
   workspacesState: WorkspacesPersistedState;
   shareFeedback: ShareFeedbackState;
   usageReporting: UsageReportingState;
-  vnet: { autoStart: boolean };
+  vnet: {
+    autoStart: boolean;
+    /**
+     * Whether the user has successfully launched VNet at least once.
+     */
+    hasEverStarted: boolean;
+  };
+  /** Shows a banner above the cluster list to notify that a new tsh home dir is used. */
+  showTshHomeMigrationBanner: boolean;
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.

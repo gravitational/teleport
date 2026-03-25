@@ -74,7 +74,7 @@ type SessionStream struct {
 	writeSync   sync.Mutex
 	done        chan struct{}
 	closeOnce   sync.Once
-	closed      int32
+	closed      atomic.Bool
 	MFARequired bool
 	Mode        types.SessionParticipantMode
 	isClient    bool
@@ -165,9 +165,8 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 }
 
 func (s *SessionStream) readTask() {
+	defer s.closeOnce.Do(func() { close(s.done) })
 	for {
-		defer s.closeOnce.Do(func() { close(s.done) })
-
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
@@ -178,7 +177,7 @@ func (s *SessionStream) readTask() {
 			// If it's a close error, we want to send a message to the stdout
 			if s.isClient && errors.As(err, &closeErr) && closeErr.Text != "" {
 				select {
-				case s.in <- []byte(fmt.Sprintf("\r\n---\r\nConnection closed: %v\r\n", closeErr.Text)):
+				case s.in <- fmt.Appendf(nil, "\r\n---\r\nConnection closed: %v\r\n", closeErr.Text):
 				case <-s.done:
 					return
 				}
@@ -216,7 +215,7 @@ func (s *SessionStream) readTask() {
 
 		if ty == websocket.CloseMessage {
 			s.conn.Close()
-			atomic.StoreInt32(&s.closed, 1)
+			s.closed.Store(true)
 			return
 		}
 	}
@@ -237,11 +236,7 @@ func (s *SessionStream) Read(p []byte) (int, error) {
 }
 
 func (s *SessionStream) Write(data []byte) (int, error) {
-	s.writeSync.Lock()
-	defer s.writeSync.Unlock()
-
-	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
-	if err != nil {
+	if err := s.write(websocket.BinaryMessage, data); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -256,9 +251,7 @@ func (s *SessionStream) Resize(size *remotecommand.TerminalSize) error {
 		return trace.Wrap(err)
 	}
 
-	s.writeSync.Lock()
-	defer s.writeSync.Unlock()
-	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
+	return trace.Wrap(s.write(websocket.TextMessage, json))
 }
 
 // ResizeQueue returns a channel that will receive resize requests.
@@ -279,32 +272,37 @@ func (s *SessionStream) ForceTerminate() error {
 		return trace.Wrap(err)
 	}
 
-	s.writeSync.Lock()
-	defer s.writeSync.Unlock()
-
-	return trace.Wrap(s.conn.WriteMessage(websocket.TextMessage, json))
+	return trace.Wrap(s.write(websocket.TextMessage, json))
 }
 
 func (s *SessionStream) Done() <-chan struct{} {
 	return s.done
 }
 
+func (s *SessionStream) write(messageType int, data []byte) error {
+	s.writeSync.Lock()
+	defer s.writeSync.Unlock()
+
+	return trace.Wrap(s.conn.WriteMessage(messageType, data))
+}
+
 // Close closes the stream.
 func (s *SessionStream) Close() error {
-	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
-		err := s.conn.WriteMessage(websocket.CloseMessage, []byte{})
-		if err != nil {
-			slog.WarnContext(context.Background(), "Failed to gracefully close websocket connection", "error", err)
-		}
-		t := time.NewTimer(time.Second * 5)
-		defer t.Stop()
-		select {
-		case <-s.done:
-		case <-t.C:
-			s.conn.Close()
-		}
-		s.closeOnce.Do(func() { close(s.done) })
+	if !s.closed.CompareAndSwap(false, true) {
+		return nil
 	}
 
-	return nil
+	if err := s.write(websocket.CloseMessage, nil); err != nil {
+		slog.WarnContext(context.Background(), "Failed to gracefully close websocket connection", "error", err)
+	}
+
+	var err error
+	select {
+	case <-s.done:
+	case <-time.After(5 * time.Second):
+		err = s.conn.Close()
+	}
+	s.closeOnce.Do(func() { close(s.done) })
+
+	return trace.Wrap(err)
 }

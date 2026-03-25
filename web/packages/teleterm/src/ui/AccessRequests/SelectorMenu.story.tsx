@@ -18,15 +18,13 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import {
-  AccessRequest,
-  ResourceID,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { ResourceID } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { wait, waitForever } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeAccessRequest,
+  makeLoggedInUser,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
@@ -85,7 +83,6 @@ const resourceIds: ResourceID[] = [
 const smallAccessRequest = makeAccessRequest();
 const mediumAccessRequest = makeAccessRequest({
   id: '11929070-6886-77eb-90aa-c7223dd735',
-  resourceIds: resourceIds.slice(0, 4),
   resources: resourceIds.slice(0, 4).map(id => ({
     id,
     details: { friendlyName: '', hostname: '' },
@@ -93,7 +90,6 @@ const mediumAccessRequest = makeAccessRequest({
 });
 const largeAccessRequest = makeAccessRequest({
   id: '11929070-6886-77eb-90aa-c7223dd735',
-  resourceIds,
   resources: resourceIds.map(id => ({
     id,
     details: { friendlyName: '', hostname: '' },
@@ -161,7 +157,10 @@ export function ResourceRequestAlreadyAssumed() {
     });
 
   return (
-    <ShowState appContext={appContext} assumedRequests={[smallAccessRequest]} />
+    <ShowState
+      appContext={appContext}
+      activeRequests={[smallAccessRequest.id]}
+    />
   );
 }
 
@@ -177,14 +176,36 @@ export function RequestWithManyResources() {
   return <ShowState appContext={appContext} />;
 }
 
+export function AssumedRequestWithNoDetails() {
+  const appContext = new MockAppContext();
+  appContext.tshd.getAccessRequests = () =>
+    new MockedUnaryCall({
+      totalCount: 0,
+      startKey: '',
+      requests: [],
+    });
+
+  return (
+    <ShowState
+      appContext={appContext}
+      activeRequests={['34488748-0c91-463e-ac93-a5dd21eeec8a']}
+    />
+  );
+}
+
 function ShowState({
-  assumedRequests = [],
+  activeRequests = [],
   appContext,
 }: {
-  assumedRequests?: AccessRequest[];
+  activeRequests?: string[];
   appContext: MockAppContext;
 }) {
-  appContext.addRootCluster(rootCluster);
+  appContext.addRootCluster({
+    ...rootCluster,
+    loggedInUser: makeLoggedInUser({
+      activeRequests: activeRequests,
+    }),
+  });
   appContext.clustersService.assumeRoles = async () => {
     await wait(1000);
     throw new Error(
@@ -197,13 +218,17 @@ function ShowState({
       'connection error: desc = "transport: Error while dialing: failed to dial: unable to establish proxy stream\\n\\trpc error: code = Unavailable desc'
     );
   };
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.get(rootCluster.uri).loggedInUser.assumedRequests =
-      assumedRequests.reduce((requestsMap, request) => {
-        requestsMap[request.id] = request;
-        return requestsMap;
-      }, {});
-  });
+  appContext.tshd.getAccessRequest = async input => {
+    const allRequests = await appContext.tshd.getAccessRequests({
+      clusterUri: rootCluster.uri,
+    });
+    const request = allRequests.response.requests.find(
+      a => a.id === input.accessRequestId
+    );
+    return new MockedUnaryCall({
+      request,
+    });
+  };
 
   useLayoutEffect(() => {
     (

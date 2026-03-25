@@ -19,7 +19,9 @@ package types
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -817,4 +819,82 @@ func TestGitServerOrgDomain(t *testing.T) {
 
 	_, ok = GetGitHubOrgFromNodeAddr("my-server.example.teleport.sh:22")
 	require.False(t, ok)
+}
+
+func TestServerLabels(t *testing.T) {
+	emptyLabels := make(map[string]string)
+	// empty
+	server := &ServerV2{}
+	require.Empty(t, server.GetAllLabels())
+	require.True(t, MatchLabels(server, emptyLabels))
+	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
+
+	// more complex
+	server = &ServerV2{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"role": "database",
+			},
+		},
+		Spec: ServerSpecV2{
+			CmdLabels: map[string]CommandLabelV2{
+				"time": {
+					Period:  NewDuration(time.Second),
+					Command: []string{"time"},
+					Result:  "now",
+				},
+			},
+		},
+	}
+
+	require.Empty(t, cmp.Diff(server.GetAllLabels(), map[string]string{
+		"role": "database",
+		"time": "now",
+	}))
+
+	require.True(t, MatchLabels(server, emptyLabels))
+	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
+	require.True(t, MatchLabels(server, map[string]string{"role": "database"}))
+	require.True(t, MatchLabels(server, map[string]string{"time": "now"}))
+	require.True(t, MatchLabels(server, map[string]string{"time": "now", "role": "database"}))
+}
+
+func TestServerGetLabel(t *testing.T) {
+	server := ServerV2{
+		Metadata: Metadata{
+			Labels: map[string]string{
+				"static": "static",
+				// immutable and cmd included to ensure they're overridden
+				"immutable": "static",
+				"cmd":       "static",
+			},
+		},
+		Spec: ServerSpecV2{
+			CmdLabels: map[string]CommandLabelV2{
+				"cmd": {
+					Result: "cmd",
+				},
+				// immutable included to ensure it's overridden
+				"immutable": {
+					Result: "cmd",
+				},
+			},
+			ImmutableLabels: map[string]string{
+				"immutable": "immutable",
+			},
+		},
+	}
+
+	// if priority is respected, all label values should match their keys
+	val, ok := server.GetLabel("immutable")
+	require.True(t, ok)
+	require.Equal(t, "immutable", val)
+
+	val, ok = server.GetLabel("cmd")
+	require.True(t, ok)
+	require.Equal(t, "cmd", val)
+
+	val, ok = server.GetLabel("static")
+	require.True(t, ok)
+	require.Equal(t, "static", val)
 }

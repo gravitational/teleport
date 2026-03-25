@@ -27,6 +27,7 @@ import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
+import { routing } from 'teleterm/ui/uri';
 
 import { UserIcon } from '../IdentitySelector/UserIcon';
 
@@ -49,6 +50,8 @@ export function IdentityListItem(props: {
     )
   );
 
+  const profileName = routing.parseClusterName(props.cluster.uri);
+
   return (
     <StyledListItem
       onClick={props.onSelect}
@@ -56,13 +59,13 @@ export function IdentityListItem(props: {
         (e.key === 'Enter' || e.key === 'Space') && props.onSelect()
       }
       isActive={isActive}
-      title={`Switch to ${props.cluster.name}`}
+      title={`Switch to ${profileName}`}
     >
       <Flex width="100%" justifyContent="space-between">
         <WithIconItem
-          letter={getClusterLetter(props.cluster)}
+          letter={getProfileNameLetter(props.cluster)}
           color={workspaceColor}
-          title={props.cluster.name}
+          title={profileName}
           subtitle={props.cluster.loggedInUser?.name}
         />
         {props.onLogout && (
@@ -76,7 +79,7 @@ export function IdentityListItem(props: {
             `}
             p={1}
             ml={4}
-            title={`Log out from ${props.cluster.name}`}
+            title={`Log out from ${profileName}`}
             onClick={e => {
               e.stopPropagation();
               props.onLogout();
@@ -166,6 +169,6 @@ export function TitleAndSubtitle(props: { title: string; subtitle?: string }) {
   );
 }
 
-export function getClusterLetter(cluster: Cluster): string {
-  return cluster.name.at(0);
+export function getProfileNameLetter(cluster: Cluster): string {
+  return routing.parseClusterName(cluster.uri).at(0);
 }

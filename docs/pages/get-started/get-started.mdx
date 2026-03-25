@@ -1,0 +1,59 @@
+---
+title: "Get Started with Teleport"
+description: "Learn how to deploy a cluster, connect infrastructure, set up access controls, and review audit logs."
+template: no-toc
+tags:
+  - get-started
+---
+
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+import TeleportEditionsGrid from '@site/src/components/Pages/GetStarted/TeleportEditionsGrid';
+import TeleportEditionCard from '@site/src/components/Pages/GetStarted/TeleportEditionCard';
+import FeatureMatrixBanner from '@site/src/components/Pages/GetStarted/FeatureMatrixBanner';
+
+Teleport is an identity-based access platform that secures servers, Kubernetes clusters, databases, internal applications, and desktops using short-lived certificates, detailed audit logging, and fine-grained role-based access controls tied to your SSO provider (e.g., Okta, GitHub, Google Workspace).
+
+This guide walks you through four essential steps to get you up and running.
+
+## Choose your Teleport edition
+
+There are several editions of Teleport that differ in their feature sets, deployment options, and support.
+
+Before choosing one, ask yourself:
+
+- Am I looking to evaluate Teleport quickly or explore the full feature set without provisioning infrastructure? → **Enterprise Cloud**
+- Do I need to deploy and manage Teleport in my own environment for compliance reasons? → **Enterprise Self-Hosted**
+- Do I prefer to self-host Teleport locally to test features or use it for free? → **Community Edition**
+
+<TeleportEditionsGrid>
+  <TeleportEditionCard
+    title="Enterprise Cloud"
+    iconName="teleportEnterpriseCloud"
+    href="./deploy-cloud/"
+    subtitle="Managed and hosted by Teleport"
+    id="enterprise-cloud"
+  >
+    <p>We handle infrastructure, upgrades, and certificates. Each customer receives a dedicated .teleport.sh subdomain (e.g., example.teleport.sh).</p>
+  </TeleportEditionCard>
+
+  <TeleportEditionCard
+    title="Enterprise Self-Hosted"
+    iconName="teleportEnterpriseSelfHosted"
+    href="https://goteleport.com/contact-us/"
+    subtitle="Hosted and managed by you"
+    id="enterprise-self-hosted"
+  >
+    <p>A paid plan for organizations requiring strict compliance, with features like FIPS support. A valid license is required, so use this option to contact our team.</p>
+  </TeleportEditionCard>
+
+  <TeleportEditionCard
+    title="Community Edition"
+    iconName="teleportCommunity"
+    href="./deploy-community/"
+    subtitle="Free and open source"
+    id="community-edition"
+  >
+    <p>Includes core features like secure SSH, Kubernetes, databases, and app access. Best for hobbyists, homelabs, or small teams securing small-scale infrastructure.</p>
+  </TeleportEditionCard>
+</TeleportEditionsGrid>

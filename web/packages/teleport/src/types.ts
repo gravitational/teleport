@@ -58,6 +58,8 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
+  BotInstances = 'Bot Instances',
+  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -67,12 +69,16 @@ export enum NavTitle {
   EnrollNewIntegration = 'Integration',
   NewAccessList = 'Access List',
   NewBot = 'Bot',
+  NewBotShortcut = 'Enroll New Bot',
+  ManagedUpdates = 'Managed Updates',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
+  WorkloadIdentity = 'Workload Identity',
+  AccessAutomations = 'Access Automations',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -81,6 +87,8 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -90,7 +98,11 @@ export enum NavTitle {
   AuditLog = 'Audit Log',
 
   // Billing
+  // Deprecated, safe to remove after https://github.com/gravitational/teleport.e/pull/7952 merges
   BillingSummary = 'Billing Summary',
+
+  // Usage
+  UsageReporting = 'Usage Reporting',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
@@ -145,6 +157,8 @@ export interface TeleportFeature {
   highlightKey?: string;
   /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
   showInDashboard?: boolean;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 }
 
 export type StickyCluster = {
@@ -190,17 +204,30 @@ export interface FeatureFlags {
   enrollIntegrations: boolean;
   deviceTrust: boolean;
   locks: boolean;
-  newLocks: boolean;
-  tokens: boolean;
+  addLocks: boolean;
+  removeLocks: boolean;
+  createTokens: boolean;
+  listTokens: boolean;
   accessMonitoring: boolean;
   accessGraph: boolean;
   accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
+  readBots: boolean;
+  readBotInstances: boolean;
+  listBotInstances: boolean;
+  readInstances: boolean;
+  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
   gitServers: boolean;
+  listWorkloadIdentities: boolean;
+  readAutoUpdateConfig: boolean;
+  readAutoUpdateVersion: boolean;
+  readAutoUpdateAgentRollout: boolean;
+  listAutoUpdateAgentReport: boolean;
+  sessionSummaries: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
@@ -210,20 +237,16 @@ export type LockedFeatures = {
   trustedDevices: boolean;
 };
 
-// RecommendFeature is used for recommending features if its usage status is zero.
-export type RecommendFeature = {
-  TrustedDevices: RecommendationStatus;
-};
-
-export enum RecommendationStatus {
-  Notify = 'NOTIFY',
-  Done = 'DONE',
-}
-
 // WebsocketStatus is used to indicate the auth status from a
 // websocket connection
 export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
+};
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonPrimitive[];
+export type JsonObject = {
+  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { MatchCallback } from 'design/utils/match';
 
 import { Pagination } from './useTable';
@@ -23,6 +25,10 @@ import { Pagination } from './useTable';
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
+  infiniteScrollProps?: {
+    fetchStatus: FetchStatus;
+  };
+  hideEmptyIcon?: boolean;
   emptyText: string;
   /**
    * Optional button that is rendered below emptyText if there's no data, during processing or on
@@ -87,6 +93,11 @@ export type TableProps<T> = {
      * dropdown selector.
      */
     customRow?(row: T): JSX.Element;
+    /**
+     * conditionally render a custom row after either `customRow` or
+     * the base table row.
+     */
+    renderAfter?(row: T): JSX.Element | null;
   };
 };
 
@@ -139,6 +150,7 @@ export type FetchingConfig = {
   onFetchPrev?: () => void;
   onFetchMore?: () => void;
   fetchStatus: FetchStatus;
+  disableLoadingIndicator?: boolean;
 };
 
 export type ServersideProps = {

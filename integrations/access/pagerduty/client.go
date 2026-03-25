@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -125,7 +125,7 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
 		}
 
-		var errorFn func(string, ...any) error = trace.Errorf
+		errorFn := trace.Errorf
 		if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
 			errorFn = func(msg string, args ...any) error {
 				return trace.AccessDenied(msg, args...)
@@ -340,8 +340,8 @@ func (p Pagerduty) FindServicesByNames(ctx context.Context, serviceNames []strin
 
 // RangeOnCallPolicies iterates over the escalation policy IDs for which a given user is currently on-call.
 func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, escalationPolicyIDs []string) ([]string, error) {
-	policyIDSet := stringset.New(escalationPolicyIDs...)
-	filteredIDSet := stringset.New()
+	policyIDSet := set.New(escalationPolicyIDs...)
+	filteredIDSet := set.New[string]()
 
 	var offset uint
 	more := true
@@ -371,7 +371,7 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 		anyData = anyData || len(result.OnCalls) > 0
 
 		for _, onCall := range result.OnCalls {
-			if !(onCall.User.Type == "user_reference" && onCall.User.ID == userID) {
+			if onCall.User.Type != "user_reference" || onCall.User.ID != userID {
 				continue
 			}
 
@@ -397,7 +397,7 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 		return nil, nil
 	}
 
-	return filteredIDSet.ToSlice(), nil
+	return filteredIDSet.Elements(), nil
 }
 
 func (p Pagerduty) buildIncidentBody(reqID string, reqData RequestData) (string, error) {

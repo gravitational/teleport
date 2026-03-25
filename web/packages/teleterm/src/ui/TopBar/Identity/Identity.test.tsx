@@ -31,6 +31,8 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { IdentityContainer } from './Identity';
 
+/* oxlint-disable jest/no-standalone-expect */
+
 test.each([
   {
     name: 'device enrollment confirmation is visible if device is trusted',
@@ -39,7 +41,7 @@ test.each([
     }),
     expect: async () => {
       expect(
-        await screen.findByText(/Access secured with device trust/)
+        await screen.findByText(/access secured with device trust/i)
       ).toBeVisible();
     },
   },
@@ -63,7 +65,7 @@ test.each([
     }),
     expect: async () => {
       expect(
-        screen.queryByText(/Access secured with device trust/)
+        screen.queryByText(/access secured with device trust/i)
       ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/Full access requires a trusted device/)

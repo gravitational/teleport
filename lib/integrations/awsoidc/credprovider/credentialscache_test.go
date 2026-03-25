@@ -33,7 +33,8 @@ import (
 
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type fakeSTSClient struct {
@@ -75,7 +76,7 @@ func TestCredentialsCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -207,8 +208,8 @@ func TestCredentialsCache(t *testing.T) {
 					expectedExpiry := clock.Now().Add(TokenLifetime)
 					require.EventuallyWithT(t, func(t *assert.CollectT) {
 						creds, err := cacheUnderTest.Retrieve(ctx)
-						assert.NoError(t, err)
-						assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
+						require.NoError(t, err)
+						require.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 					}, waitFor, tick)
 					credentialsUpdated = true
 				}
@@ -236,7 +237,7 @@ func TestCredentialsCacheRetrieveBeforeInit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "cache.Run",
 		Task: func(ctx context.Context) error {
 			cache.Run(ctx)

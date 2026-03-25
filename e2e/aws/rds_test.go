@@ -22,6 +22,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -31,7 +33,6 @@ import (
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -79,10 +80,11 @@ func testRDS(t *testing.T) {
 
 	// use random names so we can test auto provisioning these users with these
 	// roles via Teleport, without tests colliding with eachother across
-	// parallel test runs.
-	autoUserFineGrain := "auto_fine_grain_" + randASCII(t)
-	autoUserKeep := "auto_keep_" + randASCII(t)
-	autoUserDrop := "auto_drop_" + randASCII(t)
+	// parallel test runs. use email addresses in some tests to test out
+	// special characters.
+	autoUserFineGrain := "auto_fine_grain_" + randASCII(t) + "@teleport.com"
+	autoUserKeep := "auto_keep_" + randASCII(t) + "@teleport.com"
+	autoUserDrop := "auto_drop_" + randASCII(t) + "@teleport.com"
 	autoUserFineGrain2 := "auto_fine_grain2_" + randASCII(t)
 	autoUserKeep2 := "auto_keep2_" + randASCII(t)
 	autoUserDrop2 := "auto_drop2_" + randASCII(t)
@@ -192,7 +194,6 @@ func testRDS(t *testing.T) {
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
 
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
-		var pgxConnMu sync.Mutex
 		for _, test := range []struct {
 			name              string
 			db                types.Database
@@ -237,8 +238,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserKeep,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 						},
 					},
@@ -247,8 +246,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserDrop,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
 						},
 					},
@@ -266,13 +263,10 @@ func testRDS(t *testing.T) {
 								%q.%q
 							`, testTable, testSchema, testTable),
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserPermissionsRemoved(t, ctx, conn, autoUserFineGrain)
 						},
 					},
 				} {
-					test := test
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
 						t.Run("connect", func(t *testing.T) {
@@ -347,7 +341,9 @@ func testRDS(t *testing.T) {
 				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
 			} {
 				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+				if err != nil {
+					t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+				}
 			}
 		})
 
@@ -379,7 +375,6 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
-			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -474,7 +469,9 @@ func testRDS(t *testing.T) {
 				fmt.Sprintf("DELETE FROM teleport.user_attributes WHERE USER=%q", autoUserDrop),
 			} {
 				_, err := conn.Execute(stmt)
-				assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+				if err != nil {
+					t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+				}
 			}
 		})
 
@@ -506,7 +503,6 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
-			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -548,7 +544,7 @@ type mySQLConn struct {
 	conn *mysqlclient.Conn
 }
 
-func (c *mySQLConn) Execute(command string, args ...interface{}) (*mysql.Result, error) {
+func (c *mySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.Execute(command, args...)
@@ -566,7 +562,8 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 		})
 		return nil
 	}
-	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
+
+	endpoint := net.JoinHostPort(info.address, strconv.Itoa(info.port))
 	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -902,7 +899,9 @@ func cleanupDB(t *testing.T, ctx context.Context, conn *pgConn, statement string
 	t.Helper()
 	t.Cleanup(func() {
 		_, err := conn.Exec(ctx, statement)
-		assert.NoError(t, err, "failed to cleanup test resource with %s", statement)
+		if err != nil {
+			t.Logf("test cleanup failed, stmt=%q, err=%v", statement, err)
+		}
 	})
 }
 

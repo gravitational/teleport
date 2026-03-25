@@ -1,6 +1,11 @@
 ---
 title: Role-Based Access Control for Desktops
+sidebar_label: Access Controls
 description: Role-based access control (RBAC) for desktops protected by Teleport.
+tags:
+ - conceptual
+ - zero-trust
+ - privileged-access
 ---
 
 Teleport's RBAC allows administrators to set up granular access policies for
@@ -26,15 +31,15 @@ spec:
       desktop: true
 
     # Specify whether clipboard sharing should be allowed with the
-    # remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # the clipboard, then it will be disabled.
+    # remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled the clipboard, then it will be disabled.
     desktop_clipboard: true
 
     # Specify whether directory sharing should be allowed from the
-    # local machine to remote desktop (requires a supported browser). Defaults to true
-    # if unspecified. If one or more of the user's roles has disabled
-    # directory sharing, then it will be disabled.
+    # local machine to remote desktop (requires a supported browser or Teleport Connect).
+    # Defaults to true if unspecified.
+    # If one or more of the user's roles has disabled directory sharing, then it will be disabled.
     desktop_directory_sharing: true
 
     # Specify whether local users should be created automatically at connection
@@ -112,14 +117,14 @@ metadata:
     teleport.dev/origin: config-file
   name: 3362ad10b55d-static-192-168-1-105
 spec:
-  addr: 192.68.1.105:3389
+  addr: 192.168.1.105:3389
   domain: example.com
   host_id: 307e091b-7f6b-42e0-b78d-3362ad10b55d
   non_ad: false
 version: v3
 ```
 
-In this case, the regular expression is evaluated against `192.68.1.105:3389`.
+In this case, the regular expression is evaluated against `192.168.1.105:3389`.
 
 #### Discovered hosts
 
@@ -183,6 +188,24 @@ discovery:
 
 For a desktop with a `location` attribute of `Oakland`, Teleport would apply a
 label with key `ldap/location` and value `Oakland`.
+
+You can also specify a set of static labels that apply to all hosts discovered
+via this policy:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  discovery_configs:
+    - base_dn: 'OU=Engineering,OU=Servers,DC=example,DC=com'
+      labels:
+        team: engineering
+    - base_dn: 'OU=Sales,OU=Servers,DC=example,DC=com'
+      labels:
+         team: sales
+```
+
+In this example, all hosts in the Engineering OU would have `team: engineering`
+while the hosts in the Sales OU would have `team: sales`.
 
 ## Logins
 

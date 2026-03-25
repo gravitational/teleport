@@ -1,0 +1,36 @@
+{{- if and .Values.certManager.enabled .Values.certManager.issuer.create -}}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "event-handler.fullname" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "event-handler.fullname" . }}-selfsigned-ca
+  namespace: {{ .Release.Namespace }}
+spec:
+  isCA: true
+  commonName: {{ include "event-handler.fullname" . }}-selfsigned-ca
+  secretName: {{ include "event-handler.fullname" . }}-root-secret
+  privateKey:
+    algorithm: ECDSA
+    encoding: PKCS8
+    size: 256
+  issuerRef:
+    name: {{ include "event-handler.fullname" . }}-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "event-handler.fullname" . }}-ca-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  ca:
+    secretName: {{ include "event-handler.fullname" . }}-root-secret
+{{- end -}}

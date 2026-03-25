@@ -1,0 +1,313 @@
+---
+title: High Availability for Teleport Agents
+sidebar_label: High Availability
+sidebar_position: 10
+description: How to deploy Teleport Agents in a highly available (HA) configuration.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+---
+
+You can run multiple Teleport Agents that proxy the same infrastructure
+resources for high availability. If one Teleport Agent goes offline, Teleport
+users can still connect to the infrastructure resources that the agent was
+configured to proxy. 
+
+This guide explains how agent high availability works and how to configure it
+for your organization. Since you must maintain your own highly available agent
+deployments, this guide provides architectural context so you can understand how
+such a deployment functions.
+
+There are four Teleport Agent services that support highly available
+deployments:
+
+- Teleport Application Service
+- Teleport Database Service
+- Teleport Desktop Service
+- Teleport Kubernetes Service
+
+<Admonition type="tip">
+
+As a general rule, if two agents connected to the Teleport Proxy Service have
+the same configuration, those agents will proxy the same infrastructure
+resources, and the Teleport Proxy Service will load balance user traffic between
+them.
+
+</Admonition>
+
+## How it works
+
+When the Teleport Proxy Service receives traffic to a Teleport-protected
+resource, it finds an available Teleport Agent that can proxy the resource and
+forwards the traffic to it.
+
+### Agent heartbeats
+
+Each Teleport Agent sends periodic **heartbeat** messages to the Teleport Proxy
+Service for each infrastructure resource that the agent proxies. The Teleport
+Proxy Service uses heartbeats to assemble a continuously updated list of
+Teleport-protected resources in which each resource is associated with an agent.
+
+Since an agent sends heartbeats for each registered resource, if multiple agents
+proxy the same resource, the Proxy Service maintains multiple records of
+resource-agent combinations. 
+
+For example, if an agent in `us-east-1a` and an agent in `us-east-1b` are both
+proxying an application called `myapp`, the Proxy Service receives separate
+heartbeats, and maintains separate records, for `myapp` in `us-east-1a` and
+`myapp` in `us-east-1b`.
+
+### Proxy Service load balancing
+
+When the Teleport Proxy Service receives traffic to a Teleport-protected
+resource, it determines whether the traffic belongs to an existing **session**.
+If it does, the Proxy Service forwards the traffic to the Teleport Agent
+associated with that session. Otherwise, the Proxy Service looks up a list of
+Teleport Agents configured to proxy the target resource (based on the heartbeats
+described in the previous section), creates a new session, and associates it
+with a random healthy agent in the list.
+
+Because Teleport keeps track of sessions for target infrastructure, Teleport
+Agents are not stateless, and losing an Agent that is proxying user connections
+means that the users will need to establish new sessions.
+
+### User experience
+
+`tsh`, the Web UI, and Teleport Connect list a single instance of each
+Teleport-protected resource with a given name, meaning that end users do not
+need to know how many Teleport Agents proxy a certain resource. 
+
+This means that, if a user wants to access an infrastructure resource proxied by
+multiple agents, they can continue to have the same experience when one of the
+agents becomes unavailable (with a possible delay in order to establish a new
+session).
+
+## Configuring proxied resources
+
+Teleport Agent configuration files have two ways to instruct an agent to proxy
+infrastructure resources:
+
+- **Static resource configurations:** A list of configured infrastructure
+  resources for the agent to proxy.
+- **Dynamic resource watchers:** A list of filters the agent uses to fetch
+  [dynamic
+  resources](../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx)
+  from the Teleport Auth Service that represent applications, databases,
+  Kubernetes clusters, and remote desktops. The agent proxies infrastructure
+  resources that match its filters.
+
+When an agent boots up, it starts sending heartbeat messages for each static
+resource configuration. It also starts its dynamic resource watchers, fetches
+dynamic resource configurations that match them, and starts sending heartbeats
+for each matching resource.
+
+### Static resource configurations
+
+In a static resource configuration, all information an agent needs to proxy an
+infrastructure resource is in the configuration file it reads when it first
+starts. If there are multiple agents proxying an infrastructure resource with
+the same name, the Proxy Service load balances user traffic between them:
+
+<Tabs>
+<TabItem label="Applications">
+
+You can configure multiple instances of the Teleport Application Service to
+proxy an application with the same name:
+
+```yaml
+# Same config for all agents in the pool.
+app_service:
+  enabled: true
+  apps:
+  - name: "myapp"
+    uri: "example.com"
+```
+</TabItem>
+<TabItem label="Databases">
+
+You can configure multiple instances of the Teleport Database Service to proxy a
+database with the same name:
+
+```yaml
+# Same config for all agents in the pool.
+db_service:
+  enabled: true
+  databases:
+  - name: "postgres"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+</TabItem>
+<TabItem label="Kubernetes Clusters">
+
+You can configure multiple instances of the Teleport Kubernetes Service to proxy
+a Kubernetes cluster with the same `kube_cluster_name`:
+
+```yaml
+# Same config for all agents in the pool.
+kubernetes_service:
+  enabled: true
+  # Include the same kubeconfig for all agents.
+  kubeconfig_file: /secrets/kubeconfig
+  kube_cluster_name: mycluster
+```
+</TabItem>
+<TabItem label="Desktops">
+
+You can configure multiple instances of the Teleport Desktop Service to proxy a
+desktop with the same name:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  static_hosts:
+    - name: example1
+      ad: false
+      addr: win1.dev.example.com
+```
+
+Note that when using the Teleport Desktop Service's built-in discovery
+capability, the service names discovered desktops automatically based on their
+hostnames.
+
+</TabItem>
+</Tabs>
+
+<details>
+<summary>Choosing an agent replica to connect to</summary>
+
+With separate replicas, each instance of an agent service proxying a given
+infrastructure resource has a different name. This allows you to explicitly pick
+the agent you want to connect to the resource over. Consider this example, in
+which two Teleport Database Service instances proxy the same database.
+
+On the first Database Service instance, the database has the name
+`postgres-us-east-1a`:
+
+```yaml
+# Database service instance #1.
+db_service:
+  enabled: true
+  databases:
+  # Note the name is different than instance #2 but the URI is the same.
+  - name: "postgres-us-east-1a"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+In the second instance, the configured database is the same but the agent
+configuration gives it a different name:
+
+```yaml
+# Database service instance #2.
+db_service:
+  enabled: true
+  databases:
+  # Note the name is different than instance #1 but the URI is the same.
+  - name: "postgres-us-east-1b"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+With this configuration, both services will appear as two separate entries in
+`tsh db ls` output and you will have to pick one explicitly when connecting:
+
+```code
+$ tsh db ls
+# Name
+# -------------------
+# postgres-us-east-1a
+# postgres-us-east-1b
+
+$ tsh db connect postgres-us-east-1a
+```
+
+This approach is useful when you want to have control over which replica
+you're using to connect.
+
+</details>
+
+### Dynamic resource watchers
+
+When an agent loads a dynamic resource watcher, it fetches dynamic resources
+from the Teleport Auth Service that represent infrastructure resources to proxy,
+filtering them to match a set of configured rules.
+
+For example, the Teleport Application Service fetches `app` resources as long as
+they include certain labels.
+
+As with all dynamic resources, those that represent infrastructure include a
+`metadata.name` field. If two infrastructure resources have the same name, the
+Teleport Proxy Service load balances user traffic between them.
+
+Select a resource type to view an example configuration of its dynamic resource
+watchers:
+
+<Tabs>
+<TabItem label="Applications">
+
+To configure the Teleport Application Service to watch for `app` resources, add
+a `labels` field to its `resources` configuration: 
+
+```yaml
+app_service:
+  enabled: true
+  resources:
+  - labels:
+      "region": "us-east-1"
+```
+</TabItem>
+<TabItem label="Databases">
+
+To configure the Teleport Database Service to watch for `db` resources, add a
+`labels` field to its `resources` configuration: 
+
+```yaml
+db_service:
+  enabled: true
+  resources:
+  - labels:
+      "region": "us-east-1"
+```
+</TabItem>
+<TabItem label="Kubernetes Clusters">
+
+To configure the Teleport Kubernetes Service to watch for `kube_cluster` dynamic
+resources, add a `labels` field to its `resources` configuration: 
+
+```yaml
+kubernetes_service:
+  enabled: true
+  resources:
+  - labels:
+      "region": "us-east-1"
+```
+</TabItem>
+<TabItem label="Desktops">
+
+To configure the Windows Desktop Service to watch for `dynamic_windows_desktop`
+resources, add a `labels` field to its `resources` configuration: 
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  resources:
+  - labels:
+      "region": "us-east-1"
+```
+</TabItem>
+</Tabs>
+
+## Next steps
+
+Dynamic resource watchers enable you to configure high availability for Teleport
+Agents without needing to know the names of any Teleport-protected resources in
+advance.
+
+Teleport auto-discovery enables you to enroll infrastructure resources with
+Teleport as they come online. Since resource names are automatically populated,
+high availability is already enabled as long as there are at least two agents
+with an appropriate dynamic resource watcher. [Get started with
+auto-discovery](../auto-discovery/auto-discovery.mdx).
+

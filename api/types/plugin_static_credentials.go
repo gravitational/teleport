@@ -16,7 +16,11 @@ limitations under the License.
 
 package types
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
+)
 
 // PluginStaticCredentials are static credentials for plugins.
 type PluginStaticCredentials interface {
@@ -30,12 +34,23 @@ type PluginStaticCredentials interface {
 	// the username and password will be mpty.
 	GetBasicAuth() (username string, password string)
 
+	// GetOAuthClientID will return the attached client ID. If it is not present, the client ID
+	// will be empty.
+	GetOAuthClientID() (clientID string)
+
 	// GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
 	// present, the client ID and client secret will be empty.
 	GetOAuthClientSecret() (clientID string, clientSecret string)
 
 	// GetSSHCertAuthorities will return the attached SSH CA keys.
 	GetSSHCertAuthorities() []*SSHKeyPair
+
+	// GetPrivateKey will return the attached private key. If it is not present, the private key will
+	// be empty.
+	GetPrivateKey() []byte
+
+	// Clone returns a copy of the credentials.
+	Clone() PluginStaticCredentials
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -54,6 +69,11 @@ func NewPluginStaticCredentials(metadata Metadata, spec PluginStaticCredentialsS
 	return p, nil
 }
 
+// Clone returns a copy of the credentials.
+func (p *PluginStaticCredentialsV1) Clone() PluginStaticCredentials {
+	return utils.CloneProtoMsg(p)
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults.
 func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 	p.setStaticFields()
@@ -62,7 +82,11 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch credentials := p.Spec.Credentials.(type) {
+	return trace.Wrap(p.Spec.CheckAndSetDefaults())
+}
+
+func (ps *PluginStaticCredentialsSpecV1) CheckAndSetDefaults() error {
+	switch credentials := ps.Credentials.(type) {
 	case *PluginStaticCredentialsSpecV1_APIToken:
 		if credentials.APIToken == "" {
 			return trace.BadParameter("api token object is missing")
@@ -100,6 +124,13 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 				return trace.Wrap(err, "invalid SSH CA")
 			}
 		}
+	case *PluginStaticCredentialsSpecV1_PrivateKey:
+		if credentials.PrivateKey == nil {
+			return trace.BadParameter("private key object is missing")
+		}
+		if len(credentials.PrivateKey) == 0 {
+			return trace.BadParameter("private key is empty")
+		}
 	default:
 		return trace.BadParameter("credentials are not set or have an unknown type %T", credentials)
 	}
@@ -134,6 +165,17 @@ func (p *PluginStaticCredentialsV1) GetBasicAuth() (username string, password st
 	return credentials.BasicAuth.Username, credentials.BasicAuth.Password
 }
 
+// GetOAuthClientID will return the attached client ID. If it is not present, the client ID will be
+// empty.
+func (p *PluginStaticCredentialsV1) GetOAuthClientID() (clientID string) {
+	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_OAuthClientSecret)
+	if !ok {
+		return ""
+	}
+
+	return credentials.OAuthClientSecret.ClientId
+}
+
 // GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
 // present, the client ID and client secret will be empty.
 func (p *PluginStaticCredentialsV1) GetOAuthClientSecret() (clientID string, clientSecret string) {
@@ -152,6 +194,17 @@ func (p *PluginStaticCredentialsV1) GetSSHCertAuthorities() []*SSHKeyPair {
 		return nil
 	}
 	return credentials.SSHCertAuthorities.CertAuthorities
+}
+
+// GetPrivateKey will return the attached private key. If it is not present, the private key will
+// be empty.
+func (p *PluginStaticCredentialsV1) GetPrivateKey() []byte {
+	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_PrivateKey)
+	if !ok {
+		return nil
+	}
+
+	return credentials.PrivateKey
 }
 
 // MatchSearch is a dummy value as credentials are not searchable.

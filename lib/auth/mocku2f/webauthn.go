@@ -186,9 +186,9 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 		RawAuthData: authData.Bytes(),
 		// See https://www.w3.org/TR/webauthn-2/#sctn-fido-u2f-attestation.
 		Format: "fido-u2f",
-		AttStatement: map[string]interface{}{
+		AttStatement: map[string]any{
 			"sig": res.Signature,
-			"x5c": []interface{}{muk.Cert},
+			"x5c": []any{muk.Cert},
 		},
 	})
 	if err != nil {

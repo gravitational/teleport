@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -63,7 +64,7 @@ func (g *roleV7TestingPrimitives) SetupTeleportFixtures(ctx context.Context) err
 }
 
 func (g *roleV7TestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	role, err := types.NewRoleWithVersion(name, types.V6, roleV6Spec)
+	role, err := types.NewRoleWithVersion(name, types.V7, roleV7Spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,15 +132,20 @@ func (g *roleV7TestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestTeleportRoleV7Creation(t *testing.T) {
 	test := &roleV7TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewRoleV7Reconciler, test)
+}
+
+func TestTeleportRoleV7Deletion(t *testing.T) {
+	test := &roleV7TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewRoleV7Reconciler, test)
 }
 
 func TestTeleportRoleV7DeletionDrift(t *testing.T) {
 	test := &roleV7TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewRoleV7Reconciler, test)
 }
 
 func TestTeleportRoleV7Update(t *testing.T) {
 	test := &roleV7TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Role, *resourcesv1.TeleportRoleV7](t, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewRoleV7Reconciler, test)
 }

@@ -32,4 +32,5 @@ type SCIM interface {
 	UpdateSCIMResource(context.Context, *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error)
 	CreateSCIMResource(context.Context, *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error)
 	DeleteSCIMResource(context.Context, *scimpb.DeleteSCIMResourceRequest) (*emptypb.Empty, error)
+	PatchSCIMResource(context.Context, *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error)
 }

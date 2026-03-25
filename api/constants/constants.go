@@ -34,10 +34,6 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "5.8.0"
-
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"
@@ -139,6 +135,8 @@ const (
 	// AWSCNConsoleURL is the URL of AWS management console for AWS China
 	// Partition.
 	AWSCNConsoleURL = "https://console.amazonaws.cn"
+	// AWSQuickSightURL is the URL for accessing AWS QuickSight
+	AWSQuickSightURL = "https://quicksight.aws.amazon.com"
 
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
@@ -189,6 +187,32 @@ var SystemConnectors = []string{
 	PasswordlessConnector,
 	HeadlessConnector,
 }
+
+// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
+type OIDCPKCEMode string
+
+const (
+	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
+	OIDCPKCEModeUnknown OIDCPKCEMode = ""
+	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
+	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
+	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
+	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
+)
+
+// OIDCRequestObjectMode represents the Request Object Mode of an OIDC Connector.
+type OIDCRequestObjectMode string
+
+const (
+	// OIDCRequestObjectModeUnknown indicates an unknown or uninitialized state of the request object mode.
+	OIDCRequestObjectModeUnknown OIDCRequestObjectMode = ""
+	// OIDCRequestObjectModeNone indicates that request objects should not be used. Parameters should be encoded
+	// into the URI of the authorization request.
+	OIDCRequestObjectModeNone OIDCRequestObjectMode = "none"
+	// OIDCRequestObjectModeSigned indicates that a signed (unencrypted) request object should be encoded into
+	// the URI of the authorization request.
+	OIDCRequestObjectModeSigned OIDCRequestObjectMode = "signed"
+)
 
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
@@ -271,6 +295,9 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size.
+const MaxProtoMessageSizeBytes = 64 * 1024
+
 // DeviceTrustMode is the mode of verification for trusted devices.
 // DeviceTrustMode is always "off" for OSS.
 // Defaults to "optional" for Enterprise.
@@ -286,6 +313,10 @@ const (
 	// DeviceTrustModeRequired enforces the presence of device extensions for
 	// sensitive endpoints.
 	DeviceTrustModeRequired DeviceTrustMode = "required"
+	// DeviceTrustModeRequiredForHumans enforces the presence of device
+	// extensions for sensitive endpoints if the user is human. In this mode,
+	// bots are exempt from device trust checks.
+	DeviceTrustModeRequiredForHumans DeviceTrustMode = "required-for-humans"
 )
 
 const (
@@ -398,6 +429,9 @@ const (
 	// TraitJWT is the name of the trait containing JWT header for app access.
 	TraitJWT = "jwt"
 
+	// TraitIDToken is the name of the trait containing ID token header for app access.
+	TraitIDToken = "id_token"
+
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.
 	TraitHostUserUID = "host_user_uid"
@@ -409,6 +443,13 @@ const (
 	// TraitGitHubOrgs is the name of the variable to specify the GitHub
 	// organizations for GitHub integration.
 	TraitGitHubOrgs = "github_orgs"
+	// TraitMCPTools is the name of the variable to specify the MCP tools for
+	// MCP servers.
+	TraitMCPTools = "mcp_tools"
+
+	// TraitDefaultRelayAddr is the trait used to specify the default relay
+	// address passed to clients at login time.
+	TraitDefaultRelayAddr = "default_relay_addr"
 )
 
 const (
@@ -422,6 +463,26 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+const (
+	// MaxHealthCheckInterval is the minimum interval between resource health
+	// checks.
+	MinHealthCheckInterval = 30 * time.Second
+	// MaxHealthCheckInterval is the maximum interval between resource health
+	// checks. Since timeout must be less than interval, this is effectively the
+	// maximum health check timeout as well.
+	MaxHealthCheckInterval = 600 * time.Second
+	// MinHealthCheckTimeout is the minimum resource health check timeout.
+	// There is no corresponding MaxHealthCheckTimeout, because timeout is
+	// bounded to be no greater than the interval.
+	MinHealthCheckTimeout = time.Second
+	// MaxHealthCheckHealthyThreshold is the maximum health check healthy
+	// threshold.
+	MaxHealthCheckHealthyThreshold = 10
+	// MaxHealthCheckUnhealthyThreshold is the maximum health check unhealthy
+	// threshold.
+	MaxHealthCheckUnhealthyThreshold = MaxHealthCheckHealthyThreshold
+)
+
 // Constants for TLS routing connection upgrade. See RFD for more details:
 // https://github.com/gravitational/teleport/blob/master/rfd/0123-tls-routing-behind-layer7-lb.md
 const (
@@ -431,17 +492,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
-	// indicate the requested connection upgrade types in the connection
-	// upgrade API. This header is sent in addition to "Upgrade" header in case
-	// a load balancer/reverse proxy removes "Upgrade".
-	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
+	// WebAPIConnUpgradeTypeALPN is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades.
 	WebAPIConnUpgradeTypeALPN = "alpn"
-	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
-	// specifies the upgraded connection should be handled by the ALPN handler
-	// wrapped with the Ping protocol.
+	// WebAPIConnUpgradeTypeALPNPing is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades with WebSocket ping frames enabled.
 	//
 	// This should be used when the tunneled TLS Routing protocol cannot keep
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
@@ -499,6 +554,8 @@ const (
 	EnvVarTerraformIdentityFile = "TF_TELEPORT_IDENTITY_FILE"
 	// EnvVarTerraformIdentityFileBase64 is the environment variable containing the base64-encoded identity file used by the Terraform provider.
 	EnvVarTerraformIdentityFileBase64 = "TF_TELEPORT_IDENTITY_FILE_BASE64"
+	// EnvVarTerraformInsecure is the environment variable used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
+	EnvVarTerraformInsecure = "TF_TELEPORT_INSECURE"
 	// EnvVarTerraformRetryBaseDuration is the environment variable configuring the base duration between two Terraform provider retries.
 	EnvVarTerraformRetryBaseDuration = "TF_TELEPORT_RETRY_BASE_DURATION"
 	// EnvVarTerraformRetryCapDuration is the environment variable configuring the maximum duration between two Terraform provider retries.
@@ -515,4 +572,32 @@ const (
 	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
+	// EnvVarGitlabIDTokenEnvVar is the environment variable that specifies the name of the environment variable
+	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
+	// GitLab CI job.
+	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
+)
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour
+
+// AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
+// routine running in every auth server. Any report older than this period should
+// be considered stale.
+const AutoUpdateAgentReportPeriod = time.Minute
+
+// AutoUpdateBotInstanceReportPeriod is the period of the autoupdate bot instance
+// reporting routine.
+const AutoUpdateBotInstanceReportPeriod = time.Minute
+
+const (
+	// UnstableEnableEICEEnvVar is the environment variable that enables EC2 Instance Connect Endpoint (EICE) functionality.
+	// Accessing EC2 instances using EICE was deprecated in v15, and will definitely be removed in a future release.
+	// This variable allows users to temporarily re-enable this functionality if they need more time to migrate away from it.
+	// Users must be encoraged to use other methods of accessing EC2 Instances: using a teleport agent or OpenSSH integration.
+	//
+	// Set its value to "yes" to re-enable EICE functionality.
+	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
+	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
+	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
 )

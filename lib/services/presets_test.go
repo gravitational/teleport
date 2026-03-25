@@ -19,7 +19,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -37,10 +36,10 @@ import (
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...interface{}) {
+	noChange := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...interface{}) {
+	notModifying := func(t require.TestingT, err error, i ...any) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 
@@ -144,6 +143,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -179,6 +181,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -197,6 +202,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -216,6 +224,9 @@ func TestAddRoleDefaults(t *testing.T) {
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
+						MCP: &types.MCPPermissions{
+							Tools: defaultMCPTools()[teleport.PresetAccessRoleName],
+						},
 					},
 				},
 			},
@@ -653,7 +664,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "terraform provider (bugfix of the missing resources)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -664,10 +675,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						// Missing all the node/app/database/windows labels here, they should be added
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -702,7 +710,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -745,12 +753,108 @@ func TestAddRoleDefaults(t *testing.T) {
 								Verbs: RW(),
 							},
 							// The missing resources got added as individual rules
+							types.NewRule(types.KindDiscoveryConfig, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),
 							types.NewRule(types.KindGitServer, RW()),
+							types.NewRule(types.KindAutoUpdateConfig, RW()),
+							types.NewRule(types.KindAutoUpdateVersion, RW()),
+							types.NewRule(types.KindHealthCheckConfig, RW()),
+							types.NewRule(types.KindVnetConfig, RW()),
+							types.NewRule(types.KindIntegration, RW()),
+							types.NewRule(types.KindAppAuthConfig, RW()),
+							types.NewRule(types.KindInferenceModel, RW()),
+							types.NewRule(types.KindInferenceSecret, RW()),
+							types.NewRule(types.KindInferencePolicy, RW()),
+							types.NewRule(types.KindScopedToken, RW()),
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "access-plugin (default roles match preset rules)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							// The missing resources got added as individual rules
+							types.NewRule(types.KindAccessRequest, RO()),
+							types.NewRule(types.KindAccessPluginData, RW()),
+							types.NewRule(types.KindAccessMonitoringRule, RO()),
+							types.NewRule(types.KindAccessList, RO()),
+							types.NewRule(types.KindRole, RO()),
+							types.NewRule(types.KindUser, RO()),
+							types.NewRule(types.KindUserLoginState, RO()),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "list-access-request-resources (default roles match preset rules)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetListAccessRequestResourcesRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default list access request resources role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetListAccessRequestResourcesRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default list access request resources role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindNode, RO()),
+							types.NewRule(types.KindApp, RO()),
+							types.NewRule(types.KindDatabase, RO()),
+							types.NewRule(types.KindKubernetesCluster, RO()),
+						},
+						AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+						DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+						GroupLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+						KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+						NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
 					},
 				},
 			},
@@ -759,13 +863,12 @@ func TestAddRoleDefaults(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
 			if test.enterprise {
-				modules.SetTestModules(t, &modules.TestModules{
-					TestBuildType: modules.BuildEnterprise,
-				})
+				buildType = modules.BuildEnterprise
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(t.Context(), buildType, test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))

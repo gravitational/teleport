@@ -30,13 +30,13 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestInstallSystemdCmd(t *testing.T) {
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Create pre-existing file to test --force
 	preExistingDir := t.TempDir()
@@ -73,6 +73,22 @@ func TestInstallSystemdCmd(t *testing.T) {
 				"--anonymous-telemetry",
 			},
 			wantUnitName: "my-farm-bot",
+		},
+		{
+			name: "success - override only pid file",
+			params: []string{
+				"--write",
+				"--pid-file", "/tmp/tbot-fake.pid",
+			},
+		},
+		{
+			name: "success - override pid and unit name",
+			params: []string{
+				"--write",
+				"--pid-file", "/tmp/tbot-fake.pid",
+				"--name", "my-special-bot",
+			},
+			wantUnitName: "my-special-bot",
 		},
 		{
 			name: "fails prexisting",

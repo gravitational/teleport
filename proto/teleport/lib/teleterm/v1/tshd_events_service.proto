@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "teleport/lib/teleterm/v1/app.proto";
+import "teleport/mfa/v1/challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -185,6 +186,14 @@ message PromptMFARequest {
   bool webauthn = 4;
   string cluster_uri = 5;
   SSOChallenge sso = 6;
+
+  // We may handle MFA options differently based on whether or not per-session
+  // MFA is required. For example, we invalidate TOTP as an option during
+  // per-session MFA but we may still need to know that the user has TOTP
+  // configured as an option.
+  bool per_session_mfa = 7;
+  // BrowserMFAChallenge is sent when browser-based MFA is supported.
+  teleport.mfa.v1.BrowserMFAChallenge browser = 8;
 }
 
 // SSOChallenge contains SSO challenge details.
@@ -202,9 +211,14 @@ message PromptMFAResponse {
 
 // Request for PromptHardwareKeyPIN.
 message PromptHardwareKeyPINRequest {
-  string root_cluster_uri = 1;
-  // Specifies if a PIN is optional, allowing the user to set it up if left empty.
+  reserved 1;
+  reserved "root_cluster_uri";
+  // PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
   bool pin_optional = 2;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 3;
+  // Command is an optional command string to provide context for the prompt.
+  string command = 4;
 }
 
 // Response for PromptHardwareKeyPIN.
@@ -215,7 +229,12 @@ message PromptHardwareKeyPINResponse {
 
 // Request for PromptHardwareKeyTouchRequest.
 message PromptHardwareKeyTouchRequest {
-  string root_cluster_uri = 1;
+  reserved 1;
+  reserved "root_cluster_uri";
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 2;
+  // Command is an optional command string to provide context for the prompt.
+  string command = 3;
 }
 
 // Response for PromptHardwareKeyTouch.
@@ -223,7 +242,10 @@ message PromptHardwareKeyTouchResponse {}
 
 // Response for PromptHardwareKeyPINChange.
 message PromptHardwareKeyPINChangeRequest {
-  string root_cluster_uri = 1;
+  reserved 1;
+  reserved "root_cluster_uri";
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 2;
 }
 
 // Response for PromptHardwareKeyPINChange.
@@ -239,9 +261,12 @@ message PromptHardwareKeyPINChangeResponse {
 
 // Request for ConfirmHardwareKeySlotOverwrite.
 message ConfirmHardwareKeySlotOverwriteRequest {
-  string root_cluster_uri = 1;
+  reserved 1;
+  reserved "root_cluster_uri";
   // Message to display in the prompt.
   string message = 2;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 3;
 }
 
 // Response for ConfirmHardwareKeySlotOverwrite.

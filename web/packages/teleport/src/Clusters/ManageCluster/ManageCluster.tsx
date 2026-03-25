@@ -17,8 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert';
@@ -50,9 +49,7 @@ export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);
   const ctx = useTeleport();
 
-  const { clusterId } = useParams<{
-    clusterId: string;
-  }>();
+  const { clusterId } = useParams<{ clusterId: string }>();
 
   const [attempt, run] = useAsync(
     useCallback(async () => {
@@ -202,7 +199,7 @@ export const DataItem = ({ title = '', data = null, isLoading = false }) => (
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
   align-items: center;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
     align-items: start;

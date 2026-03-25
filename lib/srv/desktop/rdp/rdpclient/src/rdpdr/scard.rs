@@ -338,24 +338,27 @@ impl ScardBackend {
         req: DeviceControlRequest<ScardIoCtlCode>,
         call: TransmitCall,
     ) -> PduResult<()> {
-        let cmd =
-            CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer).map_err(|err| {
-                pdu_other_err!(
-                    "",
-                    source:SmartcardBackendError(format!(
-                        "failed to parse smartcard command {:?}: {:?}",
-                        &call.send_buffer, err
-                    ))
-                )
-            })?;
+        let cmd = CardCommand::<TRANSMIT_DATA_LIMIT>::try_from(&call.send_buffer);
 
-        let card = self.contexts.get_card(&call.handle)?;
-        let resp = card.handle(cmd)?;
+        match cmd {
+            Ok(cmd) => {
+                let card = self.contexts.get_card(&call.handle)?;
+                let resp = card.handle(cmd)?;
 
-        self.send_device_control_response(
-            req,
-            TransmitReturn::new(ReturnCode::Success, None, resp.encode()),
-        )
+                self.send_device_control_response(
+                    req,
+                    TransmitReturn::new(ReturnCode::Success, None, resp.encode()),
+                )?;
+            }
+            Err(err) => {
+                warn!("error parsing smart card command: {:?} - {:?}", call, err);
+                self.send_device_control_response(
+                    req,
+                    TransmitReturn::new(ReturnCode::InvalidValue, None, Vec::new()),
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn handle_status(&mut self, req: DeviceControlRequest<ScardIoCtlCode>) -> PduResult<()> {
@@ -460,7 +463,7 @@ impl ScardBackend {
             // USB/serial/TPM). Type "vendor" means a proprietary vendor bus.
             //
             // See "ReaderType" in
-            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilitiesconst SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/smclib/ns-smclib-_scard_reader_capabilities
             const SCARD_READER_TYPE_VENDOR: u32 = 0xF0;
             self.send_device_control_response(
                 req,

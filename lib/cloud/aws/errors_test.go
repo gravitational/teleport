@@ -88,6 +88,19 @@ func TestConvertRequestFailureError(t *testing.T) {
 			wantIsError: trace.IsAccessDenied,
 		},
 		{
+			name: "StatusBadRequest with TooManyRequestsException",
+			inputError: &awshttp.ResponseError{
+				RequestID: fakeRequestID,
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					}},
+					Err: trace.Errorf("TooManyRequestsException"),
+				},
+			},
+			wantIsError: trace.IsLimitExceeded,
+		},
+		{
 			name:           "not AWS error",
 			inputError:     errors.New("not-aws-error"),
 			wantUnmodified: true,
@@ -136,7 +149,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.EntityAlreadyExistsException{
 				Message: aws.String("resource exists"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},
@@ -145,7 +158,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.NoSuchEntityException{
 				Message: aws.String("resource not found"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -154,7 +167,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 			inErr: &iamtypes.MalformedPolicyDocumentException{
 				Message: aws.String("malformed document"),
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got %v", err)
 			},
 		},
@@ -168,7 +181,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsAccessDenied(err), "expected trace.AccessDenied error, got %v", err)
 			},
 		},
@@ -182,7 +195,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
 			},
 		},
@@ -196,8 +209,17 @@ func TestConvertIAMv2Error(t *testing.T) {
 					Err: trace.Errorf(""),
 				},
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
+			},
+		},
+		{
+			name: "creation fails because limit was reached for a given resource",
+			inErr: &iamtypes.LimitExceededException{
+				Message: aws.String("Cannot exceed quota for OpenIdConnectProvidersPerAccount: 100"),
+			},
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.True(tt, trace.IsLimitExceeded(err), "expected trace.LimitExceeded error, got %v", err)
 			},
 		},
 	} {

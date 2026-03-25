@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,10 +38,10 @@ type TeleportSAMLConnectorSpec types.SAMLConnectorSpecV2
 // TeleportSAMLConnector is the Schema for the SAMLConnector API
 type TeleportSAMLConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportSAMLConnectorSpec `json:"spec,omitempty"`
-	Status resources.Status          `json:"status,omitempty"`
+	Spec   TeleportSAMLConnectorSpec `json:"spec"`
+	Status teleportcr.Status         `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportSAMLConnector struct {
 // TeleportSAMLConnectorList contains a list of TeleportSAMLConnector
 type TeleportSAMLConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportSAMLConnector `json:"items"`
 }
 
@@ -60,7 +60,7 @@ func (c TeleportSAMLConnector) ToTeleport() types.SAMLConnector {
 		Metadata: types.Metadata{
 			Name:        c.Name,
 			Labels:      c.Labels,
-			Description: c.Annotations[resources.DescriptionKey],
+			Description: c.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.SAMLConnectorSpecV2(c.Spec),
 	}

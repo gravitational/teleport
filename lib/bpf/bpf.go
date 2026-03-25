@@ -1,5 +1,4 @@
 //go:build bpf && !386
-// +build bpf,!386
 
 /*
  * Teleport
@@ -21,20 +20,20 @@
 
 package bpf
 
-import "C"
-
 import (
 	"bytes"
 	"context"
-	"embed"
 	"encoding/binary"
+	"errors"
+	"math"
 	"net"
+	"slices"
 	"strconv"
-	"sync"
 	"time"
-	"unsafe"
 
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -45,54 +44,22 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-//go:embed bytecode
-var embedFS embed.FS
-
 // ArgsCacheSize is the number of args events to store before dropping args
 // events.
-const ArgsCacheSize = 1024
+const ArgsCacheSize = len(commandDataT{}.Argv)
 
-// SessionWatch is a map of cgroup IDs that the BPF service is watching and
-// emitting events for.
-type SessionWatch struct {
-	watch map[uint64]*SessionContext
-	mu    sync.Mutex
-}
-
-func NewSessionWatch() SessionWatch {
-	return SessionWatch{
-		watch: make(map[uint64]*SessionContext),
-	}
-}
-
-func (w *SessionWatch) Get(cgroupID uint64) (ctx *SessionContext, ok bool) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	ctx, ok = w.watch[cgroupID]
-	return
-}
-
-func (w *SessionWatch) Add(cgroupID uint64, ctx *SessionContext) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	w.watch[cgroupID] = ctx
-}
-
-func (w *SessionWatch) Remove(cgroupID uint64) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	delete(w.watch, cgroupID)
+type sessionHandler interface {
+	startSession(auditSessionID uint32) error
+	endSession(auditSessionID uint32) error
 }
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*servicecfg.BPFConfig
 
-	// watch is a map of cgroup IDs that the BPF service is watching and
-	// emitting events for.
-	watch SessionWatch
+	// sessions is a map of audit session IDs that the BPF service is
+	// watching and emitting events for.
+	sessions utils.SyncMap[uint32, *SessionContext]
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
@@ -103,7 +70,7 @@ type Service struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
-	// cgroup is used to manage control groups.
+	// cgroup is used to potentially unmount the cgroup filesystem after upgrades.
 	cgroup *controlgroup.Service
 
 	// exec holds a BPF program that hooks execve.
@@ -123,18 +90,17 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeContext, closeFunc := context.WithCancel(context.Background())
-
 	// If BPF-based auditing is not enabled, don't configure anything return
 	// right away.
 	if !config.Enabled {
-		logger.DebugContext(closeContext, "Enhanced session recording is not enabled, skipping")
+		logger.DebugContext(context.Background(), "Enhanced session recording is not enabled, skipping")
 		return &NOP{}, nil
 	}
 
+	closeContext, closeFunc := context.WithCancel(context.Background())
+
 	s := &Service{
 		BPFConfig:    config,
-		watch:        NewSessionWatch(),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
@@ -165,27 +131,24 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	start := time.Now()
 	logger.DebugContext(closeContext, "Starting enhanced session recording")
 
-	// Compile and start BPF programs if they are enabled (buffer size given).
+	// Compile and start BPF programs (buffer size given).
 	s.exec, err = startExec(*config.CommandBufferSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load command hooks")
 	}
 	s.open, err = startOpen(*config.DiskBufferSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load disk hooks")
 	}
-
-	// Load network BPF modules only when required.
 	s.conn, err = startConn(*config.NetworkBufferSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to load network hooks")
 	}
 
 	logger.DebugContext(closeContext, "Started enhanced session recording",
 		"command_buffer_size", *s.CommandBufferSize,
 		"disk_buffer_size", *s.DiskBufferSize,
 		"network_buffer_size", *s.NetworkBufferSize,
-		"cgroup_mount_path", s.CgroupPath,
 		"elapsed", time.Since(start),
 	)
 
@@ -200,17 +163,12 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 
 // Close will stop any running BPF programs. Note this is only for a graceful
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
-// the user process and automatically unloaded when the process exits". The
-// restarting parameter indicates that Teleport is shutting down because of a
-// restart, and thus we should skip any deinitialization that would interfere
-// with the new Teleport instance.
+// the user process and automatically unloaded when the process exits".
 func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
-	if s.conn != nil {
-		s.conn.close()
-	}
+	s.conn.close()
 
 	// Close cgroup service. We should not unmount the cgroup filesystem if
 	// we're restarting.
@@ -225,76 +183,82 @@ func (s *Service) Close(restarting bool) error {
 	return nil
 }
 
-// OpenSession will place a process within a cgroup and being monitoring all
-// events from that cgroup and emitting the results to the audit log.
-func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
-	err := s.cgroup.Create(ctx.SessionID)
-	if err != nil {
-		return 0, trace.Wrap(err)
+// OpenSession will begin monitoring all events from the given session
+// and emitting the results to the audit log.
+func (s *Service) OpenSession(ctx *SessionContext) error {
+	auditSessID := ctx.AuditSessionID
+
+	// Sanity check the audit session ID just in case. If the auid is
+	// MaxUint32 that means its unset; Linux uses -1 to indicate unset
+	// which underflows to MaxUint32.
+	if auditSessID == math.MaxUint32 {
+		return trace.NotFound("audit session ID not set")
+	}
+	if sctx, found := s.sessions.Load(auditSessID); found {
+		logger.WarnContext(s.closeContext, "Audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
+		return trace.BadParameter("audit session ID already in use")
 	}
 
-	cgroupID, err := s.cgroup.ID(ctx.SessionID)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
+	logger.DebugContext(s.closeContext, "Opening session", "session_id", ctx.SessionID, "audit_session_id", auditSessID)
 
 	// initializedModClosures holds all already opened modules closures.
-	initializedModClosures := make([]interface{ endSession(uint64) error }, 0)
-	for _, module := range []cgroupRegister{
-		s.open,
-		s.exec,
-		s.conn,
+	initializedModClosures := make([]sessionHandler, 0)
+	for _, m := range []struct {
+		eventName string
+		module    sessionHandler
+	}{
+		{constants.EnhancedRecordingCommand, s.exec},
+		{constants.EnhancedRecordingDisk, s.open},
+		{constants.EnhancedRecordingNetwork, s.conn},
 	} {
-		// Register cgroup in the BPF module.
-		if err := module.startSession(cgroupID); err != nil {
+		// If the event is not being monitored in this session we
+		// shouldn't start monitoring it.
+		if _, ok := ctx.Events[m.eventName]; !ok {
+			continue
+		}
+
+		// Register audit session ID in the BPF module.
+		if err := m.module.startSession(auditSessID); err != nil {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
-				if closeErr := closer.endSession(cgroupID); closeErr != nil {
+				if closeErr := closer.endSession(auditSessID); closeErr != nil {
 					logger.DebugContext(s.closeContext, "failed to close session", "error", closeErr)
 				}
 			}
-			return 0, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		initializedModClosures = append(initializedModClosures, module)
+		initializedModClosures = append(initializedModClosures, m.module)
 	}
 
-	// Start watching for any events that come from this cgroup.
-	s.watch.Add(cgroupID, ctx)
+	// Start watching for any events that come from this audit session ID.
+	s.sessions.Store(auditSessID, ctx)
 
-	// Place requested PID into cgroup.
-	err = s.cgroup.Place(ctx.SessionID, ctx.PID)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return cgroupID, nil
+	return nil
 }
 
-// CloseSession will stop monitoring events from a particular cgroup and
-// remove the cgroup.
+// CloseSession will stop monitoring events from a particular session.
 func (s *Service) CloseSession(ctx *SessionContext) error {
-	cgroupID, err := s.cgroup.ID(ctx.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Stop watching for events from this PID.
-	s.watch.Remove(cgroupID)
+	// Stop watching for events for this session.
+	s.sessions.Delete(ctx.AuditSessionID)
 
 	var errs []error
-	// Move all PIDs to the root cgroup and remove the cgroup created for this
-	// session.
-	if err := s.cgroup.Remove(ctx.SessionID); err != nil {
-		errs = append(errs, trace.Wrap(err))
-	}
 
-	for _, module := range []interface{ endSession(cgroupID uint64) error }{
-		s.open,
-		s.exec,
-		s.conn,
+	for _, m := range []struct {
+		eventName string
+		module    sessionHandler
+	}{
+		{constants.EnhancedRecordingCommand, s.exec},
+		{constants.EnhancedRecordingDisk, s.open},
+		{constants.EnhancedRecordingNetwork, s.conn},
 	} {
-		// Remove the cgroup from BPF module.
-		if err := module.endSession(cgroupID); err != nil {
+		// If the event is not being monitored in this session we
+		// shouldn't stop monitoring it.
+		if _, ok := ctx.Events[m.eventName]; !ok {
+			continue
+		}
+
+		// Remove the audit session ID from BPF module.
+		if err := m.module.endSession(ctx.AuditSessionID); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -306,8 +270,27 @@ func (s *Service) Enabled() bool {
 	return true
 }
 
+func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+	defer eventBuf.Close()
+
+	for {
+		rec, err := eventBuf.Read()
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				logger.DebugContext(context.Background(), "Received signal, exiting")
+				return
+			}
+			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)
+			return
+		}
+
+		bpfEvents <- rec.RawSample[:]
+	}
+}
+
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
+// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
 func (s *Service) processAccessEvents() {
 	for {
 		select {
@@ -343,15 +326,16 @@ func (s *Service) processNetworkEvents() {
 // emitCommandEvent will parse and emit command events to the Audit Log.
 func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawExecEvent
+	var event commandDataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -366,29 +350,27 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
-		key := strconv.FormatUint(event.PID, 10)
+		key := strconv.FormatUint(event.Pid, 10)
 
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return make([]string, 0), nil
 		})
 		if err != nil {
-			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCahe - this is a bug!", "error", err)
+			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCache - this is a bug!", "error", err)
 			args = []string{}
 		}
 
-		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		args = append(args, C.GoString(argv))
+		args = append(args, ConvertString(event.Argv[:]))
 
 		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
-		key := strconv.FormatUint(event.PID, 10)
+		key := strconv.FormatUint(event.Pid, 10)
 
 		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return nil, trace.NotFound("args missing")
 		})
-
 		if err != nil {
 			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
 			lostCommandEvents.Add(float64(1))
@@ -411,16 +393,20 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				SessionID: ctx.SessionID,
 			},
 			UserMetadata: apievents.UserMetadata{
-				User:  ctx.User,
-				Login: ctx.Login,
+				User:            ctx.User,
+				Login:           ctx.Login,
+				UserClusterName: ctx.UserOriginClusterName,
+				UserRoles:       slices.Clone(ctx.UserRoles),
+				UserTraits:      ctx.UserTraits.Clone(),
 			},
 			BPFMetadata: apievents.BPFMetadata{
-				CgroupID: event.CgroupID,
-				Program:  ConvertString(unsafe.Pointer(&event.Command)),
-				PID:      event.PID,
+				CgroupID:       event.Cgroup,
+				AuditSessionID: event.AuditSessionId,
+				Program:        ConvertString(event.Command[:]),
+				PID:            event.Pid,
 			},
-			PPID:       event.PPID,
-			ReturnCode: event.ReturnCode,
+			PPID:       event.Ppid,
+			ReturnCode: event.Retval,
 			Path:       args[0],
 			Argv:       args[1:],
 		}
@@ -436,20 +422,21 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 // emitDiskEvent will parse and emit disk events to the Audit Log.
 func (s *Service) emitDiskEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawOpenEvent
+	var event diskDataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
 
-	// If the network event is not being monitored, don't process it.
+	// If the disk event is not being monitored, don't process it.
 	_, ok = ctx.Events[constants.EnhancedRecordingDisk]
 	if !ok {
 		return
@@ -470,16 +457,20 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      event.PID,
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            event.Pid,
 		},
 		Flags:      event.Flags,
-		Path:       ConvertString(unsafe.Pointer(&event.Path)),
+		Path:       ConvertString(event.FilePath[:]),
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
@@ -489,15 +480,16 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
 func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawConn4Event
+	var event networkIpv4DataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
 		return
 	}
 
-	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -508,8 +500,8 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	srcAddr := ipv4HostToIP(event.SrcAddr)
-	dstAddr := ipv4HostToIP(event.DstAddr)
+	srcAddr := ipv4HostToIP(event.Saddr)
+	dstAddr := ipv4HostToIP(event.Daddr)
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -525,15 +517,19 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      uint64(event.PID),
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            uint64(event.Pid),
 		},
-		DstPort:    int32(event.DstPort),
+		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 4,
@@ -546,15 +542,16 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
 func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	// Unmarshal raw event bytes.
-	var event rawConn6Event
+	var event networkIpv6DataT
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
 		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
 		return
 	}
 
-	// If the event comes from an unmonitored process/cgroup, don't process it.
-	ctx, ok := s.watch.Get(event.CgroupID)
+	// If the event comes from a unmonitored process/audit session ID,
+	// don't process it.
+	ctx, ok := s.sessions.Load(event.AuditSessionId)
 	if !ok {
 		return
 	}
@@ -565,8 +562,8 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	srcAddr := ipv6HostToIP(event.SrcAddr)
-	dstAddr := ipv6HostToIP(event.DstAddr)
+	srcAddr := net.IP(event.Saddr.In6U.U6Addr8[:])
+	dstAddr := net.IP(event.Daddr.In6U.U6Addr8[:])
 	sessionNetworkEvent := &apievents.SessionNetwork{
 		Metadata: apievents.Metadata{
 			Type: events.SessionNetworkEvent,
@@ -582,15 +579,19 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			SessionID: ctx.SessionID,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
 		},
 		BPFMetadata: apievents.BPFMetadata{
-			CgroupID: event.CgroupID,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
-			PID:      uint64(event.PID),
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        ConvertString(event.Command[:]),
+			PID:            uint64(event.Pid),
 		},
-		DstPort:    int32(event.DstPort),
+		DstPort:    int32(event.Dport),
 		DstAddr:    dstAddr.String(),
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 6,
@@ -606,15 +607,6 @@ func ipv4HostToIP(addr uint32) net.IP {
 	return val
 }
 
-func ipv6HostToIP(addr [4]uint32) net.IP {
-	val := make([]byte, 16)
-	binary.LittleEndian.PutUint32(val[0:], addr[0])
-	binary.LittleEndian.PutUint32(val[4:], addr[1])
-	binary.LittleEndian.PutUint32(val[8:], addr[2])
-	binary.LittleEndian.PutUint32(val[12:], addr[3])
-	return val
-}
-
 // unmarshalEvent will unmarshal the perf event.
 func unmarshalEvent(data []byte, v interface{}) error {
 	err := binary.Read(bytes.NewBuffer(data), binary.LittleEndian, v)
@@ -624,9 +616,9 @@ func unmarshalEvent(data []byte, v interface{}) error {
 	return nil
 }
 
-// ConvertString converts a C string to a Go string.
-func ConvertString(s unsafe.Pointer) string {
-	return C.GoString((*C.char)(s))
+// ConvertString converts a NUL-terminated string to a Go string.
+func ConvertString(s []byte) string {
+	return unix.ByteSliceToString(s)
 }
 
 // SystemHasBPF returns true if the binary was build with support for BPF

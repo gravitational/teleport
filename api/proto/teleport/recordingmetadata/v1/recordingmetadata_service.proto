@@ -1,0 +1,58 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.recordingmetadata.v1;
+
+import "teleport/recordingmetadata/v1/recordingmetadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
+
+// RecordingMetadataService provides methods to retrieve metadata and thumbnails for a session recording.
+service RecordingMetadataService {
+  // GetThumbnail retrieves the thumbnail for a session recording.
+  rpc GetThumbnail(GetThumbnailRequest) returns (GetThumbnailResponse);
+  // GetMetadata retrieves the metadata for a session recording.
+  rpc GetMetadata(GetMetadataRequest) returns (stream GetMetadataResponseChunk);
+}
+
+// GetMetadataResponseChunk is a chunked response for retrieving a session's metadata.
+// It can contain either metadata or a frame from the session recording.
+message GetMetadataResponseChunk {
+  oneof chunk {
+    // Metadata contains the metadata of the session recording.
+    teleport.recordingmetadata.v1.SessionRecordingMetadata metadata = 1;
+    // Frame contains a frame from the session recording.
+    teleport.recordingmetadata.v1.SessionRecordingThumbnail frame = 2;
+  }
+}
+
+// GetThumbnailRequest is a request for a session's thumbnail.
+message GetThumbnailRequest {
+  // SessionId is the ID of the session whose thumbnail is being requested.
+  string session_id = 1;
+}
+
+// GetThumbnailResponse is a response for retrieving a session's thumbnail.
+message GetThumbnailResponse {
+  // Thumbnail is the thumbnail for the session.
+  teleport.recordingmetadata.v1.SessionRecordingThumbnail thumbnail = 1;
+}
+
+// GetMetadataRequest is a request for retrieving a session's metadata.
+message GetMetadataRequest {
+  // SessionId is the ID of the session whose metadata is being requested.
+  string session_id = 1;
+}

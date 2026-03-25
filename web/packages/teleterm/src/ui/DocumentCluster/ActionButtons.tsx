@@ -18,53 +18,82 @@
 
 import React from 'react';
 
-import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonWithMenu,
+  Flex,
+  MenuItem,
+} from 'design';
 import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from 'design/Menu/MenuItem';
+import { HoverTooltip } from 'design/Tooltip';
 import { App, PortRange } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   MenuInputType,
   MenuLogin,
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
+import { AppSubKind } from 'shared/services';
+import { getAppProtocol } from 'shared/services/apps';
 
 import {
+  doesMcpAppSupportGateway,
   formatPortRange,
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
+  isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   captureAppLaunchInBrowser,
-  connectToAppWithVnet,
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
-import { IAppContext } from 'teleterm/ui/types';
-import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { routing } from 'teleterm/ui/uri';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+
+/**
+ * Width that should be consistent across all displayed buttons.
+ *
+ * The list view of unified resources is not an actual table but a flexbox, so it depends on widths
+ * of elements to be consistent across rows so that they line up.
+ */
+const buttonWidth = 124;
 
 export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
   const ctx = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const { launchVnet } = useVnetLauncher();
 
-  function getSshLogins(): string[] {
+  function connectWithVnet(): void {
+    const hostname = props.server.hostname;
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLogins || [];
+    const clusterName = cluster?.name || '<cluster>';
+    const addr = `${hostname}.${clusterName}`;
+    launchVnet({
+      addrToCopy: addr,
+      resourceUri: props.server.uri,
+    });
   }
 
   function connect(login: string): void {
@@ -78,21 +107,30 @@ export function ConnectServerActionButton(props: {
     );
   }
 
+  const commonProps: MenuLoginProps = {
+    inputType: MenuInputType.FILTER,
+    textTransform: 'none',
+    getLoginItems: () => props.server.logins.map(login => ({ login, url: '' })),
+    onSelect: (e, login) => connect(login),
+    transformOrigin: {
+      vertical: 'top',
+      horizontal: 'right',
+    },
+    anchorOrigin: {
+      vertical: 'bottom',
+      horizontal: 'right',
+    },
+  };
+
+  if (!isVnetSupported) {
+    return (
+      <MenuLogin {...commonProps} width={buttonWidth} alignButtonWidthToMenu />
+    );
+  }
   return (
-    <MenuLogin
-      inputType={MenuInputType.FILTER}
-      textTransform="none"
-      getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-      onSelect={(e, login) => connect(login)}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <MenuLoginWithActionMenu size="small" {...commonProps} width={buttonWidth}>
+      <MenuItem onClick={connectWithVnet}>Connect with VNet</MenuItem>
+    </MenuLoginWithActionMenu>
   );
 }
 
@@ -110,7 +148,12 @@ export function ConnectKubeActionButton(props: {
   }
 
   return (
-    <ButtonBorder textTransform="none" size="small" onClick={connect}>
+    <ButtonBorder
+      textTransform="none"
+      size="small"
+      onClick={connect}
+      width={buttonWidth}
+    >
       Connect
     </ButtonBorder>
   );
@@ -119,10 +162,14 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
+  const { launchVnet } = useVnetLauncher();
 
   function connectWithVnet(targetPort?: number): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
+    void launchVnet({
+      addrToCopy: appToAddrToCopy(props.app, targetPort),
+      resourceUri: props.app.uri,
+      isMultiPortApp: !!props.app.tcpPorts.length,
+    });
   }
 
   function setUpGateway(targetPort?: number): void {
@@ -133,6 +180,7 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
     setUpAppGateway(appContext, props.app.uri, {
       telemetry: { origin: 'resource_table' },
       targetPort,
+      targetProtocol: getAppProtocol(props.app.endpointUri),
     });
   }
 
@@ -164,27 +212,67 @@ export function ConnectDatabaseActionButton(props: {
   database: Database;
 }): React.JSX.Element {
   const appContext = useAppContext();
+  const { database } = props;
+
+  const noUsersAvailable =
+    !database.wildcardUserAllowed && database.databaseUsers.length === 0;
 
   function connect(dbUser: string): void {
-    const { uri, name, protocol } = props.database;
+    const { uri, name, protocol, gcpProjectId, autoUserProvisioning } =
+      database;
     connectToDatabase(
       appContext,
-      { uri, name, protocol, dbUser },
+      { uri, name, protocol, dbUser, gcpProjectId, autoUserProvisioning },
       { origin: 'resource_table' }
+    );
+  }
+
+  if (database.autoUserProvisioning) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={async () => {
+          const autoProvisionedDbUser = database.databaseUsers?.[0] ?? '';
+          connect(autoProvisionedDbUser);
+        }}
+        textTransform="none"
+        width={buttonWidth}
+      >
+        Connect
+      </ButtonBorder>
+    );
+  }
+
+  if (noUsersAvailable) {
+    return (
+      <HoverTooltip tipContent="No db username available">
+        <ButtonBorder
+          disabled
+          size="small"
+          textTransform="none"
+          width={buttonWidth}
+        >
+          Connect
+        </ButtonBorder>
+      </HoverTooltip>
     );
   }
 
   return (
     <MenuLogin
-      {...getDatabaseMenuLoginOptions(
-        props.database.protocol as GatewayProtocol
-      )}
+      {...getDatabaseMenuLoginOptions(database)}
+      inputType={
+        !database.wildcardUserAllowed
+          ? MenuInputType.FILTER
+          : MenuInputType.INPUT
+      }
       textTransform="none"
       width="195px"
-      getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
-      onSelect={(_, user) => {
-        connect(user);
-      }}
+      buttonWidth={buttonWidth}
+      getLoginItems={() =>
+        database.databaseUsers.map(user => ({ login: user, url: '' }))
+      }
+      onSelect={(_, user) => connect(user)}
       transformOrigin={{
         vertical: 'top',
         horizontal: 'right',
@@ -198,8 +286,9 @@ export function ConnectDatabaseActionButton(props: {
 }
 
 function getDatabaseMenuLoginOptions(
-  protocol: GatewayProtocol
+  database: Database
 ): Pick<MenuLoginProps, 'placeholder' | 'required'> {
+  const { protocol, databaseUsers, wildcardUserAllowed } = database;
   if (protocol === 'redis') {
     return {
       placeholder: 'Enter username (optional)',
@@ -207,28 +296,12 @@ function getDatabaseMenuLoginOptions(
     };
   }
 
-  return {
-    placeholder: 'Enter username',
-    required: true,
-  };
-}
+  const placeholder =
+    !wildcardUserAllowed && databaseUsers.length > 0
+      ? 'Search by username'
+      : 'Enter username';
 
-async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
-  try {
-    const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.resourcesService.getDbUsers(dbUri)
-    );
-    return dbUsers.map(user => ({ login: user, url: '' }));
-  } catch (e) {
-    // Emitting a warning instead of an error here because fetching those username suggestions is
-    // not the most important part of the app.
-    appContext.notificationsService.notifyWarning({
-      title: 'Could not fetch database usernames',
-      description: e.message,
-    });
-
-    throw e;
-  }
+  return { placeholder, required: true };
 }
 
 function AppButton(props: {
@@ -243,6 +316,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
+        width={buttonWidth}
         awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
@@ -253,6 +327,30 @@ function AppButton(props: {
           })
         }
         onLaunchUrl={props.onLaunchUrl}
+      />
+    );
+  }
+
+  if (props.app.subKind === AppSubKind.AwsIcAccount) {
+    const icRoles = props.app.permissionSets.map(ps => ({
+      name: ps.name,
+      arn: ps.name,
+      display: ps.name,
+      accountId: props.app.name,
+    }));
+
+    return (
+      <AwsLaunchButton
+        width={buttonWidth}
+        awsRoles={icRoles}
+        getLaunchUrl={arn =>
+          getAwsIcLaunchUrl({
+            app: props.app,
+            roleName: arn,
+          })
+        }
+        onLaunchUrl={props.onLaunchUrl}
+        isAwsIdentityCenterApp
       />
     );
   }
@@ -270,10 +368,31 @@ function AppButton(props: {
           rootCluster: props.rootCluster,
         })}
         target="_blank"
+        width={buttonWidth}
       >
         Log In
       </ButtonBorder>
     );
+  }
+
+  if (isMcp(props.app)) {
+    // Streamable HTTP MCP servers support local proxy gateway.
+    if (doesMcpAppSupportGateway(props.app)) {
+      return (
+        <ButtonBorder
+          size="small"
+          onClick={() => props.setUpGateway()}
+          textTransform="none"
+          width={buttonWidth}
+        >
+          Connect
+        </ButtonBorder>
+      );
+    }
+    // TODO(greedy52) decide what to do with MCP servers that don't support gateway.
+    // In the meantime, display a box of specific width to make the other columns line up for MCP
+    // apps in the list view of unified resources.
+    return <Box width={buttonWidth} />;
   }
 
   if (isWebApp(props.app)) {
@@ -291,6 +410,7 @@ function AppButton(props: {
         onClick={props.onLaunchUrl}
         target="_blank"
         title="Launch the app in the browser"
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Set up connection
@@ -307,6 +427,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.connectWithVnet()}
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Connect without VNet
@@ -332,6 +453,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.setUpGateway()}
+        width={buttonWidth}
       >
         <AvailableTargetPorts
           tcpPorts={props.app.tcpPorts}
@@ -347,6 +469,7 @@ function AppButton(props: {
       size="small"
       onClick={() => props.setUpGateway()}
       textTransform="none"
+      width={buttonWidth}
     >
       Connect
     </ButtonBorder>
@@ -384,7 +507,7 @@ export function AccessRequestButton(props: {
   return props.isResourceAdded ? (
     <ButtonPrimary
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
@@ -393,11 +516,50 @@ export function AccessRequestButton(props: {
   ) : (
     <ButtonBorder
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
       {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
+  );
+}
+
+export function ConnectWindowsDesktopActionButton(props: {
+  windowsDesktop: WindowsDesktop;
+}): React.JSX.Element {
+  const appContext = useAppContext();
+
+  function connect(login: string): void {
+    const { uri } = props.windowsDesktop;
+    void connectToWindowsDesktop(
+      appContext,
+      { uri, login },
+      { origin: 'resource_table' }
+    );
+  }
+
+  return (
+    <Flex width={buttonWidth}>
+      <MenuLogin
+        textTransform="none"
+        width="195px"
+        buttonWidth={buttonWidth}
+        getLoginItems={() =>
+          props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+        }
+        onSelect={(_, user) => {
+          connect(user);
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+      />
+    </Flex>
   );
 }

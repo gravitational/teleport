@@ -19,9 +19,10 @@
 import React, { PropsWithChildren, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
+import Popover from 'design/Popover';
 import { Position } from 'design/Popover/Popover';
+import Text from 'design/Text';
 
 import { anchorOriginForPosition, transformOriginForPosition } from './shared';
 
@@ -127,6 +128,9 @@ const ToolTipIcon = ({
 const StyledOnHover = styled(Text)<{ $maxWidth: number }>`
   color: ${props => props.theme.colors.text.primaryInverse};
   max-width: ${p => p.$maxWidth}px;
+  a {
+    color: ${props => props.theme.colors.tooltip.inverseLinkDefault};
+  }
 `;
 
 const InfoIcon = styled(Icons.Info)<{ $muteIconColor?: boolean }>`

@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // hostUser is the name of the host user used for tests.
@@ -177,7 +177,7 @@ func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleI
 
 func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 	// Create the CA authority that will be used in Auth.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	const (
 		host   = helpers.Host
@@ -190,7 +190,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 }
 
@@ -202,6 +202,7 @@ func newTeleportConfig() *servicecfg.Config {
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
+	tconf.InsecureMode = true
 	return tconf
 }
 

@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -65,8 +66,6 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -188,6 +187,12 @@ type Identity interface {
 	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
 	// results.  Invalid Connectors are simply logged but errors are not forwarded.
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
+	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
@@ -207,10 +212,21 @@ type Identity interface {
 
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 
 	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
 	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+	// RangeSAMLConnectorsWithOptions returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
@@ -233,6 +249,12 @@ type Identity interface {
 
 	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 
 	// GetGithubConnector returns a Github connector by its name
 	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error)
@@ -263,8 +285,8 @@ type Identity interface {
 	// DeleteUserToken deletes a user token.
 	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// GetUserTokens returns all user tokens.
-	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
+	// ListUserTokens returns a page of user tokens.
+	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
 
 	// GetUserToken returns a user token by id.
 	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
@@ -290,14 +312,12 @@ type Identity interface {
 	HeadlessAuthenticationService
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	WebToken
 
 	// AppSession defines application session features.
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
-	// SAMLIdPSession defines SAML IdP session features.
-	SAMLIdPSession
 }
 
 // AppSession defines application session features.
@@ -322,28 +342,16 @@ type SnowflakeSession interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
+	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
-}
-
-// SAMLIdPSession defines SAML IdP session features.
-type SAMLIdPSession interface {
-	// GetSAMLIdPSession gets a SAML IdP session.
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
-	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
-	// UpsertSAMLIdPSession upserts a SAML IdP session.
-	UpsertSAMLIdPSession(context.Context, types.WebSession) error
-	// DeleteSAMLIdPSession removes a SAML IdP session.
-	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
-	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-	DeleteAllSAMLIdPSessions(context.Context) error
-	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
-	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
 }
 
 // HeadlessAuthenticationService is responsible for headless authentication resource management

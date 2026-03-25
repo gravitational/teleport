@@ -132,15 +132,16 @@ type CustomRateFunc func(endpoint string) *RateSet
 // rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
 // specific gRPC methods.
 func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		peerInfo, ok := peer.FromContext(ctx)
 		if !ok {
 			return nil, trace.AccessDenied("missing peer info")
 		}
+
 		// Limit requests per second and simultaneous connection by client IP.
-		clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+		clientIP, err := clientIPFromAddr(peerInfo.Addr)
 		if err != nil {
-			return nil, trace.BadParameter("missing client IP")
+			return nil, trace.Wrap(err)
 		}
 		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
@@ -155,15 +156,15 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 
 // StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
-func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
 		return trace.AccessDenied("missing peer info")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+	clientIP, err := clientIPFromAddr(peerInfo.Addr)
 	if err != nil {
-		return trace.BadParameter("missing client IP")
+		return trace.Wrap(err)
 	}
 	if err := l.RegisterRequest(clientIP); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")
@@ -173,6 +174,27 @@ func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.Ser
 	}
 	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
+}
+
+func clientIPFromAddr(addr net.Addr) (string, error) {
+	if addr == nil {
+		return "", trace.BadParameter("missing client IP")
+	}
+
+	s := addr.String()
+
+	// bufconn peers don't include host:port, so use a stable synthetic key
+	// for request/connection limiting in tests.
+	if s == "bufconn" && addr.Network() == "bufconn" {
+		return "bufconn", nil
+	}
+
+	clientIP, _, err := net.SplitHostPort(s)
+	if err == nil {
+		return clientIP, nil
+	}
+
+	return "", trace.BadParameter("missing client IP")
 }
 
 // WrapListener returns a [Listener] that wraps the provided listener

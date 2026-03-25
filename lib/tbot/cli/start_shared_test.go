@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 func TestSharedStartArgs(t *testing.T) {
@@ -44,6 +44,8 @@ func TestSharedStartArgs(t *testing.T) {
 		"--diag-addr=0.0.0.0:8080",
 		"--storage=file:///foo/bar",
 		"--proxy-server=example.teleport.sh:443",
+		"--pid-file=/run/tbot.pid",
+		"--diag-socket-for-updater=/var/lib/teleport/bot/debug.sock",
 	})
 	require.NoError(t, err)
 
@@ -56,6 +58,8 @@ func TestSharedStartArgs(t *testing.T) {
 	require.Equal(t, "0.0.0.0:8080", args.DiagAddr)
 	require.Equal(t, "file:///foo/bar", args.Storage)
 	require.Equal(t, "example.teleport.sh:443", args.ProxyServer)
+	require.Equal(t, "/run/tbot.pid", args.PIDFile)
+	require.Equal(t, "/var/lib/teleport/bot/debug.sock", args.DiagSocketForUpdater)
 
 	// Convert these args to a BotConfig.
 	cfg, err := LoadConfigWithMutators(&GlobalArgs{}, args)
@@ -72,7 +76,7 @@ func TestSharedStartArgs(t *testing.T) {
 	require.True(t, cfg.Oneshot)
 	require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)
 
-	dir, ok := cfg.Storage.Destination.(*config.DestinationDirectory)
+	dir, ok := cfg.Storage.Destination.(*destination.Directory)
 	require.True(t, ok)
 	require.Equal(t, "/foo/bar", dir.Path)
 }
@@ -98,7 +102,7 @@ func TestSharedDestinationArgs(t *testing.T) {
 	dest, err := args.BuildDestination()
 	require.NoError(t, err)
 
-	dd, ok := dest.(*config.DestinationDirectory)
+	dd, ok := dest.(*destination.Directory)
 	require.True(t, ok)
 
 	require.ElementsMatch(t, dd.Readers, []*botfs.ACLSelector{

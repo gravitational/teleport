@@ -5,7 +5,6 @@
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
 #include "./common.h"
-#include "../helpers.h"
 
 // Maximum number of in-flight open syscalls supported
 #define INFLIGHT_MAX 8192
@@ -25,18 +24,32 @@ struct val_t {
 };
 
 struct data_t {
+    // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // AuditSessionID is the audit session ID that is used to correlate
+    // events with specific sessions.
+    u32 audit_session_id;
+    // PID is the ID of the process.
     u64 pid;
-    int ret;
-    char comm[TASK_COMM_LEN];
-    char fname[NAME_MAX];
+    // Return_code is the return code of open.
+    int return_code;
+    // Command is name of the executable opening the file.
+    u8 command[TASK_COMM_LEN];
+    // File_path is the full path to the file being opened.
+    u8 file_path[NAME_MAX];
+    // Flags are the flags passed to open.
     int flags;
 };
 
-BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
+// Force emitting struct data_t into the ELF. bpf2go needs this
+// to generate the Go bindings.
+const struct data_t *unused __attribute__((unused));
 
-// hashmap keeps all cgroups id that should be monitored by Teleport.
-BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
+// Hashmap that keeps all audit session IDs that should be monitored 
+// by Teleport.
+BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
+
+BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
 
 // open_events ring buffer
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
@@ -44,6 +57,15 @@ BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 BPF_COUNTER(lost);
 
 static int enter_open(const char *filename, int flags) {
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 session_id = BPF_CORE_READ(task, sessionid);
+    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
+    if (is_monitored == NULL) {
+        return 0;
+    }
+
+    print_disk_event(task, filename);
+
     struct val_t val = {};
     u64 id = bpf_get_current_pid_tgid();
 
@@ -56,12 +78,8 @@ static int enter_open(const char *filename, int flags) {
 }
 
 static int exit_open(int ret) {
-    u64 id = bpf_get_current_pid_tgid();
-    u64 cgroup = bpf_get_current_cgroup_id();
-
     struct val_t *valp;
-    struct data_t data = {};
-    u64 *is_monitored;
+    u64 id = bpf_get_current_pid_tgid();
 
     valp = bpf_map_lookup_elem(&infotmp, &id);
     if (valp == NULL) {
@@ -69,23 +87,20 @@ static int exit_open(int ret) {
         return 0;
     }
 
-    // Check if the cgroup should be monitored.
-    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
-    if (is_monitored == NULL) {
-        // cgroup has not been marked for monitoring, ignore.
-        return 0;
+    struct data_t data = {};
+    if (bpf_get_current_comm(&data.command, sizeof(data.command)) != 0) {
+        data.command[0] = '\0';
     }
 
-    if (bpf_get_current_comm(&data.comm, sizeof(data.comm)) != 0) {
-        data.comm[0] = '\0';
-    }
-
-    bpf_probe_read_user(&data.fname, sizeof(data.fname), (void *)valp->fname);
+    bpf_probe_read_user(&data.file_path, sizeof(data.file_path), (void *)valp->fname);
 
     data.pid = valp->pid;
     data.flags = valp->flags;
-    data.ret = ret;
-    data.cgroup = cgroup;
+    data.return_code = ret;
+    data.cgroup = bpf_get_current_cgroup_id();
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    data.audit_session_id = BPF_CORE_READ(task, sessionid);
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
         INCR_COUNTER(lost);
@@ -110,9 +125,6 @@ int tracepoint__syscalls__sys_exit_creat(struct syscall_trace_exit *tp)
     return exit_open(tp->ret);
 }
 
-// ARM64 does not implement sys_enter_open only sys_enter_openat. x86 implements it for legacy reasons.
-#ifndef __TARGET_ARCH_arm64
-
 SEC("tp/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(struct syscall_trace_enter *tp)
 {
@@ -121,8 +133,6 @@ int tracepoint__syscalls__sys_enter_open(struct syscall_trace_enter *tp)
 
     return enter_open(filename, flags);
 };
-
-#endif // __aarch64__
 
 SEC("tp/syscalls/sys_exit_open")
 int tracepoint__syscalls__sys_exit_open(struct syscall_trace_exit *tp)

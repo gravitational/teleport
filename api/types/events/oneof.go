@@ -785,7 +785,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateConfigDelete{
 			AutoUpdateConfigDelete: e,
 		}
-
 	case *AutoUpdateVersionCreate:
 		out.Event = &OneOf_AutoUpdateVersionCreate{
 			AutoUpdateVersionCreate: e,
@@ -797,6 +796,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AutoUpdateVersionDelete:
 		out.Event = &OneOf_AutoUpdateVersionDelete{
 			AutoUpdateVersionDelete: e,
+		}
+	case *AutoUpdateAgentRolloutTrigger:
+		out.Event = &OneOf_AutoUpdateAgentRolloutTrigger{
+			AutoUpdateAgentRolloutTrigger: e,
+		}
+	case *AutoUpdateAgentRolloutForceDone:
+		out.Event = &OneOf_AutoUpdateAgentRolloutForceDone{
+			AutoUpdateAgentRolloutForceDone: e,
+		}
+	case *AutoUpdateAgentRolloutRollback:
+		out.Event = &OneOf_AutoUpdateAgentRolloutRollback{
+			AutoUpdateAgentRolloutRollback: e,
 		}
 	case *ContactCreate:
 		out.Event = &OneOf_ContactCreate{
@@ -843,6 +854,165 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AWSICResourceSync{
 			AWSICResourceSync: e,
 		}
+	case *HealthCheckConfigCreate:
+		out.Event = &OneOf_HealthCheckConfigCreate{
+			HealthCheckConfigCreate: e,
+		}
+	case *HealthCheckConfigUpdate:
+		out.Event = &OneOf_HealthCheckConfigUpdate{
+			HealthCheckConfigUpdate: e,
+		}
+	case *HealthCheckConfigDelete:
+		out.Event = &OneOf_HealthCheckConfigDelete{
+			HealthCheckConfigDelete: e,
+		}
+	case *WorkloadIdentityX509IssuerOverrideCreate:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideCreate{
+			WorkloadIdentityX509IssuerOverrideCreate: e,
+		}
+	case *WorkloadIdentityX509IssuerOverrideDelete:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideDelete{
+			WorkloadIdentityX509IssuerOverrideDelete: e,
+		}
+	case *SigstorePolicyCreate:
+		out.Event = &OneOf_SigstorePolicyCreate{
+			SigstorePolicyCreate: e,
+		}
+	case *SigstorePolicyUpdate:
+		out.Event = &OneOf_SigstorePolicyUpdate{
+			SigstorePolicyUpdate: e,
+		}
+	case *SigstorePolicyDelete:
+		out.Event = &OneOf_SigstorePolicyDelete{
+			SigstorePolicyDelete: e,
+		}
+	case *MCPSessionStart:
+		out.Event = &OneOf_MCPSessionStart{
+			MCPSessionStart: e,
+		}
+	case *MCPSessionEnd:
+		out.Event = &OneOf_MCPSessionEnd{
+			MCPSessionEnd: e,
+		}
+	case *MCPSessionRequest:
+		out.Event = &OneOf_MCPSessionRequest{
+			MCPSessionRequest: e,
+		}
+	case *MCPSessionNotification:
+		out.Event = &OneOf_MCPSessionNotification{
+			MCPSessionNotification: e,
+		}
+	case *MCPSessionListenSSEStream:
+		out.Event = &OneOf_MCPSessionListenSSEStream{
+			MCPSessionListenSSEStream: e,
+		}
+	case *MCPSessionInvalidHTTPRequest:
+		out.Event = &OneOf_MCPSessionInvalidHTTPRequest{
+			MCPSessionInvalidHTTPRequest: e,
+		}
+	case *BoundKeypairRecovery:
+		out.Event = &OneOf_BoundKeypairRecovery{
+			BoundKeypairRecovery: e,
+		}
+	case *BoundKeypairRotation:
+		out.Event = &OneOf_BoundKeypairRotation{
+			BoundKeypairRotation: e,
+		}
+	case *BoundKeypairJoinStateVerificationFailed:
+		out.Event = &OneOf_BoundKeypairJoinStateVerificationFailed{
+			BoundKeypairJoinStateVerificationFailed: e,
+		}
+	case *SCIMListingEvent:
+		out.Event = &OneOf_SCIMListingEvent{SCIMListingEvent: e}
+	case *SCIMResourceEvent:
+		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
+	case *ClientIPRestrictionsUpdate:
+		out.Event = &OneOf_ClientIPRestrictionsUpdate{ClientIPRestrictionsUpdate: e}
+	case *AppAuthConfigCreate:
+		out.Event = &OneOf_AppAuthConfigCreate{
+			AppAuthConfigCreate: e,
+		}
+	case *AppAuthConfigUpdate:
+		out.Event = &OneOf_AppAuthConfigUpdate{
+			AppAuthConfigUpdate: e,
+		}
+	case *AppAuthConfigDelete:
+		out.Event = &OneOf_AppAuthConfigDelete{
+			AppAuthConfigDelete: e,
+		}
+	case *AppAuthConfigVerify:
+		out.Event = &OneOf_AppAuthConfigVerify{
+			AppAuthConfigVerify: e,
+		}
+	case *VnetConfigCreate:
+		out.Event = &OneOf_VnetConfigCreate{
+			VnetConfigCreate: e,
+		}
+	case *VnetConfigUpdate:
+		out.Event = &OneOf_VnetConfigUpdate{
+			VnetConfigUpdate: e,
+		}
+	case *VnetConfigDelete:
+		out.Event = &OneOf_VnetConfigDelete{
+			VnetConfigDelete: e,
+		}
+	case *WorkloadClusterCreate:
+		out.Event = &OneOf_WorkloadClusterCreate{
+			WorkloadClusterCreate: e,
+		}
+	case *WorkloadClusterUpdate:
+		out.Event = &OneOf_WorkloadClusterUpdate{
+			WorkloadClusterUpdate: e,
+		}
+	case *WorkloadClusterDelete:
+		out.Event = &OneOf_WorkloadClusterDelete{
+			WorkloadClusterDelete: e,
+		}
+	case *InferenceModelCreate:
+		out.Event = &OneOf_InferenceModelCreate{
+			InferenceModelCreate: e,
+		}
+	case *InferenceModelUpdate:
+		out.Event = &OneOf_InferenceModelUpdate{
+			InferenceModelUpdate: e,
+		}
+	case *InferenceModelDelete:
+		out.Event = &OneOf_InferenceModelDelete{
+			InferenceModelDelete: e,
+		}
+	case *InferenceSecretCreate:
+		out.Event = &OneOf_InferenceSecretCreate{
+			InferenceSecretCreate: e,
+		}
+	case *InferenceSecretUpdate:
+		out.Event = &OneOf_InferenceSecretUpdate{
+			InferenceSecretUpdate: e,
+		}
+	case *InferenceSecretDelete:
+		out.Event = &OneOf_InferenceSecretDelete{
+			InferenceSecretDelete: e,
+		}
+	case *InferencePolicyCreate:
+		out.Event = &OneOf_InferencePolicyCreate{
+			InferencePolicyCreate: e,
+		}
+	case *InferencePolicyUpdate:
+		out.Event = &OneOf_InferencePolicyUpdate{
+			InferencePolicyUpdate: e,
+		}
+	case *InferencePolicyDelete:
+		out.Event = &OneOf_InferencePolicyDelete{
+			InferencePolicyDelete: e,
+		}
+	case *SessionSummarized:
+		out.Event = &OneOf_SessionSummarized{
+			SessionSummarized: e,
+		}
+	case *CertAuthorityOverrideEvent:
+		out.Event = &OneOf_CertAuthorityOverrideEvent{
+			CertAuthorityOverrideEvent: e,
+		}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

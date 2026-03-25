@@ -58,7 +58,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
     onBack,
     addWindowEventListener,
   } = props;
-  const activeItemRef = useRef<HTMLDivElement>();
+  const activeItemRef = useRef<HTMLDivElement>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const pickAndResetActiveItem = useCallback(
     (item: T) => {

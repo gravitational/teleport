@@ -140,7 +140,7 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			err := common.TryRun(tt.commands, tt.args)
+			err := common.TryRun(context.Background(), tt.commands, tt.args)
 			if tt.wantErrContains != "" {
 				var exitError *toolcommon.ExitCodeError
 				require.ErrorAs(t, err, &exitError)

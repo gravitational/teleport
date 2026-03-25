@@ -23,10 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/lib/integrations/diagnostics"
 )
 
@@ -109,8 +108,17 @@ func (a *App) WaitReady(ctx context.Context) (bool, error) {
 // SendEvent sends an event to fluentd. Shared method used by jobs.
 func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error {
 	if !a.Config.DryRun {
-		backoff := backoff.NewDecorr(sendBackoffBase, sendBackoffMax, clockwork.NewRealClock())
 		backoffCount := sendBackoffNumTries
+
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(sendBackoffBase),
+			First:  sendBackoffBase,
+			Max:    sendBackoffMax,
+			Jitter: retryutils.HalfJitter,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		for {
 			err := a.Fluentd.Send(ctx, url, e.Event)
@@ -119,10 +127,10 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 			}
 
 			a.log.DebugContext(ctx, "Error sending event to fluentd", "error", err)
-
-			bErr := backoff.Do(ctx)
-			if bErr != nil {
-				return trace.Wrap(err)
+			select {
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			case <-retry.After():
 			}
 
 			backoffCount--

@@ -1,0 +1,45 @@
+---
+title: teleport-relay Chart Reference
+sidebar_label: teleport-relay
+description: Values that can be set using the teleport-relay Helm chart
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+---
+
+The `teleport-relay` Helm chart is used to deploy a Teleport Relay Service group in a Kubernetes cluster, to provide connectivity between clients and resources without involving the Teleport control plane in the network path.
+
+The `teleport-relay` chart is available for Teleport v18.3.0 and later.
+
+You can [browse the source on
+GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-relay).
+
+This reference details available values for the `teleport-relay` chart.
+
+<Admonition type="warning">
+
+The Teleport Relay service provides alternate network paths for accessing resources through Teleport in specific scenarios where clients and agents are in the same network segment and there is a need for connectivity that does not go through the Teleport control plane. It is not a required or recommended cluster component in most Teleport deployments.
+
+If you want to provide access to resources like Databases, Applications or Kubernetes clusters, you should use the [`teleport-kube-agent` Helm chart](teleport-kube-agent.mdx) instead.
+
+</Admonition>
+
+(!docs/pages/includes/backup-warning.mdx!)
+
+## What the chart deploys
+
+The `teleport-relay` chart deploys the following Kubernetes resources:
+
+| Kind | Default name | Description |
+|-|-|-|
+| `Deployment` | The release name | One or more replicas of the Teleport instance running the Relay Service |
+| `Service` | The release name | The transport and tunnel servers, pointed at the respective listeners of the Relay Service replicas. |
+| `ConfigMap` | The release name | The Teleport configuration. |
+| `Secret` | `joinTokenSecret.name`, if given, or the release name | The join token name, used to join the cluster. It's possible to use an existing `Secret` that's managed outside of the chart. |
+| `ServiceAccount` | `serviceAccount.name`, if given, or the release name | Used for the `kubernetes` join method. It's possible to use an existing `ServiceAccount` that's managed outside of the chart. |
+| `PodDisruptionBudget` | The release name | Ensures high availability for the Teleport pods. |
+
+## Reference
+
+(!docs/pages/includes/helm-reference/zz_generated.teleport-relay.mdx!)

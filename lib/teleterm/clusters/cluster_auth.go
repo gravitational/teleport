@@ -41,10 +41,10 @@ import (
 )
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
-func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, error) {
+func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigAuthSettings, *webclient.PingResponse, error) {
 	pingResponse, err := c.clusterClient.Ping(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	pingResponseJSON, err := json.Marshal(pingResponse)
 	if err != nil {
@@ -53,16 +53,16 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 		c.Logger.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
 	}
 
-	if err := c.clusterClient.SaveProfile(false); err != nil {
-		return nil, trace.Wrap(err)
+	if err := SaveProfileAndPreserveSiteName(c.clusterClient, false); err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	cfg, err := c.clusterClient.GetWebConfig(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return &cfg.Auth, nil
+	return &cfg.Auth, pingResponse, nil
 }
 
 // Logout deletes all cluster certificates

@@ -16,7 +16,9 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
+import "teleport/trait/v1/trait.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
+import "teleport/workloadidentity/v1/sigstore.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
@@ -34,6 +36,18 @@ message WorkloadAttrsKubernetes {
   string pod_uid = 5;
   // The labels of the workload pod.
   map<string, string> labels = 6;
+  // Details of the workload container.
+  optional WorkloadAttrsKubernetesContainer container = 7;
+}
+
+// Attributes of the container sourced from the Kubernetes workload attestation.
+message WorkloadAttrsKubernetesContainer {
+  // The name of the container.
+  string name = 1;
+  // The name of the image the container is running.
+  string image = 2;
+  // The exact image digest the container is running.
+  string image_digest = 3;
 }
 
 // Attributes sourced from the Unix workload attestor.
@@ -46,6 +60,10 @@ message WorkloadAttrsUnix {
   uint32 gid = 3;
   // The primary group ID of the workload process.
   uint32 uid = 4;
+  // The path to the workload process binary.
+  optional string binary_path = 5;
+  // The hex-encoded SHA256 hash of the workload process binary.
+  optional string binary_hash = 6;
 }
 
 // Attributes sourced from the Podman workload attestor.
@@ -66,6 +84,8 @@ message WorkloadAttrsPodmanContainer {
   string image = 2;
   // The labels attached to the container.
   map<string, string> labels = 3;
+  // The exact image digest the container is running.
+  string image_digest = 4;
 }
 
 // Attributes of the pod sourced from the Podman workload attestation.
@@ -74,6 +94,40 @@ message WorkloadAttrsPodmanPod {
   string name = 1;
   // The labels attached to the pod.
   map<string, string> labels = 2;
+}
+
+// Attributes sourced from the Docker workload attestor.
+message WorkloadAttrsDocker {
+  // Whether the workload passed Docker attestation.
+  bool attested = 1;
+  // Attributes of the container.
+  WorkloadAttrsDockerContainer container = 2;
+}
+
+// Attributes of the container sourced from the Docker workload attestation.
+message WorkloadAttrsDockerContainer {
+  // The name of the container.
+  string name = 1;
+  // The image the container is running.
+  string image = 2;
+  // The labels attached to the container.
+  map<string, string> labels = 3;
+  // The exact image digest the container is running.
+  string image_digest = 4;
+}
+
+// Attributes sourced from the Systemd workload attestor.
+message WorkloadAttrsSystemd {
+  // Whether the workload passed Systemd attestation.
+  bool attested = 1;
+  // The systemd service name.
+  string service = 2;
+}
+
+// Attributes sourced from the Sigstore workload attestor.
+message WorkloadAttrsSigstore {
+  // Verificiation payloads.
+  repeated SigstoreVerificationPayload payloads = 1;
 }
 
 // The attributes provided by `tbot` regarding the workload's attestation.
@@ -86,6 +140,12 @@ message WorkloadAttrs {
   WorkloadAttrsKubernetes kubernetes = 2;
   // The Podman-specific attributes.
   WorkloadAttrsPodman podman = 3;
+  // The Docker-specific attributes.
+  WorkloadAttrsDocker docker = 4;
+  // The Systemd-specific attributes.
+  WorkloadAttrsSystemd systemd = 5;
+  // The Sigstore-specific attributes.
+  WorkloadAttrsSigstore sigstore = 6;
 }
 
 // Attributes related to the user/bot making the request for a workload
@@ -101,6 +161,8 @@ message UserAttrs {
   string bot_instance_id = 4;
   // Labels of the user.
   map<string, string> labels = 5;
+  // Traits of the user.
+  repeated teleport.trait.v1.Trait traits = 6;
 }
 
 // The attributes of a principal requesting a workload identity. These

@@ -32,6 +32,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -186,7 +187,10 @@ type AuthRequestInfo struct {
 type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
-	proxies, err := c.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, c.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return c.GetProxies()
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,7 +227,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 		req := client.SSOLoginConsoleReq{
 			ConnectorID: "-sso-test",
 			RedirectURL: clientCallbackURL,
-			SSOUserPublicKeys: client.SSOUserPublicKeys{
+			UserPublicKeys: client.UserPublicKeys{
 				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
 				TLSPubKey: tlsPub,
 			},
@@ -265,7 +269,7 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 		errResult = trace.Errorf("SSO flow failed.")
 
 		if infoErr != nil {
-			fmt.Printf("No diagnostic info found. Most likely cause: the request timed out or callback configuration is incorrect. Ensure that user logs within alloted time and IdP configuration is correct.\n Error details: %v\n", trace.UserMessage(infoErr))
+			fmt.Printf("No diagnostic info found. Most likely cause: the request timed out or callback configuration is incorrect. Ensure that user logs within allotted time and IdP configuration is correct.\n Error details: %v\n", trace.UserMessage(infoErr))
 			errResult = trace.Wrap(infoErr, "SSO flow failed.")
 		}
 

@@ -29,7 +29,7 @@ func TestHMACAnonymizer(t *testing.T) {
 	t.Parallel()
 
 	a, err := NewHMACAnonymizer(" ")
-	require.IsType(t, err, trace.BadParameter(""))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	require.Nil(t, a)
 
 	a, err = NewHMACAnonymizer("key")

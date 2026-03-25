@@ -124,3 +124,34 @@ func (s *Service) UpdateTrustedCluster(ctx context.Context, req *trustpb.UpdateT
 	}
 	return trustedClusterV2, nil
 }
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (s *Service) ListTrustedClusters(ctx context.Context, req *trustpb.ListTrustedClustersRequest) (*trustpb.ListTrustedClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tcs, next, err := s.authServer.ListTrustedClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &trustpb.ListTrustedClustersResponse{
+		TrustedClusters: make([]*types.TrustedClusterV2, 0, len(tcs)),
+		NextPageToken:   next,
+	}
+
+	for _, tc := range tcs {
+		trustedClusterV2, ok := tc.(*types.TrustedClusterV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected Trusted Cluster type: %T", tc)
+		}
+		resp.TrustedClusters = append(resp.TrustedClusters, trustedClusterV2)
+	}
+
+	return resp, nil
+}

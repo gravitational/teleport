@@ -36,15 +36,6 @@ import { emptyFormSchema, OfflineGateway } from '../components/OfflineGateway';
  *
  * It first tries to create a kube gateway by calling the clusterService. Once
  * connected, it will render DocumentTerminal.
- *
- * TODO(greedy52) doc.gateway_kube replaces doc.terminal_tsh_kube when opening
- * a new kube tab. However, the old doc.terminal_tsh_kube is kept to handle the
- * case where doc.terminal_tsh_kube tabs are saved on disk by the old version
- * of Teleport Connect and need to be reopen by the new version of Teleport
- * Connect. The old doc.terminal_tsh_kube can be DELETED in the next major
- * version (15.0.0) assuming migration should be done by then. Here is the
- * discussion reference:
- * https://github.com/gravitational/teleport/pull/28312#discussion_r1253214517
  */
 export const DocumentGatewayKube = (props: {
   visible: boolean;
@@ -77,16 +68,12 @@ export const DocumentGatewayKube = (props: {
     }
   });
 
-  useEffect(
-    function createGatewayOnMount() {
-      // Only creates a gateway if we don't have it for the given params.
-      if (!gateway && connectAttempt.status === '') {
-        createGateway();
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  useEffect(function createGatewayOnMount() {
+    // Only creates a gateway if we don't have it for the given params.
+    if (!gateway && connectAttempt.status === '') {
+      createGateway();
+    }
+  }, []);
 
   if (!connected) {
     return (

@@ -207,6 +207,7 @@ const colors: ThemeColors = {
   tooltip: {
     background: 'rgba(255, 255, 255, 0.8)',
     inverseBackground: 'rgba(0, 0, 0, 0.5)',
+    inverseLinkDefault: '#0073BA',
   },
 
   progressBarColor: '#00BFA5',
@@ -497,6 +498,62 @@ const colors: ThemeColors = {
     picton: dataVisualisationColors.tertiary.picton,
     sunflower: dataVisualisationColors.tertiary.sunflower,
     caribbean: dataVisualisationColors.tertiary.caribbean,
+  },
+
+  sessionRecording: {
+    resource: '#66C5FF',
+    user: '#C5B6FF',
+    player: {
+      progressBar: {
+        background: 'rgba(255, 255, 255, 0.2)',
+        seeking: 'rgba(255, 255, 255, 0.17)',
+        progress: '#9F85FF',
+      },
+    },
+    riskLevels: {
+      low: '#00BFA6',
+      medium: '#FFAB00',
+      high: '#FF8179',
+      critical: '#FF6257',
+    },
+  },
+
+  sessionRecordingTimeline: {
+    background: '#1f2549',
+    headerBackground: 'rgba(0, 0, 0, 0.13)',
+    frameBorder: 'rgba(255, 255, 255, 0.2)',
+    progressLine: '#E53E3E',
+    border: {
+      default: '#4c516e',
+      hover: '#5f659e',
+    },
+    cursor: 'rgba(255, 255, 255, 0.4)',
+    events: {
+      inactivity: {
+        background: 'rgba(159,133,255, 0.25)',
+        text: 'rgba(255, 255, 255, 0.6)',
+      },
+      resize: {
+        semiBackground: 'rgba(0, 0, 0, 0.8)',
+        background: '#26323c',
+        border: '#86c4ed',
+        text: '#86c4ed',
+      },
+      join: {
+        background: '#009EFF',
+        text: 'rgba(0, 0, 0, 0.87)',
+      },
+      default: {
+        background: 'rgba(255, 255, 255, 0.54)',
+        text: '',
+      },
+    },
+    timeMarks: {
+      primary: '#718096',
+      secondary: '#4A5568',
+      absolute: '#E2E8F0',
+      text: '#A0AEC0',
+    },
   },
 
   link: '#009EFF',

@@ -59,7 +59,7 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	authServers := make([]string, 1, 11)
 	authServers[0] = socket.Addr().String()
 	// multiple invalid servers to minimize chance that we select good one first try
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// The 203.0.113.0/24 range is part of block TEST-NET-3 as defined in RFC-5735 (https://www.rfc-editor.org/rfc/rfc5735).
 		// IPs in this range do not appear on the public internet.
 		authServers = append(authServers, fmt.Sprintf("203.0.113.%d:3025", i+1))

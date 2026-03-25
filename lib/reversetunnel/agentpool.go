@@ -27,6 +27,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,11 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -141,6 +141,10 @@ type AgentPoolConfig struct {
 	LocalAuthAddresses []string
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+	// StaleConnTimeoutDisabled is true if connection timeouts are disabled.
+	StaleConnTimeoutDisabled bool
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -206,7 +210,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 			"target_cluster", config.Cluster,
 			"local_cluster", config.LocalCluster,
 		),
-		runtimeConfig: newAgentPoolRuntimeConfig(),
+		runtimeConfig: newAgentPoolRuntimeConfig(config.InsecureMode),
 	}
 
 	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
@@ -272,13 +276,17 @@ func (p *AgentPool) run() error {
 		if err != nil {
 			if p.ctx.Err() != nil {
 				return nil
-			} else if isProxyAlreadyClaimed(err) {
+			}
+
+			level := slog.LevelWarn
+			if isProxyAlreadyClaimed(err) && !p.IsRemoteCluster {
 				// "proxy already claimed" is a fairly benign error, we should not
 				// spam the log with stack traces for it
-				p.logger.DebugContext(p.ctx, "Failed to connect agent", "error", err)
-			} else {
-				p.logger.DebugContext(p.ctx, "Failed to connect agent", "error", err)
+				level = slog.LevelDebug
+				err = trace.Unwrap(err)
 			}
+
+			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)
@@ -439,6 +447,22 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 	}
 }
 
+// isHeartbeatTimeoutDisabledByEnv returns true if the TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT
+// environment variable is set.
+//
+// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
+// considered true.
+func IsAgentStaleConnTimeoutDisabledByEnv() bool {
+	const envVar = "TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT"
+
+	if val := os.Getenv(envVar); val != "" {
+		b, _ := strconv.ParseBool(val)
+		return b || val == "yes"
+	}
+
+	return false
+}
+
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
@@ -451,13 +475,13 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		p.logger.DebugContext(ctx, "Failed to update remote config", "error", err)
 	}
 
-	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
+	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(p.InsecureMode)}
 	if p.runtimeConfig.useALPNRouting() {
 		options = append(options, proxy.WithALPNDialer(p.runtimeConfig.alpnDialerConfig(p.getClusterCAs)))
 	}
 
 	dialer := &agentDialer{
-		client:      p.Client,
+		client:      p.AccessPoint,
 		fips:        p.FIPS,
 		authMethods: p.AuthMethods,
 		options:     options,
@@ -467,17 +491,19 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:               *addr,
-		keepAlive:          p.runtimeConfig.keepAliveInterval,
-		sshDialer:          dialer,
-		transportHandler:   p,
-		versionGetter:      p,
-		tracker:            tracker,
-		lease:              lease,
-		clock:              p.Clock,
-		logger:             p.logger,
-		localAuthAddresses: p.LocalAuthAddresses,
-		proxySigner:        p.PROXYSigner,
+		addr:                     *addr,
+		keepAlive:                p.runtimeConfig.keepAliveInterval,
+		keepAliveCount:           p.runtimeConfig.keepAliveCount,
+		sshDialer:                dialer,
+		transportHandler:         p,
+		versionGetter:            p,
+		tracker:                  tracker,
+		lease:                    lease,
+		clock:                    p.Clock,
+		logger:                   p.logger,
+		localAuthAddresses:       p.LocalAuthAddresses,
+		proxySigner:              p.PROXYSigner,
+		staleConnTimeoutDisabled: p.StaleConnTimeoutDisabled,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -568,7 +594,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	case <-ctx.Done():
 		go ssh.DiscardRequests(reqC)
 		return
-	case <-time.After(apidefaults.DefaultIOTimeout):
+	case <-time.After(defaults.DefaultIOTimeout):
 		go ssh.DiscardRequests(reqC)
 		p.logger.WarnContext(ctx, "Timed out waiting for transport dial request")
 		return
@@ -622,12 +648,16 @@ type agentPoolRuntimeConfig struct {
 	connectionCount int
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
 	isRemoteCluster bool
 	// tlsRoutingConnUpgradeRequired indicates that ALPN connection upgrades
 	// are required for making TLS routing requests.
 	tlsRoutingConnUpgradeRequired bool
+	insecureMode                  bool
 
 	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
 	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
@@ -643,13 +673,15 @@ type agentPoolRuntimeConfig struct {
 	clock          clockwork.Clock
 }
 
-func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
+func newAgentPoolRuntimeConfig(insecureMode bool) *agentPoolRuntimeConfig {
 	return &agentPoolRuntimeConfig{
 		tunnelStrategyType: types.AgentMesh,
 		connectionCount:    defaultAgentConnectionCount,
 		proxyListenerMode:  types.ProxyListenerMode_Separate,
 		keepAliveInterval:  defaults.KeepAliveInterval(),
+		keepAliveCount:     defaults.KeepAliveCountMax,
 		clock:              clockwork.NewRealClock(),
+		insecureMode:       insecureMode,
 	}
 }
 
@@ -700,7 +732,7 @@ func (c *agentPoolRuntimeConfig) alpnDialerConfig(getClusterCAs client.GetCluste
 	return client.ALPNDialerConfig{
 		TLSConfig: &tls.Config{
 			NextProtos:         alpncommon.ProtocolsToString(protocols),
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			InsecureSkipVerify: c.insecureMode,
 		},
 		KeepAlivePeriod:         c.keepAliveInterval,
 		ALPNConnUpgradeRequired: c.tlsRoutingConnUpgradeRequired,
@@ -744,7 +776,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	ping, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: addr.Addr,
-		Insecure:  lib.IsInsecureDevMode(),
+		Insecure:  c.insecureMode,
 	})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
@@ -772,7 +804,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 
 	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
 	if c.remoteTLSRoutingEnabled {
-		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, lib.IsInsecureDevMode())
+		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, c.insecureMode)
 		slog.DebugContext(ctx, "ALPN upgrade required for remote cluster",
 			"remote_addr", addr.Addr,
 			"conn_upgrade_required", c.tlsRoutingConnUpgradeRequired,
@@ -808,7 +840,7 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 	if c.proxyListenerMode == types.ProxyListenerMode_Multiplex && oldProxyListenerMode != c.proxyListenerMode {
 		addr, _, err := resolver(ctx)
 		if err == nil {
-			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, lib.IsInsecureDevMode())
+			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, c.insecureMode)
 		} else {
 			slog.WarnContext(ctx, "Failed to resolve addr", "error", err)
 		}

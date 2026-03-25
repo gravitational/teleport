@@ -39,6 +39,7 @@ import (
 
 type StatefulSetVersionUpdater struct {
 	VersionUpdater
+	StatusWriter
 	kclient.Client
 	Scheme *runtime.Scheme
 }
@@ -96,6 +97,12 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
 			log.Error(err, "Unexpected error, not updating.")
+			// Update the status (including timestamp) and each failed attempt.
+			// This also ensures that pods can still mount the configmap when the updater is failing.
+			if err := r.writeStatus(ctx, &obj, "", true); err != nil {
+				// If this fails, keep trying to ensure the pod starts.
+				return ctrl.Result{}, trace.Wrap(err)
+			}
 			return requeueLater, nil
 		}
 	}
@@ -113,12 +120,18 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 			log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 		}
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), false); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case errors.As(err, &maintenanceErr):
 		// Not logging the error because it provides no other information than its type.
 		log.Info("No maintenance triggered, not updating.", "currentVersion", currentVersion)
 		// No need to check for blocked rollout because the unhealthy workload
 		// trigger has not approved the maintenance
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), false); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case errors.As(err, &trustErr):
 		// Logging as error as image verification should not fail under normal use
@@ -126,11 +139,17 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 			log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 		}
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case err != nil:
 		log.Error(err, "Unexpected error, not updating.")
 		// Not trying to unblock a stuck rollout because unknown error typically
 		// lead to infinite reconciliations, we don't want to DoS the apiserver
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	}
 
@@ -138,16 +157,28 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
 	if err != nil {
 		log.Error(err, "Unexpected error, not updating.")
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	}
 
 	if err = r.Update(ctx, &obj); err != nil {
 		log.Error(err, "Unexpected error, not updating.")
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueNow, nil
 	}
 	if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 		log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 	}
+	// If this fails on conflict, the next call to writeStatus will detect the version change
+	// and record the update as successful.
+	if err := r.writeStatus(ctx, &obj, image.Tag(), false); err != nil {
+		return ctrl.Result{}, trace.Wrap(err)
+	}
+
 	return requeueLater, nil
 }
 

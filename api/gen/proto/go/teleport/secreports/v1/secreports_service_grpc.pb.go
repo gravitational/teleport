@@ -47,6 +47,7 @@ const (
 	SecReportsService_RunReport_FullMethodName           = "/teleport.secreports.v1.SecReportsService/RunReport"
 	SecReportsService_GetReportResult_FullMethodName     = "/teleport.secreports.v1.SecReportsService/GetReportResult"
 	SecReportsService_GetReportState_FullMethodName      = "/teleport.secreports.v1.SecReportsService/GetReportState"
+	SecReportsService_ListReportStates_FullMethodName    = "/teleport.secreports.v1.SecReportsService/ListReportStates"
 	SecReportsService_GetSchema_FullMethodName           = "/teleport.secreports.v1.SecReportsService/GetSchema"
 )
 
@@ -60,7 +61,7 @@ type SecReportsServiceClient interface {
 	UpsertAuditQuery(ctx context.Context, in *UpsertAuditQueryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAuditQuery returns an audit query.
 	GetAuditQuery(ctx context.Context, in *GetAuditQueryRequest, opts ...grpc.CallOption) (*AuditQuery, error)
-	// ListAuditQueries returns a paginated list of all Okta import rule resources.
+	// ListAuditQueries returns a paginated list of audit query resources.
 	ListAuditQueries(ctx context.Context, in *ListAuditQueriesRequest, opts ...grpc.CallOption) (*ListAuditQueriesResponse, error)
 	// DeleteAuditQuery deletes an audit query.
 	DeleteAuditQuery(ctx context.Context, in *DeleteAuditQueryRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -68,7 +69,7 @@ type SecReportsServiceClient interface {
 	UpsertReport(ctx context.Context, in *UpsertReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetReport returns a report.
 	GetReport(ctx context.Context, in *GetReportRequest, opts ...grpc.CallOption) (*Report, error)
-	// ListReports returns a paginated list of all Okta import rule resources.
+	// ListReports returns a paginated list of security report resources.
 	ListReports(ctx context.Context, in *ListReportsRequest, opts ...grpc.CallOption) (*ListReportsResponse, error)
 	// DeleteReport deletes a security report.
 	DeleteReport(ctx context.Context, in *DeleteReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -82,6 +83,8 @@ type SecReportsServiceClient interface {
 	GetReportResult(ctx context.Context, in *GetReportResultRequest, opts ...grpc.CallOption) (*GetReportResultResponse, error)
 	// GetReportState returns a security report state.
 	GetReportState(ctx context.Context, in *GetReportStateRequest, opts ...grpc.CallOption) (*ReportState, error)
+	// ListReportStates returns a paginated list of security report state resources.
+	ListReportStates(ctx context.Context, in *ListReportStatesRequest, opts ...grpc.CallOption) (*ListReportStatesResponse, error)
 	// GetSchema returns a schema of audit query.
 	GetSchema(ctx context.Context, in *GetSchemaRequest, opts ...grpc.CallOption) (*GetSchemaResponse, error)
 }
@@ -224,6 +227,16 @@ func (c *secReportsServiceClient) GetReportState(ctx context.Context, in *GetRep
 	return out, nil
 }
 
+func (c *secReportsServiceClient) ListReportStates(ctx context.Context, in *ListReportStatesRequest, opts ...grpc.CallOption) (*ListReportStatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListReportStatesResponse)
+	err := c.cc.Invoke(ctx, SecReportsService_ListReportStates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *secReportsServiceClient) GetSchema(ctx context.Context, in *GetSchemaRequest, opts ...grpc.CallOption) (*GetSchemaResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSchemaResponse)
@@ -244,7 +257,7 @@ type SecReportsServiceServer interface {
 	UpsertAuditQuery(context.Context, *UpsertAuditQueryRequest) (*emptypb.Empty, error)
 	// GetAuditQuery returns an audit query.
 	GetAuditQuery(context.Context, *GetAuditQueryRequest) (*AuditQuery, error)
-	// ListAuditQueries returns a paginated list of all Okta import rule resources.
+	// ListAuditQueries returns a paginated list of audit query resources.
 	ListAuditQueries(context.Context, *ListAuditQueriesRequest) (*ListAuditQueriesResponse, error)
 	// DeleteAuditQuery deletes an audit query.
 	DeleteAuditQuery(context.Context, *DeleteAuditQueryRequest) (*emptypb.Empty, error)
@@ -252,7 +265,7 @@ type SecReportsServiceServer interface {
 	UpsertReport(context.Context, *UpsertReportRequest) (*emptypb.Empty, error)
 	// GetReport returns a report.
 	GetReport(context.Context, *GetReportRequest) (*Report, error)
-	// ListReports returns a paginated list of all Okta import rule resources.
+	// ListReports returns a paginated list of security report resources.
 	ListReports(context.Context, *ListReportsRequest) (*ListReportsResponse, error)
 	// DeleteReport deletes a security report.
 	DeleteReport(context.Context, *DeleteReportRequest) (*emptypb.Empty, error)
@@ -266,6 +279,8 @@ type SecReportsServiceServer interface {
 	GetReportResult(context.Context, *GetReportResultRequest) (*GetReportResultResponse, error)
 	// GetReportState returns a security report state.
 	GetReportState(context.Context, *GetReportStateRequest) (*ReportState, error)
+	// ListReportStates returns a paginated list of security report state resources.
+	ListReportStates(context.Context, *ListReportStatesRequest) (*ListReportStatesResponse, error)
 	// GetSchema returns a schema of audit query.
 	GetSchema(context.Context, *GetSchemaRequest) (*GetSchemaResponse, error)
 	mustEmbedUnimplementedSecReportsServiceServer()
@@ -316,6 +331,9 @@ func (UnimplementedSecReportsServiceServer) GetReportResult(context.Context, *Ge
 }
 func (UnimplementedSecReportsServiceServer) GetReportState(context.Context, *GetReportStateRequest) (*ReportState, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetReportState not implemented")
+}
+func (UnimplementedSecReportsServiceServer) ListReportStates(context.Context, *ListReportStatesRequest) (*ListReportStatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListReportStates not implemented")
 }
 func (UnimplementedSecReportsServiceServer) GetSchema(context.Context, *GetSchemaRequest) (*GetSchemaResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSchema not implemented")
@@ -575,6 +593,24 @@ func _SecReportsService_GetReportState_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SecReportsService_ListReportStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReportStatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecReportsServiceServer).ListReportStates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SecReportsService_ListReportStates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecReportsServiceServer).ListReportStates(ctx, req.(*ListReportStatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SecReportsService_GetSchema_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSchemaRequest)
 	if err := dec(in); err != nil {
@@ -651,6 +687,10 @@ var SecReportsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetReportState",
 			Handler:    _SecReportsService_GetReportState_Handler,
+		},
+		{
+			MethodName: "ListReportStates",
+			Handler:    _SecReportsService_ListReportStates_Handler,
 		},
 		{
 			MethodName: "GetSchema",

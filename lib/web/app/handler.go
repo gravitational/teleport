@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,15 +57,13 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnelclient.Tunnel
+	// ClusterGetter holds connections to leaf clusters.
+	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -133,7 +133,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	// Get the name of this cluster.
-	cn, err := h.c.AccessPoint.GetClusterName()
+	cn, err := h.c.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,9 +172,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 		return trace.Wrap(err)
 	}
 
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(ctx, identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -226,21 +224,27 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
 func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
-	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
+	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// At least one AppServer needs to be present to serve the requests. Using
-	// MatchOne can reduce the amount of work required by the app matcher by not
-	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(publicAddr))
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(servers) == 0 {
+		// This error path is unexpected as the healthcheck is typically performed post resolution.
+		return trace.NotFound("failed to match applications with public addr %s", publicAddr)
+	}
+
+	// At least one AppServer needs to be present to serve the requests.
+	i := slices.IndexFunc(servers, func(appServer types.AppServer) bool {
+		return isAppServerDialable(ctx, clusterClient, appServer)
+	})
+	if i < 0 {
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil
@@ -391,6 +395,21 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 	return ws, nil
 }
 
+func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID string) (types.WebSession, error) {
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Do an extra check in case expired app session is still cached.
+	if ws.Expiry().Before(h.c.Clock.Now()) {
+		h.logger.DebugContext(ctx, "Session expired")
+		return nil, trace.AccessDenied("invalid session")
+	}
+	return ws, nil
+}
+
 func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, error) {
 	if !HasClientCert(r) {
 		return nil, trace.BadParameter("request missing client certificate")
@@ -403,9 +422,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), identity.RouteToApp.SessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,9 +464,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -680,6 +695,6 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 
 // redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
 // should be redirected directly to the public address instead.
-func redirectInsteadOfForward(appServer types.AppServer) bool {
+func redirectInsteadOfForward(appServer readonly.AppServer) bool {
 	return appServer.GetApp().Origin() == types.OriginOkta
 }

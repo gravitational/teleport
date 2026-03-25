@@ -109,3 +109,7 @@ securityContext:
   runAsUser: 9807
   seccompProfile:
     type: RuntimeDefault
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 3000

@@ -5,13 +5,13 @@ metadata:
   name: terraform
 spec:
   roles: [Bot]
-  join_method: terraform
+  join_method: terraform_cloud
 
   # This must match a bot name, created either with `tctl bots add` or by
   # creating a `bot` resource.
   bot_name: terraform
 
-  terraform:
+  terraform_cloud:
     # Manually override the expected audience. If unset, defaults to the
     # Teleport cluster name. It is not recommended to override this value.
     audience: ''

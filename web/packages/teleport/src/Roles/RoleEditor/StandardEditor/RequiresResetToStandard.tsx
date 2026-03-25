@@ -60,7 +60,7 @@ export const RequiresResetToStandard = ({
     setDialogOpen(false);
   };
   return (
-    <Info>
+    <Info alignItems="flex-start">
       <Text>
         This role is too complex to be edited in the standard editor. To
         continue editing, go back to YAML editor or reset the affected fields to

@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func makeTrustDomain(t *testing.T, name string) (spiffeid.TrustDomain, *spiffebundle.Bundle) {
@@ -65,7 +65,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	clock := clockwork.NewRealClock()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -89,6 +89,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv1.Close)
 	testSrv2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, err := federation.NewHandler(td2, bundle2)
 		if !assert.NoError(t, err) {
@@ -96,6 +97,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv2.Close)
 
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv1.Certificate())
@@ -138,20 +140,15 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	}()
 
 	// Wait for the initially created SPIFFEFederation to be synced
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created1.Metadata.Name)
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		// Check that some update as occurred (as indicated by the revision)
-		if !assert.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision) {
-			return
-		}
+		require.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision)
+
 		// Check that the expected status fields have been set...
-		if !assert.NotNil(t, got.Status) {
-			return
-		}
-		assert.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
+		require.NotNil(t, got.Status)
+		require.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
 	}, time.Second*10, time.Millisecond*200)
 
 	// Create a second SPIFFEFederation and wait for it to be synced
@@ -170,26 +167,21 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created2.Metadata.Name)
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		// Check that some update as occurred (as indicated by the revision)
-		if !assert.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision) {
-			return
-		}
+		require.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision)
+
 		// Check that the expected status fields have been set...
-		if !assert.NotNil(t, got.Status) {
-			return
-		}
-		assert.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
+		require.NotNil(t, got.Status)
+		require.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
 	}, time.Second*10, time.Millisecond*200)
 
 	cancel()
 	select {
 	case err := <-errCh:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for syncer to stop")
 	}
@@ -201,7 +193,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -222,6 +214,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		}
 		h.ServeHTTP(w, r)
 	}))
+	t.Cleanup(testSrv.Close)
 	caPool := x509.NewCertPool()
 	caPool.AddCert(testSrv.Certificate())
 

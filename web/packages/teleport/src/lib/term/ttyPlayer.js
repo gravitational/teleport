@@ -41,12 +41,14 @@ const actionPause = 1;
 const PROGRESS_UPDATE_INTERVAL_MS = 50;
 
 export default class TtyPlayer extends Tty {
-  constructor({ url, setPlayerStatus, setStatusText, setTime }) {
+  constructor({ url, onTimeChange, setPlayerStatus, setStatusText, setTime }) {
     super({});
 
     this._url = url;
     this._setPlayerStatus = setPlayerStatus;
     this._setStatusText = setStatusText;
+
+    this._onTimeChange = onTimeChange;
 
     this._paused = false;
     this._lastPlayedTimestamp = 0;
@@ -57,6 +59,10 @@ export default class TtyPlayer extends Tty {
     this._lastUpdateTime = 0;
     this._lastTimestamp = 0;
     this._timeout = null;
+
+    // Add animation frame tracking
+    this._animationFrameId = null;
+    this._isAnimating = false;
   }
 
   // Override the base class connection, which uses the envelope-based
@@ -106,6 +112,7 @@ export default class TtyPlayer extends Tty {
 
   disconnect(closeCode = WebsocketCloseCode.NORMAL) {
     this.cancelTimeUpdate();
+    this.stopAnimationLoop();
     if (this.webSocket !== null) {
       this.webSocket.close(closeCode);
     }
@@ -128,6 +135,7 @@ export default class TtyPlayer extends Tty {
       clearTimeout(this._timeout);
       this._timeout = null;
     }
+    this.stopAnimationLoop();
   }
 
   onMessage(m) {
@@ -171,6 +179,7 @@ export default class TtyPlayer extends Tty {
           // as quickly as possible
           if (!this._paused && !this.isSeekingForward()) {
             this.scheduleNextUpdate(delay);
+            this.startAnimationLoop();
           }
           break;
 
@@ -207,6 +216,8 @@ export default class TtyPlayer extends Tty {
 
   move(newPos) {
     this.cancelTimeUpdate();
+    this.stopAnimationLoop();
+
     try {
       const buffer = new ArrayBuffer(11);
       const dv = new DataView(buffer);
@@ -219,6 +230,9 @@ export default class TtyPlayer extends Tty {
     }
 
     this._setTime(newPos);
+    if (this._onTimeChange) {
+      this._onTimeChange(newPos);
+    }
     this._lastUpdateTime = Date.now();
     this._skipTimeUpdatesUntil = newPos;
 
@@ -227,6 +241,7 @@ export default class TtyPlayer extends Tty {
     } else {
       if (!this._paused) {
         this.scheduleNextUpdate(newPos);
+        this.startAnimationLoop();
       }
     }
   }
@@ -241,6 +256,7 @@ export default class TtyPlayer extends Tty {
   stop() {
     this._paused = true;
     this.cancelTimeUpdate();
+    this.stopAnimationLoop();
     this._setPlayerStatus(StatusEnum.PAUSED);
 
     if (this.webSocket.readyState !== WebSocket.OPEN) {
@@ -268,6 +284,8 @@ export default class TtyPlayer extends Tty {
       this.scheduleNextUpdate(this._lastTimestamp);
     }
 
+    this.startAnimationLoop();
+
     // the very first play call happens before we've even
     // connected - we only need to send the websocket message
     // for subsequent calls
@@ -281,5 +299,43 @@ export default class TtyPlayer extends Tty {
     dv.setUint16(1, 1 /* size */);
     dv.setUint8(3, actionPlay);
     this.webSocket.send(dv);
+  }
+
+  startAnimationLoop() {
+    if (this._isAnimating) {
+      return;
+    }
+
+    this._isAnimating = true;
+
+    const animate = () => {
+      if (!this._isAnimating) {
+        return;
+      }
+
+      // Calculate current time based on elapsed time since last update
+      if (!this._paused) {
+        const delta = Date.now() - this._lastUpdateTime;
+        const currentTime = this._lastTimestamp + delta;
+
+        // Call onTimeChange smoothly every frame
+        if (this._onTimeChange && this._sendTimeUpdates) {
+          this._onTimeChange(currentTime);
+        }
+      }
+
+      this._animationFrameId = requestAnimationFrame(animate);
+    };
+
+    this._animationFrameId = requestAnimationFrame(animate);
+  }
+
+  stopAnimationLoop() {
+    this._isAnimating = false;
+
+    if (this._animationFrameId) {
+      cancelAnimationFrame(this._animationFrameId);
+      this._animationFrameId = null;
+    }
   }
 }

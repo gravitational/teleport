@@ -24,7 +24,7 @@ delete-gcp-cluster:
 destroy-deploy:
 	$(MAKE) -C control-plane destroy
 
-# deploys teleport auth and proxy
+# deploys teleport auth and proxy with assosciated pre-requisites (monitoring/storage/etc)
 .PHONY: deploy-control-plane
 deploy-control-plane:
 	$(MAKE) -C control-plane deploy
@@ -145,3 +145,43 @@ deploy-soaktest:
 .PHONY: delete-soaktest
 delete-soaktest:
 	helm delete -n soaktest soaktest
+
+# In order to run a large number of `tctl create` commands in-cluster we make use of a tbot deployment.
+# See helm/fixtures/tbot.yaml for the token and permissions used, adjust as needed.
+.PHONY: create-tbot-resources
+create-tbot-resources:
+	STATIC_JWKS=$$(curl $$(kubectl get --raw /.well-known/openid-configuration | jq '.issuer + "/keys"' --raw-output)); \
+	sed "s/@@STATIC_JWKS@@/$${STATIC_JWKS}/g" helm/fixtures/tbot.yaml > tbot.rendered.yaml
+	kubectl --namespace teleport exec -i deploy/teleport-auth -- tctl create -f < tbot.rendered.yaml
+
+.PHONY: deploy-app-service
+deploy-app-service:
+	helm upgrade --install teleport-kube-agent ../../examples/chart/teleport-kube-agent \
+	--create-namespace \
+	--namespace teleport \
+	--set roles=app \
+	--set proxyAddr=${PROXY_SERVER} \
+	--set authToken=${TOKEN} \
+	--set "appResources[0].labels.*=*" \
+	--set teleportVersionOverride="${TELEPORT_VERSION}" \
+	--values ./helm/values/app-service-agent.yaml
+
+.PHONY: delete-app-service
+delete-app-service:
+	helm delete -n teleport teleport-kube-agent
+
+.PHONY: create-app-resources
+create-app-resources: COUNT ?= 100
+create-app-resources: PARALLELISM ?= 10
+create-app-resources:
+	helm upgrade --install resources \
+	-n resources --create-namespace \
+	./helm/resources \
+	--set proxy=${PROXY_SERVER} \
+	--set clusterName=${CLUSTER_NAME} \
+	--set resources.count=${COUNT} \
+	--set resources.parallelism=${PARALLELISM}
+
+.PHONY: delete-app-resources
+delete-app-resources:
+	helm delete -n resources resources

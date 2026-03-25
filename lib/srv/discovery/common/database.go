@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -30,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
@@ -330,7 +333,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database
 	uri := ""
 	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
 		if instance.Endpoint.Port != nil {
-			uri = fmt.Sprintf("%s:%d", aws.ToString(instance.Endpoint.Address), *instance.Endpoint.Port)
+			uri = net.JoinHostPort(aws.ToString(instance.Endpoint.Address), strconv.Itoa(int(*instance.Endpoint.Port)))
 		} else {
 			uri = aws.ToString(instance.Endpoint.Address)
 		}
@@ -734,7 +737,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rdstypes.DBProxy, tags []rdstypes.Tag) (ty
 		}, aws.ToString(dbProxy.DBProxyName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.ToString(dbProxy.Endpoint), port),
+			URI:      net.JoinHostPort(aws.ToString(dbProxy.Endpoint), strconv.Itoa(port)),
 			AWS:      *metadata,
 		})
 }
@@ -757,7 +760,7 @@ func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rdstypes.DBProxy, customEndp
 		}, aws.ToString(dbProxy.DBProxyName), aws.ToString(customEndpoint.DBProxyEndpointName)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%s:%d", aws.ToString(customEndpoint.Endpoint), port),
+			URI:      net.JoinHostPort(aws.ToString(customEndpoint.Endpoint), strconv.Itoa(port)),
 			AWS:      *metadata,
 
 			// RDS proxies serve wildcard certificates like this:
@@ -873,6 +876,30 @@ func newElastiCacheDatabase(cluster *ectypes.ReplicationGroup, endpoint *ectypes
 	}, aws.ToString(cluster.ReplicationGroupId), suffix...), types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      fmt.Sprintf("%v:%v", aws.ToString(endpoint.Address), aws.ToInt32(endpoint.Port)),
+		AWS:      *metadata,
+	})
+}
+
+// NewDatabaseFromElastiCacheServerlessCache create a database resource from an
+// ElastiCache serverless cache.
+func NewDatabaseFromElastiCacheServerlessCache(cache *ectypes.ServerlessCache, extraLabels map[string]string) (types.Database, error) {
+	// The "reader" endpoint does not seem to be a read-only endpoint at all,
+	// (it can read and write) and only differs by port (primary:6379 vs reader:6380),
+	// therefore we ignore the reader endpoint and only create a database from the primary.
+	if cache.Endpoint == nil {
+		return nil, trace.BadParameter("missing ElastiCache Serverless cache endpoint")
+	}
+	metadata, err := MetadataFromElastiCacheServerlessCache(cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return types.NewDatabaseV3(setAWSDBName(types.Metadata{
+		Description: fmt.Sprintf("ElastiCache Serverless cache in %v", metadata.Region),
+		Labels:      addLabels(labelsFromAWSMetadata(metadata), extraLabels),
+	}, aws.ToString(cache.ServerlessCacheName)), types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      fmt.Sprintf("%v:%v", aws.ToString(cache.Endpoint.Address), aws.ToInt32(cache.Endpoint.Port)),
 		AWS:      *metadata,
 	})
 }
@@ -1180,6 +1207,23 @@ func MetadataFromElastiCacheCluster(cluster *ectypes.ReplicationGroup, endpointT
 	}, nil
 }
 
+// MetadataFromElastiCacheCluster creates AWS metadata for the provided
+// ElastiCache cluster.
+func MetadataFromElastiCacheServerlessCache(cache *ectypes.ServerlessCache) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.ToString(cache.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		ElastiCacheServerless: types.ElastiCacheServerless{
+			CacheName: aws.ToString(cache.ServerlessCacheName),
+		},
+	}, nil
+}
+
 // MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
 func MetadataFromOpenSearchDomain(domain *opensearchtypes.DomainStatus, endpointType string) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.ToString(domain.ARN))
@@ -1284,6 +1328,24 @@ func ExtraElastiCacheLabels(cluster *ectypes.ReplicationGroup, tags []ectypes.Ta
 	}
 
 	labels[types.DiscoveryLabelEngine] = aws.ToString(cluster.Engine)
+	// Add AWS resource tags.
+	return addLabels(labels, libcloudaws.TagsToLabels(tags))
+}
+
+// ExtraElastiCacheServerlessLabels returns a list of extra labels for provided
+// ElastiCacheServerless cluster.
+func ExtraElastiCacheServerlessLabels(cache *ectypes.ServerlessCache, tags []ectypes.Tag, subnets map[string]ec2types.Subnet) map[string]string {
+	labels := make(map[string]string)
+	labels[types.DiscoveryLabelEngine] = aws.ToString(cache.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.ToString(cache.FullEngineVersion)
+	if subnets != nil {
+		for _, s := range cache.SubnetIds {
+			if subnet, ok := subnets[s]; ok {
+				labels[types.DiscoveryLabelVPCID] = aws.ToString(subnet.VpcId)
+				break
+			}
+		}
+	}
 	// Add AWS resource tags.
 	return addLabels(labels, libcloudaws.TagsToLabels(tags))
 }

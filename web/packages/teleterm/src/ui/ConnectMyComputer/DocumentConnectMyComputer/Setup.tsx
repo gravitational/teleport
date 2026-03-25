@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonPrimary, Flex, H1, Text } from 'design';
@@ -241,7 +241,8 @@ function AgentSetup() {
                 !error.isResolvableWithRelogin
               ) {
                 throw new Error(
-                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`
+                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`,
+                  { cause: error }
                 );
               }
               throw error;

@@ -71,7 +71,7 @@ export function TestConnection(props: AgentStepProps) {
   const node = (props.agentMeta as NodeMeta).node;
   const [selectedLoginOpt, setSelectedLoginOpt] = useState<Option>();
 
-  const abortController = useRef<AbortController>();
+  const abortController = useRef<AbortController>(undefined);
   // When the user sets up Connect My Computer in Teleport Connect, a new role gets added to the
   // user. Because of that, we need to reload the current session so that the user is able to
   // connect to the new node, without having to log in to the cluster again.

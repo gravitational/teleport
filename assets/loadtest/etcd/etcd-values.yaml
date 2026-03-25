@@ -1,0 +1,10 @@
+persistence:
+  enabled: true
+  storageClass: "gp2"
+  accessModes:
+    - ReadWriteOnce
+  size: 32Gi
+
+# Switch to legacy images
+image:
+  repository: bitnamilegacy/etcd

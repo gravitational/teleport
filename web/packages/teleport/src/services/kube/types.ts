@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
+
 import { ResourceLabel } from 'teleport/services/agents';
 
 export interface Kube {
@@ -25,6 +27,18 @@ export interface Kube {
   users?: string[];
   groups?: string[];
   requiresRequest?: boolean;
+  /**
+   * targetHealth describes the health status of a Kubernetes cluster
+   * reported from an agent (kubernetes_service) that is proxying this
+   * Kubernetes cluster.
+   *
+   * This field will be empty if the Kubernetes cluster was not extracted from
+   * a kube_server resource. The following endpoints will set this field
+   * since these endpoints query for kube_server under the hood and then
+   * extract kube from it:
+   * - webapi/sites/:site/resources (unified resources)
+   */
+  targetHealth?: ResourceTargetHealth;
 }
 
 /**
@@ -58,3 +72,9 @@ export interface KubeResourceResponse {
   startKey?: string;
   totalCount?: number;
 }
+
+export type KubeServer = {
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};

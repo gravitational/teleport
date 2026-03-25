@@ -16,6 +16,8 @@
 		<key>com.goteleport.tshdev.vnetd</key>
 		<true/>
 	</dict>
+	<!-- VNet daemon uses os_log rather than logging to stdout or stderr, but these keys are kept in
+	case something does gets written there before the os_log logger is set up. -->
 	<key>StandardErrorPath</key>
 	<string>/var/log/vnet.log</string>
 	<key>StandardOutPath</key>

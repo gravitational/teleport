@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package reversetunnel sets up persistent reverse tunnel
-// between remote site and teleport proxy, when site agents
-// dial to teleport proxy's socket and teleport proxy can connect
-// to any server through this tunnel.
+// Package reversetunnel sets up persistent reverse tunnels
+// from proxies in leaf clusters and agents in the local cluster
+// with the local cluster proxy.
 package reversetunnel
 
 import (
@@ -36,8 +35,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -91,6 +93,10 @@ type SSHClient interface {
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
 	Reply(*ssh.Request, bool, []byte) error
+
+	// TODO(okraport): DELETE IN v21.0.0 This callback is a temporary workaround during the migration while
+	// older Teleport versions do not support keepalive messages on reverse tunnel servers.
+	EnableWatchdog(timeout time.Duration)
 }
 
 // agentConfig represents an agent configuration.
@@ -99,6 +105,9 @@ type agentConfig struct {
 	addr utils.NetAddr
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// stateCallback is called each time the state changes.
 	stateCallback AgentStateCallback
 	// sshDialer creates a new ssh connection.
@@ -121,6 +130,8 @@ type agentConfig struct {
 	localAuthAddresses []string
 	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// staleConnTimeoutDisabled is true if connection timeouts are disabled.
+	staleConnTimeoutDisabled bool
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.
@@ -149,6 +160,13 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.logger == nil {
 		c.logger = slog.Default()
 	}
+	if c.keepAliveCount == 0 {
+		c.keepAliveCount = defaults.KeepAliveCountMax
+	}
+	if c.keepAlive == 0 {
+		c.keepAlive = defaults.KeepAliveInterval()
+	}
+
 	c.logger = c.logger.With(
 		"lease_id", c.lease.ID(),
 		"target", c.addr.String(),
@@ -173,8 +191,6 @@ type agent struct {
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
 	hbChannel *tracessh.Channel
-	// hbRequests are requests going over the heartbeat channel.
-	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
@@ -340,9 +356,11 @@ func (a *agent) Start(ctx context.Context) error {
 	a.drainWG.Add(1)
 	a.wg.Add(1)
 	go func() {
-		if err := a.handleDrainChannels(); err != nil {
+		drainWGDone := sync.OnceFunc(a.drainWG.Done)
+		if err := a.handleDrainChannels(drainWGDone); err != nil {
 			a.logger.DebugContext(a.ctx, "Failed to handle drainable channels", "error", err)
 		}
+		drainWGDone()
 		a.wg.Done()
 		a.Stop()
 	}()
@@ -351,6 +369,15 @@ func (a *agent) Start(ctx context.Context) error {
 	go func() {
 		if err := a.handleChannels(); err != nil {
 			a.logger.DebugContext(a.ctx, "Failed to handle channels", "error", err)
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		if err := a.sendKeepalives(); err != nil {
+			a.logger.DebugContext(a.ctx, "Failed to send keepalive", "error", err)
 		}
 		a.wg.Done()
 		a.Stop()
@@ -404,6 +431,13 @@ func (a *agent) connect() error {
 	return nil
 }
 
+// sendHeartbeat sends a ping message to the configured heartbeat channel.
+func (a *agent) sendHeartbeat(ctx context.Context) error {
+	bytes, _ := a.clock.Now().UTC().MarshalText()
+	_, err := a.hbChannel.SendRequest(ctx, "ping", false, bytes)
+	return trace.Wrap(err)
+}
+
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
@@ -411,13 +445,14 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	sshutils.DiscardChannelData(channel)
+	go ssh.DiscardRequests(requests)
 
 	a.hbChannel = channel
-	a.hbRequests = requests
 
 	// Send the first ping right away.
-	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
+	if err := a.sendHeartbeat(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -455,9 +490,8 @@ func (a *agent) Stop() error {
 func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
 	for {
 		select {
-		case r := <-requests:
-			// The request will be nil when the request channel is closing.
-			if r == nil {
+		case r, ok := <-requests:
+			if !ok {
 				return trace.Errorf("global request channel is closing")
 			}
 
@@ -502,74 +536,47 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 	}
 }
 
-func (a *agent) isDraining() bool {
-	return a.drainCtx.Err() != nil
-}
-
-// signalDraining will signal one time when the draining context is canceled.
-func (a *agent) signalDraining() <-chan struct{} {
-	c := make(chan struct{})
-	a.wg.Add(1)
-	go func() {
-		<-a.drainCtx.Done()
-		close(c)
-		a.wg.Done()
-	}()
-
-	return c
-}
-
 // handleDrainChannels handles channels that should be stopped when the agent is draining.
-func (a *agent) handleDrainChannels() error {
+func (a *agent) handleDrainChannels(drainWGDone func()) error {
 	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
-	// once ensures drainWG.Done() is called one more time
-	// after no more transports will be created.
-	once := &sync.Once{}
-	drainWGDone := func() {
-		once.Do(func() {
-			a.drainWG.Done()
-		})
-	}
-	defer drainWGDone()
-	drainSignal := a.signalDraining()
+	drainCtxDone := a.drainCtx.Done()
 
 	for {
-		if a.isDraining() {
-			drainWGDone()
-		}
-
 		select {
 		case <-a.ctx.Done():
 			return nil
-		// Signal once when the drain context is canceled to ensure we unblock
-		// to call drainWG.Done().
-		case <-drainSignal:
-			continue
-		// Handle closed heartbeat channel.
-		case req := <-a.hbRequests:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
+		case <-drainCtxDone:
+			// we synchronously do this here rather than using
+			// [context.AfterFunc] so we don't accidentally increase drainWG
+			// from 0 while something else might already be waiting
+			drainWGDone()
+			// don't re-enter this case of the select
+			drainCtxDone = nil
+			// for good measure
+			ticker.Stop()
 		// Send ping over heartbeat channel.
 		case <-ticker.C:
-			if a.isDraining() {
+			if a.drainCtx.Err() != nil {
 				continue
 			}
-			bytes, _ := a.clock.Now().UTC().MarshalText()
-			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
-			if err != nil {
+			if err := a.sendHeartbeat(a.ctx); err != nil {
 				a.logger.ErrorContext(a.ctx, "failed to send ping request", "error", err)
 				return trace.Wrap(err)
 			}
 			a.logger.DebugContext(a.ctx, "Sent ping request", "target_addr", logutils.StringerAttr(a.client.RemoteAddr()))
 		// Handle transport requests.
-		case nch := <-a.transportC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.transportC:
+			if !ok {
+				return trace.ConnectionProblem(nil, "transport: connection closed")
 			}
-			if a.isDraining() {
+
+			// once drainWGDone is called we can't add to the drain waitgroup so
+			// we have to reject transport requests beforehand; it gets called
+			// in this loop after drainCtx is done, so checking for the context
+			// error here is a stronger condition
+			if a.drainCtx.Err() != nil {
 				err := nch.Reject(ssh.ConnectionFailed, "agent connection is draining")
 				if err != nil {
 					a.logger.WarnContext(a.ctx, "Failed to reject transport channel", "error", err)
@@ -602,9 +609,9 @@ func (a *agent) handleChannels() error {
 		case <-a.ctx.Done():
 			return nil
 		// new discovery request channel
-		case nch := <-a.discoveryC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.discoveryC:
+			if !ok {
+				return nil
 			}
 			a.logger.DebugContext(a.ctx, "Discovery request channel opened", "channel_type", nch.ChannelType())
 			ch, req, err := nch.Accept()
@@ -619,6 +626,65 @@ func (a *agent) handleChannels() error {
 				a.wg.Done()
 			}()
 		}
+	}
+}
+
+// sendKeepalives sends keepalive requests to the server at regular intervals configured by [agent.keepAlive].
+//
+// It's possible on older servers that the keepalive request is not supported, the SendRequest will block until until
+// connection is destroyed. If the server responds successfully and the watchdog is configured, the watchdog will then
+// be enabled.
+func (a *agent) sendKeepalives() error {
+	first := true
+	ticker := time.NewTimer(0)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+
+		const wantReplyTrue = true
+		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
+		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
+		if err != nil {
+			if !utils.IsOKNetworkError(err) {
+				a.logger.WarnContext(
+					a.ctx,
+					"Failed to send keepalive request",
+					"target_addr",
+					logutils.StringerAttr(a.client.RemoteAddr()),
+					"error",
+					err,
+				)
+			}
+			return trace.Wrap(err, "failed to send keepalive request")
+		}
+
+		if !first {
+			continue
+		}
+		first = false
+
+		if a.staleConnTimeoutDisabled {
+			continue
+		}
+
+		// If the connection has no activity within [a.keepAliveCount] heartbeat intervals, then the connection
+		// will be terminated.
+		timeout := a.keepAlive * time.Duration(a.keepAliveCount)
+		a.client.EnableWatchdog(timeout)
+		a.logger.InfoContext(
+			a.ctx,
+			"Keepalive successful, arming watchdog",
+			"target_addr",
+			logutils.StringerAttr(a.client.RemoteAddr()),
+			"timeout",
+			logutils.StringerAttr(timeout),
+		)
+
 	}
 }
 

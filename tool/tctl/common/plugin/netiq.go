@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	boldGreen          = color.New(color.Bold, color.FgGreen).SprintFunc()
+	boldGreen          = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("10")).Render
 	netIQStep1Template = bold("Step 1: Configure IDM OSP address") + `
 
 Please provide the IDM OSP address to configure the integration.
@@ -172,7 +172,7 @@ func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, er
 	return settings, nil
 }
 
-func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args pluginServices) error {
 	settings, err := p.netIQSetupGuide(ctx)
 	if err != nil {
 		if errors.Is(err, errCancel) {

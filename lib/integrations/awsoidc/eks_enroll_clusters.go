@@ -54,11 +54,12 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -75,8 +76,8 @@ const (
 )
 
 var (
-	agentRepoURL        = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
-	agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
+	agentRepoURL        = teleportassets.HelmRepoURL()
+	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
 )
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
@@ -134,7 +135,7 @@ type EnrollEKSClusterClient interface {
 type defaultEnrollEKSClustersClient struct {
 	*eks.Client
 	stsClient    *sts.Client
-	tokenCreator TokenCreator
+	tokenCreator TokenCreatorFn
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
@@ -157,7 +158,7 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.
 	return checkAgentAlreadyInstalled(ctx, actionConfig)
 }
 
-func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
+func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreatorFn) (string, string, error) {
 	const eksJoinTokenTTL = 30 * time.Minute
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -210,11 +211,11 @@ func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token 
 	return d.tokenCreator(ctx, token)
 }
 
-// TokenCreator creates join token on the auth server.
-type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
+// TokenCreatorFn creates join token on the auth server.
+type TokenCreatorFn func(ctx context.Context, token types.ProvisionToken) error
 
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
-func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSClusterClient, error) {
+func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreatorFn) (EnrollEKSClusterClient, error) {
 	eksClient, err := newEKSClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -310,7 +311,6 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	group.SetLimit(concurrentEKSEnrollingLimit)
 
 	for _, eksClusterName := range req.ClusterNames {
-		eksClusterName := eksClusterName
 
 		group.Go(func() error {
 			resourceId, issueType, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
@@ -414,7 +414,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", "", trace.Wrap(err)
 	}
 
-	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
+	ownershipTags := defaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
 
 	wasAdded, err := maybeAddAccessEntry(ctx, log, clusterName, principalArn, clt, ownershipTags)
 	if err != nil {
@@ -525,10 +525,8 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 		return false, trace.Wrap(err)
 	}
 
-	for _, entry := range entries.AccessEntries {
-		if entry == roleArn {
-			return false, nil
-		}
+	if slices.Contains(entries.AccessEntries, roleArn) {
+		return false, nil
 	}
 
 	createAccessEntryReq := &eks.CreateAccessEntryInput{
@@ -590,7 +588,7 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
-	debugLogWithFormat := func(format string, v ...interface{}) {
+	debugLogWithFormat := func(format string, v ...any) {
 		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
 			return
 		}
@@ -741,10 +739,19 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	return nil
 }
 
-func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	maps.Copy(labels, extraLabels)
-	maps.Copy(labels, kubeCluster.GetStaticLabels())
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]any {
+	// Labels property in the `teleport-kube-agent` chart is defined as object.
+	// Object values are of map[string]any type, so we need to use `any`.
+	labels := make(map[string]any)
+
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
+
+	for k, v := range kubeCluster.GetStaticLabels() {
+		labels[k] = v
+	}
+
 	labels[types.InternalResourceIDLabel] = resourceID
 
 	return labels

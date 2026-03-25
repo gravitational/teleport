@@ -101,10 +101,12 @@ func (s *Server) shouldInitCACertLocked(database types.Database) bool {
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
 	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRDSOracle,
 		types.DatabaseTypeDocumentDB,
 		types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless,
 		types.DatabaseTypeElastiCache,
+		types.DatabaseTypeElastiCacheServerless,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeDynamoDB,
@@ -166,7 +168,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	// All RDS instances share the same root CA (per AWS region) which can be
 	// downloaded from a well-known URL.
 	// DocumentDB uses same certs as RDS.
-	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle, types.DatabaseTypeDocumentDB:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database)))}, nil
 
 	// All Redshift instances share the same root CA which can be downloaded
@@ -186,6 +188,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	//
 	// AWS MemoryDB uses same CA as ElastiCache.
 	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeElastiCacheServerless,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeDynamoDB:
 		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
@@ -309,12 +312,13 @@ func NewRealDownloader() CADownloader {
 // Download downloads CA certificate for the provided cloud database instance.
 func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, []byte, error) {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle, types.DatabaseTypeDocumentDB:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeElastiCacheServerless,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeDynamoDB:
 		return d.downloadFromURL(amazonRootCA1URL)
@@ -338,12 +342,13 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 // GetVersion returns the CA version for the provided database.
 func (d *realDownloader) GetVersion(ctx context.Context, database types.Database, hint string) ([]byte, error) {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeDocumentDB:
+	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle, types.DatabaseTypeDocumentDB:
 		return d.getVersionFromURL(database, rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless:
 		return d.getVersionFromURL(database, redshiftCAURLForDatabase(database))
 	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeElastiCacheServerless,
 		types.DatabaseTypeMemoryDB:
 		return d.getVersionFromURL(database, amazonRootCA1URL)
 	case types.DatabaseTypeAzure:

@@ -23,34 +23,45 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// GetUserTokens returns all user tokens.
-func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken, error) {
-	startKey := backend.ExactKey(userTokenPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// ListUserTokens returns a page of user tokens.
+func (s *IdentityService) ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
 	}
 
-	var tokens []types.UserToken
-	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+	rangeStart := backend.ExactKey(userTokenPrefix)
+	rangeEnd := backend.RangeEnd(rangeStart)
+	if startKey != "" {
+		rangeStart = backend.NewKey(userTokenPrefix, startKey)
+	}
+	var out []types.UserToken
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+		Limit:    limit + 1,
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		userToken, err := services.UnmarshalUserToken(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
 			continue
 		}
 
-		token, err := services.UnmarshalUserToken(item.Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if len(out) == limit {
+			return out, userToken.GetName(), nil
 		}
 
-		tokens = append(tokens, token)
+		out = append(out, userToken)
 	}
-
-	return tokens, nil
+	return out, "", nil
 }
 
 // DeleteUserToken deletes user token by ID.

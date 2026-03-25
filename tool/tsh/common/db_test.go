@@ -24,13 +24,17 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -44,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -51,7 +56,7 @@ import (
 	dbcommon "github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func registerFakeEnterpriseDBEngines(t *testing.T) {
@@ -72,8 +77,8 @@ func TestTshDB(t *testing.T) {
 	// will fail. The fake engine registered are not functional. But other
 	// Enterprise features like Access Request can still be tested.
 	registerFakeEnterpriseDBEngines(t)
-	modules.SetTestModules(t,
-		&modules.TestModules{
+	modulestest.SetTestModules(t,
+		modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -86,9 +91,16 @@ func TestTshDB(t *testing.T) {
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
 	// clusters are setup.
-	testenv.WithResyncInterval(t, 0)
-	// Proxy uses self-signed certificates in tests.
-	testenv.WithInsecureDevMode(t, true)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
+
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("DatabaseSelection", testDatabaseSelection)
@@ -138,6 +150,7 @@ func testDatabaseLogin(t *testing.T) {
 	alice.SetRoles([]string{"dev-access", "autouser", "access-requestor"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.BootstrapResources = append(
 				cfg.Auth.BootstrapResources,
 				autoUserRole,
@@ -145,6 +158,7 @@ func testDatabaseLogin(t *testing.T) {
 				accessRequestorRole,
 				alice,
 			)
+			cfg.SSH.Enabled = false
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -418,7 +432,6 @@ func testDatabaseLogin(t *testing.T) {
 	// to enable parallel test runs.
 	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
@@ -530,7 +543,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 			if accessRequest.GetRequestReason() != wantRequestReason {
 				continue
 			}
-			for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
+			for _, resourceID := range types.RiskyExtractResourceIDs(accessRequest.GetAllRequestedResourceIDs()) {
 				if resourceID.Kind == types.KindDatabase &&
 					resourceID.Name == wantDBName {
 					accessRequestID = accessRequest.GetName()
@@ -549,8 +562,7 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 }
 
 func TestLocalProxyRequirement(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
@@ -686,9 +698,11 @@ func testListDatabase(t *testing.T) {
 	fullName := "root-postgres-rds-us-west-1-123456789012"
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
@@ -708,6 +722,8 @@ func testListDatabase(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+			cfg.InsecureMode = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -1404,8 +1420,7 @@ func TestChooseOneDatabase(t *testing.T) {
 			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
 		},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cf := &CLIConf{
@@ -1578,8 +1593,10 @@ func testDatabaseSelection(t *testing.T) {
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
+			cfg.SSH.Enabled = false
 			cfg.Databases.Databases = []servicecfg.Database{
 				fooDB1, fooRDSDB, fooRDSCustomDB,
 				barRDSDB1, barRDSDB2,
@@ -1651,7 +1668,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, tt := range tests {
-			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1820,7 +1836,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
-			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1897,7 +1912,6 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
-			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1986,10 +2000,434 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))
+		})
+	}
+}
+
+func TestDatabaseInfo(t *testing.T) {
+	const serviceName = "test-db"
+	tests := []struct {
+		name     string
+		dbSpec   types.DatabaseSpecV3
+		cliConf  *CLIConf
+		routeIn  tlsca.RouteToDatabase
+		routeOut tlsca.RouteToDatabase
+	}{
+		{
+			name: "basic case no changes",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+		},
+		{
+			name: "override from CLI flags",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			cliConf: &CLIConf{
+				DatabaseUser:  "bob",
+				DatabaseName:  "bob_db",
+				DatabaseRoles: "r1,r2,r3",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "bob",
+				Database:    "bob_db",
+				Roles:       []string{"r1", "r2", "r3"},
+			},
+		},
+		{
+			name: "add GCP IAM suffix for CloudSQL",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project.iam",
+			},
+		},
+		{
+			name: "add GCP IAM suffix for AlloyDB",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-project-123456.iam",
+			},
+		},
+		{
+			name: "keep existing GCP IAM suffix",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "postgres",
+				Database:    "postgres",
+				Username:    "iamuser@my-other-project.iam",
+			},
+		},
+		{
+			name: "do not modify non-Postgres logins",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSpanner,
+				URI:      "uri",
+				GCP: types.GCPCloudSQL{
+					ProjectID:  "my-project",
+					InstanceID: "my-instance",
+				},
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    "spanner",
+				Database:    "spanner",
+				Username:    "iamuser",
+			},
+		},
+		{
+			name: "default database name from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "alice",
+				Database:    "database_from_role",
+			},
+		},
+		{
+			name: "default database username from role",
+			dbSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "uri",
+			},
+			routeIn: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			routeOut: tlsca.RouteToDatabase{
+				ServiceName: serviceName,
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "user_from_role",
+				Database:    "postgres",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   serviceName,
+				Labels: map[string]string{"foo": "bar"},
+			}, tt.dbSpec)
+			require.NoError(t, err)
+
+			role := &types.RoleV6{
+				Metadata: types.Metadata{Name: "test-role", Namespace: apidefaults.Namespace},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"user_from_role"},
+						DatabaseNames:  []string{"database_from_role"},
+					},
+				},
+			}
+
+			checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.NewRoleSet(role))
+
+			dbInfo := &databaseInfo{
+				RouteToDatabase: tt.routeIn,
+
+				database: db,
+				checker:  checker,
+			}
+
+			cf := &CLIConf{}
+			if tt.cliConf != nil {
+				cf = tt.cliConf
+			}
+
+			// as long as dbInfo.database and dbInfo.checker are set
+			// the Teleport client won't be used and therefore can be nil.
+			var tc *client.TeleportClient = nil
+
+			err = dbInfo.checkAndSetDefaults(cf, tc)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.routeOut, dbInfo.RouteToDatabase)
+		})
+	}
+}
+
+// TestMongoDBSeparatePortCommandError given a MongoDB database with cluster
+// using separate port mode ensures `tsh` generates the connect command without
+// errors.
+//
+// See https://github.com/gravitational/teleport/issues/47895
+func TestMongoDBSeparatePortCommandError(t *testing.T) {
+	t.Parallel()
+
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetDatabaseUsers([]string{"admin"})
+	alice.SetDatabaseNames([]string{"default"})
+	alice.SetRoles([]string{"access"})
+
+	process, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("root"),
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			mongoPublicAddr := localListenerAddr()
+			cfg.Proxy.MongoAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mongoPublicAddr}
+			cfg.Proxy.MongoPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mongoPublicAddr}}
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "mongo",
+					Protocol: defaults.ProtocolMongoDB,
+					URI:      "external-mongo:27017",
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
+	})
+
+	tshHome, _ := mustLogin(t, process, alice, connector.GetName())
+
+	// cmdExecuted tracks that the MongoDB command was executed.
+	var cmdExecuted atomic.Bool
+
+	// noopCmdRunner is a command runner that does nothing. For this test, we
+	// only need to ensure the command is generated without actually validating
+	// it. This task should be handled in the dbcmd package.
+	noopCmdRunner := func(_ *exec.Cmd) error {
+		cmdExecuted.Store(true)
+		return nil
+	}
+
+	err = Run(context.Background(), []string{
+		"db",
+		"connect",
+		"mongo",
+		"--insecure",
+		"--db-name=test",
+		"--db-user=alice",
+	}, setHomePath(tshHome), setCmdRunner(noopCmdRunner))
+	require.NoError(t, err)
+	require.True(t, cmdExecuted.Load(), "expected the MongoDB command to have executed")
+}
+
+func TestDatabaseListHeadless(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	aliceUsername := "alice@example.com"
+	alice, err := types.NewUser(aliceUsername)
+	require.NoError(t, err)
+	alice.SetDatabaseNames([]string{"postgres"})
+	alice.SetRoles([]string{"access"})
+
+	// Create a Teleport process with a database
+	server, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("test-cluster"),
+		testserver.WithBootstrap(alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = false
+
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					AllowHeadless: types.NewBoolOption(true),
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
+
+	// Create database server manually. We do this to avoid creating it via cfg.Databases
+	// in NewTeleportProcess, which waits for the DatabasesReady event. In this test,
+	// DatabasesReady never fires because we aren't actually creating the the database
+	// that we are pointing the database service at.
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-db",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "test-db",
+	}, types.DatabaseServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: "test-hostname",
+		HostID:   uuid.NewString(),
+		Database: database,
+	})
+	require.NoError(t, err)
+	_, err = server.GetAuthServer().UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+
+	go func() {
+		// Ensure the context is canceled, so that Run calls don't block
+		defer cancel()
+		if err := approveAllAccessRequests(ctx, server.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
+		}
+	}()
+
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
+
+	captureStdout := &bytes.Buffer{}
+	err = Run(ctx, []string{
+		"db",
+		"ls",
+		"--proxy", proxyAddr.String(),
+		"--user", aliceUsername,
+		"--insecure",
+		"--headless",
+	},
+		setCopyStdout(captureStdout),
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			cf.MockHeadlessLogin = mockHeadlessLogin(t, server.GetAuthServer(), alice)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	stdoutStr := captureStdout.String()
+	require.Contains(t, stdoutStr, "test-db", "database should appear in output")
+}
+
+func TestDatabaseListCLIFlags(t *testing.T) {
+	testCases := []struct {
+		Description string
+		Args        []string
+		ErrTestFunc func(e error) bool
+	}{
+		{
+			Description: "should return bad parameter error when --headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+		{
+			Description: "should return bad parameter error when --auth=headless and --all are specified",
+			Args: []string{
+				"db",
+				"ls",
+				"--proxy", "test-proxy",
+				"--user", "test-user",
+				"--auth", "headless",
+				"--all",
+			},
+			ErrTestFunc: trace.IsBadParameter,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.Description, func(t *testing.T) {
+			err := Run(t.Context(), testCase.Args)
+			require.True(t, testCase.ErrTestFunc(err))
 		})
 	}
 }

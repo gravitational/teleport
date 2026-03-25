@@ -168,7 +168,7 @@ const (
 // marshalSized returns the wire encoding of the given [proto.Message] prefixed
 // by its length encoded as a little endian 32-bit integer.
 func marshalSized(m proto.Message) ([]byte, error) {
-	var size int = proto.MarshalOptions{}.Size(m)
+	size := proto.MarshalOptions{}.Size(m)
 	// we're going to allocate 4+size, so size can't exceed MaxInt-4
 	// (overflowing would be confusing at best, a runtime panic at worst)
 	if size > math.MaxInt-4 {

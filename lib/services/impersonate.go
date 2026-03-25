@@ -39,7 +39,7 @@ type impersonateContext struct {
 }
 
 // getIdentifier returns identifier defined in a context
-func (ctx *impersonateContext) getIdentifier(fields []string) (interface{}, error) {
+func (ctx *impersonateContext) getIdentifier(fields []string) (any, error) {
 	switch fields[0] {
 	case UserIdentifier:
 		return predicate.GetFieldByTag(ctx.user, teleport.JSON, fields[1:])
@@ -77,7 +77,7 @@ func newImpersonateWhereParser(ctx *impersonateContext) (predicate.Parser, error
 			OR:  predicate.Or,
 			NOT: predicate.Not,
 		},
-		Functions: map[string]interface{}{
+		Functions: map[string]any{
 			"equals":   predicate.Equals,
 			"contains": predicate.Contains,
 		},

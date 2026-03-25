@@ -44,14 +44,14 @@ func (mh minHeap) Swap(i, j int) {
 	mh[j].index = j
 }
 
-func (mh *minHeap) Push(x interface{}) {
+func (mh *minHeap) Push(x any) {
 	n := len(*mh)
 	item := x.(*btreeItem)
 	item.index = n
 	*mh = append(*mh, item)
 }
 
-func (mh *minHeap) Pop() interface{} {
+func (mh *minHeap) Pop() any {
 	old := *mh
 	n := len(old)
 	item := old[n-1]

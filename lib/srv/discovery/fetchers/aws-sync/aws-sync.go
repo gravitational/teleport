@@ -20,13 +20,16 @@ package aws_sync
 
 import (
 	"context"
+	"log/slog"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -34,6 +37,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
@@ -63,6 +67,11 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
+	// Log is the logger to use for logging.
+	Log *slog.Logger
+	// EKSAuditLogs if set specifies the EKS clusters for which apiserver audit logs
+	// should be fetched.
+	EKSAuditLogs *EKSAuditLogs
 
 	// awsClients provides AWS SDK clients.
 	awsClients awsClientProvider
@@ -73,6 +82,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
 
+	if c.Log == nil {
+		c.Log = slog.Default()
+	}
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}
 	}
@@ -119,6 +131,10 @@ type awsClientProvider interface {
 	getS3Client(cfg aws.Config, optFns ...func(*s3.Options)) s3Client
 	// getSTSClient provides an [stsClient].
 	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
+	// getKMSClient provides a [kmsClient].
+	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
+	// getCloudWatchLogsClient provides a [cloudwatchlogs.FilterLogEventsAPIClient].
+	getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient
 }
 
 type defaultAWSClients struct{}
@@ -139,12 +155,27 @@ func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Option
 	return stsutils.NewFromConfig(cfg, optFns...)
 }
 
+func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient {
+	return kms.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cloudwatchlogs.FilterLogEventsAPIClient {
+	return cloudwatchlogs.NewFromConfig(cfg, optFns...)
+}
+
 // AssumeRole is the configuration for assuming an AWS role.
 type AssumeRole struct {
 	// RoleARN is the ARN of the role to assume.
 	RoleARN string
 	// ExternalID is the external ID to use when assuming the role.
 	ExternalID string
+}
+
+// EKSAuditLogs is the configuration of which discovered EKS clusters should have
+// their apiserver audit logs fetched and sent to Access Graph.
+type EKSAuditLogs struct {
+	// Tags is a set of name/value tags that an EKS cluster must have for audit log fetching.
+	Tags types.Labels
 }
 
 // Fetcher is a fetcher that fetches AWS resources.
@@ -201,6 +232,8 @@ type Resources struct {
 	SAMLProviders []*accessgraphv1alpha.AWSSAMLProviderV1
 	// OIDCProviders is a list of OIDC providers.
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
+	// KMSKeys is a list of KMS keys.
+	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
 }
 
 func (r *Resources) count() int {
@@ -210,7 +243,7 @@ func (r *Resources) count() int {
 
 	elem := reflect.ValueOf(r).Elem()
 	sum := 0
-	for i := 0; i < elem.NumField(); i++ {
+	for i := range elem.NumField() {
 		field := elem.Field(i)
 		if field.IsValid() {
 			switch field.Kind() {
@@ -358,6 +391,11 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 		eGroup.Go(a.pollAWSOIDCProviders(ctx, result, collectErr))
 	}
 
+	// fetch AWS KMS keys, including HSM keys
+	if features.KMS {
+		eGroup.Go(a.pollAWSKMSKeys(ctx, result, collectErr))
+	}
+
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -368,7 +406,7 @@ func (a *Fetcher) poll(ctx context.Context, features Features) (*Resources, erro
 // with the v2 sdk.
 func (a *Fetcher) getAWSOptions() []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
-		awsconfig.WithCredentialsMaybeIntegration(a.Config.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: a.Config.Integration}),
 	}
 
 	if a.Config.AssumeRole != nil {

@@ -59,7 +59,7 @@ func DecodePluginData(dataMap map[string]string) (PluginData, error) {
 	}
 
 	if str := dataMap["messages"]; str != "" {
-		for _, encodedMsg := range strings.Split(str, ",") {
+		for encodedMsg := range strings.SplitSeq(str, ",") {
 			if parts := strings.Split(encodedMsg, "/"); len(parts) == 2 {
 				data.SentMessages = append(data.SentMessages, MessageData{ChannelID: parts[0], MessageID: parts[1]})
 			}

@@ -23,10 +23,13 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -36,9 +39,16 @@ var supportedResourceKinds = []string{
 	types.KindKubernetesCluster,
 	types.KindApp,
 	types.KindSAMLIdPServiceProvider,
+	types.KindWindowsDesktop,
+	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+type AuthClient interface {
+	services.CurrentUserRoleGetter
+	apiclient.ListUnifiedResourcesClient
+}
+
+func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -51,11 +61,26 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 	}
 
 	req.Kinds = kinds
-	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
-	if err != nil {
+	req.IncludeLogins = true
+	var (
+		enrichedResources []*types.EnrichedResource
+		nextKey           string
+		accessChecker     services.AccessChecker
+	)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		enrichedResources, nextKey, err = apiclient.GetUnifiedResourcePage(ctx, authClient, req)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		accessChecker, err = cluster.NewAccessChecker(ctx, authClient)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	response := &ListResponse{
 		NextKey: nextKey,
 	}
@@ -64,19 +89,47 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 		requiresRequest := enrichedResource.RequiresRequest
 		switch r := enrichedResource.ResourceWithLabels.(type) {
 		case types.Server:
+			logins, err := libclient.CalculateSSHLogins(cluster.GetLoggedInUser().SSHLogins, enrichedResource.Logins)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Server: &clusters.Server{
 					URI:    cluster.URI.AppendServer(r.GetName()),
 					Server: r,
+					Logins: logins,
 				},
 				RequiresRequest: requiresRequest,
 			})
 		case types.DatabaseServer:
 			db := r.GetDatabase()
+			autoUser, err := accessChecker.DatabaseAutoUserMode(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			autoUsersEnabled := db.IsAutoUsersEnabled() && autoUser.IsEnabled()
+			var autoUserProvisioning *clusters.AutoUserProvisioning
+			if autoUsersEnabled {
+				databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				autoUserProvisioning = &clusters.AutoUserProvisioning{
+					DatabaseRoles: databaseRoles,
+				}
+			}
+			dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:      cluster.URI.AppendDB(db.GetName()),
-					Database: db,
+					URI:                  cluster.URI.AppendDB(db.GetName()),
+					Database:             db,
+					TargetHealth:         r.GetTargetHealth(),
+					DatabaseUsers:        dbUsers.Allowed(),
+					WildcardUserAllowed:  dbUsers.WildcardAllowed(),
+					AutoUserProvisioning: autoUserProvisioning,
 				},
 				RequiresRequest: requiresRequest,
 			})
@@ -111,10 +164,24 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			})
 		case types.KubeServer:
 			kubeCluster := r.GetCluster()
-			response.Resources = append(response.Resources, UnifiedResource{
+			ur := UnifiedResource{
 				Kube: &clusters.Kube{
 					URI:               cluster.URI.AppendKube(kubeCluster.GetName()),
 					KubernetesCluster: kubeCluster,
+				},
+				RequiresRequest: requiresRequest,
+			}
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				ur.Kube.TargetHealth = *targetHealth
+			}
+			response.Resources = append(response.Resources, ur)
+		case types.WindowsDesktop:
+			response.Resources = append(response.Resources, UnifiedResource{
+				WindowsDesktop: &clusters.WindowsDesktop{
+					URI:            cluster.URI.AppendWindowsDesktop(r.GetName()),
+					WindowsDesktop: r,
+					Logins:         enrichedResource.Logins,
 				},
 				RequiresRequest: requiresRequest,
 			})
@@ -137,5 +204,6 @@ type UnifiedResource struct {
 	Kube                   *clusters.Kube
 	App                    *clusters.App
 	SAMLIdPServiceProvider *clusters.SAMLIdPServiceProvider
+	WindowsDesktop         *clusters.WindowsDesktop
 	RequiresRequest        bool
 }

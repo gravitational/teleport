@@ -149,6 +149,7 @@ const props: RequestCheckoutWithSliderProps = {
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
+  reasonPrompts: [],
   selectedReviewers: [],
   setSelectedReviewers: () => null,
   createRequest: () => null,
@@ -174,4 +175,6 @@ const props: RequestCheckoutWithSliderProps = {
   onStartTimeChange: () => null,
   fetchKubeNamespaces: () => null,
   updateNamespacesForKubeCluster: () => null,
+  addedResourceConstraints: {},
+  setResourceConstraints: () => null,
 };

@@ -17,8 +17,14 @@
  */
 
 export const zIndexMap = {
-  topBar: 9,
-  sideNavButtons: 8,
-  sideNavContainer: 7,
-  sideNavExpandedPanel: 6,
+  // "checkoutSidePanel" z-index must be a higher value than "topBar" z-index.
+  // checkoutSidePanel encompasses entire height of the browser and
+  // the high z-index prevents navigational bits from rendering over
+  // the panel.
+  checkoutSidePanel: 100,
+  topBar: 19,
+  sideNavButtons: 18,
+  sideNavContainer: 17,
+  sideNavExpandedPanel: 16,
+  infoGuideSidePanel: 15,
 };

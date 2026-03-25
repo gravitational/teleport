@@ -124,7 +124,7 @@ func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integr
 	return &types.GithubConnectorSpecV3{
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
-		RedirectURL:    fmt.Sprintf("https://%s/v1/webapi/github/callback", s.cfg.ProxyPublicAddrGetter()),
+		RedirectURL:    fmt.Sprintf("https://%s/v1/webapi/github/callback", s.cfg.ProxyPublicAddrGetter(ctx)),
 		EndpointURL:    types.GithubURL,
 		APIEndpointURL: types.GithubAPIURL,
 		// TODO(greedy52) the GitHub OAuth flow for authenticated user does not

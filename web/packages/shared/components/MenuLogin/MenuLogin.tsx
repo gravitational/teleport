@@ -18,14 +18,15 @@
 
 import React, {
   ChangeEvent,
+  ComponentPropsWithoutRef,
   useImperativeHandle,
   useRef,
   useState,
 } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
-import { ButtonBorder, Flex, Indicator } from 'design';
+import { ButtonBorder, Flex, Indicator, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import { space, SpaceProps } from 'design/system';
@@ -48,9 +49,11 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       inputType = MenuInputType.INPUT,
       required = true,
       width,
+      buttonWidth,
+      style,
     } = props;
     const [filter, setFilter] = useState('');
-    const anchorRef = useRef<HTMLButtonElement>();
+    const anchorRef = useRef<HTMLButtonElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -126,11 +129,12 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonComponent
-          width={alignButtonWidthToMenu ? width : null}
+          width={alignButtonWidthToMenu ? width : buttonWidth}
           textTransform={props.textTransform}
           size="small"
-          setRef={anchorRef}
+          ref={anchorRef}
           onClick={onOpen}
+          style={style}
         >
           {props.buttonText || 'Connect'}
           <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
@@ -154,6 +158,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
             onClick={onItemClick}
             placeholder={placeholder}
             width={width}
+            inputType={inputType}
           />
         </Menu>
       </React.Fragment>
@@ -169,6 +174,7 @@ const LoginItemList = ({
   items,
   placeholder,
   width,
+  inputType,
 }: {
   getLoginItemsAttempt: Attempt<LoginItem[]>;
   items: LoginItem[];
@@ -176,29 +182,43 @@ const LoginItemList = ({
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
-  width?: string;
+  width?: ComponentPropsWithoutRef<typeof Flex>['minWidth'];
+  inputType?: MenuInputType;
 }) => {
   const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);
 
   return (
     <Flex flexDirection="column" minWidth={width}>
-      <Input
-        p="2"
-        m="2"
-        // this prevents safari from adding the autofill options which would cover the available logins and make it
-        // impossible to select. "But why would it do that? this isn't a username or password field?".
-        // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
-        // Since our placeholder has the word "login" in it, it thinks its a login form.
-        // https://github.com/gravitational/teleport/pull/31600
-        // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
-        name="notsearch_password"
-        onKeyPress={onKeyPress}
-        onChange={onChange}
-        type="text"
-        autoFocus
-        placeholder={placeholder}
-        autoComplete="off"
-      />
+      {inputType === MenuInputType.NONE ? (
+        /* css and margin value matched with AWS Launch button <RoleItemList> */
+        <Text
+          px="2"
+          mb={2}
+          typography="body3"
+          color="text.main"
+          backgroundColor="spotBackground.2"
+        >
+          {placeholder}
+        </Text>
+      ) : (
+        <Input
+          p="2"
+          m="2"
+          // this prevents safari from adding the autofill options which would cover the available logins and make it
+          // impossible to select. "But why would it do that? this isn't a username or password field?".
+          // Safari includes parsed words in the placeholder as well to determine if that autofill should show.
+          // Since our placeholder has the word "login" in it, it thinks its a login form.
+          // https://github.com/gravitational/teleport/pull/31600
+          // https://stackoverflow.com/questions/22661977/disabling-safari-autofill-on-usernames-and-passwords
+          name="notsearch_password"
+          onKeyPress={onKeyPress}
+          onChange={onChange}
+          type="text"
+          autoFocus
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+      )}
       {content}
     </Flex>
   );
@@ -227,7 +247,25 @@ function getLoginItemListContent(
       return null;
     case 'success':
       return items.map((item, key) => {
-        const { login, url } = item;
+        const { login, url, isExternalUrl } = item;
+        if (isExternalUrl) {
+          return (
+            <StyledMenuItem
+              key={key}
+              as="a"
+              px="2"
+              mx="2"
+              href={url}
+              target="_blank"
+              title={login ? login : url}
+              onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                onClick(e, url);
+              }}
+            >
+              {login ? login : url}
+            </StyledMenuItem>
+          );
+        }
         return (
           <StyledMenuItem
             key={key}
@@ -259,6 +297,14 @@ const StyledMenuItem = styled(MenuItem)(
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
+
+  /* displays ellipsis for longer string value */
+  display: inline-block;
+  text-align: left;
+  max-width: 450px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 
   &:last-child {
     border-bottom: none;

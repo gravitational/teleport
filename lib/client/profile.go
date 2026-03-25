@@ -25,12 +25,14 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -55,6 +57,10 @@ type ProfileStore interface {
 	// SaveProfile saves the given profile. If makeCurrent
 	// is true, it makes this profile current.
 	SaveProfile(profile *profile.Profile, setCurrent bool) error
+
+	// DeleteProfile deletes the given profile. If it is the
+	// current profile, it also deletes that record.
+	DeleteProfile(profileName string) error
 }
 
 // MemProfileStore is an in-memory implementation of ProfileStore.
@@ -107,6 +113,21 @@ func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent boo
 	return nil
 }
 
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (ms *MemProfileStore) DeleteProfile(profileName string) error {
+	if _, ok := ms.profiles[profileName]; !ok {
+		return trace.NotFound("profile for proxy host %q not found", profileName)
+	}
+
+	if ms.currentProfile == profileName {
+		ms.currentProfile = ""
+	}
+
+	delete(ms.profiles, profileName)
+	return nil
+}
+
 // FSProfileStore is an on-disk implementation of the ProfileStore interface.
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
@@ -134,11 +155,26 @@ func (fs *FSProfileStore) CurrentProfile() (string, error) {
 
 // ListProfiles returns a list of all profiles.
 func (fs *FSProfileStore) ListProfiles() ([]string, error) {
-	profileNames, err := profile.ListProfileNames(fs.Dir)
+	files, err := os.ReadDir(fs.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return profileNames, nil
+
+	var names []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if file.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
+	}
+	return names, nil
 }
 
 // GetProfile returns the requested profile.
@@ -161,6 +197,24 @@ func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool
 	return trace.Wrap(err)
 }
 
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (fs *FSProfileStore) DeleteProfile(profileName string) error {
+	if _, err := profile.FromDir(fs.Dir, profileName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if current, err := fs.CurrentProfile(); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	} else if current == profileName {
+		if err := os.Remove(keypaths.CurrentProfileFilePath(fs.Dir)); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+
+	return trace.ConvertSystemError(os.Remove(keypaths.ProfileFilePath(fs.Dir, profileName)))
+}
+
 // ProfileStatus combines metadata from the logged in profile and associated
 // SSH certificate.
 type ProfileStatus struct {
@@ -173,11 +227,23 @@ type ProfileStatus struct {
 	// ProxyURL is the URL the web client is accessible at.
 	ProxyURL url.URL
 
+	// RelayAddr is the address of the relay to use, if any.
+	RelayAddr string
+
+	// DefaultRelayAddr is the address of the relay to use specified by the
+	// cluster at login time, if any.
+	DefaultRelayAddr string
+
 	// Username is the Teleport username.
 	Username string
 
-	// Roles is a list of Teleport Roles this user has been assigned.
+	// Roles is a list of Teleport Roles this user has been assigned. Mutually
+	// exclusive with the ScopePin field.
 	Roles []string
+
+	// ScopePin describes the scope that this profile is pinned to, if any, and
+	// encodes scoped role assignments. Mutually exclusive with the Roles field.
+	ScopePin *scopesv1.Pin
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -229,9 +295,9 @@ type ProfileStatus struct {
 	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
 	GCPServiceAccounts []string
 
-	// AllowedResourceIDs is a list of resources the user can access. An empty
+	// AllowedResourceAccessIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
-	AllowedResourceIDs []types.ResourceID
+	AllowedResourceAccessIDs []types.ResourceAccessID
 
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
@@ -249,6 +315,10 @@ type ProfileStatus struct {
 
 	// GitHubIdentity is the GitHub identity attached to the user.
 	GitHubIdentity *GitHubIdentity
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -265,12 +335,15 @@ type profileOptions struct {
 	ProfileName             string
 	ProfileDir              string
 	WebProxyAddr            string
+	RelayAddr               string
+	DefaultRelayAddr        string
 	Username                string
 	SiteName                string
 	KubeProxyAddr           string
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
 	SSOHost                 string
+	TLSRoutingEnabled       bool
 }
 
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
@@ -353,28 +426,32 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		Username:                opts.Username,
-		Logins:                  sshCert.ValidPrincipals,
-		ValidUntil:              validUntil,
-		Extensions:              extensions,
-		CriticalOptions:         sshCert.CriticalOptions,
-		Roles:                   roles,
-		Cluster:                 opts.SiteName,
-		Traits:                  sshIdent.Traits,
-		ActiveRequests:          sshIdent.ActiveRequests,
-		KubeEnabled:             opts.KubeProxyAddr != "",
-		KubeUsers:               tlsID.KubernetesUsers,
-		KubeGroups:              tlsID.KubernetesGroups,
-		Databases:               databases,
-		Apps:                    apps,
-		AWSRolesARNs:            tlsID.AWSRoleARNs,
-		AzureIdentities:         tlsID.AzureIdentities,
-		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
-		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
-		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
-		SSOHost:                 opts.SSOHost,
-		GitHubIdentity:          gitHubIdentity,
+		RelayAddr:                opts.RelayAddr,
+		DefaultRelayAddr:         opts.DefaultRelayAddr,
+		Username:                 opts.Username,
+		Logins:                   sshCert.ValidPrincipals,
+		ValidUntil:               validUntil,
+		Extensions:               extensions,
+		CriticalOptions:          sshCert.CriticalOptions,
+		Roles:                    roles,
+		ScopePin:                 sshIdent.ScopePin,
+		Cluster:                  opts.SiteName,
+		Traits:                   sshIdent.Traits,
+		ActiveRequests:           sshIdent.ActiveRequests,
+		KubeEnabled:              opts.KubeProxyAddr != "",
+		KubeUsers:                tlsID.KubernetesUsers,
+		KubeGroups:               tlsID.KubernetesGroups,
+		Databases:                databases,
+		Apps:                     apps,
+		AWSRolesARNs:             tlsID.AWSRoleARNs,
+		AzureIdentities:          tlsID.AzureIdentities,
+		GCPServiceAccounts:       tlsID.GCPServiceAccounts,
+		IsVirtual:                opts.IsVirtual,
+		AllowedResourceAccessIDs: sshIdent.AllowedResourceAccessIDs,
+		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
+		SSOHost:                  opts.SSOHost,
+		GitHubIdentity:           gitHubIdentity,
+		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -586,7 +663,7 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 
 // DatabasesForCluster returns a list of databases for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
+func (p *ProfileStatus) DatabasesForCluster(clusterName string, store *Store) ([]tlsca.RouteToDatabase, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Databases, nil
 	}
@@ -597,7 +674,6 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		ClusterName: clusterName,
 	}
 
-	store := NewFSKeyStore(p.Dir)
 	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -607,7 +683,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 
 // AppsForCluster returns a list of apps for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, error) {
+func (p *ProfileStatus) AppsForCluster(clusterName string, store *Store) ([]tlsca.RouteToApp, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Apps, nil
 	}
@@ -618,7 +694,6 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		ClusterName: clusterName,
 	}
 
-	store := NewFSKeyStore(p.Dir)
 	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -649,9 +724,9 @@ func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, 
 // AccessInfo returns the complete services.AccessInfo for this profile.
 func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 	return &services.AccessInfo{
-		Username:           p.Username,
-		Roles:              p.Roles,
-		Traits:             p.Traits,
-		AllowedResourceIDs: p.AllowedResourceIDs,
+		Username:                 p.Username,
+		Roles:                    p.Roles,
+		Traits:                   p.Traits,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 	}
 }

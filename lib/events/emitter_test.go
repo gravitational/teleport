@@ -44,7 +44,6 @@ func TestProtoStreamer(t *testing.T) {
 		name           string
 		minUploadBytes int64
 		events         []apievents.AuditEvent
-		err            error
 	}
 	testCases := []testCase{
 		{
@@ -73,8 +72,7 @@ func TestProtoStreamer(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -92,10 +90,6 @@ func TestProtoStreamer(t *testing.T) {
 			evts := tc.events
 			for _, event := range evts {
 				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-				if tc.err != nil {
-					require.IsType(t, tc.err, err)
-					return
-				}
 				require.NoError(t, err)
 			}
 			err = stream.Complete(ctx)
@@ -108,7 +102,7 @@ func TestProtoStreamer(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, part := range parts {
-				reader := events.NewProtoReader(bytes.NewReader(part))
+				reader := events.NewProtoReader(bytes.NewReader(part), nil)
 				out, err := reader.ReadAll(ctx)
 				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
@@ -175,7 +169,7 @@ func TestAsyncEmitter(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		for i := 0; i < len(evts); i++ {
+		for i := range evts {
 			select {
 			case event := <-chanEmitter.C():
 				require.Equal(t, evts[i], event)
@@ -256,7 +250,7 @@ func TestExport(t *testing.T) {
 		_, err := f.Write(part)
 		require.NoError(t, err)
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
 	outEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

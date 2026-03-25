@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -174,15 +175,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
-	requestedResourceIDs := make([]*api.ResourceID, 0, len(req.GetRequestedResourceIDs()))
-	for _, r := range req.GetRequestedResourceIDs() {
-		requestedResourceIDs = append(requestedResourceIDs, &api.ResourceID{
-			ClusterName:     r.ClusterName,
-			Kind:            r.Kind,
-			Name:            r.Name,
-			SubResourceName: r.SubResourceName,
-		})
-	}
+	requestedResourceIDs := req.GetRequestedResourceIDs()
 	resources := make([]*api.Resource, len(requestedResourceIDs))
 	for i, r := range requestedResourceIDs {
 		details := req.ResourceDetails[resourceIDToString(r)]
@@ -200,6 +193,11 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
+	dryRunEnrichment := req.GetDryRunEnrichment()
+	if dryRunEnrichment == nil {
+		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{}
+	}
+
 	return &api.AccessRequest{
 		Id:                      req.GetName(),
 		State:                   req.GetState().String(),
@@ -212,18 +210,19 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		Reviews:                 reviews,
 		SuggestedReviewers:      req.GetSuggestedReviewers(),
 		ThresholdNames:          thresholdNames,
-		ResourceIds:             requestedResourceIDs,
 		Resources:               resources,
 		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
 		AssumeStartTime:         getProtoTimestamp(req.GetAssumeStartTime()),
 		MaxDuration:             timestamppb.New(req.GetMaxDuration()),
 		RequestTtl:              timestamppb.New(req.Expiry()),
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
+		ReasonMode:              string(dryRunEnrichment.ReasonMode),
+		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
 	}
 }
 
 // resourceIDToString marshals a ResourceID to a string.
-func resourceIDToString(id *api.ResourceID) string {
+func resourceIDToString(id types.ResourceID) string {
 	if id.SubResourceName == "" {
 		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
 	}

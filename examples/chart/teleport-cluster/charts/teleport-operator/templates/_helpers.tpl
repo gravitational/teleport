@@ -66,7 +66,7 @@ teleport.dev/release: '{{ include "teleport-cluster.operator.namespacedRelease" 
 {{- if empty $clusterAddr -}}
     {{- required "The `teleportAddress` value is mandatory when deploying a standalone operator." .Values.teleportAddress -}}
     {{- if and (eq .Values.joinMethod "kubernetes") (empty .Values.teleportClusterName) (not (hasSuffix ":3025" .Values.teleportAddress)) -}}
-        {{- fail "When joining using the Kubernetes JWKS join method, you must set the value `teleportClusterName`" -}}
+        {{- fail "When joining using the Kubernetes JWKS or OIDC join method, you must set the value `teleportClusterName`" -}}
     {{- end -}}
 {{- else -}}
     {{- $clusterAddr | printf "%s:3025" -}}

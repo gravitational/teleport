@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -44,9 +43,9 @@ type Audit interface {
 	// OnSessionChunk is called when a new session chunk is created.
 	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
-	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
+	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
-	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
+	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -180,7 +179,7 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 }
 
 // OnRequest is called when an app request is sent during the session and a response is received.
-func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error {
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
@@ -197,7 +196,7 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 }
 
 // OnDynamoDBRequest is called when a DynamoDB app request is sent during the session.
-func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error {
 	// Try to read the body and JSON unmarshal it.
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
 	body, err := awsutils.UnmarshalRequestBody(req)
@@ -255,7 +254,7 @@ func MakeAppMetadata(app types.Application) *apievents.AppMetadata {
 
 // MakeAWSRequestMetadata is a helper to build AWSRequestMetadata from the provided request and endpoint.
 // If the aws endpoint is nil, returns an empty request metadata.
-func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEndpoint) *apievents.AWSRequestMetadata {
+func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *AWSResolvedEndpoint) *apievents.AWSRequestMetadata {
 	if awsEndpoint == nil {
 		return &apievents.AWSRequestMetadata{}
 	}

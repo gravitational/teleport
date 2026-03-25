@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
@@ -44,6 +45,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRedshift,
 	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
+	types.DatabaseTypeElastiCacheServerless,
 	types.DatabaseTypeMemoryDB,
 	types.DatabaseTypeAWSKeyspaces,
 	types.DatabaseTypeDynamoDB,
@@ -52,7 +54,7 @@ var awsDatabaseTypes = []string{
 }
 
 type installSystemdFlags struct {
-	config.SystemdFlags
+	systemd.Flags
 	// output is the destination to write the systemd unit file to.
 	output string
 }
@@ -76,7 +78,7 @@ func onDumpSystemdUnitFile(flags installSystemdFlags) error {
 	}
 
 	buf := new(bytes.Buffer)
-	err := config.WriteSystemdUnitFile(flags.SystemdFlags, buf)
+	err := systemd.WriteUnitFile(flags.Flags, buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,11 +139,10 @@ func makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags configure
 
 // onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
 // discovery  agents.
-func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error {
+func onConfigureDiscoveryBootstrap(ctx context.Context, flags configureDiscoveryBootstrapFlags) error {
 	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
 
-	ctx := context.TODO()
-	configurators, err := configuratorbuilder.BuildConfigurators(flags.config)
+	configurators, err := configuratorbuilder.BuildConfigurators(ctx, flags.config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -151,7 +152,7 @@ func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error
 	// service config.
 	if flags.config.Service.IsDiscovery() && flags.databaseServiceRole != "" {
 		config := makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags)
-		dbConfigurators, err := configuratorbuilder.BuildConfigurators(config)
+		dbConfigurators, err := configuratorbuilder.BuildConfigurators(ctx, config)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -244,7 +245,7 @@ type configureDatabaseAWSPrintFlags struct {
 
 // buildAWSConfigurator builds the database configurator used on AWS-specific
 // commands.
-func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configurators.Configurator, error) {
+func buildAWSConfigurator(ctx context.Context, manual bool, flags configureDatabaseAWSFlags) (configurators.Configurator, error) {
 	err := flags.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -270,6 +271,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceRedshiftServerlessPermissions = true
 		case types.DatabaseTypeElastiCache:
 			configuratorFlags.ForceElastiCachePermissions = true
+		case types.DatabaseTypeElastiCacheServerless:
+			configuratorFlags.ForceElastiCacheServerlessPermissions = true
 		case types.DatabaseTypeMemoryDB:
 			configuratorFlags.ForceMemoryDBPermissions = true
 		case types.DatabaseTypeAWSKeyspaces:
@@ -283,7 +286,7 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 		}
 	}
 
-	configurator, err := awsconfigurators.NewAWSConfigurator(awsconfigurators.ConfiguratorConfig{
+	configurator, err := awsconfigurators.NewAWSConfigurator(ctx, awsconfigurators.ConfiguratorConfig{
 		Flags:         configuratorFlags,
 		ServiceConfig: &servicecfg.Config{},
 	})
@@ -296,8 +299,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 
 // onConfigureDatabasesAWSPrint is a subcommand used to print AWS IAM access
 // Teleport requires to run databases discovery on AWS.
-func onConfigureDatabasesAWSPrint(flags configureDatabaseAWSPrintFlags) error {
-	configurator, err := buildAWSConfigurator(true, flags.configureDatabaseAWSFlags)
+func onConfigureDatabasesAWSPrint(ctx context.Context, flags configureDatabaseAWSPrintFlags) error {
+	configurator, err := buildAWSConfigurator(ctx, true, flags.configureDatabaseAWSFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -334,9 +337,8 @@ type configureDatabaseAWSCreateFlags struct {
 
 // onConfigureDatabasesAWSCreates is a subcommand used to create AWS IAM access
 // for Teleport to run databases discovery on AWS.
-func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error {
-	ctx := context.TODO()
-	configurator, err := buildAWSConfigurator(false, flags.configureDatabaseAWSFlags)
+func onConfigureDatabasesAWSCreate(ctx context.Context, flags configureDatabaseAWSCreateFlags) error {
+	configurator, err := buildAWSConfigurator(ctx, false, flags.configureDatabaseAWSFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

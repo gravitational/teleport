@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -38,10 +38,10 @@ type TeleportOpenSSHServerV2Spec types.ServerSpecV2
 // TeleportOpenSSHServerV2 is the Schema for the roles API
 type TeleportOpenSSHServerV2 struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportOpenSSHServerV2Spec `json:"spec,omitempty"`
-	Status resources.Status            `json:"status,omitempty"`
+	Spec   TeleportOpenSSHServerV2Spec `json:"spec"`
+	Status teleportcr.Status           `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -49,7 +49,7 @@ type TeleportOpenSSHServerV2 struct {
 // TeleportOpenSSHServerV2List contains a list of TeleportOpenSSHServerV2
 type TeleportOpenSSHServerV2List struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportOpenSSHServerV2 `json:"items"`
 }
 
@@ -61,7 +61,7 @@ func (r TeleportOpenSSHServerV2) ToTeleport() types.Server {
 		Metadata: types.Metadata{
 			Name:        r.Name,
 			Labels:      r.Labels,
-			Description: r.Annotations[resources.DescriptionKey],
+			Description: r.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.ServerSpecV2(r.Spec),
 	}

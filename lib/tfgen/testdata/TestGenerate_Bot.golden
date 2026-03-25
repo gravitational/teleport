@@ -1,0 +1,14 @@
+resource "teleport_bot" "gha-gravitational-teleport" {
+  version = "v1"
+
+  metadata = {
+    name = "gha-gravitational-teleport"
+  }
+
+  spec = {
+    roles = ["gravitational-teleport-kube-access"]
+    traits = {
+      kubernetes_groups = ["system:masters", "viewers"]
+    }
+  }
+}

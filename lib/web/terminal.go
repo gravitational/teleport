@@ -44,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -56,13 +57,12 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -80,8 +80,8 @@ type TerminalRequest struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
 
-	// SessionID is a Teleport session ID to join as.
-	SessionID session.ID `json:"sid"`
+	// JoinSessionID is a Teleport session ID to join as.
+	JoinSessionID session.ID `json:"sid"`
 
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
@@ -138,6 +138,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			tracer:             cfg.tracer,
 			resolver:           cfg.HostNameResolver,
 			sshDialTimeout:     cfg.SSHDialTimeout,
+			fipsBuild:          cfg.FIPSBuild,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -204,6 +205,8 @@ type TerminalHandlerConfig struct {
 	WebsocketConn *websocket.Conn
 	// SSHDialTimeout is the dial timeout that should be enforced on ssh connections.
 	SSHDialTimeout time.Duration
+	// FIPSBuild indicates if this is a Teleport FIPS build.
+	FIPSBuild bool
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -227,9 +230,8 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("server: missing server")
 	}
 
-	if t.Term.W <= 0 || t.Term.H <= 0 ||
-		t.Term.W >= 4096 || t.Term.H >= 4096 {
-		return trace.BadParameter("term: bad dimensions(%dx%d)", t.Term.W, t.Term.H)
+	if err := t.Term.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if t.UserAuthClient == nil {
@@ -296,6 +298,8 @@ type sshBaseHandler struct {
 	// sshDialTimeout is the maximum time to wait for an SSH connection
 	// to be established before aborting.
 	sshDialTimeout time.Duration
+	// fipsBuild indicates if this is a Teleport FIPS build.
+	fipsBuild bool
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -534,7 +538,12 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
-		t.stream.SessionCreated(s)
+		if err := t.stream.SessionCreated(s); err != nil {
+			t.logger.DebugContext(ctx, "terminating established ssh connection to host",
+				"error", err,
+			)
+			return false, trace.Wrap(s.Close())
+		}
 
 		// The web session was closed by the client while the ssh connection was being established.
 		// Attempt to close the SSH session instead of proceeding with the window change request.
@@ -594,10 +603,10 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, t.proxyPublicAddr),
 		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
@@ -606,7 +615,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		return nil, trace.Wrap(err)
 	}
 
-	sshCert, err = sshutils.ParseCertificate(certs.SSH)
+	sshCert, err = sshutils.ParseCertificate(result.NewCerts.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -617,18 +626,13 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc, proxyAddr string) *mfa.Ceremony {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
-	var channelID string
+	channelID := uuid.NewString()
 
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			id, err := uuid.NewRandom()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			channelID = id.String()
 
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
@@ -637,6 +641,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
 			return &sso.MFACeremony{
 				ClientCallbackURL: u.String(),
+				ProxyAddress:      proxyAddr,
 			}, nil
 		},
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
@@ -653,7 +658,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 				}
 
 				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+					return nil, trace.Wrap(authclient.ErrNoMFADevices)
 				}
 
 				var codec protobufMFACodec
@@ -668,7 +673,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 	}
 }
 
-type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
+type connectWithMFAFn = func(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error)
 
 // connectToHost establishes a connection to the target host. To reduce connection
 // latency if per session mfa is required, connections are tried with the existing
@@ -684,9 +689,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 		return nil, trace.Wrap(err)
 	}
 
-	getAgent := func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(tc.LocalAgent()), nil
-	}
+	getAgent := sshagent.NewStaticClientGetter(tc.LocalAgent())
 	cert, err := t.ctx.GetSSHCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -713,7 +716,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
 		// try connecting to the node with the certs we already have
-		clt, err := t.connectToNode(directCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := t.connectToNode(directCtx, ident.ScopePin, ws, tc, accessChecker, getAgent, signer)
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -721,12 +724,12 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	// function returns early
 	go func() {
 		// try performing mfa and then connecting with the single use certs
-		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := connectToNodeWithMFA(mfaCtx, ident.ScopePin, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
 	var directErr, mfaErr error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case <-ctx.Done():
 			mfaCancel()
@@ -764,42 +767,12 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
-		!errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.As(mfaErr, new(*client.MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
 		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
 		return nil, trace.Wrap(mfaErr)
 	default:
 		return nil, trace.Wrap(directErr)
 	}
-}
-
-func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *terminal.WSStream, sshClient *tracessh.Client) error {
-	wsPinger, err := latency.NewWebsocketPinger(clock, stream)
-	if err != nil {
-		return trace.Wrap(err, "creating websocket pinger")
-	}
-
-	sshPinger, err := latency.NewSSHPinger(sshClient)
-	if err != nil {
-		return trace.Wrap(err, "creating ssh pinger")
-	}
-
-	monitor, err := latency.NewMonitor(latency.MonitorConfig{
-		ClientPinger: wsPinger,
-		ServerPinger: sshPinger,
-		Reporter: latency.ReporterFunc(func(ctx context.Context, statistics latency.Statistics) error {
-			return trace.Wrap(stream.WriteLatency(terminal.SSHSessionLatencyStats{
-				WebSocket: statistics.Client,
-				SSH:       statistics.Server,
-			}))
-		}),
-		Clock: clock,
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating latency monitor")
-	}
-
-	monitor.Run(ctx)
-	return nil
 }
 
 // streamTerminal opens an SSH connection to the remote host and streams
@@ -829,7 +802,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				baseCeremony := newMFACeremony(t.stream.WSStream, nil)
+				baseCeremony := newMFACeremony(t.stream.WSStream, nil, t.proxyPublicAddr)
 				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
 					t.logger.WarnContext(ctx, "Unable to stream terminal - failure performing presence checks", "error", err)
 					return
@@ -840,11 +813,24 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 	monitorCtx, monitorCancel := context.WithCancel(ctx)
 	defer monitorCancel()
-	go func() {
-		if err := monitorSessionLatency(monitorCtx, t.clock, t.stream.WSStream, nc.Client); err != nil {
-			t.logger.WarnContext(monitorCtx, "failure monitoring session latency", "error", err)
-		}
-	}()
+
+	sshPinger, err := latency.NewSSHPinger(nc.Client)
+	if err != nil {
+		t.logger.WarnContext(monitorCtx, "failure monitoring session latency", "error", err)
+	} else {
+		go monitorLatency(monitorCtx, t.clock, t.stream.WSStream, sshPinger,
+			latency.ReporterFunc(
+				func(ctx context.Context, statistics latency.Statistics) error {
+					return trace.Wrap(
+						t.stream.WSStream.WriteLatency(terminal.SSHSessionLatencyStats{
+							WebSocket: statistics.Client,
+							SSH:       statistics.Server,
+						}),
+					)
+				},
+			),
+		)
+	}
 
 	sessionDataSent := make(chan struct{})
 	// If we are joining a session, send the session data right away, we
@@ -860,33 +846,50 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		// created and the server sends us the session ID it is using
 		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
 		defer writeSessionCancel()
-		waitForSessionID := prepareToReceiveSessionID(writeSessionCtx, t.logger, nc)
+
+		// only handle the first session ID request
+		var receiveSessionIDOnce sync.Once
+		receivedSessionID := make(chan struct{})
+		nc.Client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+			receiveSessionIDOnce.Do(func() {
+				sid, err := session.ParseID(string(req.Payload))
+				if err != nil {
+					t.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
+					return
+				}
+
+				t.sessionData.ID = *sid
+				close(receivedSessionID)
+			})
+		})
 
 		// wait in a new goroutine because the server won't set a
-		// session ID until we open a shell
+		// session ID until we start the session.
 		go func() {
 			defer close(sessionDataSent)
 
-			sid, status := waitForSessionID()
-			switch status {
-			case sessionIDReceived:
-				t.sessionData.ID = sid
-				fallthrough
-			case sessionIDNotModified:
+			ctx, cancel := context.WithTimeout(writeSessionCtx, 10*time.Second)
+			defer cancel()
+
+			select {
+			case <-receivedSessionID:
 				if err := t.writeSessionData(ctx); err != nil {
 					t.logger.WarnContext(ctx, "Failure sending session data", "error", err)
 				}
-			case sessionIDNotSent:
+			case <-ctx.Done():
 				t.logger.WarnContext(ctx, "Failed to receive session data")
-			default:
-				t.logger.WarnContext(ctx, "Invalid session ID status", "status", status)
 			}
 		}()
 	}
 
+	var joinSessionID string
+	if t.tracker != nil {
+		joinSessionID = t.tracker.GetSessionID()
+	}
+
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, nil, beforeStart); err != nil {
+	if err = nc.RunInteractiveShell(ctx, joinSessionID, t.participantMode, beforeStart); err != nil {
 		if !t.closedByClient.Load() {
 			t.stream.WriteError(ctx, err.Error())
 		}
@@ -915,8 +918,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
 	if err != nil {
 		t.logger.WarnContext(ctx, "Unable to stream terminal - failed to dial host", "error", err)
 
@@ -938,7 +941,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
 		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
+		tc, t.fipsBuild)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because
 		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
@@ -968,19 +971,19 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
+	return t.connectToNodeWithMFABase(ctx, scopePin, ws, tc, accessChecker, getAgent, signer, authMethods)
 }
 
 // connectToNodeWithMFABase attempts to dial the host with the provided auth
 // methods.
-func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,
@@ -989,7 +992,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 	}
 
 	// connect to the node again with the new certs
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -997,7 +1000,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 	nc, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
 		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
+		tc, t.fipsBuild)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}

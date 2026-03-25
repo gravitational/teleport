@@ -21,10 +21,8 @@ package postgres
 import (
 	"cmp"
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -33,7 +31,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -128,7 +125,13 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		// Postgres cancel request message flow is unique:
 		// 1. No startup message is sent by the client.
 		// 2. The server closes the connection without responding to the client.
-		return trace.Wrap(e.handleCancelRequest(ctx, sessionCtx))
+		err = e.handleCancelRequest(ctx, sessionCtx)
+		if err != nil {
+			e.Log.WarnContext(e.Context, "Failed to handle cancel request.", "error", err)
+			return trace.Wrap(err)
+		}
+		e.Log.InfoContext(e.Context, "Cancel request handled.")
+		return nil
 	}
 	// Automatically create the database user if needed.
 	cancelAutoUserLease, err := e.GetUserProvisioner(e).Activate(ctx, sessionCtx)
@@ -520,55 +523,12 @@ func (e *Engine) newConnector(sessionCtx *common.Session) *connector {
 
 // handleCancelRequest handles a cancel request and returns immediately (closing the connection).
 func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Session) error {
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", sessionCtx.Database.GetURI()))
+	err := e.newConnector(sessionCtx).sendCancelRequest(ctx, e.cancelReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// We can't use pgconn in this case because it always sends a
-	// startup message.
-	// Instead, use the pgconn config string parser for convenience and dial
-	// db host:port ourselves.
-	network, address := pgconn.NetworkAddress(config.Host, config.Port)
-	dialer := net.Dialer{Timeout: defaults.DefaultIOTimeout}
-	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return common.ConvertConnectError(err, sessionCtx)
-	}
-	tlsConn, err := startPGWireTLS(conn, tlsConfig)
-	if err != nil {
-		return common.ConvertConnectError(err, sessionCtx)
-	}
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(tlsConn), tlsConn)
-	if err = frontend.Send(e.cancelReq); err != nil {
-		return trace.Wrap(err)
-	}
-	response := make([]byte, 1)
-	if _, err := tlsConn.Read(response); !errors.Is(err, io.EOF) {
-		// server should close the connection after receiving cancel request.
-		return trace.Wrap(err)
-	}
-	return nil
-}
 
-// startPGWireTLS is a helper func that upgrades upstream connection to TLS.
-// copied from github.com/jackc/pgconn.startTLS.
-func startPGWireTLS(conn net.Conn, tlsConfig *tls.Config) (net.Conn, error) {
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-	if err := frontend.Send(&pgproto3.SSLRequest{}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := make([]byte, 1)
-	if _, err := io.ReadFull(conn, response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if response[0] != 'S' {
-		return nil, trace.Errorf("server refused TLS connection")
-	}
-	return tls.Client(conn, tlsConfig), nil
+	return common.ConvertConnectError(err, sessionCtx)
 }
 
 // formatParameters converts parameters from the Postgres wire message into

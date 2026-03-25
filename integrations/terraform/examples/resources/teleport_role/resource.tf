@@ -1,7 +1,7 @@
 # Teleport Role resource
 
 resource "teleport_role" "example" {
-  version = "v7"
+  version = "v8"
   metadata = {
     name        = "example"
     description = "Example Teleport Role"
@@ -27,7 +27,7 @@ resource "teleport_role" "example" {
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
-      request_access          = "denied"
+      request_access          = "optional"
     }
 
     allow = {

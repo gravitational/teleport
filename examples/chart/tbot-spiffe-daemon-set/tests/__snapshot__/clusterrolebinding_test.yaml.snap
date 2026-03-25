@@ -1,0 +1,28 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE
+should match the snapshot (simple):
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE

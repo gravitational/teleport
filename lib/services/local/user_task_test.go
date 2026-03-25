@@ -116,7 +116,7 @@ func TestGetUserTask(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -218,7 +218,7 @@ func TestListUserTask(t *testing.T) {
 			prepopulateUserTask(t, service, count)
 
 			expectedElements := make([]*usertasksv1.UserTask, 0, count)
-			for i := 0; i < count; i++ {
+			for i := range count {
 				expectedElements = append(expectedElements, getUserTaskObject(t, i))
 			}
 			slices.SortFunc(expectedElements, sortUserTasksFn)
@@ -231,7 +231,7 @@ func TestListUserTask(t *testing.T) {
 				require.Len(t, elements, count)
 
 				slices.SortFunc(elements, sortUserTasksFn)
-				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
+				require.Empty(t, cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 
 			t.Run("paginated", func(t *testing.T) {
@@ -251,7 +251,7 @@ func TestListUserTask(t *testing.T) {
 
 				require.Len(t, expectedElements, len(elements))
 				slices.SortFunc(elements, sortUserTasksFn)
-				require.Equal(t, "", cmp.Diff(expectedElements, elements, cmpOpts...))
+				require.Empty(t, cmp.Diff(expectedElements, elements, cmpOpts...))
 			})
 		})
 	}
@@ -296,7 +296,7 @@ func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
 }
 
 func prepopulateUserTask(t *testing.T, service services.UserTasks, count int) {
-	for i := 0; i < count; i++ {
+	for i := range count {
 		_, err := service.CreateUserTask(context.Background(), getUserTaskObject(t, i))
 		require.NoError(t, err)
 	}

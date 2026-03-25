@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"io"
 	"net"
 	"testing"
 
@@ -143,6 +144,24 @@ func FuzzFetchMySQLVersion(f *testing.F) {
 				return &buffTestReader{reader: r}, nil
 			}, "")
 		})
+	})
+}
+
+func FuzzIsHandshakeV10Packet(f *testing.F) {
+	f.Add([]byte{})
+	f.Add([]byte{0})
+	f.Add([]byte{0, 0, 0, 0, 0})
+	f.Add([]byte{0, 0, 0, 0, 10})
+	f.Fuzz(func(t *testing.T, packet []byte) {
+		ctx := context.Background()
+		conn := NewBufferedConn(ctx, &buffTestReader{reader: bytes.NewReader(packet)})
+		require.NotPanics(t, func() {
+			_, _ = IsHandshakeV10Packet(conn)
+		})
+		require.NotNil(t, conn)
+		got, err := io.ReadAll(conn)
+		require.NoError(t, err)
+		require.Equal(t, got, packet, "it should only peek into the conn without consuming bytes")
 	})
 }
 

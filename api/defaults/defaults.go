@@ -18,6 +18,7 @@ limitations under the License.
 package defaults
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -101,6 +102,26 @@ var (
 	minInstanceHeartbeatInterval = 3 * time.Minute
 )
 
+// ProxyAnnounceTTL is announce ttl used for proxy presence.
+// This defaults to [ServerAnnounceTTL].
+func ProxyAnnounceTTL() time.Duration {
+	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	return ServerAnnounceTTL
+}
+
+// AuthAnnounceTTL is announce ttl used for auth presence.
+// This defaults to [ServerAnnounceTTL].
+func AuthAnnounceTTL() time.Duration {
+	v := os.Getenv("TELEPORT_UNSTABLE_AUTH_ANNOUNCE_TTL")
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	return ServerAnnounceTTL
+}
+
 func SetTestTimeouts(svrKeepAliveTTL, keepAliveTick time.Duration) {
 	moduleLock.Lock()
 	defer moduleLock.Unlock()
@@ -145,6 +166,12 @@ const (
 )
 
 const (
+	// DefaultMaxErrorMessageSize is the default maximum size of an error message.
+	// This can be used to truncate large error messages, which might cause gRPC messages to exceed the maximum allowed size.
+	DefaultMaxErrorMessageSize = 1024 * 100 // 100KB
+)
+
+const (
 	// When running in "SSH Proxy" role this port will be used for incoming
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
@@ -178,15 +205,17 @@ const (
 	// detect many situations where connection upgrade is required. This can be
 	// deleted once IsALPNConnUpgradeRequired is improved.
 	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
+)
 
-	// TLSRoutingConnUpgradeModeEnvVar overwrites the upgrade mode used when
-	// performing connection upgrades by the clients:
-	// - "websocket": client only requests "websocket" in the "Upgrade" header.
-	// - "legacy": client only requests legacy "alpn"/"alpn-ping" in the
-	//   "Upgrade" header.
-	// - "", "default", or any other value than above: client sends both
-	//   WebSocket and legacy in the "Upgrade" header.
-	//
-	// TODO(greedy52) DELETE in 17.0
-	TLSRoutingConnUpgradeModeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE"
+const (
+	// HealthCheckInterval is the default resource health check interval.
+	HealthCheckInterval time.Duration = 30 * time.Second
+	// HealthCheckTimeout is the default resource health check timeout.
+	HealthCheckTimeout time.Duration = 5 * time.Second
+	// HealthCheckHealthyThreshold is the default resource health check healthy
+	// threshold.
+	HealthCheckHealthyThreshold uint32 = 2
+	// HealthCheckUnhealthyThreshold is the default resource health check
+	// unhealthy threshold.
+	HealthCheckUnhealthyThreshold uint32 = 1
 )

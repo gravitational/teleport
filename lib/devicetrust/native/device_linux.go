@@ -111,9 +111,8 @@ func rewriteTPMPermissionError(err error) error {
 	)
 
 	return errors.New("" +
-		"Failed to open the TPM device. " +
-		"Consider assigning the user to the `tss` group or creating equivalent udev rules. " +
-		"See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting.")
+		"failed to open the TPM device, " +
+		"consider assigning the user to the `tss` group or creating equivalent udev rules")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.
@@ -176,6 +175,12 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 
 	osRelease := <-osReleaseC
 
+	displayName := u.Name
+	const maxUsernameLen = 40 // Matches server-side validation.
+	if len(displayName) > maxUsernameLen {
+		displayName = displayName[:maxUsernameLen]
+	}
+
 	return &devicepb.DeviceCollectedData{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
@@ -184,7 +189,8 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
-		OsUsername:            u.Name,
+		OsUsername:            displayName, // Wrong, but kept for backwards compatibility.
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,

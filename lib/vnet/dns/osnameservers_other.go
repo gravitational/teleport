@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
-// +build !darwin,!windows
+//go:build !darwin && !windows && !linux
 
 package dns
 
 import (
 	"context"
+	"log/slog"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -29,11 +29,8 @@ import (
 var (
 	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-	// Satisfy unused linter.
-	_ = withDNSPort
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
 	return nil, trace.Wrap(vnetNotImplemented)
 }

@@ -1,0 +1,12 @@
+The Teleport Database Service proxies traffic from users to {{ dbType }}
+for Redis and Valkey. Authentication between the Database Service and the
+{{ dbType }} database can take one of two forms:
+
+- **IAM authentication (preferred):** The Teleport Database Service connects to
+  the database using a short-lived AWS IAM authentication token. AWS IAM
+  authentication is available for {{ dbType }} with engine version 7.0 or above.
+- **Managing users:** The Teleport Database Service manages users in a access
+  control list, rotates their passwords every 15 minutes, and saves these
+  passwords in AWS Secrets Manager. The Database Service automatically sends an
+  `AUTH` command with the saved password when connecting the client to the
+  {{ dbType }} server.

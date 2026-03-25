@@ -104,7 +104,12 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 
 // getRawMetadata gets the raw metadata from a specified path.
 func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string, queryParams url.Values) ([]byte, error) {
-	httpClient, err := defaults.HTTPClient()
+	// From Azure Docs at https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=windows#proxies
+	//
+	// > IMDS is not intended to be used behind a proxy and doing so is unsupported.
+	// > Most HTTP clients provide an option for you to disable proxies on your requests, and this functionality must be utilized when communicating with IMDS.
+	// > Consult your client's documentation for details.
+	httpClient, err := defaults.HTTPClient(defaults.DisableProxyFromEnvironment())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,7 +168,9 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 	return versions.APIVersions, nil
 }
 
-// IsAvailable checks if instance metadata is available.
+// IsAvailable reports whether the Azure Instance Metadata Service is reachable.
+// On first use it discovers and caches a supported IMDS API version (via /versions).
+// Other methods call this internally to ensure the client is initialized.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	if client.GetAPIVersion() != "" {
 		return true
@@ -225,6 +232,10 @@ type InstanceInfo struct {
 
 // GetInstanceInfo gets the Azure Instance information.
 func (client *InstanceMetadataClient) GetInstanceInfo(ctx context.Context) (*InstanceInfo, error) {
+	if !client.IsAvailable(ctx) {
+		return nil, trace.NotFound("Instance metadata is not available")
+	}
+
 	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,12 +264,20 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 
 // GetAttestedData gets attested data from the instance.
 func (client *InstanceMetadataClient) GetAttestedData(ctx context.Context, nonce string) ([]byte, error) {
+	if !client.IsAvailable(ctx) {
+		return nil, trace.NotFound("Instance metadata is not available")
+	}
+
 	body, err := client.getRawMetadata(ctx, "/attested/document", url.Values{"nonce": []string{nonce}, "format": []string{"json"}})
 	return body, trace.Wrap(err)
 }
 
 // GetAccessToken gets an oauth2 access token from the instance.
 func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, clientID string) (string, error) {
+	if !client.IsAvailable(ctx) {
+		return "", trace.NotFound("Instance metadata is not available")
+	}
+
 	params := url.Values{"resource": []string{"https://management.azure.com/"}}
 	if clientID != "" {
 		params["client_id"] = []string{clientID}

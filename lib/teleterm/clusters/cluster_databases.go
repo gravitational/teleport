@@ -29,20 +29,44 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	"github.com/gravitational/teleport/lib/services"
 	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// AutoUserProvisioning contains auto-user provisioning information.
+type AutoUserProvisioning struct {
+	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned user.
+	DatabaseRoles []string
+}
 
 // Database describes database
 type Database struct {
 	// URI is the database URI
 	URI uri.ResourceURI
 	types.Database
+	// TargetHealth describes the health status of network connectivity
+	// reported from an agent (db_service) that is proxying this database.
+	TargetHealth types.TargetHealth
+	// AutoUserProvisioning contains auto-user provisioning information.
+	AutoUserProvisioning *AutoUserProvisioning
+	// DatabaseUsers is a list of allowed database users that Teleport RBAC permits the user to connect as.
+	DatabaseUsers []string
+	// WildcardUserAllowed is true when the user's role grants db_users: ["*"].
+	WildcardUserAllowed bool
+}
+
+// DatabaseServer (db_server) describes a database heartbeat signal
+// reported from an agent (db_service) that is proxying
+// the database.
+type DatabaseServer struct {
+	// URI is the db_servers URI
+	URI uri.ResourceURI
+	types.DatabaseServer
 }
 
 // GetDatabase returns a database
@@ -82,57 +106,40 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.BadParameter("the username must be present")
 	}
 
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+		RouteToCluster:  c.clusterClient.SiteName,
+		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
+		AccessRequests:  c.status.ActiveRequests,
+		RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		TTL:             c.clusterClient.KeyTTL,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: routeToDatabase.ServiceName,
-			Protocol:    routeToDatabase.Protocol,
-			Username:    routeToDatabase.Username,
-		},
-		AccessRequests: c.status.ActiveRequests,
-		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		TTL:            c.clusterClient.KeyTTL,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	dbCert, err := key.DBTLSCert(routeToDatabase.ServiceName)
+	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
 	return dbCert, trace.Wrap(err)
 }
 
-// GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authclient.ClientI, dbURI string) ([]string, error) {
-	dbResourceURI, err := uri.ParseDBURI(dbURI)
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (c *Cluster) ListDatabaseServers(ctx context.Context, params *api.ListResourcesParams, authClient authclient.ClientI) (*GetDatabaseServersResponse, error) {
+	page, err := listResources[types.DatabaseServer](ctx, params, authClient, types.KindDatabaseServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	results := make([]DatabaseServer, 0, len(page.Resources))
+	for _, server := range page.Resources {
+		results = append(results, DatabaseServer{
+			URI:            c.URI.AppendDBServer(server.GetName()),
+			DatabaseServer: server,
+		})
 	}
 
-	db, err := c.GetDatabase(ctx, authClient, dbResourceURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dbUsers.Allowed(), nil
+	return &GetDatabaseServersResponse{
+		Servers: results,
+		NextKey: page.NextKey,
+	}, nil
 }
 
 type GetDatabasesResponse struct {
@@ -143,9 +150,14 @@ type GetDatabasesResponse struct {
 	TotalCount int
 }
 
+type GetDatabaseServersResponse struct {
+	Servers []DatabaseServer
+	NextKey string
+}
+
 // NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
 // db route, and options.
-func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, getDatabaseFunc dbcmd.GetDatabaseFunc, options ...dbcmd.ConnectCommandFunc) (*dbcmd.CLICommandBuilder, error) {
 	return dbcmd.NewCmdBuilder(
 		cluster.clusterClient,
 		&cluster.status,
@@ -157,6 +169,7 @@ func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, optio
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
 		cluster.Name,
+		getDatabaseFunc,
 		options...,
 	)
 }

@@ -1,0 +1,35 @@
+---
+title: TeleportInferencePolicy
+description: Provides a comprehensive list of fields in the TeleportInferencePolicy resource available through the Teleport Kubernetes operator
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This guide is a comprehensive reference to the fields in the `TeleportInferencePolicy`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|InferencePolicy resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|filter|string|Filter is an optional filter expression using Teleport Predicate Language to select sessions for summarization. If it's empty, all sessions that match the list of kinds will be summarized using this model.|
+|kinds|[]string|Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"|
+|model|string|Model is the name of the `InferenceModel` resource to be used for summarization.|
+

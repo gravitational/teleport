@@ -29,6 +29,12 @@ import AppContext from 'teleterm/ui/appContext';
 import { Document } from 'teleterm/ui/services/workspacesService';
 
 export class MockAppContext extends AppContext {
+  // Using a separate field instead of redeclaring mainProcessClient as MockMainProcessClient,
+  // as redeclaring the field would require us to write extra assert sometimes as interfaces of
+  // MockMainProcessClient and MainProcessClient are not always the same in the eyes of TypeScript.
+  // See https://github.com/gravitational/teleport/pull/53226#discussion_r2005717227
+  public readonly mockMainProcessClient: MockMainProcessClient;
+
   constructor(runtimeSettings?: Partial<RuntimeSettings>) {
     const mainProcessClient = new MockMainProcessClient(runtimeSettings);
     const tshdClient = new MockTshClient();
@@ -43,11 +49,14 @@ export class MockAppContext extends AppContext {
       setupTshdEventContextBridgeService: () => {},
       getPathForFile: () => '',
     });
+
+    this.mockMainProcessClient = mainProcessClient;
   }
 
   addRootClusterWithDoc(
     cluster: Cluster,
-    doc: Document[] | Document | undefined
+    doc: Document[] | Document | undefined,
+    options?: AddRootClusterOptions
   ) {
     this.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
@@ -55,13 +64,20 @@ export class MockAppContext extends AppContext {
     const docs = Array.isArray(doc) ? doc : [doc];
     this.workspacesService.addWorkspace(cluster.uri);
     this.workspacesService.setState(draftState => {
-      draftState.rootClusterUri = cluster.uri;
+      if (!options?.noActivate) {
+        draftState.rootClusterUri = cluster.uri;
+      }
       draftState.workspaces[cluster.uri].documents = docs.filter(Boolean);
       draftState.workspaces[cluster.uri].location = docs[0]?.uri;
     });
   }
 
-  addRootCluster(cluster: Cluster) {
-    this.addRootClusterWithDoc(cluster, undefined);
+  addRootCluster(cluster: Cluster, options?: AddRootClusterOptions) {
+    this.addRootClusterWithDoc(cluster, undefined, options);
   }
+}
+
+interface AddRootClusterOptions {
+  /** Does not set the cluster as active in workspaces service. */
+  noActivate?: boolean;
 }

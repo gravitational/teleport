@@ -21,12 +21,12 @@ import { resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
+import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
-import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -64,11 +64,33 @@ export function createViteConfig(
         host: '0.0.0.0',
         port: 3000,
       },
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
-        rollupOptions: {
+        reportCompressedSize: false,
+        rolldownOptions: {
+          checks: {
+            // We don't really need rolldown to complain about react/assets/wasm taking a "long"
+            // time - the entire build takes ~7s with compression, which is plenty fast.
+            pluginTimings: false,
+          },
+          onLog(level, log, defaultHandler) {
+            // Suppress direct eval warning from @protobufjs/inquire.
+            // The eval is intentional (to call require without bundler detection) and patching
+            // it to indirect eval would break Electron's module-scoped require.
+            if (
+              log.code === 'EVAL' &&
+              log.id?.includes('@protobufjs/inquire')
+            ) {
+              return;
+            }
+
+            defaultHandler(level, log);
+          },
           output: {
             // removes hashing from our entry point file.
             entryFileNames: ENTRY_FILE_NAME,
@@ -78,15 +100,30 @@ export function createViteConfig(
             // this will remove hashing from asset (non-js) files.
             assetFileNames: `app/[name].[ext]`,
           },
+          plugins: [
+            {
+              // The wasm module is embedded into the main app earlier in the build.
+              // Exclude it here, otherwise rollup still emits it as a static asset
+              // by default.
+              name: 'drop-wasm-assets',
+              generateBundle(_, bundle) {
+                for (const file of Object.keys(bundle)) {
+                  if (file.endsWith('.wasm')) {
+                    delete bundle[file];
+                  }
+                }
+              },
+            },
+          ],
         },
       },
       plugins: [
         reactPlugin(mode),
-        tsconfigPathsPlugin(),
         transformPlugin(),
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
@@ -98,6 +135,18 @@ export function createViteConfig(
 
     if (mode === 'production') {
       config.base = '/web';
+
+      if (!process.env.VITE_DISABLE_COMPRESSION) {
+        config.plugins.push(
+          compression({
+            algorithms: ['brotliCompress'],
+            deleteOriginalAssets: true,
+            include: /\.(js|svg|wasm)$/,
+            threshold: 1024 * 10, // 10KB
+            logLevel: 'silent',
+          })
+        );
+      }
     } else {
       config.plugins.push(htmlPlugin(target));
       // siteName matches everything between the slashes.
@@ -127,13 +176,22 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
-        // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
+        // /webapi/sites/:site/db/exec - database interactive sessions
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/db\\/exec`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
+        // /webapi/sites/:site/(desktopplayback|sessionrecording|ttyplayback)/:sid
+        '^(\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/(desktopplayback|sessionrecording|ttyplayback)\\/(.*?))(\\/ws)?':
+          {
+            target: `wss://${target}`,
+            changeOrigin: true,
+            secure: false,
+            ws: true,
+            rewriteWsOrigin: true, // rewrite the origin so Teleport doesn't reject the connection
+          },
         '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,

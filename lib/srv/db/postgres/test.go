@@ -452,8 +452,8 @@ func (s *TestServer) handleCreateStoredProcedure(query string, pid uint32) error
 
 	procName := storedProcedureName(pid, match[storedProcedureRe.SubexpIndex("Schema")], match[storedProcedureRe.SubexpIndex("ProcName")])
 	var argsCount int
-	args := strings.Split(match[storedProcedureRe.SubexpIndex("Args")], ",")
-	for _, arg := range args {
+	args := strings.SplitSeq(match[storedProcedureRe.SubexpIndex("Args")], ",")
+	for arg := range args {
 		// Skip arguments that have a default value.
 		if !strings.Contains(strings.ToLower(arg), "default") {
 			argsCount++

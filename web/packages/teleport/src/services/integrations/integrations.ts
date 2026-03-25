@@ -17,14 +17,18 @@
  */
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
+import {
+  withGenericUnsupportedError,
+  withUnsupportedLabelFeatureErrorConversion,
+} from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -35,6 +39,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  AwsRolesAnywherePingResponse,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -42,6 +47,7 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationCreateResult,
+  IntegrationDeleteRequest,
   IntegrationDiscoveryRules,
   IntegrationKind,
   IntegrationListResponse,
@@ -57,8 +63,10 @@ import {
   ListAwsSubnetsResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
+  ListRolesAnywhereProfilesResponse,
   RdsEngineIdentifier,
   Regions,
+  RolesAnywhereProfile,
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
@@ -75,20 +83,27 @@ export const integrationService = {
     return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
   },
 
-  fetchIntegration<T>(name: string): Promise<T> {
+  fetchIntegration<T>(name: string, abortSignal?: AbortSignal): Promise<T> {
     return api
-      .get(cfg.getIntegrationsUrl(name))
+      .get(cfg.getIntegrationsUrl(name), abortSignal)
       .then(resp => makeIntegration(resp) as T);
   },
 
-  fetchIntegrations(): Promise<IntegrationListResponse> {
-    return api.get(cfg.getIntegrationsUrl()).then(resp => {
-      const integrations = resp?.items ?? [];
-      return {
-        items: integrations.map(makeIntegration),
-        nextKey: resp?.nextKey,
-      };
-    });
+  fetchIntegrations(
+    withSummaries: boolean = false
+  ): Promise<IntegrationListResponse> {
+    return api
+      .get(cfg.getIntegrationsUrl(undefined, withSummaries))
+      .then(resp => {
+        const integrations = resp?.items ?? [];
+        if (withSummaries) {
+          mapSummaries(integrations, resp?.summaries);
+        }
+        return {
+          items: integrations.map(makeIntegration),
+          nextKey: resp?.nextKey,
+        };
+      });
   },
 
   createIntegration<T extends IntegrationCreateRequest>(
@@ -97,6 +112,12 @@ export const integrationService = {
     return api
       .post(cfg.getIntegrationsUrl(), req)
       .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
+  },
+
+  validateAWSRolesAnywhereIntegration<T>(integrationName: string): Promise<T> {
+    return api.post(
+      cfg.getValidateAWSRolesAnywhereIntegrationUrl(integrationName)
+    );
   },
 
   pingAwsOidcIntegration(
@@ -127,8 +148,10 @@ export const integrationService = {
       .then(makeIntegration);
   },
 
-  deleteIntegration(name: string): Promise<void> {
-    return api.delete(cfg.getIntegrationsUrl(name));
+  deleteIntegration(req: IntegrationDeleteRequest): Promise<void> {
+    return api
+      .delete(cfg.getDeleteIntegrationUrlV2(req))
+      .catch(err => withGenericUnsupportedError(err, 'v17.3.0'));
   },
 
   fetchThumbprint(): Promise<string> {
@@ -466,7 +489,7 @@ export const integrationService = {
   fetchAwsOidcDatabaseServices(
     name: string,
     resourceType: AwsResource,
-    regions: string[]
+    regions?: string[]
   ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
     return api
       .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)
@@ -489,8 +512,11 @@ export const integrationService = {
       });
   },
 
-  fetchUserTask(name: string): Promise<UserTaskDetail> {
-    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+  fetchUserTask(
+    name: string,
+    abortSignal?: AbortSignal
+  ): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name), abortSignal).then(resp => {
       return {
         name: resp.name,
         taskType: resp.taskType,
@@ -499,22 +525,23 @@ export const integrationService = {
         integration: resp.integration,
         lastStateChange: resp.lastStateChange,
         description: resp.description,
+        title: resp.title,
         discoverEc2: {
-          instances: resp.discoverEc2?.instances,
-          accountId: resp.discoverEc2?.accountId,
+          instances: resp.discoverEc2?.instances || {},
+          account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
-          ssmDocument: resp.discoverEc2?.ssmDocument,
-          installerScript: resp.discoverEc2?.installerScript,
+          ssm_document: resp.discoverEc2?.ssm_document,
+          installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.instances,
-          accountId: resp.discoverEks?.accountId,
+          clusters: resp.discoverEks?.clusters || {},
+          account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
-          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+          app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.instances,
-          accountId: resp.discoverRds?.accountId,
+          databases: resp.discoverRds?.databases || {},
+          account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
       };
@@ -532,10 +559,61 @@ export const integrationService = {
           taskType: resp.taskType,
           state: resp.state,
           issueType: resp.issueType,
+          title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
         };
       });
+  },
+
+  awsRolesAnywherePing({
+    integrationName,
+    trustAnchorArn,
+    syncRoleArn,
+    syncProfileArn,
+  }: {
+    integrationName: string;
+    trustAnchorArn: string;
+    syncRoleArn: string;
+    syncProfileArn: string;
+  }): Promise<AwsRolesAnywherePingResponse> {
+    return api
+      .post(cfg.getAwsRolesAnywherePingUrl(integrationName), {
+        trustAnchorArn,
+        syncRoleArn,
+        syncProfileArn,
+      })
+      .then(json => {
+        return {
+          profileCount: json?.profileCount,
+          accountId: json?.accountID,
+          arn: json?.arn,
+          userId: json?.userId,
+        };
+      });
+  },
+
+  awsRolesAnywhereProfiles(
+    variables: {
+      integrationName: string;
+      filters?: ProfilesFilterOption[];
+    },
+    signal?: AbortSignal
+  ): Promise<ListRolesAnywhereProfilesResponse> {
+    const { integrationName, filters } = variables;
+    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
+
+    return api
+      .post(
+        path,
+        {
+          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
+        },
+        signal
+      )
+      .then(data => ({
+        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
+      }));
   },
 };
 
@@ -558,9 +636,18 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github } = json;
+  const {
+    name,
+    subKind,
+    awsoidc,
+    github,
+    awsra,
+    isManagedByTerraform,
+    summary,
+  } = json;
 
   const commonFields = {
+    resourceType: 'integration' as const,
     name,
     kind: subKind,
     // The integration resource does not have a "status" field, but is
@@ -569,12 +656,13 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+    isManagedByTerraform,
+    summary,
   };
 
   if (subKind === IntegrationKind.AwsOidc) {
     return {
       ...commonFields,
-      resourceType: 'integration',
       details:
         'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
       spec: {
@@ -586,21 +674,44 @@ function makeIntegration(json: any): Integration {
     };
   }
 
+  if (subKind === IntegrationKind.AwsRa) {
+    return {
+      ...commonFields,
+      details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
+      spec: {
+        trustAnchorARN: awsra?.trustAnchorARN,
+        profileSyncConfig: {
+          enabled: awsra.profileSyncConfig.enabled,
+          profileArn: awsra.profileSyncConfig.profileArn,
+          roleArn: awsra.profileSyncConfig.roleArn,
+          filters: awsra.profileSyncConfig.filters,
+        },
+      },
+    };
+  }
+
   if (subKind === IntegrationKind.GitHub) {
     return {
       ...commonFields,
-      resourceType: 'integration',
-      details: `GitHub Organization "${github.organization}"`,
+      details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
       },
     };
   }
 
-  return {
-    ...commonFields,
-    resourceType: 'integration',
-  };
+  return commonFields;
+}
+
+function mapSummaries(integrations, summaryMap) {
+  if (!integrations || !summaryMap) return;
+
+  for (const i of integrations) {
+    const s = summaryMap[i.name];
+    if (s !== undefined) {
+      i.summary = s;
+    }
+  }
 }
 
 export function makeAwsDatabase(json: any): AwsRdsDatabase {
@@ -659,5 +770,27 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
+  };
+}
+
+function makeProfile(json: any): RolesAnywhereProfile {
+  json = json ?? {};
+
+  const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
+
+  let arr: string[] = [];
+  if (tags != undefined) {
+    new Map(Object.entries(tags)).forEach((v, k) => {
+      arr.push(`${k}:${v}`);
+    });
+  }
+
+  return {
+    arn,
+    enabled,
+    name,
+    acceptRoleSessionName,
+    tags: arr,
+    roles,
   };
 }

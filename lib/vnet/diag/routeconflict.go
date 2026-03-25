@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -41,6 +42,11 @@ type RouteConflictConfig struct {
 	Routing Routing
 	// Interfaces abstracts away functions from the net package and calls to ifconfig.
 	Interfaces Interfaces
+	// RefetchRoutesDuration is the duration for which [RouteConflictDiag] is going to wait before
+	// re-fetching the list of network routes on the system if it does not see any routes belonging to
+	// the interface set up by VNet. It will fetch the routes up to three times. If after the third
+	// time there's still no VNet routes, it'll just continue.
+	RefetchRoutesDuration time.Duration
 }
 
 // Routing abstracts away platform-specific logic of obtaining routes with their destinations,
@@ -90,6 +96,10 @@ func NewRouteConflictDiag(cfg *RouteConflictConfig) (*RouteConflictDiag, error) 
 
 	if cfg.Interfaces == nil {
 		return nil, trace.BadParameter("missing net interfaces")
+	}
+
+	if cfg.RefetchRoutesDuration == 0 {
+		cfg.RefetchRoutesDuration = 500 * time.Millisecond
 	}
 
 	return &RouteConflictDiag{
@@ -149,16 +159,36 @@ func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, e
 		return nil, trace.Wrap(err)
 	}
 
-	rds, err := c.cfg.Routing.GetRouteDestinations()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If RouteConflictDiag runs soon after starting VNet or logging in to the first cluster, it might
+	// take a few seconds for the VNet admin process to set up relevant network routes. In that
+	// situation, RouteConflictDiag should wait for a brief period and then re-fetch routes.
+	//
+	// If the user does not have a valid cert for any cluster, VNet does not set up any routes. In
+	// that niche case, RouteConflictDiag will sleep for 3 * c.cfg.RefetchRoutesDuration and return no
+	// route conflicts.
+	var rds []RouteDest
+	var vnetDests []RouteDest
+	attempts := 0
+	for len(vnetDests) == 0 && attempts < 3 {
+		if attempts > 0 {
+			time.Sleep(c.cfg.RefetchRoutesDuration)
+		}
+		attempts++
+
+		rds, err = c.cfg.Routing.GetRouteDestinations()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, rd := range rds {
+			if rd.IfaceIndex() == vnetIface.Index {
+				vnetDests = append(vnetDests, rd)
+			}
+		}
 	}
 
-	var vnetDests []RouteDest
-	for _, rd := range rds {
-		if rd.IfaceIndex() == vnetIface.Index {
-			vnetDests = append(vnetDests, rd)
-		}
+	if len(vnetDests) == 0 {
+		return nil, nil
 	}
 
 	var rcs []*diagv1.RouteConflict

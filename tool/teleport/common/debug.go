@@ -24,14 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,18 +45,23 @@ type DebugClient interface {
 	GetLogLevel(context.Context) (string, error)
 	// CollectProfile collects a pprof profile.
 	CollectProfile(context.Context, string, int) ([]byte, error)
+	// GetReadiness checks if the instance is ready to serve requests.
+	GetReadiness(context.Context) (debugclient.Readiness, error)
+	// GetRawMetrics fetches the unprocessed Prometheus metrics.
+	GetRawMetrics(context.Context) (io.ReadCloser, error)
+	SocketPath() string
 }
 
 func onSetLogLevel(configPath string, level string) error {
 	ctx := context.Background()
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	setMessage, err := setLogLevel(ctx, clt, level)
 	if err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Println(setMessage)
@@ -74,14 +78,14 @@ func setLogLevel(ctx context.Context, clt DebugClient, level string) (string, er
 
 func onGetLogLevel(configPath string) error {
 	ctx := context.Background()
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	currentLogLevel, err := getLogLevel(ctx, clt)
 	if err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Printf("Current log level %q\n", currentLogLevel)
@@ -111,14 +115,14 @@ func onCollectProfiles(configPath string, rawProfiles string, seconds int) error
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var output bytes.Buffer
 	if err := collectProfiles(ctx, clt, &output, rawProfiles, seconds); err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Print(output.String())
@@ -167,12 +171,60 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 	return trace.NewAggregate(tw.Close(), gw.Close())
 }
 
+// onReadyz checks if the instance is ready to serve requests.
+func onReadyz(ctx context.Context, configPath string) error {
+	clt, dataDir, err := newDebugClient(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := readyz(ctx, clt); err != nil {
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
+	}
+
+	return nil
+}
+
+func readyz(ctx context.Context, clt DebugClient) error {
+	readiness, err := clt.GetReadiness(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !readiness.Ready {
+		return trace.Errorf("not ready (PID:%d): %s", readiness.PID, readiness.Status)
+	}
+
+	fmt.Printf("ready (PID:%d)\n", readiness.PID)
+	return nil
+}
+
+// onMetrics fetches the current Prometheus metrics.
+func onMetrics(ctx context.Context, configPath string) error {
+	clt, dataDir, err := newDebugClient(configPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	metrics, err := clt.GetRawMetrics(ctx)
+	if err != nil {
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
+	}
+	defer metrics.Close()
+
+	if _, err := io.Copy(os.Stdout, metrics); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // newDebugClient initializes the debug client based on the Teleport
 // configuration. It also returns the data dir and socket path used.
-func newDebugClient(configPath string) (DebugClient, string, string, error) {
+func newDebugClient(configPath string) (DebugClient, string, error) {
 	cfg, err := config.ReadConfigFile(configPath)
 	if err != nil {
-		return nil, "", "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// ReadConfigFile returns nil configuration if the file doesn't exists.
@@ -183,8 +235,7 @@ func newDebugClient(configPath string) (DebugClient, string, string, error) {
 		dataDir = cfg.DataDir
 	}
 
-	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
-	return debugclient.NewClient(socketPath), dataDir, socketPath, nil
+	return debugclient.NewClient(dataDir), dataDir, nil
 }
 
 // convertToReadableErr converts debug service client error into a more friendly
@@ -196,7 +247,7 @@ func convertToReadableErr(err error, dataDir, socketPath string) error {
 
 	switch {
 	case errors.Is(err, context.Canceled):
-		return fmt.Errorf("Request canceled")
+		return trace.Errorf("request canceled")
 	case trace.IsConnectionProblem(err):
 		return trace.BadParameter("Unable to reach debug service socket at %q."+
 			"\n\nVerify if you have enough permissions to open the socket and if the path"+

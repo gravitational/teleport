@@ -50,7 +50,9 @@ export function PromotedMessage({
         <br />
         {self ? (
           <>
-            You are now a member of Access List <b>{promotedAccessListTitle}</b>{' '}
+            You are now a member of Access List <b>
+              {promotedAccessListTitle}
+            </b>{' '}
             which grants you the resources requested.
           </>
         ) : (
@@ -132,8 +134,7 @@ export const BlockedByStartTimeButton = ({
   return (
     <HoverTooltip
       tipContent={getAssumeStartTimeTooltipText(assumeStartTime)}
-      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      placement="top-end"
     >
       <ButtonPrimary disabled={true} size="small">
         Assume Roles

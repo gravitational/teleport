@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 // WorkloadIdentityX509Command implements `tbot start workload-identity-x509` and
@@ -56,15 +57,15 @@ func NewWorkloadIdentityX509Command(parentCmd *kingpin.CmdClause, action Mutator
 
 	cmd.Flag(
 		"include-federated-trust-bundles",
-		"If set, include federated trust bundles in the output",
+		"If set, include federated trust bundles in the output.",
 	).BoolVar(&c.IncludeFederatedTrustBundles)
 	cmd.Flag(
 		"name-selector",
-		"The name of the workload identity to issue",
+		"The name of the workload identity to issue. Mutually exclusive with --label-selector.",
 	).StringVar(&c.NameSelector)
 	cmd.Flag(
 		"label-selector",
-		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.",
 	).StringVar(&c.LabelSelector)
 
 	return c
@@ -81,7 +82,7 @@ func (c *WorkloadIdentityX509Command) ApplyConfig(cfg *config.BotConfig, l *slog
 		return trace.Wrap(err)
 	}
 
-	svc := &config.WorkloadIdentityX509Service{
+	svc := &workloadidentity.X509OutputConfig{
 		Destination:                  dest,
 		IncludeFederatedTrustBundles: c.IncludeFederatedTrustBundles,
 	}

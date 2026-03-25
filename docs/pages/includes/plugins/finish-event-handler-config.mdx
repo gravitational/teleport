@@ -1,17 +1,20 @@
+{/* this comment is here to make the includes below render */}
+
 <Tabs>
-<TabItem label="Linux server">
+<TabItem label="Executable">
 
 Earlier, we generated a file called `teleport-event-handler.toml` to configure
-the Fluentd event handler. This file includes setting similar to the following:
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```toml
 storage = "./storage"
 timeout = "10s"
 batch = 20
-namespace = "default"
+# concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+concurrency = 5
 # The window size configures the duration of the time window for the event handler
 # to request events from Teleport. By default, this is set to 24 hours.
-# Reduce the window size if the events backend cannot manage the event volume 
+# Reduce the window size if the events backend cannot manage the event volume
 # for the default window size.
 # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
 window-size = "24h"
@@ -20,46 +23,51 @@ window-size = "24h"
 # and new Access Requests, you can assign this field to
 # "user.login,access_request.create".
 types = ""
-# skip-event-types is a comma-separated list of types of events to skip. For
-# example, to forward all audit events except for new app deletion events, you
-# can include the following assignment:
-# skip-event-types = "app.delete"
-skip-event-types: []
-# skip-session-types is a comma-separated list of session event types to skip.
+# skip-event-types is a comma-separated list of audit log event types to skip.
+# For example, to forward all audit events except for new app deletion events,
+# you can include the following assignment:
+# skip-event-types = ["app.delete"]
+skip-event-types = []
+# skip-session-types is a comma-separated list of session recording event types to skip.
 # For example, to forward all session events except for malformed SQL packet
 # events, you can include the following assignment:
-# skip-session-types = "db.session.malformed_packet"
-skip-session-types: []
+# skip-session-types = ["db.session.malformed_packet"]
+skip-session-types = []
 
 [forward.fluentd]
-ca = "/home/bob/event-handler/ca.crt"
-cert = "/home/bob/event-handler/client.crt"
-key = "/home/bob/event-handler/client.key"
+ca = <Var name="/home/bob/event-handler" />/ca.crt
+cert = <Var name="/home/bob/event-handler" />/client.crt
+key = <Var name="/home/bob/event-handler" />/client.key
 url = "https://fluentd.example.com:8888/test.log"
+# The Event Handler appends `.<session-id>.log` to `session-url` when sending
+# session recording events. For example, if `session-url` is
+# `https://fluentd.example.com:8888/session`, the actual requests are sent to
+# paths like `/session.<session-id>.log`. Ensure that your log collector's
+# tag matching or routing rules account for this suffix (e.g., use `session.*`
+# as a match pattern in Fluentd or Fluent Bit).
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
-addr = "example.teleport.com:443"
+addr = <Var name="teleport.example.com:443" />
 identity = "identity"
 ```
-
-Modify the configuration to replace `fluentd.example.com` with the domain name
-of your Fluentd deployment.
 
 </TabItem>
 <TabItem label="Helm Chart">
 
-Use the following template to create `teleport-plugin-event-handler-values.yaml`:
+Earlier, we generated a file called `teleport-plugin-event-handler-values.yaml` to configure
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```yaml
 eventHandler:
   storagePath: "./storage"
   timeout: "10s"
   batch: 20
-  namespace: "default"
+  # concurrency is the number of concurrent sessions to process. By default, this is set to 5.
+  concurrency: 5
   # The window size configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
-  # Reduce the window size if the events backend cannot manage the event volume 
+  # Reduce the window size if the events backend cannot manage the event volume
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
@@ -68,23 +76,29 @@ eventHandler:
   # and new Access Requests, you can assign this field to:
   # ["user.login", "access_request.create"]
   types: []
-  # skipEventTypes lists types of events to skip. For example, to forward all
+  # skipEventTypes lists types of audit events to skip. For example, to forward all
   # audit events except for new app deletion events, you can assign this to:
   # ["app.delete"]
   skipEventTypes: []
-  # skipSessionTypes lists session event types to skip. For example, to forward
-  # all session events except for malformed SQL packet events, you can assign
-  # this to:
+  # skipSessionTypes lists types of session recording events to skip. For example,
+  # to forward all session events except for malformed SQL packet events,
+  # you can assign this to:
   # ["db.session.malformed_packet"]
   skipSessionTypes: []
 
 teleport:
-  address: "example.teleport.com:443"
+  address: <Var name="teleport.example.com:443" />
   identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 
 fluentd:
   url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  # The Event Handler appends `.<session-id>.log` to `session-url` when sending
+  # session recording events. For example, if `session-url` is
+  # `https://fluentd.example.com:8888/session`, the actual requests are sent to
+  # paths like `/session.<session-id>.log`. Ensure that your log collector's
+  # tag matching or routing rules account for this suffix (e.g., use `session.*`
+  # as a match pattern in Fluentd or Fluent Bit).
   sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
   certificate:
     secretName: "teleport-event-handler-client-tls"
@@ -97,5 +111,12 @@ persistentVolumeClaim:
 ```
 
 </TabItem>
-</Tabs>
+<TabItem label="Helm Chart with Kubernetes Operator">
 
+Your helm configuration file `teleport-plugin-event-handler-values.yaml` should
+contain settings similar to the following:
+
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)
+
+</TabItem>
+</Tabs>

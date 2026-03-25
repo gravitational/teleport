@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed
@@ -162,9 +163,9 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 	}
 	h.logger.DebugContext(ctx, "Starting heartbeat with announce period",
 		"mode", cfg.Mode,
-		"keep_alive_period", cfg.KeepAlivePeriod,
-		"announce_period", cfg.AnnouncePeriod,
-		"check_period", cfg.CheckPeriod,
+		"keep_alive_period", log.StringerAttr(cfg.KeepAlivePeriod),
+		"announce_period", log.StringerAttr(cfg.AnnouncePeriod),
+		"check_period", log.StringerAttr(cfg.CheckPeriod),
 	)
 	return h, nil
 }
@@ -391,6 +392,11 @@ func (h *Heartbeat) fetch() error {
 	}
 }
 
+// announce may upsert a new heartbeat or issue a keepalive for an existing one,
+// depending on the current time and the state of the heartbeat. The returned
+// boolean flag will be true if successful communication with the control plane
+// has occurred as part of the announce (i.e. if the actual communication wasn't
+// skipped because of time or state).
 func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 	switch h.state {
 	// nothing to do in those states in terms of announce

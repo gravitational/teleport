@@ -1,0 +1,59 @@
+If Installs are showing failed or instances are failing to appear check the
+Command history in AWS Systems Manager -> Node Management -> Run Command.
+Select the instance-id of the Target to review Errors.
+
+### Installation script exit codes
+
+When enrolling an instance into Teleport, the installation script returns a specific exit code when facing well-known issues:
+- 100: `bash` binary is missing
+- 101: `sudo` binary is missing
+- 102: `curl` binary is missing
+- 103: `/opt` or `/` do not have the required minimum space to install Teleport, at least 1250MB is required
+- 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
+
+You can customize the installation script - as describe in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
+
+Whether the installation exits with a pre-flight check or with your own custom installation script, the exit code appears in `ssm.run` Teleport audit events, in the `exit_code` field.
+It also appears in AWS Systems Manager -> Node Management -> Run Command -> Command history.
+
+Example of the `ssm.run` event with an exit code:
+```json
+{
+  "code": "TDS00W",
+  "event": "ssm.run",
+  "instance_id": "i-0000",
+  "region": "<region>",
+  "invocation_url": "https://<region>.console.aws.amazon.com/systems-manager/run-command/<uuid>/i-0000",
+  "platform_name": "Ubuntu",
+  "platform_type": "Linux",
+  "platform_version": "24.04",
+  "status": "curl is not installed in the instance. Please install all required tools (bash, sudo, curl) and try again.",
+  "stderr": "failed to run commands: exit status 102",
+  "stdout": "curl is missing\n",
+  "exit_code": 102
+}
+```
+
+### `cannot unmarshal object into Go struct field`
+
+If you encounter an error similar to the following:
+
+```text
+invalid format in plugin properties map[destinationPath:/tmp/installTeleport.sh sourceInfo:map[url:[https://example.teleport.sh:443/webapi/scripts/installer/preprod-installer](https://example.teleport.sh/webapi/scripts/installer/preprod-installer)] sourceType:HTTP];
+error json: cannot unmarshal object into Go struct field DownloadContentPlugin.sourceInfo of type string
+```
+
+It is likely that you're running an older SSM agent version. Upgrade to SSM agent version 3.1 or greater to resolve.
+
+### `InvalidInstanceId: Instances [[i-123]] not in a valid state for account 456`
+
+The following problems can cause this error:
+- The Discovery Service doesn't have permission to access the managed node.
+- AWS Systems Manager Agent (SSM Agent) isn't running. Verify that SSM Agent is running.
+- SSM Agent isn't registered with the SSM endpoint. Try reinstalling SSM Agent.
+- The discovered instance does not have permission to receive SSM
+  commands, verify the instance includes the AmazonSSMManagedInstanceCore IAM policy.
+
+See SSM RunCommand error codes and troubleshooting information in AWS documentation for more details:
+- https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-managed-instances.html
+- https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors

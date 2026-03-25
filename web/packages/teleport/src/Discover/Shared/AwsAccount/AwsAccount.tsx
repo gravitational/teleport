@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import {
   Alert,
@@ -161,9 +161,9 @@ export function AwsAccount() {
 
   if (!hasAccess) {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Box maxWidth="700px">
+        <Box>
           <Text mt={4}>
             You don’t have the permissions required to set up this integration.
             <br />
@@ -179,30 +179,30 @@ export function AwsAccount() {
           </Flex>
         </Box>
         <ActionButtons onPrev={prevStep} />
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === '' || attempt.status === 'processing') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === 'error') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger">{attempt.statusText}</Alert>
         <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
-      </Box>
+      </>
     );
   }
 
@@ -256,18 +256,18 @@ export function AwsAccount() {
   // define location state to preserve all the states required
   // to resume from this step when the user comes back to discover route
   // after successfully finishing enrolling integration.
+  const integrationEnrollPath = cfg.getIntegrationEnrollRoute(
+    IntegrationKind.AwsOidc
+  );
   const locationState = {
-    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
-    state: {
-      discover: {
-        eventState,
-        resourceSpec,
-        currentStep,
-      },
-    } as DiscoverUrlLocationState,
-  };
+    discover: {
+      eventState,
+      resourceSpec,
+      currentStep,
+    },
+  } as DiscoverUrlLocationState;
   return (
-    <Box maxWidth="700px">
+    <>
       <Heading />
       {healthCheckAttempt.status === 'error' && (
         <Alert
@@ -295,7 +295,12 @@ export function AwsAccount() {
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} compact>
+                  <ButtonText
+                    as={Link}
+                    to={integrationEnrollPath}
+                    state={locationState}
+                    compact
+                  >
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>
@@ -305,7 +310,8 @@ export function AwsAccount() {
                   mb={2}
                   size="large"
                   as={Link}
-                  to={locationState}
+                  to={integrationEnrollPath}
+                  state={locationState}
                 >
                   Set up AWS Account
                 </ButtonPrimary>
@@ -324,7 +330,7 @@ export function AwsAccount() {
           )}
         </Validation>
       </Box>
-    </Box>
+    </>
   );
 }
 

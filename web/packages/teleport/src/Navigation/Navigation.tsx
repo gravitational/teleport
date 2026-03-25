@@ -16,6 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  useFloating,
+  useFocus,
+  useHover,
+  useInteractions,
+} from '@floating-ui/react';
 import type * as history from 'history';
 import React, {
   ReactNode,
@@ -25,7 +31,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -110,6 +116,8 @@ export type NavigationSubsection = {
    * Note that this is merely extra logic, and does not replace the default routing behaviour of a subsection which will navigate the user to the route.
    */
   onClick?: () => void;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 };
 
 function getNavigationSections(
@@ -158,12 +166,11 @@ function getSubsectionsForCategory(
       exact: feature.navigationItem.exact,
       icon: feature.navigationItem.icon,
       searchableTags: feature.navigationItem.searchableTags,
+      isHyperLink: feature.isHyperLink,
     };
   });
 }
 
-// getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
-// Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
 /**
  * getTopMenuSection returns a NavigationSection with the top menu items. This is not used in the sidenav, but will be used to make the top menu items searchable.
  */
@@ -184,17 +191,19 @@ function getTopMenuSection(features: TeleportFeature[]): NavigationSection {
   };
 }
 
+/** getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
+ * Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings). **/
 function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
-): NavigationSubsection {
+): NavigationSubsection | undefined {
   let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-        exact: feature.route.exact,
-      })
+      matchPath(
+        { path: feature.route.path, end: feature.route.exact ?? false },
+        route.pathname
+      )
     );
 
   // If this is a child feature, use its parent as the subsection instead.
@@ -206,7 +215,8 @@ function getNavSubsectionForRoute(
 
   if (
     !feature ||
-    (!feature.category && !feature.topMenuItem && !feature.navigationItem)
+    (!feature.category && !feature.topMenuItem && !feature.navigationItem) ||
+    feature.isHyperLink
   ) {
     return;
   }
@@ -242,7 +252,7 @@ function useDebounceClose<T>(
   isClosing: boolean
 ): T | null {
   const [debouncedValue, setDebouncedValue] = useState<T | null>(value);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     // Clear any existing timeout
@@ -270,9 +280,45 @@ function useDebounceClose<T>(
   return debouncedValue;
 }
 
-export function Navigation() {
+// TODO(kiosion): Once nav is reworked to use a single RightPanel,
+// can utilize `safePolygon` w/ `requireIntent` for `handleClose` here instead of `restMs`,
+// for less jank-y selection of nav items.
+/**
+ * useFloatingUiWithRestMs creates a new floating-ui ctx for toggling right nav panel on focus/hover,
+ * with restMs set to avoid sporadic selections while moving cursor to right panel
+ */
+export const useFloatingUiWithRestMs = ({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (newOpen: boolean) => void;
+}) => {
+  const { context, refs } = useFloating({
+    open,
+    onOpenChange,
+  });
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    useHover(context, {
+      restMs: 25,
+    }),
+    useFocus(context),
+  ]);
+
+  return {
+    refs,
+    getReferenceProps,
+    getFloatingProps,
+  };
+};
+
+export function Navigation({
+  showPoweredByLogo,
+}: {
+  showPoweredByLogo?: boolean;
+}) {
   const features = useFeatures();
-  const history = useHistory();
+  const location = useLocation();
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
   const [targetSection, setTargetSection] = useState<NavigationSection | null>(
@@ -282,7 +328,7 @@ export function Navigation() {
   const debouncedSection = useDebounceClose(targetSection, 200, isClosing);
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
-  const navigationTimeoutRef = useRef<NodeJS.Timeout>();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   // Clear navigation timeout on unmount.
   useEffect(() => {
@@ -293,8 +339,8 @@ export function Navigation() {
     };
   }, []);
   const currentView = useMemo(
-    () => getNavSubsectionForRoute(features, history.location),
-    [features, history.location]
+    () => getNavSubsectionForRoute(features, location),
+    [features, location]
   );
 
   const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
@@ -409,10 +455,10 @@ export function Navigation() {
   const hideNav = features.find(
     f =>
       f.route &&
-      matchPath(history.location.pathname, {
-        path: f.route.path,
-        exact: f.route.exact ?? false,
-      })
+      matchPath(
+        { path: f.route.path, end: f.route.exact ?? false },
+        location.pathname
+      )
   )?.hideNavigation;
 
   if (hideNav) {
@@ -459,6 +505,7 @@ export function Navigation() {
               stickyMode={stickyMode}
               toggleStickyMode={toggleStickyMode}
               canToggleStickyMode={!!currentPageSection}
+              showPoweredByLogo={showPoweredByLogo}
             />
           </>
         )}
@@ -496,6 +543,7 @@ export function Navigation() {
                 aria-controls={`panel-${debouncedSection?.category}`}
                 onNavigationItemClick={onNavigationItemClick}
                 isExpanded={isExpanded}
+                showPoweredByLogo={showPoweredByLogo}
               />
             </React.Fragment>
           );
