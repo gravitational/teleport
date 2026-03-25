@@ -496,9 +496,7 @@ func TestDialNilConfig(t *testing.T) {
 	t.Parallel()
 
 	_, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-	require.ErrorContains(t, err, "missing SSH client config")
+	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
 }
 
 func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
@@ -511,9 +509,7 @@ func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
 	})
 
 	_, _, _, err := NewClientConnWithTimeout(t.Context(), clientConn, "example.com:22", nil)
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err))
-	require.ErrorContains(t, err, "missing SSH client config")
+	require.ErrorIs(t, err, trace.BadParameter("missing SSH client config"))
 }
 
 func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
