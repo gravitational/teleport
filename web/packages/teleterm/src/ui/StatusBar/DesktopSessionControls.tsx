@@ -24,6 +24,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
 import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
+import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 export function DesktopSessionControls({
   status,
@@ -40,6 +41,7 @@ export function DesktopSessionControls({
 
   return (
     <Pill alignItems="center" gap={2}>
+      {status.latencyStats && <LatencyDiagnostic latency={status.latencyStats} />}
       <HoverTooltip
         tipContent={directorySharingTooltip(
           status.canShareDirectory,
