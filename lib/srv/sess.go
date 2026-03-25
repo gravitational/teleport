@@ -1487,9 +1487,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
 	go func() {
-		result, err := s.term.Wait()
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", err)
+		result := s.term.Wait()
+		if result.Error != nil {
+			s.logger.ErrorContext(ctx, "Received error waiting for the interactive session to finish.", "error", result.Error)
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1501,14 +1501,12 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		case <-s.doneCh:
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
-			}
+		if err := s.registry.broadcastResult(s.id, result); err != nil {
+			s.logger.WarnContext(ctx, "Failed to broadcast session result.", "error", err)
 		}
 
-		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
-			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
+		if result.Command != "" {
+			emitExecAuditEvent(scx, result)
 		}
 
 		s.emitSessionEndEvent()
@@ -1677,10 +1675,8 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = execRequest.Wait()
-		if result != nil {
-			scx.SendExecResult(ctx, *result)
-		}
+		result := execRequest.Wait()
+		scx.SendExecResult(ctx, result)
 
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
