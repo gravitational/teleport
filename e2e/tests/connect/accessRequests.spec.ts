@@ -230,16 +230,76 @@ test.describe('access requests', () => {
     return launchFromSnapshot(reviewerSnapshot);
   }
 
-  test('leaf cluster is visible with resources', async () => {
-    await using app = await launchAsRequester();
-    const { page } = app;
+  test('role-based request: create and review', async () => {
+    await test.step('requester creates a role-based request', async () => {
+      await using app = await launchAsRequester();
+      const { page } = app;
 
-    const clusterSelector = page.locator('[title*="Open Clusters"]');
-    await expect(clusterSelector).toBeVisible();
+      // Open "New Role Request" via the Access Requests menu.
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('New Role Request').click();
 
-    await clusterSelector.click();
-    await page.getByText('teleport-e2e-leaf').click();
+      // Verify only the two expected roles are listed.
+      await expect(page.getByText('allow-roles-and-nodes')).toBeVisible();
+      await expect(page.getByText('allow-users-with-short-ttl')).toBeVisible();
 
-    await expect(page.getByText('docker-leaf-node')).toBeVisible();
+      // Select a role.
+      await page
+        .getByRole('row', { name: /allow-roles-and-nodes/ })
+        .getByRole('button', { name: /Request Access/ })
+        .click();
+
+      // The checkout bar should appear. Proceed to the request form.
+      await page.getByRole('button', { name: 'Proceed to request' }).click();
+
+      // Verify suggested reviewer (bob) is shown in the reviewers section.
+      const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+      const reviewers = checkoutPanel.locator('[data-testid="reviewers"]');
+      await expect(reviewers.getByText('bob')).toBeVisible();
+
+      // Add another reviewer by typing in the creatable select.
+      await checkoutPanel.getByRole('button', { name: 'Edit' }).click();
+      const reviewerInput = checkoutPanel.locator(
+        'input[role="combobox"][aria-expanded="true"]'
+      );
+      await reviewerInput.fill('charlie');
+      await reviewerInput.press('Enter');
+      await checkoutPanel.getByRole('button', { name: 'Done' }).click();
+      await expect(reviewers.getByText('charlie')).toBeVisible();
+      await expect(reviewers.getByText('bob')).toBeVisible();
+
+      // Submit the request.
+      await checkoutPanel
+        .getByRole('button', { name: 'Submit Request' })
+        .click();
+
+      // Verify success.
+      await expect(
+        page.getByText('Resources Requested Successfully')
+      ).toBeVisible();
+
+      // Navigate to the request list.
+      await page.getByRole('button', { name: 'See requests' }).click();
+
+      // The request might not appear immediately if the backend hasn't
+      // finished processing. Refresh until it shows up.
+      await expect(async () => {
+        await page.getByRole('button', { name: 'Refresh' }).click();
+        await expect(page.getByText('No Requests Found')).not.toBeVisible({
+          timeout: 500,
+        });
+      }).toPass();
+
+      // Open the request details and verify reviewers are listed.
+      await page.getByRole('button', { name: 'View' }).first().click();
+      const reviewersSection = page.locator('section', {
+        has: page.getByRole('heading', { name: 'Reviewers' }),
+      });
+      await expect(reviewersSection.getByText('bob')).toBeVisible();
+      await expect(reviewersSection.getByText('charlie')).toBeVisible();
+
+      // Verify we can't review our own request.
+      await expect(page.getByText('Submit Review')).not.toBeVisible();
+    });
   });
 });
