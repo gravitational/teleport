@@ -5575,6 +5575,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
+	if p.DelegationSessionID != "" {
+		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
+	}
+
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
@@ -5741,6 +5745,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5794,6 +5799,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 
 	// update active profile info from env

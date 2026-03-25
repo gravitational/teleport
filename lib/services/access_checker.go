@@ -302,6 +302,9 @@ type AccessChecker interface {
 
 	// AccessInfo returns the AccessInfo that this access checker is based on.
 	AccessInfo() *AccessInfo
+
+	// DelegationSessionID returns the ID of the current Delegation Session.
+	DelegationSessionID() string
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -321,6 +324,9 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceAccessIDs []types.ResourceAccessID
+	// DelegationSessionID is the ID of the Delegation Session this identity was
+	// created for, if any.
+	DelegationSessionID string
 	// Username is the Teleport username.
 	Username string
 }
@@ -434,6 +440,7 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 		Roles: make([]string, 0, len(remoteRoles)),
 		// AllowedResourceAccessIDs are always the same across clusters.
 		AllowedResourceAccessIDs: localAccessInfo.AllowedResourceAccessIDs,
+		DelegationSessionID:      localAccessInfo.DelegationSessionID,
 	}
 
 	for i := range remoteRoles {
@@ -536,6 +543,58 @@ func matchesUCRResource(requestedR types.ResourceAccessID, r AccessCheckable) bo
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (a *accessChecker) AccessInfo() *AccessInfo {
 	return a.info
+}
+
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (a *accessChecker) DelegationSessionID() string {
+	return a.info.DelegationSessionID
+}
+
+// blockedInDelegationSession checks whether the given verb is disallowed
+// because the caller is in a Delegation Session with restricted access to
+// specific resources only.
+//
+// Without this check, the `AllowedResourceAccessIDs` would only restrict
+// regular access (e.g. SSH-ing into a node), not administrative actions,
+// so if the delegating user has a role that allows them to mutate resources,
+// the session user would also be able to do this on their behalf.
+//
+// If the Delegation Session has a "wildcard" resource selector, the user
+// has explicitly allowed the session user to take on *all* of their
+// permissions, including destructive administrative actions.
+func (a *accessChecker) blockedInDelegationSession(verb string) bool {
+	if a.DelegationSessionID() == "" || len(a.GetAllowedResourceAccessIDs()) == 0 {
+		return false
+	}
+
+	switch verb {
+	// These verbs are allowed to enable `tsh ls`, etc.
+	case types.VerbList, types.VerbRead, types.VerbReadNoSecrets:
+		return false
+	default:
+		return true
+	}
+}
+
+// CheckAccessToRule checks access to a rule within a namespace.
+//
+// It extends [RoleSet.CheckAccessToRule] to prevent Delegation Sessions with
+// restricted access to specific resources from inheriting the user's destructive
+// admin/rule based privileges
+func (a *accessChecker) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
+	if a.blockedInDelegationSession(verb) {
+		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.CheckAccessToRule(ctx, namespace, resource, verb)
+}
+
+// GuessIfAccessIsPossible guesses if access is possible for an entire category
+// of resources.
+func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
+	if a.blockedInDelegationSession(verb) {
+		return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.GuessIfAccessIsPossible(ctx, namespace, resource, verb)
 }
 
 // CheckAccess checks if the identity for this AccessChecker has access to the given resource.
@@ -1398,6 +1457,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		Roles:                    ident.Roles,
 		Traits:                   ident.Traits,
 		AllowedResourceAccessIDs: ident.AllowedResourceAccessIDs,
+		DelegationSessionID:      ident.DelegationSessionID,
 	}
 }
 
@@ -1439,6 +1499,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
+		DelegationSessionID:      unmappedIdentity.DelegationSessionID,
 	}, nil
 }
 
@@ -1456,6 +1517,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		Roles:                    identity.Groups,
 		Traits:                   identity.Traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, nil
 }
 
@@ -1513,6 +1575,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Roles:                    roles,
 		Traits:                   traits,
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, nil
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -1491,6 +1492,80 @@ func TestUserSessionRoleNotFoundError(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, checker)
 	})
+}
+
+func TestDelegatedResourceAccessIdentityRestrictsRuleChecksToReadOnlyVerbs(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.Wildcard}),
+		})
+	})
+
+	checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+		DelegationSessionID: "delegation-session",
+		AllowedResourceAccessIDs: []types.ResourceAccessID{{
+			Id: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+		}},
+	}, "cluster", NewRoleSet(role))
+
+	tests := []struct {
+		name         string
+		verb         string
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name:         "list remains allowed",
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+		{
+			name:         "read remains allowed",
+			verb:         types.VerbRead,
+			assertAccess: require.NoError,
+		},
+		{
+			name:         "read without secrets remains allowed",
+			verb:         types.VerbReadNoSecrets,
+			assertAccess: require.NoError,
+		},
+		{
+			name:         "create is denied",
+			verb:         types.VerbCreate,
+			assertAccess: func(t require.TestingT, err error, _ ...any) { require.True(t, trace.IsAccessDenied(err)) },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, types.KindToken, tc.verb)
+			tc.assertAccess(t, err)
+
+			err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, types.KindToken, tc.verb)
+			tc.assertAccess(t, err)
+		})
+	}
+}
+
+func TestDelegationSessionWithoutResourceIDsDoesNotDenyRuleChecks(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.VerbCreate}),
+		})
+	})
+
+	checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+		DelegationSessionID: "delegation-session",
+	}, "cluster", NewRoleSet(role))
+
+	err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
+
+	err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
 }
 
 // mockRoleGetter implements RoleGetter for testing

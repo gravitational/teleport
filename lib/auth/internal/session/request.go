@@ -63,6 +63,9 @@ type NewWebSessionRequest struct {
 	CreateDeviceWebToken bool
 	// Scope, if non-empty, makes the authentication scoped.
 	Scope string
+	// DelegationSessionID is the ID of the Delegation Session this session is
+	// being created for.
+	DelegationSessionID string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.

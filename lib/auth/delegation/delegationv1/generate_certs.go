@@ -225,8 +225,9 @@ func (s *SessionService) generateCertificates(
 		Renewable:       false,
 		IncludeHostCA:   true,
 
-		BotName:       callerIdentity.BotName,
-		BotInstanceID: callerIdentity.BotInstanceID,
+		BotName:             callerIdentity.BotName,
+		BotInstanceID:       callerIdentity.BotInstanceID,
+		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
 	// Add the protocol-specific routing hints to the certificate.
@@ -256,6 +257,7 @@ func (s *SessionService) generateCertificates(
 				Roles:                      delegatingUser.GetRoles(),
 				RequestedResourceAccessIDs: resourceIDs,
 				AttestWebSession:           true,
+				DelegationSessionID:        session.GetMetadata().GetName(),
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,

@@ -90,6 +90,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			pack.onCreateAppSession = func(_ context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
 				require.Equal(t, "bob", req.User)
 				require.Equal(t, []string{"bob"}, req.Roles)
+				require.Equal(t, session.GetMetadata().GetName(), req.DelegationSessionID)
 				require.Equal(t,
 					[]types.ResourceAccessID{
 						{
@@ -110,6 +111,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Equal(t, sshPublicKey, req.SSHPublicKey)
 				require.Equal(t, tlsPublicKey, req.TLSPublicKey)
 				require.Equal(t, 5*time.Minute, req.TTL)
+				require.Equal(t, session.GetMetadata().GetName(), req.DelegationSessionID)
 
 				// Check roles and resource IDs.
 				params := req.CheckerContext.CertParams().UnscopedCertParams()

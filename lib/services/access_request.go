@@ -1737,6 +1737,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Traits:                   m.userState.GetTraits(),
 		Username:                 m.userState.GetName(),
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)
