@@ -80,7 +80,7 @@ func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, confi
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) (*Client, error) {
 	// Defensive check to ensure that the client version is properly set to include Teleport version and features.
-	if !bytes.Equal([]byte(api.SSHClientVersion()), c.ClientVersion()) {
+	if api.SSHClientVersion() != string(c.ClientVersion()) {
 		return nil, trace.BadParameter(
 			"SSH client version must be set to %q, got %q (this is a bug)",
 			api.SSHClientVersion(),
