@@ -17,46 +17,36 @@ package ssh_test
 import (
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/trace"
 )
-
-func TestClientVersion(t *testing.T) {
-	t.Parallel()
-
-	expected := ssh.VersionPrefix + api.Version
-	require.Equal(t, expected, ssh.DefaultClientVersion)
-}
 
 func TestClientVersionWithFeatures(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	for _, tt := range []struct {
 		name     string
 		features []string
 		want     string
 	}{
 		{
 			name: "no features",
-			want: ssh.VersionPrefix + api.Version,
+			want: ssh.VersionPrefix + "_" + api.Version,
 		},
 		{
 			name:     "single feature",
 			features: []string{ssh.InBandMFAFeature},
-			want:     ssh.VersionPrefix + api.Version + " " + ssh.InBandMFAFeature,
+			want:     ssh.VersionPrefix + "_" + api.Version + " " + ssh.InBandMFAFeature,
 		},
 		{
 			name:     "multiple features",
 			features: []string{ssh.InBandMFAFeature, "foo"},
-			want:     ssh.VersionPrefix + api.Version + " " + ssh.InBandMFAFeature + ",foo",
+			want:     ssh.VersionPrefix + "_" + api.Version + " " + ssh.InBandMFAFeature + ",foo",
 		},
-	}
-
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, ssh.ClientVersionWithFeatures(tt.features...))
 		})
@@ -66,22 +56,56 @@ func TestClientVersionWithFeatures(t *testing.T) {
 func TestParseSSHClientVersion(t *testing.T) {
 	t.Parallel()
 
-	wantVersion, err := semver.NewVersion("19.1.2-dev.1+meta")
-	require.NoError(t, err)
-
-	t.Run("with features", func(t *testing.T) {
-		version, features, err := ssh.ParseClientVersion(ssh.VersionPrefix + "19.1.2-dev.1+meta mfav1,foo")
-		require.NoError(t, err)
-		require.Equal(t, []string{"mfav1", "foo"}, features)
-		require.Equal(t, wantVersion, version)
-	})
-
-	t.Run("without features", func(t *testing.T) {
-		version, features, err := ssh.ParseClientVersion(ssh.VersionPrefix + "19.1.2-dev.1+meta")
-		require.NoError(t, err)
-		require.Nil(t, features)
-		require.Equal(t, wantVersion, version)
-	})
+	for _, tt := range []struct {
+		name          string
+		clientVersion string
+		wantVersion   string
+		wantFeatures  []string
+	}{
+		{
+			name:          "prefix only",
+			clientVersion: ssh.VersionPrefix,
+			wantVersion:   "",
+			wantFeatures:  nil,
+		},
+		{
+			name:          "prefix with version",
+			clientVersion: ssh.VersionPrefix + "_19.1.2-dev.1+meta",
+			wantVersion:   "19.1.2-dev.1+meta",
+			wantFeatures:  nil,
+		},
+		{
+			name:          "prefix with empty version after underscore",
+			clientVersion: ssh.VersionPrefix + "_",
+			wantVersion:   "",
+			wantFeatures:  nil,
+		},
+		{
+			name:          "prefix with features only",
+			clientVersion: ssh.VersionPrefix + " " + "mfav1,foo",
+			wantVersion:   "",
+			wantFeatures:  []string{"mfav1", "foo"},
+		},
+		{
+			name:          "prefix with version and features",
+			clientVersion: ssh.VersionPrefix + "_19.1.2-dev.1+meta" + " " + "mfav1,foo=bar",
+			wantVersion:   "19.1.2-dev.1+meta",
+			wantFeatures:  []string{"mfav1", "foo=bar"},
+		},
+		{
+			name:          "prefix with version without underscore",
+			clientVersion: ssh.VersionPrefix + "19.1.2-dev.1+meta",
+			wantVersion:   "19.1.2-dev.1+meta",
+			wantFeatures:  nil,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			version, features, err := ssh.ParseClientVersion(tt.clientVersion)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantVersion, version)
+			require.Equal(t, tt.wantFeatures, features)
+		})
+	}
 }
 
 func TestParseSSHClientVersionErrors(t *testing.T) {
@@ -98,58 +122,20 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 			wantErr:       ssh.NonTeleportSSHVersionError{},
 		},
 		{
-			name:          "missing version",
-			clientVersion: "SSH-2.0-Teleport_",
-			wantErr: trace.BadParameter(
-				"invalid version %q: missing Teleport version",
-				"SSH-2.0-Teleport_",
-			),
+			name:          "invalid feature character",
+			clientVersion: ssh.VersionPrefix + "_19.1.2-dev.1" + " " + "mfav1,foo	look to the left to see a tab lol",
+			wantErr:       trace.BadParameter("SSH client version contain invalid characters %q", '\t'),
 		},
 		{
-			name:          "unexpected whitespace",
-			clientVersion: "SSH-2.0-Teleport_19.1.2  mfav1",
-			wantErr: trace.BadParameter(
-				"invalid version %q: unexpected whitespace",
-				"SSH-2.0-Teleport_19.1.2  mfav1",
-			),
-		},
-		{
-			name:          "too many fields",
-			clientVersion: "SSH-2.0-Teleport_19.1.2 mfav1 extra",
-			wantErr: trace.BadParameter(
-				"invalid version %q: expected \"<version>\" or \"<version> <feature[,feature...]>\"",
-				"SSH-2.0-Teleport_19.1.2 mfav1 extra",
-			),
-		},
-		{
-			name:          "invalid version",
-			clientVersion: "SSH-2.0-Teleport_not-a-semantic-version mfav1",
-			wantErr: func() error {
-				_, err := semver.NewVersion("not-a-semantic-version")
-				require.Error(t, err)
-
-				return trace.BadParameter(
-					"invalid version %q: invalid semantic version %q: %v",
-					"SSH-2.0-Teleport_not-a-semantic-version mfav1",
-					"not-a-semantic-version",
-					err,
-				)
-			}(),
-		},
-		{
-			name:          "empty feature name",
-			clientVersion: "SSH-2.0-Teleport_19.1.2 mfav1,",
-			wantErr: trace.BadParameter(
-				"invalid version %q: empty feature name in %q",
-				"SSH-2.0-Teleport_19.1.2 mfav1,",
-				"mfav1,",
-			),
+			name:          "non ascii feature character",
+			clientVersion: ssh.VersionPrefix + "_19.1.2-dev.1" + " " + "mfav1,foo\xc3",
+			wantErr:       trace.BadParameter("SSH client version contain invalid characters %q", 0xc3),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			version, features, err := ssh.ParseClientVersion(tt.clientVersion)
 			require.ErrorIs(t, err, tt.wantErr)
-			require.Nil(t, version)
+			require.Empty(t, version)
 			require.Nil(t, features)
 		})
 	}
@@ -166,14 +152,20 @@ func TestIsSSHFeatureSupported(t *testing.T) {
 	}{
 		{
 			name:          "supported feature",
-			clientVersion: ssh.VersionPrefix + "19.1.2-dev.1+meta mfav1,foo",
+			clientVersion: ssh.VersionPrefix + "_" + "19.1.2-dev.1+meta" + " " + "mfav1,foo",
 			feature:       "mfav1",
 			want:          true,
 		},
 		{
 			name:          "unsupported feature",
-			clientVersion: ssh.VersionPrefix + "19.1.2-dev.1+meta mfav1,foo",
+			clientVersion: ssh.VersionPrefix + "_" + "19.1.2-dev.1+meta" + " " + "mfav1,foo",
 			feature:       "bar",
+			want:          false,
+		},
+		{
+			name:          "no features advertised",
+			clientVersion: ssh.VersionPrefix + "_" + "19.1.2-dev.1+meta",
+			feature:       "mfav1",
 			want:          false,
 		},
 	} {

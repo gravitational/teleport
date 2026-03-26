@@ -18,7 +18,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
@@ -26,24 +25,17 @@ import (
 
 const (
 	// VersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
-	VersionPrefix = "SSH-2.0-Teleport_"
+	VersionPrefix = "SSH-2.0-Teleport"
 
 	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
 	InBandMFAFeature = "mfav1"
 )
 
 // DefaultClientVersion returns the default SSH client identification string used by Teleport SSH clients.
-const DefaultClientVersion = VersionPrefix + api.Version
+const DefaultClientVersion = VersionPrefix + "_" + api.Version
 
 // ClientVersionWithFeatures returns a client version string that includes the specified features. If no features are
 // provided, it returns the default client version string.
-//
-// It returns a string in the format: SSH-2.0-Teleport_<teleport_version> <features>
-//
-// Examples:
-//   - SSH-2.0-Teleport_19.0.0
-//   - SSH-2.0-Teleport_19.0.0 mfav1
-//   - SSH-2.0-Teleport_19.0.0 mfav1,foov1,barv1
 func ClientVersionWithFeatures(features ...string) string {
 	if len(features) == 0 {
 		return DefaultClientVersion
@@ -63,50 +55,63 @@ func (NonTeleportSSHVersionError) Error() string {
 }
 
 // ParseClientVersion parses the given SSH client version string and extracts the Teleport version and supported
-// features.
+// features. It returns the Teleport version and a slice of supported features. If no features are specified, the
+// features slice will be nil. If the client version string does not have the expected Teleport prefix, it returns a
+// NonTeleportSSHVersionError. If the client version string contains invalid characters, it returns a BadParameter
+// error.
 //
-// It returns the parsed Teleport version as a [semver.Version], a slice of supported features, and an error if the
-// version string is malformed.
-func ParseClientVersion(clientVersion string) (*semver.Version, []string, error) {
+// It intentionally does not attempt to parse the Teleport version into a structured format, as the Teleport version
+// string is primarily used for informational purposes and may include additional metadata in the future. It is also
+// intentional that features may contain spaces.
+//
+//	Accepted formats are:
+//	 - SSH-2.0-Teleport
+//	 - SSH-2.0-Teleport <feature1,feature2,...>
+//	 - SSH-2.0-Teleport_<teleport_version>
+//	 - SSH-2.0-Teleport_<teleport_version> <feature1,feature2,...>
+//	 - SSH-2.0-Teleport<teleport_version>
+//	 - SSH-2.0-Teleport<teleport_version> <feature1,feature2,...>
+func ParseClientVersion(clientVersion string) (string, []string, error) {
+	// Validate that the client version string contains only allowed ASCII characters (32-126).
+	for i := range clientVersion {
+		b := clientVersion[i]
+
+		if b < 32 || b > 126 {
+			return "", nil, trace.BadParameter("SSH client version contain invalid characters %q", b)
+		}
+	}
+
+	// Remove the version prefix and ensure it is actually a Teleport SSH client version string.
 	rest, ok := strings.CutPrefix(clientVersion, VersionPrefix)
 	if !ok {
-		return nil, nil, NonTeleportSSHVersionError{}
+		return "", nil, NonTeleportSSHVersionError{}
 	}
 
+	// No version or features provided after the prefix.
 	if rest == "" {
-		return nil, nil, trace.BadParameter("invalid version %q: missing Teleport version", clientVersion)
+		return "", nil, nil
 	}
 
-	if strings.HasPrefix(rest, " ") ||
-		strings.HasSuffix(rest, " ") ||
-		strings.Contains(rest, "  ") {
-		return nil, nil, trace.BadParameter("invalid version %q: unexpected whitespace", clientVersion)
-	}
-
+	// Separate the version part from the features part by the first space.
 	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
-	if hasFeatures && strings.Contains(featuresPart, " ") {
-		return nil, nil, trace.BadParameter(`invalid version %q: expected "<version>" or "<version> <feature[,feature...]>"`, clientVersion)
+
+	// Remove the leading underscore from the version part, if present.
+	if versionPart != "" {
+		versionPart = strings.TrimPrefix(versionPart, "_")
 	}
 
-	version, err := semver.NewVersion(versionPart)
-	if err != nil {
-		return nil, nil, trace.BadParameter("invalid version %q: invalid semantic version %q: %v", clientVersion, versionPart, err)
-	}
-
+	// If there are no features, return the version.
 	if !hasFeatures {
-		return version, nil, nil
+		return versionPart, nil, nil
 	}
 
+	// Split the features part into individual features.
 	features := strings.Split(featuresPart, ",")
-	if slices.Contains(features, "") {
-		return nil, nil, trace.BadParameter("invalid version %q: empty feature name in %q", clientVersion, featuresPart)
-	}
 
-	return version, features, nil
+	return versionPart, features, nil
 }
 
-// IsFeatureSupported checks if the given SSH client version string indicates support for the specified feature. If
-// the version string is malformed, an error is returned.
+// IsFeatureSupported checks if the given SSH client version string indicates support for the specified feature.
 func IsFeatureSupported(clientVersion, feature string) (bool, error) {
 	_, features, err := ParseClientVersion(clientVersion)
 	if err != nil {
