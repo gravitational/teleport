@@ -361,6 +361,9 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// MFACeremonyConstructor is an optional MFA ceremony constructor.
+	// Currently used for Browser MFA during the login process.
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -409,6 +412,8 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 	// SSOChallenge is an SSO MFA challenge.
 	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+	// BrowserMFAChallenge is a Browser MFA challenge.
+	BrowserMFAChallenge *BrowserMFAChallenge `json:"browser_challenge"`
 }
 
 // SSOChallenge is a json compatible [proto.SSOChallenge].
@@ -451,6 +456,18 @@ type MFARegisterChallenge struct {
 // TOTPRegisterChallenge contains a TOTP challenge.
 type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
+}
+
+// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserMFAChallenge struct {
+	RequestID string `json:"requestId,omitempty"`
+}
+
+// BrowserChallengeToProto converts an BrowserChallenge to proto format.
+func BrowserChallengeToProto(browserChal *BrowserMFAChallenge) *proto.BrowserMFAChallenge {
+	return &proto.BrowserMFAChallenge{
+		RequestId: browserChal.RequestID,
+	}
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -688,6 +705,9 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 				User: login.User,
 				Pass: login.Password,
 			}
+			if req != nil && req.BrowserMFATSHRedirectURL != "" {
+				beginReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
+			}
 			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -708,7 +728,8 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			}
 			return chal, nil
 		},
-		PromptConstructor: login.MFAPromptConstructor,
+		PromptConstructor:      login.MFAPromptConstructor,
+		MFACeremonyConstructor: login.MFACeremonyConstructor,
 	}
 }
 

@@ -74,7 +74,16 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
+	promptSSO := chal.SSOChallenge != nil && p.cfg.MFACeremony != nil
+	promptBrowser := chal.BrowserMFAChallenge != nil
+
+	// TODO(danielashare): Implement Browser MFA for connect
+	if promptBrowser && !promptOTP && !promptWebauthn && !promptSSO {
+		return nil, trace.AccessDenied(
+			"Browser MFA was the only challenge returned and is not supported in Connect yet",
+		)
+	}
+
 	scope := p.cfg.Extensions.GetScope()
 	// No prompt to run, no-op.
 	if !promptOTP && !promptWebauthn && !promptSSO {
@@ -166,6 +175,6 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 }
 
 func (c *mfaPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	resp, err := c.cfg.MFACeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }

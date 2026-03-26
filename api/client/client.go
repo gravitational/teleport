@@ -668,9 +668,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
-	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// MFACeremonyConstructor is used to handle SSO or Browser MFA when needed.
 	// If nil, the client will not prompt for MFA.
-	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -737,9 +737,9 @@ func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
 }
 
-// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
-func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
-	c.c.SSOMFACeremonyConstructor = scc
+// SetMFACeremonyConstructor sets the MFA ceremony constructor for this client.
+func (c *Client) SetMFACeremonyConstructor(mcc mfa.MFACeremonyConstructor) {
+	c.c.MFACeremonyConstructor = mcc
 }
 
 // Close closes the Client connection to the auth server.

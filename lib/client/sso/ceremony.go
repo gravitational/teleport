@@ -121,6 +121,11 @@ func (m *MFACeremony) GetProxyAddress() string {
 
 // Run the SSO MFA ceremony.
 func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	// TODO(danielashare): Remove when Browser MFA challenge handling is implemented
+	if chal.SSOChallenge == nil {
+		return nil, trace.BadParameter("no SSO challenge provided")
+	}
+
 	if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,7 +176,7 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 }
 
 // NewConnectMFACeremony creates a new Teleport Connect SSO ceremony from the given redirector.
-func NewConnectMFACeremony(rd *Redirector) mfa.SSOMFACeremony {
+func NewConnectMFACeremony(rd *Redirector) mfa.CallbackCeremony {
 	return &MFACeremony{
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,

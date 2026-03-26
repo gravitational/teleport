@@ -371,6 +371,9 @@ type Config struct {
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
 
+	// PreferBrowser prefers browser-based WebAuthn MFA in favor of other MFA methods.
+	PreferBrowser bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -501,8 +504,8 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
-	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
-	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
+	// MFACeremonyConstructor is a custom SSO/Browser MFA ceremony constructor.
+	MFACeremonyConstructor func(rd *sso.Redirector) mfa.CallbackCeremony
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
@@ -3239,7 +3242,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
-	authClientCfg.SSOMFACeremonyConstructor = tc.NewSSOMFACeremony
+	authClientCfg.MFACeremonyConstructor = tc.NewRedirectorMFACeremony
 
 	authClient, err := authclient.NewClient(authClientCfg)
 	if err != nil {
@@ -4222,10 +4225,11 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ co
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:             sshLogin,
-		User:                 tc.Username,
-		Password:             password,
-		MFAPromptConstructor: tc.NewMFAPrompt,
+		SSHLogin:               sshLogin,
+		User:                   tc.Username,
+		Password:               password,
+		MFAPromptConstructor:   tc.NewMFAPrompt,
+		MFACeremonyConstructor: tc.NewRedirectorMFACeremony,
 	})
 	return response, trace.Wrap(err)
 }
@@ -5383,10 +5387,10 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		ALPNConnUpgradeRequired:   tc.TLSRoutingConnUpgradeRequired,
-		InsecureAddressDiscovery:  tc.InsecureSkipVerify,
-		MFAPromptConstructor:      tc.NewMFAPrompt,
-		SSOMFACeremonyConstructor: tc.NewSSOMFACeremony,
+		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery: tc.InsecureSkipVerify,
+		MFAPromptConstructor:     tc.NewMFAPrompt,
+		MFACeremonyConstructor:   tc.NewRedirectorMFACeremony,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
