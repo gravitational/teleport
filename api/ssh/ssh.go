@@ -1,3 +1,17 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ssh
 
 import (
@@ -10,22 +24,35 @@ import (
 	"github.com/gravitational/teleport/api"
 )
 
-// VersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
-const VersionPrefix = "SSH-2.0-Teleport_"
+const (
+	// VersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
+	VersionPrefix = "SSH-2.0-Teleport_"
 
-// ClientVersion returns the SSH client identification string used by Teleport SSH clients.
+	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
+	InBandMFAFeature = "mfav1"
+)
+
+// DefaultClientVersion returns the default SSH client identification string used by Teleport SSH clients.
+const DefaultClientVersion = VersionPrefix + api.Version
+
+// ClientVersionWithFeatures returns a client version string that includes the specified features. If no features are
+// provided, it returns the default client version string.
 //
-// Format: SSH-2.0-Teleport_<teleport_version> <features>
+// It returns a string in the format: SSH-2.0-Teleport_<teleport_version> <features>
 //
-// Teleport version is used for telemetry and debugging purposes.
-//
-// Features are comma-separated flags indicated supported features of the client:
-// - mfav1: Client supports in-band MFA (RFD 234).
-func ClientVersion() string {
-	return VersionPrefix + api.Version + " " + "mfav1"
+// Examples:
+//   - SSH-2.0-Teleport_19.0.0
+//   - SSH-2.0-Teleport_19.0.0 mfav1
+//   - SSH-2.0-Teleport_19.0.0 mfav1,foov1,barv1
+func ClientVersionWithFeatures(features ...string) string {
+	if len(features) == 0 {
+		return DefaultClientVersion
+	}
+
+	return DefaultClientVersion + " " + strings.Join(features, ",")
 }
 
-// NonTeleportSSHVersionError is returned by ParseSSHClientVersion when the provided SSH client version
+// NonTeleportSSHVersionError is returned by ParseClientVersion when the provided SSH client version
 // string does not have the expected Teleport prefix. The client is either not a Teleport client or is an older Teleport
 // version that did not set a client version string.
 type NonTeleportSSHVersionError struct{}

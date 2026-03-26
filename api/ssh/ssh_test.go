@@ -1,3 +1,17 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ssh_test
 
 import (
@@ -14,20 +28,60 @@ import (
 func TestClientVersion(t *testing.T) {
 	t.Parallel()
 
-	expected := ssh.VersionPrefix + api.Version + " mfav1"
-	require.Equal(t, expected, ssh.ClientVersion())
+	expected := ssh.VersionPrefix + api.Version
+	require.Equal(t, expected, ssh.DefaultClientVersion)
+}
+
+func TestClientVersionWithFeatures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		features []string
+		want     string
+	}{
+		{
+			name: "no features",
+			want: ssh.VersionPrefix + api.Version,
+		},
+		{
+			name:     "single feature",
+			features: []string{ssh.InBandMFAFeature},
+			want:     ssh.VersionPrefix + api.Version + " " + ssh.InBandMFAFeature,
+		},
+		{
+			name:     "multiple features",
+			features: []string{ssh.InBandMFAFeature, "foo"},
+			want:     ssh.VersionPrefix + api.Version + " " + ssh.InBandMFAFeature + ",foo",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ssh.ClientVersionWithFeatures(tt.features...))
+		})
+	}
 }
 
 func TestParseSSHClientVersion(t *testing.T) {
 	t.Parallel()
 
-	version, features, err := ssh.ParseClientVersion(ssh.VersionPrefix + "19.1.2-dev.1+meta mfav1,foo")
-	require.NoError(t, err)
-	require.Equal(t, []string{"mfav1", "foo"}, features)
-
 	wantVersion, err := semver.NewVersion("19.1.2-dev.1+meta")
 	require.NoError(t, err)
-	require.Equal(t, wantVersion, version)
+
+	t.Run("with features", func(t *testing.T) {
+		version, features, err := ssh.ParseClientVersion(ssh.VersionPrefix + "19.1.2-dev.1+meta mfav1,foo")
+		require.NoError(t, err)
+		require.Equal(t, []string{"mfav1", "foo"}, features)
+		require.Equal(t, wantVersion, version)
+	})
+
+	t.Run("without features", func(t *testing.T) {
+		version, features, err := ssh.ParseClientVersion(ssh.VersionPrefix + "19.1.2-dev.1+meta")
+		require.NoError(t, err)
+		require.Nil(t, features)
+		require.Equal(t, wantVersion, version)
+	})
 }
 
 func TestParseSSHClientVersionErrors(t *testing.T) {

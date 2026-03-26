@@ -282,8 +282,8 @@ func cloneClientConfig(config *ssh.ClientConfig) (*ssh.ClientConfig, error) {
 	configCopy.Ciphers = slices.Clone(config.Ciphers)
 	configCopy.MACs = slices.Clone(config.MACs)
 
-	// Ensure the Teleport version is properly set.
-	configCopy.ClientVersion = apissh.ClientVersion()
+	// If ClientVersion is not set, set it to the default Teleport client version string.
+	configCopy.ClientVersion = cmp.Or(config.ClientVersion, apissh.DefaultClientVersion)
 
 	return &configCopy, nil
 }

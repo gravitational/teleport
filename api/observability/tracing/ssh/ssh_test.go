@@ -492,7 +492,7 @@ func TestNewClientConnTimeout(t *testing.T) {
 
 }
 
-func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
+func TestNewClientConnWithTimeoutPreservesClientVersion(t *testing.T) {
 	t.Parallel()
 
 	clientVersionC := make(chan []byte, 1)
@@ -540,7 +540,7 @@ func TestNewClientConnWithTimeoutSetsClientVersion(t *testing.T) {
 		require.Fail(t, "test timed out while waiting for client version")
 
 	case version := <-clientVersionC:
-		require.EqualValues(t, version, apissh.ClientVersion(), "version sent at handshake did not match Teleport version")
+		require.EqualValues(t, version, "invalid-version", "version sent at handshake did not match the configured client version")
 	}
 }
 
@@ -589,9 +589,20 @@ func TestCloneClientConfigClonesNonNilConfig(t *testing.T) {
 	require.NotNil(t, clonedConfig.BannerCallback)
 	require.ErrorIs(t, clonedConfig.BannerCallback("message"), mockError)
 	require.NotNil(t, clonedConfig.HostKeyCallback)
-	require.NotEqual(t, config.ClientVersion, clonedConfig.ClientVersion)
+	require.Equal(t, config.ClientVersion, clonedConfig.ClientVersion)
 	require.Equal(t, config.Timeout, clonedConfig.Timeout)
 	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
+}
+
+func TestCloneClientConfigSetsDefaultClientVersionIfEmpty(t *testing.T) {
+	t.Parallel()
+
+	config := &ssh.ClientConfig{}
+
+	clonedConfig, err := cloneClientConfig(config)
+	require.NoError(t, err)
+	require.Equal(t, apissh.DefaultClientVersion, clonedConfig.ClientVersion)
+	require.Empty(t, config.ClientVersion)
 }
 
 func TestCloneClientConfigReturnsNewConfigIfNil(t *testing.T) {
