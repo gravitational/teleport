@@ -497,6 +497,8 @@ func TestNewClientConnWithTimeoutPreservesClientVersion(t *testing.T) {
 
 	clientVersionC := make(chan []byte, 1)
 
+	clientVersionOverride := apissh.ClientVersionWithFeatures("foov1")
+
 	// Create server to capture the client version string sent by the client during handshake.
 	srv := newServer(
 		t,
@@ -521,7 +523,7 @@ func TestNewClientConnWithTimeoutPreservesClientVersion(t *testing.T) {
 
 	config := &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
-		ClientVersion:   "invalid-version",
+		ClientVersion:   clientVersionOverride,
 		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
 	}
 
@@ -533,14 +535,14 @@ func TestNewClientConnWithTimeoutPreservesClientVersion(t *testing.T) {
 
 	require.NotNil(t, chans)
 	require.NotNil(t, reqs)
-	require.Equal(t, "invalid-version", config.ClientVersion, "original client version should not be modified")
+	require.Equal(t, clientVersionOverride, config.ClientVersion, "original client version should not be modified")
 
 	select {
 	case <-t.Context().Done():
 		require.Fail(t, "test timed out while waiting for client version")
 
 	case version := <-clientVersionC:
-		require.EqualValues(t, version, "invalid-version", "version sent at handshake did not match the configured client version")
+		require.EqualValues(t, version, clientVersionOverride, "version sent at handshake did not match the configured client version")
 	}
 }
 
