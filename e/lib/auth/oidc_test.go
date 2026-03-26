@@ -695,7 +695,7 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 	}
 
 	sd.RequestID = authRequest.StateToken
-	if err := s.authServer.UpsertSSOMFASessionData(ctx, sd); err != nil {
+	if err := s.authServer.UpsertMFASessionData(ctx, sd); err != nil {
 		return nil, err
 	}
 

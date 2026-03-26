@@ -1803,7 +1803,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 			if tt.mutateSessionData != nil {
 				tt.mutateSessionData(sd)
 			}
-			err = a.UpsertSSOMFASessionData(ctx, sd)
+			err = a.UpsertMFASessionData(ctx, sd)
 			require.NoError(t, err)
 
 			// check ValidateSAMLResponse
