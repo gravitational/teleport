@@ -87,7 +87,7 @@ func TestCreateBeam(t *testing.T) {
 	))
 
 	// Reusing the alias should result in an error.
-	beam, err = services.beam.CreateBeam(
+	_, err = services.beam.CreateBeam(
 		t.Context(),
 		testCreateBeamParams(t, testBeam(beam.GetStatus().GetAlias())),
 	)
@@ -291,6 +291,7 @@ func testBeam(alias string) *beamsv1.Beam {
 				Port:     8080,
 				Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
 			},
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
 		},
 		Status: &beamsv1.BeamStatus{
 			User:                 "alice",
