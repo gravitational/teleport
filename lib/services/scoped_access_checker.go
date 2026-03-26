@@ -271,6 +271,14 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 	return c.scopedCompatChecker.LockingMode(defaultMode)
 }
 
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+func (c *ScopedAccessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	if !c.isScoped() {
+		return c.unscopedChecker.GetAllowedLoginsForResource(resource)
+	}
+	return c.scopedCompatChecker.GetAllowedLoginsForResource(resource)
+}
+
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.
