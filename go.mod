@@ -99,7 +99,7 @@ require (
 	github.com/aws/smithy-go v1.24.0
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.11.0
-	github.com/beevik/etree v1.5.1
+	github.com/beevik/etree v1.6.0
 	github.com/buildkite/bintest/v3 v3.3.0
 	github.com/charlievieth/strcase v0.0.5
 	github.com/charmbracelet/bubbles v0.21.0
@@ -207,8 +207,8 @@ require (
 	github.com/prometheus/common v0.67.4
 	github.com/quic-go/quic-go v0.57.0
 	github.com/redis/go-redis/v9 v9.14.1 // replaced
-	github.com/russellhaering/gosaml2 v0.10.0
-	github.com/russellhaering/goxmldsig v1.5.0
+	github.com/russellhaering/gosaml2 v0.11.0
+	github.com/russellhaering/goxmldsig v1.6.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shirou/gopsutil/v4 v4.25.8

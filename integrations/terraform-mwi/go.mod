@@ -138,7 +138,7 @@ require (
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/beevik/etree v1.5.1 // indirect
+	github.com/beevik/etree v1.6.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -404,8 +404,8 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/rubenv/sql-migrate v1.8.0 // indirect
-	github.com/russellhaering/gosaml2 v0.10.0 // indirect
-	github.com/russellhaering/goxmldsig v1.5.0 // indirect
+	github.com/russellhaering/gosaml2 v0.11.0 // indirect
+	github.com/russellhaering/goxmldsig v1.6.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/schollz/progressbar/v3 v3.18.0 // indirect
