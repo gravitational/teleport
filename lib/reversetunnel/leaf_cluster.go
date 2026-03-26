@@ -92,6 +92,9 @@ type leafCluster struct {
 	// appServerWatcher is a app server watcher.
 	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
+	// databaseServerWatcher is a database server watcher.
+	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
@@ -180,6 +183,11 @@ func (s *leafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServ
 // GitServerWatcher returns the Git server watcher for the leaf cluster.
 func (s *leafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, trace.NotImplemented("GitServerWatcher not implemented for leafCluster")
+}
+
+// DatabaseServerWatcher returns the Database server watcher for the leaf cluster.
+func (s *leafCluster) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return s.databaseServerWatcher, nil
 }
 
 func (s *leafCluster) GetClient() (authclient.ClientI, error) {
@@ -665,7 +673,7 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 		}
 
 		// if CA is changed or does not exist, update backend
-		if err != nil || !services.CertAuthoritiesEquivalent(oldLeafClusterCA, leafClusterCA) {
+		if err != nil || !oldLeafClusterCA.IsEqual(leafClusterCA) {
 			s.logger.DebugContext(s.ctx, "Ingesting leaf cluster cert authority", "cert_authority", logutils.StringerAttr(leafClusterCA.GetID()))
 			if err := s.localClient.UpsertCertAuthority(s.ctx, leafClusterCA); err != nil {
 				return trace.Wrap(err)
@@ -704,7 +712,7 @@ func (s *leafCluster) watchCertAuthorities(leafClusterWatcher *services.CertAuth
 				}
 
 				previousCA, ok := localCAs[newCA.GetType()]
-				if ok && services.CertAuthoritiesEquivalent(previousCA, newCA) {
+				if ok && previousCA.IsEqual(newCA) {
 					continue
 				}
 

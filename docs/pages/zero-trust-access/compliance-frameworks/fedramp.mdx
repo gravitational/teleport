@@ -10,7 +10,7 @@ enterprise: FedRAMP compliance
 ---
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure.
-This includes support for the [Federal Information Processing Standard [FIPS 140](https://en.wikipedia.org/wiki/FIPS_140).
+This includes support for the [Federal Information Processing Standard FIPS 140](https://en.wikipedia.org/wiki/FIPS_140).
 This standard is the US government approved standard for cryptographic modules. This document explains how
 Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
@@ -140,7 +140,7 @@ teleport:
   auth_token: xxxx-token-xxxx
   # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
   # the role a new node will be allowed to assume. The more secure way to
-  # add nodes is to use `ttl node add --ttl` command to generate auto-expiring
+  # add nodes is to use `tctl nodes add --ttl=30m` command to generate auto-expiring
   # tokens.
   #
   # We recommend to use tools like `pwgen` to generate sufficiently random
@@ -166,7 +166,7 @@ auth_service:
     type: saml
 
   # If using Proxy Mode, Teleport requires host key checks.
-  # This setting needs is required to start in Teleport in FIPS mode
+  # This setting is required to start Teleport in FIPS mode
   proxy_checks_host_keys: true
 
   # SSH is also enabled on this node:

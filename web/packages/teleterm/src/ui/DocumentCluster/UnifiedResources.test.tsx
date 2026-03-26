@@ -430,8 +430,7 @@ it('passes props with stable identity to <Resources>', async () => {
   await expect(
     screen.findByText(serverResource.hostname)
   ).resolves.toBeInTheDocument();
-  // Disabled because of a false positive.
-  // eslint-disable-next-line testing-library/render-result-naming-convention
+  // oxlint-disable-next-line testing-library/render-result-naming-convention
   const renderCountBeforeRerender = renderCount;
 
   rerender(<Component />);

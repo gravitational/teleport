@@ -291,7 +291,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	if !services.CertAuthoritiesEquivalent(actual, expected) {
+	if !actual.IsEqual(expected) {
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 

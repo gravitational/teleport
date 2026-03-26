@@ -1,0 +1,33 @@
+The bot joining URI: tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443
+
+To start a new tbot running the identity service, run:
+
+> tbot start identity \
+   --join-uri=tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443 \
+   --destination=./destination
+
+Alternatively, if you'd like to generate a tbot.yaml config file, you can
+instead run:
+
+> tbot configure identity \
+  --join-uri=tbot+proxy+bound-keypair://static-example-1234:static-registration-secret@localhost:443 \
+  --destination=./destination > tbot.yaml
+
+Then, run tbot with:
+
+> tbot start -c tbot.yaml
+
+Advanced parameters:
+  Fake: Table
+
+Please note:
+  - The ./destination destination directory can be changed as desired.
+  - /var/lib/teleport/bot must be accessible to the bot user, or --storage
+    must point to another accessible directory to store internal bot data.
+  - This example shows only use of the 'identity' service. See our documentation
+    for all supported service types:
+    https://goteleport.com/docs/reference/cli/tbot/
+  - This token will be permanently bound to a single 'tbot' instance upon first
+    join. For scalable alternatives, see our documentation on other supported
+    join methods:
+    https://goteleport.com/docs/enroll-resources/machine-id/deployment/

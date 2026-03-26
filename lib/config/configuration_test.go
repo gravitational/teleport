@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -219,8 +218,6 @@ func TestSampleConfig(t *testing.T) {
 			require.Equal(t, testCase.expectProxyWebAddr, fc.Proxy.WebAddr)
 			require.ElementsMatch(t, testCase.expectProxyPublicAddrs, fc.Proxy.PublicAddr)
 			require.ElementsMatch(t, testCase.expectProxyKeyPairs, fc.Proxy.KeyPairs)
-
-			require.False(t, lib.IsInsecureDevMode())
 		})
 	}
 }
@@ -943,6 +940,27 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
 	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
 	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
+}
+
+func TestApplyConfigAppsLimiter(t *testing.T) {
+	fc := &FileConfig{
+		Global: Global{
+			Limits: ConnectionLimits{
+				MaxConnections: 100,
+				Rates: []ConnectionRate{
+					{Average: 10, Burst: 10, Period: time.Minute},
+				},
+			},
+		},
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, ApplyFileConfig(fc, cfg))
+
+	require.Equal(t, int64(100), cfg.Apps.Limiter.MaxConnections)
+	require.Len(t, cfg.Apps.Limiter.Rates, 1)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Average)
+	require.Equal(t, int64(10), cfg.Apps.Limiter.Rates[0].Burst)
+	require.Equal(t, time.Minute, cfg.Apps.Limiter.Rates[0].Period)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -2256,10 +2274,23 @@ func TestProxyConfigurationVersion(t *testing.T) {
 func TestWindowsDesktopService(t *testing.T) {
 	t.Parallel()
 
+	const testCA = `-----BEGIN CERTIFICATE-----
+MIIBfjCCASOgAwIBAgIUcgtowC2aiqtoaaqg8Wz9IQsUV5cwCgYIKoZIzj0EAwIw
+FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MDIyNjE5MzAzOVoXDTI3MDIyNjE5
+MzAzOVowFDESMBAGA1UEAwwJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAExP70cLQNy03OwKKr5DadftNYQyLEe6POP0ncvRxOV4PwlTSjPzetJJvV
+cvD8osxLRHxoUIO6XHP15NjcMo3gpKNTMFEwHQYDVR0OBBYEFL9zTzq0IkOOQysJ
+4oHUm5wv7cSdMB8GA1UdIwQYMBaAFL9zTzq0IkOOQysJ4oHUm5wv7cSdMA8GA1Ud
+EwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSQAwRgIhAPiuMeGa9LOZzAb1QzRvS3hW
+1CnGa5we8zUbh+L7g8/kAiEAt4OjLC0bXoq0pLYoMcPhFP3QOBSA3LPd+vH939ym
+uQM=
+-----END CERTIFICATE-----`
+
 	for _, test := range []struct {
 		desc        string
 		mutate      func(fc *FileConfig)
 		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
 	}{
 		{
 			desc:        "NOK - invalid static host addr",
@@ -2442,6 +2473,49 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
+		{
+			desc:        "NOK - invalid ldaps ca",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = "invalid string"
+			},
+		},
+		{
+			desc:        "OK - single ldaps ca",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = testCA
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.Len(t, cfg.WindowsDesktop.LDAP.CAs, 1)
+				},
+			},
+		},
+		{
+			desc:        "OK - multiple ldaps ca",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr: "something",
+				}
+				fc.WindowsDesktop.HostLabels = []WindowsHostLabelRule{
+					{Match: ".*", Labels: map[string]string{"key": "value"}},
+				}
+				fc.WindowsDesktop.LDAP.PEMEncodedCACerts = strings.ReplaceAll("pem\npem\npem", "pem", testCA)
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.Len(t, cfg.WindowsDesktop.LDAP.CAs, 3)
+				},
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}
@@ -2449,6 +2523,9 @@ func TestWindowsDesktopService(t *testing.T) {
 			cfg := &servicecfg.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)
 			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
 		})
 	}
 }

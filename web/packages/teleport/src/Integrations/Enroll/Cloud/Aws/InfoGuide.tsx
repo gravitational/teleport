@@ -45,7 +45,11 @@ export type InfoGuideTab = 'info' | 'terraform' | null;
 export const ContentWithSidePanel = styled(Box)<{
   isPanelOpen: boolean;
   panelWidth: number;
+  contentMinWidth?: number;
 }>`
+  min-width: ${props =>
+    props.contentMinWidth ? `${props.contentMinWidth}px` : '650px'};
+
   ${props =>
     marginTransitionCss({
       sidePanelOpened: props.isPanelOpen,
@@ -99,7 +103,7 @@ export function TerraformInfoGuide({
 const referenceLinks: ReferenceLink[] = [
   {
     title: 'Teleport AWS Discovery Documentation',
-    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-guided/',
+    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/',
   },
   {
     title: 'AWS IAM Roles',

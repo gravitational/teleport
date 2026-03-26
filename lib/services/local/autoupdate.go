@@ -58,8 +58,8 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			ValidateFunc:  update.ValidateAutoUpdateConfig,
-			NameKeyFunc: func(string) string {
-				return types.MetaNameAutoUpdateConfig
+			NameKeyFunc: func() backend.Key {
+				return backend.NewKey(types.MetaNameAutoUpdateConfig)
 			},
 		})
 	if err != nil {
@@ -73,8 +73,8 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			ValidateFunc:  update.ValidateAutoUpdateVersion,
-			NameKeyFunc: func(string) string {
-				return types.MetaNameAutoUpdateVersion
+			NameKeyFunc: func() backend.Key {
+				return backend.NewKey(types.MetaNameAutoUpdateVersion)
 			},
 		})
 	if err != nil {
@@ -88,8 +88,8 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
 			ValidateFunc:  update.ValidateAutoUpdateAgentRollout,
-			NameKeyFunc: func(string) string {
-				return types.MetaNameAutoUpdateAgentRollout
+			NameKeyFunc: func() backend.Key {
+				return backend.NewKey(types.MetaNameAutoUpdateAgentRollout)
 			},
 		})
 	if err != nil {

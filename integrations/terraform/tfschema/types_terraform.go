@@ -1949,6 +1949,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
+					"bound_host_id": {
+						Description: "BoundHostID is the agent UUID bound to this keypair. This field is left empty if bound to a bot, or if no agent has joined yet. It is mutually exclusive with BoundBotInstanceID but otherwise behaves identically.",
+						Optional:    true,
+						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					},
 					"bound_public_key": {
 						Description: "BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.",
 						Optional:    true,
@@ -2364,6 +2369,12 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"allow_cli_auth_via_browser": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Computed:      true,
+					Description:   "AllowCLIAuthViaBrowser enables/disables browser-based authentication for authenticating CLI sessions. When set to false, authentication flows that require a browser will be disabled. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+				}),
 				"allow_headless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
 					Description:   "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
@@ -17888,6 +17899,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["bound_host_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundHostID"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundHostID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.BoundHostID = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -22446,6 +22474,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											tf.Attrs["last_rotated_at"] = v
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["bound_host_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundHostID"})
+										} else {
+											v, ok := tf.Attrs["bound_host_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.BoundHostID", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.BoundHostID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.BoundHostID) == ""
+											}
+											v.Value = string(obj.BoundHostID)
+											v.Unknown = false
+											tf.Attrs["bound_host_id"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["bound_keypair"] = v
@@ -25697,6 +25747,13 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["allow_cli_auth_via_browser"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"})
+						}
+						CopyFromBoolOption(diags, a, &obj.AllowCLIAuthViaBrowser)
+					}
 				}
 			}
 		}
@@ -27064,6 +27121,15 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["stable_unix_user_config"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["allow_cli_auth_via_browser"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"})
+						} else {
+							v := CopyToBoolOption(diags, obj.AllowCLIAuthViaBrowser, t, tf.Attrs["allow_cli_auth_via_browser"])
+							tf.Attrs["allow_cli_auth_via_browser"] = v
 						}
 					}
 				}

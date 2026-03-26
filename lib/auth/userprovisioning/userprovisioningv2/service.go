@@ -165,7 +165,7 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 		},
 		Status: eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit static host user create event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit static host user create event.", "error", err)
 	}
 
 	return out, trace.Wrap(err)
@@ -198,7 +198,7 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 			Name: req.User.Metadata.Name,
 		},
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit static host user update event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit static host user update event.", "error", err)
 	}
 
 	return out, trace.Wrap(err)
@@ -230,7 +230,7 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 		},
 		Status: eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit static host user create event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit static host user create event.", "error", err)
 	}
 
 	return out, trace.Wrap(err)
@@ -267,7 +267,7 @@ func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisionin
 		},
 		Status: eventStatus(err),
 	}); err != nil {
-		slog.WarnContext(ctx, "Failed to emit static host user delete event event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit static host user delete event.", "error", err)
 	}
 
 	return &emptypb.Empty{}, trace.Wrap(err)

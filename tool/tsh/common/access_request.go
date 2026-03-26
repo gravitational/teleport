@@ -184,12 +184,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
-	resourcesStr := ""
-	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
-		var err error
-		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
-			return trace.Wrap(err)
-		}
+	resourcesStr, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeHeadlessTable(2)
@@ -210,7 +207,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(cf.Stdout())
+	_, err = table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -363,7 +360,9 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
-		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+		// and only print their stringified ResourceIDs.
+		resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -127,6 +127,8 @@ type SAMLConnector interface {
 	GetIncludeSubject() bool
 	// SetIncludeSubject sets whether the Subject element should be included.
 	SetIncludeSubject(bool)
+	// IsEqual determines if two connectors are equivalent to one another.
+	IsEqual(SAMLConnector) bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -141,6 +143,15 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
+	otherv2, ok := other.(*SAMLConnectorV2)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version

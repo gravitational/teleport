@@ -585,6 +585,11 @@ tls:
   # Useful for building trust when using intermediate certificate authorities.
   # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
+  #
+  # DANGER: The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+  # When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+  # If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+  # Else, Teleport will fail to establish TLS connections with external services.
   existingCASecretName: ""
   # (optional) Name of an existing key in the CA secret which will be used as a trusted CA bundle file.
   existingCASecretKeyName: "ca.pem"

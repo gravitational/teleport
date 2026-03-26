@@ -1768,7 +1768,7 @@ export const formatters: Formatters = {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
+      return `User [${updated_by}] failed to review access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
@@ -2491,17 +2491,101 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was created by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Create Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] create failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
     type: 'workload_cluster.update',
     desc: 'Workload Cluster Updated',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was updated by [${user}]`,
   },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Update Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] update failed by [${user}]`,
+  },
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
     type: 'workload_cluster.delete',
     desc: 'Workload Cluster Deleted',
     format: ({ name, user }) =>
       `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Delete Failed',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] delete failed by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_CREATE]: {
+    type: 'inference_model.create',
+    desc: 'Inference Model Created',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_UPDATE]: {
+    type: 'inference_model.update',
+    desc: 'Inference Model Updated',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_MODEL_DELETE]: {
+    type: 'inference_model.delete',
+    desc: 'Inference Model Deleted',
+    format: ({ name, user }) =>
+      `Inference Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_CREATE]: {
+    type: 'inference_secret.create',
+    desc: 'Inference Secret Created',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_UPDATE]: {
+    type: 'inference_secret.update',
+    desc: 'Inference Secret Updated',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_SECRET_DELETE]: {
+    type: 'inference_secret.delete',
+    desc: 'Inference Secret Deleted',
+    format: ({ name, user }) =>
+      `Inference Secret [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_CREATE]: {
+    type: 'inference_policy.create',
+    desc: 'Inference Policy Created',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was created by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_UPDATE]: {
+    type: 'inference_policy.update',
+    desc: 'Inference Policy Updated',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.INFERENCE_POLICY_DELETE]: {
+    type: 'inference_policy.delete',
+    desc: 'Inference Policy Deleted',
+    format: ({ name, user }) =>
+      `Inference Policy [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.SESSION_SUMMARIZED]: {
+    type: 'session.summarized',
+    desc: 'Session Summarized',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
+    type: 'session.summarized',
+    desc: 'Session Summarization Failed',
+    format: ({ sid, session_type, model_name }) =>
+      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
   },
 };
 
@@ -2510,9 +2594,35 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
+// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
+const mfaFlowTypeLabels: Record<number, string> = {
+  0: 'UNSPECIFIED',
+  1: 'PER_SESSION_CERTIFICATE',
+  2: 'IN_BAND',
+};
+
+// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
+function formatRawEventForUI(json: any): any {
+  // For MFA events, convert the flow_type from a number to a human readable string.
+  if (
+    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
+    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
+  ) {
+    return {
+      ...json,
+      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
+    };
+  }
+
+  return json;
+}
+
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
+
+  const raw = formatRawEventForUI(json);
+
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2523,7 +2633,7 @@ export default function makeEvent(json: any): Event {
     code: json.code,
     user: json.user,
     time: new Date(json.time),
-    raw: json,
+    raw: raw,
   };
 }
 

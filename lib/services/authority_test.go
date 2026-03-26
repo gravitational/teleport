@@ -135,15 +135,15 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	require.NoError(t, err)
 
 	// different CAs are different
-	require.False(t, CertAuthoritiesEquivalent(ca1, ca2))
+	require.False(t, ca1.IsEqual(ca2))
 
 	// two copies of same CA are equivalent
-	require.True(t, CertAuthoritiesEquivalent(ca1, ca1.Clone()))
+	require.True(t, ca1.IsEqual(ca1.Clone()))
 
 	// CAs with same name but different details are different
 	ca1mod := ca1.Clone()
 	ca1mod.AddRole("some-new-role")
-	require.False(t, CertAuthoritiesEquivalent(ca1, ca1mod))
+	require.False(t, ca1.IsEqual(ca1mod))
 }
 
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
@@ -182,7 +182,7 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	// see https://github.com/gogo/protobuf/issues/519
 	require.NotPanics(t, func() { caUTC.Clone() })
 
-	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
+	require.True(t, caLocal.IsEqual(caUTC))
 }
 
 func TestValidateCertAuthority(t *testing.T) {
@@ -485,13 +485,13 @@ func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 
 	b.Run("true", func(b *testing.B) {
 		for b.Loop() {
-			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
+			require.True(b, ca1.IsEqual(ca2))
 		}
 	})
 
 	b.Run("false", func(b *testing.B) {
 		for b.Loop() {
-			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
+			require.False(b, ca1.IsEqual(ca3))
 		}
 	})
 }

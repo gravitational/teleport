@@ -18,9 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
-import { action } from 'storybook/actions';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import Box from 'design/Box';
 
@@ -589,11 +587,6 @@ function Wrapper(props?: {
     hasLocksDeletePermission = true,
   } = props ?? {};
 
-  const history = createMemoryHistory({
-    initialEntries: ['/web/bot/ansible-worker'],
-  });
-  history.push = action('history.push');
-
   const customAcl = makeAcl({
     bots: {
       ...defaultAccess,
@@ -628,15 +621,18 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/web/bot/ansible-worker']}>
         <TeleportProviderBasic teleportCtx={ctx}>
-          <Router history={history}>
-            <Route path={cfg.routes.bot}>
-              <Box height={820} overflow={'auto'}>
-                <BotDetails />
-              </Box>
-            </Route>
-          </Router>
+          <Routes>
+            <Route
+              path={cfg.routes.bot}
+              element={
+                <Box height={820} overflow={'auto'}>
+                  <BotDetails />
+                </Box>
+              }
+            />
+          </Routes>
         </TeleportProviderBasic>
       </MemoryRouter>
     </QueryClientProvider>

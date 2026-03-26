@@ -75,6 +75,11 @@ type UploaderConfig struct {
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
+	// EncryptedRecordingUploadMinSize is the minimum size used when aggregating
+	// encrypted recording parts before sending them to EncryptedRecordingUploader.
+	// The EncryptedRecordingUploadMaxSize must be larger than this value.
+	// If set to 0, a default minimum is used.
+	EncryptedRecordingUploadMinSize int
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -102,6 +107,13 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.EncryptedRecordingUploadTargetSize == 0 {
 		cfg.EncryptedRecordingUploadTargetSize = events.MinUploadPartSizeBytes
+	}
+	if cfg.EncryptedRecordingUploadMinSize == 0 {
+		cfg.EncryptedRecordingUploadMinSize = reservationSize
+	}
+	if cfg.EncryptedRecordingUploadMaxSize != 0 && cfg.EncryptedRecordingUploadMaxSize < cfg.EncryptedRecordingUploadMinSize {
+
+		return trace.BadParameter("encrypted recording upload max size must be at least as large as encrypted recording upload min size")
 	}
 	return nil
 }
@@ -639,6 +651,12 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 var errNoEncryptedUploader = &trace.BadParameterError{Message: "no encrypted uploader configured while uploading encrypted recording"}
 
+// Allow for some amount of overhead to prevent small inconsistencies in computing upload part wire length from
+// breaking uploads. As of writing, the overhead of the recordingencryptionv1.UploadPartRequest is ~100 bytes. 512
+// bytes was a conservative choice to account for any other potential sources of overhead or future extensions to
+// the recordingencryptionv1.UploadPartRequest message.
+const uploadOverheadAllowance = 512
+
 func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 	log := u.log.With(fieldSessionID, up.sessionID)
 	header, err := events.ParsePartHeader(up.file)
@@ -662,13 +680,25 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 		return trace.Wrap(err, "resetting recording for plaintext upload")
 	}
 
+	uploadMaxSize := u.cfg.EncryptedRecordingUploadMaxSize - uploadOverheadAllowance
+	if u.cfg.EncryptedRecordingUploadMaxSize == 0 {
+		uploadMaxSize = 0 // no limit
+	} else if uploadMaxSize < u.cfg.EncryptedRecordingUploadMinSize {
+		// reservationSize approximates the smallest possible encrypted part size in a multipart recording, so we need
+		// to make sure max upload size supports at least that much data
+		return trace.Errorf("Max encrypted recording upload part size %0.2fKiB is smaller than the minimum %0.2fKiB. Increase max gRPC message size using TELEPORT_UNSTABLE_GRPC_RECV_SIZE",
+			float32(uploadMaxSize)/1024,
+			float32(u.cfg.EncryptedRecordingUploadMinSize)/1024,
+		)
+	}
+
 	// The upload parts in the given reader are each ~128KB. Usually these parts are consumed and reconstructed
 	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
 	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
 	// these upload parts into larger, aggregated upload parts.
 	//
 	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
-	partIter := encryptedUploadAggregateIter(up.file, u.cfg.EncryptedRecordingUploadTargetSize, u.cfg.EncryptedRecordingUploadMaxSize)
+	partIter := encryptedUploadAggregateIter(up.file, u.cfg.EncryptedRecordingUploadTargetSize, uploadMaxSize)
 
 	u.wg.Go(func() {
 		defer u.releaseSemaphore(ctx)

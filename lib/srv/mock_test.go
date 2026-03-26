@@ -108,8 +108,12 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
+	logCfgWriter := srv.ChildLogConfig().Writer
+	if fileWriter, ok := logCfgWriter.(*os.File); ok {
+		scx.logw = fileWriter
+	} else {
+		require.NoError(t, scx.streamChildLogs(logCfgWriter))
+	}
 
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
@@ -185,6 +189,7 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
+	pamCfg    *servicecfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -231,7 +236,10 @@ func (m *mockServer) GetDataDir() string {
 
 // GetPAM returns PAM configuration for this server.
 func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+	if m.pamCfg != nil {
+		return m.pamCfg
+	}
+	return new(servicecfg.PAMConfig)
 }
 
 // GetClock returns a clock setup for the server
@@ -341,9 +349,10 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
 		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+			Level:  slog.LevelDebug,
+			Format: "json",
 		},
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
 }
 
@@ -454,7 +463,7 @@ type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
 	return f.bpf.OpenSession(ctx)
 }
 

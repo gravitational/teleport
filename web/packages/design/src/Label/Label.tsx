@@ -182,6 +182,10 @@ const kind = ({
   };
 };
 
+/**
+ * @deprecated Use `Status` from `design/Status` for semantic states
+ * (success, warning, danger) or `Tag` from `design/Tag` for neutral metadata.
+ */
 export type LabelKind =
   | 'primary'
   | 'secondary'
@@ -194,6 +198,10 @@ export type LabelKind =
   | 'outline-primary'
   | 'outline-success';
 
+/**
+ * @deprecated Use `StatusProps` from `design/Status` for semantic states
+ * (success, warning, danger) or `TagProps` from `design/Tag` for neutral metadata.
+ */
 export type LabelProps = {
   kind?: LabelKind;
   withHoverState?: boolean;
@@ -201,6 +209,10 @@ export type LabelProps = {
 } & SpaceProps &
   BorderProps;
 
+/**
+ * @deprecated Use `Status` from `design/Status` for semantic states
+ * (success, warning, danger) or `Tag` from `design/Tag` for neutral metadata.
+ */
 const Label = styled.div<LabelProps>`
   box-sizing: border-box;
   border-radius: 999px;
@@ -221,27 +233,35 @@ export default Label;
 
 type LabelPropsWithoutKind = Omit<LabelProps, 'kind'>;
 
+/** @deprecated Use `<Status kind="primary" variant="filled">` from `design/Status`. */
 export const Primary = (props: LabelPropsWithoutKind) => (
   <Label kind="primary" {...props} />
 );
+/** @deprecated Use `<Tag>` from `design/Tag`. */
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
 );
+/** @deprecated Use `<Status kind="warning" variant="filled">` from `design/Status`. */
 export const Warning = (props: LabelPropsWithoutKind) => (
   <Label kind="warning" {...props} />
 );
+/** @deprecated Use `<Status kind="danger" variant="filled">` from `design/Status`. */
 export const Danger = (props: LabelPropsWithoutKind) => (
   <Label kind="danger" {...props} />
 );
+/** @deprecated Use `<Tag variant="outline">` from `design/Tag`. */
 export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-secondary" {...props} />
 );
+/** @deprecated Use `<Status kind="success">` from `design/Status`. */
 export const SuccessOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-success" {...props} />
 );
+/** @deprecated Use `<Status kind="warning">` from `design/Status`. */
 export const WarningOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-warning" {...props} />
 );
+/** @deprecated Use `<Status kind="danger">` from `design/Status`. */
 export const DangerOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-danger" {...props} />
 );

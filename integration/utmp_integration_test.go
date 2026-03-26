@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	_ "modernc.org/sqlite"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -40,6 +41,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -258,13 +260,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
-		&proto.HostCertsRequest{
-			HostID:       hostID,
-			NodeName:     s.server.ClusterName(),
-			Role:         types.RoleNode,
-			PublicSSHKey: sshPublicKey,
-			PublicTLSKey: tlsPublicKey,
-		}, "")
+		auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       hostID,
+				NodeName:     s.server.ClusterName(),
+				Role:         types.RoleNode,
+				PublicSSHKey: sshPublicKey,
+				PublicTLSKey: tlsPublicKey,
+			},
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -295,7 +299,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s.wtmpdbPath = wtmpdbPath
 
 	// Initialize wtmpdb database.
-	db, err := sql.Open("sqlite3", wtmpdbPath)
+	db, err := sql.Open("sqlite", wtmpdbPath)
 	require.NoError(t, err)
 	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")

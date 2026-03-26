@@ -51,6 +51,8 @@ message ScopedToken {
 // ScopedTokenSpec is the specification of a scoped token.
 message ScopedTokenSpec {
   // The scope to which this token is assigned.
+  //
+  // Must be equivalent or descendent to the scope of the token itself.
   string assigned_scope = 1;
 
   // The list of roles associated with the token. They will be converted
@@ -70,6 +72,24 @@ message ScopedTokenSpec {
   // Immutable labels that should be applied to any resulting resources provisioned
   // using this token.
   ImmutableLabels immutable_labels = 5;
+
+  // The AWS-specific configuration used with the "ec2" and "iam" join methods.
+  AWS aws = 6;
+
+  // The GCP-specific configuration used with the "gcp" join method.
+  GCP gcp = 7;
+
+  // The Azure-specific configuration used with the "azure" join method.
+  Azure azure = 8;
+
+  // The Azure Devops-specific configuration used with the "azure_devops" join method.
+  AzureDevops azure_devops = 9;
+
+  // The Oracle-specific configuration used with the "oracle" join method.
+  Oracle oracle = 10;
+
+  // The Kubernetes-specific configuration used with the "kubernetes" join method.
+  Kubernetes kubernetes = 11;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -153,4 +173,179 @@ message StaticScopedTokens {
 message StaticScopedTokensSpec {
   // The statically parsed scoped tokens.
   repeated ScopedToken tokens = 1;
+}
+
+// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+message AWS {
+  // A rule that a joining node must match in order to use the associated token
+  // with AWS join methods.
+  message Rule {
+    // The AWS account ID.
+    string aws_account = 1;
+    // List of AWS regions a node is allowed to join from when using the
+    // EC2 join method.
+    repeated string aws_regions = 2;
+    // The ARN of the role the Auth Service will assume in order to call the
+    // EC2 API when using the EC2 join method.
+    string aws_role = 3;
+    // The ARN of the joining identity for use with the IAM join method.
+    // Supports wildcards "*" and "?".
+    string aws_arn = 4;
+    // The organization ID that the joining AWS identity must belong to
+    // when using the IAM join method.
+    string aws_organization_id = 5;
+  }
+
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+
+  // The TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token. This should be a duration
+  // string such as "8h" or "6mo".
+  string iid_ttl = 2;
+
+  // Integration name which provides credentials for validating join attempts.
+  // Currently only in use for validating the AWS Organization ID in the IAM Join method.
+  string integration = 3;
+}
+
+// The GCP-specific configuration used with the "gcp" join method.
+message GCP {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "gcp" join method.
+  message Rule {
+    // A list of project IDs (e.g. `<example-id-123456>`).
+    repeated string project_ids = 1;
+    // A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
+    repeated string locations = 2;
+    // A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+    repeated string service_accounts = 3;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+}
+
+// The Azure-specific configuration used with the "azure" join method.
+message Azure {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "azure" join method.
+  message Rule {
+    // The Azure subscription.
+    string subscription = 1;
+    // A list of Azure resource groups the node is allowed to join from.
+    repeated string resource_groups = 2;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+}
+
+// The Azure Devops-specific configuration used with the "azure_devops" join method.
+message AzureDevops {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "azure_devops" join method.
+  message Rule {
+    // The subject string that roughly uniquely identifies the workload. Example:
+    // `p://my-organization/my-project/my-pipeline`
+    // Mapped from the `sub` claim.
+    string sub = 1;
+    // The name of the AZDO project. Example:
+    // `my-project`.
+    // Mapped out of the `sub` claim.
+    string project_name = 2;
+    // The name of the AZDO pipeline. Example:
+    // `my-pipeline`.
+    // Mapped out of the `sub` claim.
+    string pipeline_name = 3;
+    // The ID of the AZDO pipeline. Example:
+    // `271ef6f7-0000-0000-0000-4b54d9129990`
+    // Mapped from the `prj_id` claim.
+    string project_id = 4;
+    // The ID of the AZDO pipeline definition. Example:
+    // `1`
+    // Mapped from the `def_id` claim.
+    string definition_id = 5;
+    // The URI of the repository the pipeline is using. Example:
+    // `https://github.com/gravitational/teleport.git`.
+    // Mapped from the `rpo_uri` claim.
+    string repository_uri = 6;
+    // The individual commit of the repository the pipeline is using. Example:
+    // `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+    // Mapped from the `rpo_ver` claim.
+    string repository_version = 7;
+    // The reference of the repository the pipeline is using. Example:
+    // `refs/heads/main`.
+    // Mapped from the `rpo_ref` claim.
+    string repository_ref = 8;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+  // The UUID of the Azure DevOps organization that this join token will grant access to.
+  // This is used to identify the correct issuer verification of the ID token.
+  // This is a required field.
+  string organization_id = 2;
+}
+
+// The Oracle-specific configuration used with the "oracle" join method.
+message Oracle {
+  // A rule that a joining node must match in order to use the associated token
+  // with the "oracle" join method.
+  message Rule {
+    // The OCID of the instance's tenancy. Required.
+    string tenancy = 1;
+    // A list of the OCIDs of compartments an instance is allowed to join from. Only direct
+    // parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+    repeated string parent_compartments = 2;
+    // A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1")
+    // and abbreviations ("phx") are allowed. If empty, any region is allowed.
+    repeated string regions = 3;
+    // A list of the OCIDs of specific instances that are allowed to join. If empty, any instance
+    // matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
+    repeated string instances = 4;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+}
+
+// The Kubernetes-specific configuration used with the "kubernetes" join method.
+message Kubernetes {
+  // The configuration specific to the `static_jwks` type.
+  message StaticJWKSConfig {
+    // The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service
+    // account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+    string jwks = 1;
+  }
+  // The configuration specific to the `oidc` type.
+  message OIDCConfig {
+    // The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+    // endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
+    // For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+    string issuer = 1;
+
+    // If set, disables the requirement that the issuer must use HTTPS.
+    bool insecure_allow_http_issuer = 2;
+  }
+  // A rule that a joining node must match in order to use the associated token
+  // with the "kubernetes" join method.
+  message Rule {
+    // The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+    string service_account = 1;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+  // Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values:
+  // - `in_cluster`
+  // - `static_jwks`
+  // - `oidc`
+  // If unset, this defaults to `in_cluster`.
+  string type = 2;
+  // The configuration specific to the `static_jwks` type.
+  StaticJWKSConfig static_jwks = 3;
+  // The configuration specific to the `oidc` type.
+  OIDCConfig oidc = 4;
 }

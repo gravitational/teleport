@@ -14,7 +14,7 @@ tags:
 credentials from the locally logged in user, it is also possible to use
 credentials issued by Machine & Workload Identity. This allows `tctl` to be
 leveraged as part of a custom automation workflow deployed in a non-interactive
-environment (e.g CI/CD).
+environment (e.g. CI/CD).
 
 In this guide, you will configure `tbot` to produce credentials for `tctl`, and
 then use `tctl` to deploy Teleport roles defined in files.
@@ -99,8 +99,7 @@ services:
 ```
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to execute the Terraform
-plan later.
+one-shot mode, it must be executed before you attempt to execute `tctl` later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to

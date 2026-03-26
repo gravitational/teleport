@@ -35,7 +35,7 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -152,9 +152,10 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		kubeEventPrefix + kubeCluster.GetName(): {
-			ResourceType:   types.DiscoveredResourceKubernetes,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  kubeCluster.GetCloud(),
+			ResourceType:        types.DiscoveredResourceKubernetes,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       kubeCluster.GetCloud(),
+			DiscoveryConfigName: kubeCluster.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 		},
 	})
 	if err != nil {

@@ -51,7 +51,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -206,6 +205,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+		tconf.InsecureMode = true
 		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
@@ -236,7 +236,7 @@ func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helper
 
 	cmd := []string{"echo", "hello world"}
 	err = retryutils.RetryStaticFor(deadline, nextIterWaitTime, func() error {
-		err = tc.SSH(context.TODO(), cmd)
+		err = tc.SSH(t.Context(), cmd)
 		return trace.Wrap(err)
 	})
 	require.NoError(t, err)
@@ -329,6 +329,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -349,6 +350,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -519,7 +521,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 		config.Listener = helpers.MustCreateListener(t)
 	}
 	if config.ParentContext == nil {
-		config.ParentContext = context.TODO()
+		config.ParentContext = t.Context()
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(config)
@@ -661,7 +663,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		},
 		ProxyServer: proxyAddr,
 		JoinMethod:  types.JoinMethodIAM,
-		Insecure:    lib.IsInsecureDevMode(),
+		Insecure:    true,
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }

@@ -27,7 +27,7 @@ export function AwsRaRoutes() {
         key="aws-ra-dashboard"
         exact
         path={cfg.routes.integrationStatus}
-        component={AwsRaDashboard}
+        element={<AwsRaDashboard />}
       />
     </Switch>
   );

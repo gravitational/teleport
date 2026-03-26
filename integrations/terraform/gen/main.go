@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,6 +131,33 @@ type payload struct {
 	// WithoutImportState skips generating the ImportState function, which may be
 	// not supported for resources with write-only fields.
 	WithoutImportState bool
+	// StatePoll optionally configures polling for state changes when creating or updating resources.
+	StatePoll *statePoll
+}
+
+// statePoll configures polling for state changes when creating or updating resources.
+type statePoll struct {
+	// StatePath is the object path to the current state to observe from the object returned from the provided GetMethod.
+	// StatePath provides a path to lookup the current state from the returned object from GetMethod.
+	// Each string is treated as a field name for a nested object. It's expected
+	// the combined path points to a string value. All other paths along the way must be pointers
+	// to structs.
+	// Example: []string{"Status", "State"} would expect the object returned from GetMethod to have a Status
+	// field that is a pointer to a struct. That struct must have a State field. The State field must
+	// be a string.
+	// TODO(dustinspecker): this is only supported for Create methods. Consider adding for Update methods in the future.
+	// TODO(dustinspecker): support slices and other types besides pointers to structs
+	StatePath []string
+	// PendingStates is a list of states that are valid while polling the resource to reach a target state. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	PendingStates []string
+	// TargetStates is a list of possible states that indicate a resource is ready for usage while polling. Any state
+	// that is found that is not in PendingStates or TargetStates is considered a terminal error.
+	TargetStates []string
+	// StatePollIntervalSeconds is how long to wait before polling the pending resource again.
+	StatePollIntervalSeconds int
+	// StateTimeoutSeconds is the maximum amount of seconds to wait for a resource to reach a target state.
+	StateTimeoutSeconds int
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -144,6 +172,27 @@ func (p *payload) CheckAndSetDefaults() error {
 	}
 	if p.SchemaPackagePath == "" {
 		p.SchemaPackagePath = "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	}
+	if p.StatePoll != nil {
+		if len(p.StatePoll.StatePath) == 0 {
+			return errors.New("StatePath must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.PendingStates) == 0 {
+			return errors.New("PendingStates must be provided when StatePoll is set")
+		}
+
+		if len(p.StatePoll.TargetStates) == 0 {
+			return errors.New("TargetStates must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StatePollIntervalSeconds == 0 {
+			return errors.New("StatePollIntervalSeconds must be provided when StatePoll is set")
+		}
+
+		if p.StatePoll.StateTimeoutSeconds == 0 {
+			return errors.New("StateTimeoutSeconds must be provided when StatePoll is set")
+		}
 	}
 	return nil
 }
@@ -702,6 +751,33 @@ var (
 		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
 	}
 
+	vnetConfig = payload{
+		Name:                  "VnetConfig",
+		TypeName:              "VnetConfig",
+		VarName:               "vnetConfig",
+		GetMethod:             "VnetConfigClient().GetVnetConfig",
+		CreateMethod:          "VnetConfigClient().UpsertVnetConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
+		DeleteMethod:          "VnetConfigClient().ResetVnetConfig",
+		ID:                    `"vnet_config"`,
+		Kind:                  "vnet_config",
+		HasStaticID:           false,
+		ProtoPackage:          "vnet",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1",
+		TerraformResourceType: "teleport_vnet_config",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		DefaultName:  "apitypes.MetaNameVnetConfig",
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindVnetConfig",
+	}
+
 	integration = payload{
 		Name:                   "Integration",
 		VarName:                "integration",
@@ -831,6 +907,61 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
+	scopedToken = payload{
+		Name:                  "ScopedToken",
+		TypeName:              "ScopedToken",
+		VarName:               "scopedToken",
+		GetMethod:             "GetScopedToken",
+		CreateMethod:          "CreateScopedToken",
+		UpdateMethod:          "UpsertScopedToken",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedToken",
+		ID:                    "scopedToken.Metadata.Name",
+		Kind:                  "scoped_token",
+		WithSecrets:           "true",
+		HasStaticID:           false,
+		ProtoPackage:          "joiningv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
+		TerraformResourceType: "teleport_scoped_token",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindScopedToken",
+	}
+
+	/*
+		//
+		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
+		//
+			typeA = payload{
+				Name:                  "TypeA",
+				TypeName:              "TypeA",
+				VarName:               "typeA",
+				GetMethod:             "GetTypeA",
+				CreateMethod:          "CreateTypeA",
+				UpsertMethodArity:     2,
+				UpdateMethod:          "UpsertTypeA",
+				DeleteMethod:          "DeleteTypeA",
+				ID:                    "typeA.Metadata.Name",
+				Kind:                  "type_a",
+				HasStaticID:           false,
+				ProtoPackage:          "examplev1",
+				ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/example/v1",
+				SchemaPackage:         "schemav1",
+				SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/example/v1",
+				TerraformResourceType: "teleport_type_a",
+				// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+				// resources are plain structs
+				IsPlainStruct: true,
+				// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+				// We import the package containing kinds, then use ForceSetKind.
+				ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+				ForceSetKind: "apitypes.KindTypeA",
+				// Only set default name if the resource is a singleton
+				// DefaultName:  "apitypes.MetaNameTypeA",
+			}
+	*/
 )
 
 func main() {
@@ -894,6 +1025,8 @@ func genTFSchema() {
 	generateDataSource(healthCheckConfig, pluralDataSource)
 	generateResource(discoveryConfig, pluralResource)
 	generateDataSource(discoveryConfig, pluralDataSource)
+	generateResource(vnetConfig, singularResource)
+	generateDataSource(vnetConfig, singularDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
 	generateResource(appAuthConfig, pluralResource)
@@ -904,6 +1037,9 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(scopedToken, pluralResource)
+	generateDataSource(scopedToken, pluralDataSource)
+	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 
 func generateResource(p payload, tpl string) {

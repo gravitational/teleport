@@ -46,6 +46,7 @@ const (
 
 // IdPIAMConfigureRequest represents a request to configure AWS OIDC integration.
 type IdPIAMConfigureRequest struct {
+	Insecure bool
 	// Cluster is the Teleport Cluster.
 	// Used for tagging the created Roles/IdP.
 	Cluster string
@@ -264,7 +265,7 @@ func createOIDCIdPAction(ctx context.Context, clt IdPIAMConfigureClient, req IdP
 		thumbprint = req.fakeThumbprint
 	} else {
 		var err error
-		thumbprint, err = ThumbprintIdP(ctx, req.ProxyPublicAddress)
+		thumbprint, err = ThumbprintIdP(ctx, req.ProxyPublicAddress, req.Insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

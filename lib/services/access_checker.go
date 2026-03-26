@@ -70,10 +70,6 @@ type AccessChecker interface {
 	// and a nil error indicates that no additional preconditions are required for access.
 	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error)
 
-	// CheckDeviceAccess verifies if the current device state satisfies the
-	// device trust requirements of the user's RoleSet.
-	CheckDeviceAccess(state AccessState) error
-
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 

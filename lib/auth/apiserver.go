@@ -66,6 +66,9 @@ type APIConfig struct {
 	// OracleHTTPClient (optional) overrides the HTTP client used to make
 	// requests to the Oracle API for the Oracle join method.
 	OracleHTTPClient utils.HTTPDoClient
+	// DisableJoinV1 disables registration of the new join gRPC service.
+	// Intended for tests that need to exercise legacy join fallback paths.
+	DisableJoinV1 bool
 }
 
 // CheckAndSetDefaults checks and sets default values

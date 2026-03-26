@@ -19,26 +19,24 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { getErrorMessage, type FallbackProps } from 'react-error-boundary';
 
 import {
   createDeferredResponse,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
 } from 'design/utils/testing';
 
 import { ErrorSuspenseWrapper } from './ErrorSuspenseWrapper';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 function TestErrorComponent({ error, resetErrorBoundary }: FallbackProps) {
   return (

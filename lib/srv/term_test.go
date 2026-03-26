@@ -57,7 +57,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  5,
-			outMode: 0600,
+			outMode: 0o600,
 		},
 		// Group "tty" does not exist.
 		{
@@ -72,7 +72,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  1000,
-			outMode: 0620,
+			outMode: 0o620,
 		},
 	}
 
@@ -119,9 +119,6 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 
 		errors <- err
 	}()
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild(ctx))
 
 	// Continue execution
 	scx.execRequest.Continue()

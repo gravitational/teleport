@@ -84,6 +84,7 @@ describe('document should be added', () => {
     targetSubresourceName: undefined,
     origin: 'resource_table',
     status: '',
+    autoUserProvisioning: undefined,
   };
 
   test('at the specific position', () => {
@@ -161,6 +162,7 @@ test('only gateway documents should be returned', () => {
     targetSubresourceName: undefined,
     origin: 'resource_table',
     status: '',
+    autoUserProvisioning: undefined,
   };
 
   service.add(gatewayDocument);

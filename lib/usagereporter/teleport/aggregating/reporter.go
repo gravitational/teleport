@@ -344,6 +344,7 @@ func (r *Reporter) run(ctx context.Context) {
 		}
 		record.TotalInputTokens += inputTokens
 		record.TotalOutputTokens += outputTokens
+		record.SummariesGenerated++
 	}
 
 	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)

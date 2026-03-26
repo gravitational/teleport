@@ -143,6 +143,7 @@ export class DocumentsService {
       gatewayUri,
       origin,
       targetProtocol,
+      autoUserProvisioning,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -159,6 +160,7 @@ export class DocumentsService {
       origin,
       status: '',
       targetProtocol,
+      autoUserProvisioning,
     };
     doc.title = getDocumentGatewayTitle(doc);
     return doc;
@@ -370,10 +372,10 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, {
-      exact: true,
-      path: uri,
-    });
+    if (!location) {
+      return false;
+    }
+    return !!routing.parseUri(location, uri);
   }
 
   add(doc: Document, position?: number) {

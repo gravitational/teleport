@@ -161,6 +161,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 			traits:       traits,
 			log:          c.log,
 			hostID:       c.cfg.HostID,
+			insecureMode: c.cfg.InsecureMode,
 		})
 	if err != nil {
 		return trace.Wrap(err)

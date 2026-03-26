@@ -68,7 +68,7 @@ Download the source code for our minimal API client:
 
 ```code
 $ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
-$ cd examples/service-discovery-api-client
+$ cd teleport/examples/service-discovery-api-client
 ```
 
 For the rest of this guide, we will show you how to set up this API client and
@@ -517,7 +517,7 @@ to join the resource to the cluster dynamically using a method similar to
 <summary>Registering applications dynamically</summary>
 
 To register applications dynamically, rather than start a new Application
-Service instance to proxy an application, use the `*clientClient.CreateApp`
+Service instance to proxy an application, use the `(*client.Client).CreateApp`
 method:
 
 ```go

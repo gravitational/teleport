@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createRequire } from 'node:module';
+import { builtinModules } from 'node:module';
 import path from 'node:path';
 
-import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+import { defineConfig, UserConfig } from 'electron-vite';
+import type { RolldownOptions } from 'rolldown';
 import type { Plugin } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
-import { tsconfigPathsPlugin } from '@gravitational/build/vite/tsconfigPaths.mjs';
 
 import { getConnectCsp } from './csp';
 
@@ -33,19 +35,54 @@ const outputDirectory = path.resolve(__dirname, 'build', 'app');
 // if Vite complains about a dependency, add it here
 const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
+// electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
+// Vite 8 ignores (it uses rolldownOptions).
+// TODO(ryan): Remove this once electron-vite supports Vite 8.
+//
+// electron-vite externalizes electron, Node.js built-in modules, and package.json
+// dependencies for main and preload, but bundles everything for the renderer.
+// See https://electron-vite.org/guide/dependency-handling.
+const pkg = createRequire(import.meta.url)('./package.json');
+const deps = Object.keys(pkg.dependencies || {}).filter(
+  dep => !externalizeDeps.includes(dep)
+);
+
+const commonRolldownOptions: RolldownOptions = {
+  onLog(level, log, defaultHandler) {
+    // Suppress direct eval warning from @protobufjs/inquire.
+    // The eval is intentional (to call require without bundler detection) and patching
+    // it to indirect eval would break Electron's module-scoped require.
+    if (log.code === 'EVAL' && log.id?.includes('@protobufjs/inquire')) {
+      return;
+    }
+
+    defaultHandler(level, log);
+  },
+};
+
+// Main and preload run in Node.js, so we externalize electron, Node.js built-in
+// modules, and package.json dependencies (they'll be included during packaging).
+const nodeExternalOptions: RolldownOptions = {
+  external: [
+    'electron',
+    /^electron\/.+/,
+    ...builtinModules.flatMap(m => [m, `node:${m}`]),
+    ...deps,
+    new RegExp(`^(${deps.join('|')})/.+`),
+  ],
+};
+
 const config = defineConfig(env => {
-  const tsConfigPathsPlugin = tsconfigPathsPlugin();
-
-  const commonPlugins = [
-    externalizeDepsPlugin({ exclude: externalizeDeps }),
-    tsConfigPathsPlugin,
-  ];
-
   const config: UserConfig = {
     main: {
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: path.resolve(outputDirectory, 'main'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
+          ...nodeExternalOptions,
           input: {
             index: path.resolve(__dirname, 'src/main.ts'),
             sharedProcess: path.resolve(
@@ -58,11 +95,11 @@ const config = defineConfig(env => {
             ),
           },
           output: {
+            format: 'cjs',
             manualChunks,
           },
         },
       },
-      plugins: commonPlugins,
       define: {
         // It's not common to pre-process Node code with NODE_ENV, but this is what our Webpack
         // config used to do, so for compatibility purposes we kept the Vite config this way.
@@ -73,28 +110,38 @@ const config = defineConfig(env => {
       },
     },
     preload: {
+      resolve: {
+        tsconfigPaths: true,
+      },
       build: {
         outDir: path.resolve(outputDirectory, 'preload'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
+          ...nodeExternalOptions,
           input: {
             index: path.resolve(__dirname, 'src/preload.ts'),
           },
           output: {
+            format: 'cjs',
             manualChunks,
           },
         },
       },
-      plugins: commonPlugins,
       define: {
         // Preload is also mean to be run by Node, see the comment for define under main.
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
       },
     },
     renderer: {
+      resolve: {
+        tsconfigPaths: true,
+      },
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       root: '.',
       build: {
         outDir: path.resolve(outputDirectory, 'renderer'),
-        rollupOptions: {
+        rolldownOptions: {
+          ...commonRolldownOptions,
           input: {
             index: path.resolve(__dirname, 'index.html'),
           },
@@ -110,7 +157,18 @@ const config = defineConfig(env => {
       plugins: [
         reactPlugin(env.mode),
         cspPlugin(getConnectCsp(env.mode === 'development')),
-        tsConfigPathsPlugin,
+        {
+          // The IronRDP wasm module is embedded into the renderer app earlier in the build.
+          // Exclude it here, otherwise rollup still emits it as a static asset by default.
+          name: 'drop-wasm-assets',
+          generateBundle(_, bundle) {
+            for (const file of Object.keys(bundle)) {
+              if (file.endsWith('.wasm')) {
+                delete bundle[file];
+              }
+            }
+          },
+        },
       ],
       define: {
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),

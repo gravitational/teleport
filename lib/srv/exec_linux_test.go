@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -51,7 +50,7 @@ func TestOSCommandPrep(t *testing.T) {
 	// we need to setup a real, non-root user with a valid home directory in order for this test to
 	// exercise the correct paths
 	tempHome := t.TempDir()
-	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0777))
+	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0o777))
 
 	username := "test-os-command-prep"
 	scx.Identity.Login = username
@@ -163,8 +162,8 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
 }
 
-// TestContinue tests if the process hangs if a continue signal is not sent
-// and makes sure the process continues once it has been sent.
+// TestContinue tests if the process continues once the continue signal
+// has been sent.
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
@@ -191,21 +190,8 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 		}
 
-		// Close the read half of the pipe to unblock the ready signal.
-		closeErr := scx.readyw.Close()
-		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
+		cmdDone <- cmd.Wait()
 	}()
-
-	// Wait for the process. Since the continue pipe has not been closed, the
-	// process should not have exited yet.
-	select {
-	case err := <-cmdDone:
-		t.Fatalf("Process exited before continue with error %v", err)
-	case <-time.After(5 * time.Second):
-	}
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
 
 	// Signal to child that it may execute the requested program.
 	scx.execRequest.Continue()
