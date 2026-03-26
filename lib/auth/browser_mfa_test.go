@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -221,7 +222,9 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 					ConnectorID:       "test-connector",
 					ConnectorType:     "test",
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
-						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+						Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+						AllowReuse:                  mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+						UserVerificationRequirement: "required",
 					},
 				}
 				err := a.UpsertSSOMFASessionData(ctx, session)
@@ -310,6 +313,142 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 			tt.assertError(t, err)
 			if tt.assertResult != nil {
 				tt.assertResult(t, result)
+			}
+		})
+	}
+}
+
+func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testServer.Close()) })
+
+	a := testServer.Auth()
+
+	userCreds, err := createUserWithSecondFactors(testServer.TLS)
+	require.NoError(t, err)
+
+	userCredsRequest := &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+		UserCredentials: &proto.UserCredentials{
+			Username: userCreds.username,
+			Password: userCreds.password,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		setup          func(t *testing.T)
+		request        *proto.CreateAuthenticateChallengeRequest
+		checkError     func(t *testing.T, err error)
+		wantExtensions *mfav1.ChallengeExtensions
+	}{
+		{
+			name: "NOK invalid browser MFA request ID",
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "non-existent-id",
+			},
+			checkError: func(t *testing.T, err error) {
+				assert.ErrorAs(t, err, new(*trace.AccessDeniedError), "CreateAuthenticateChallenge error mismatch")
+				assert.ErrorContains(t, err, "invalid browser MFA request")
+			},
+		},
+		{
+			name: "NOK challenge extensions set with browser MFA request ID",
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "some-request-id",
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+			},
+			checkError: func(t *testing.T, err error) {
+				assert.ErrorAs(t, err, new(*trace.BadParameterError), "CreateAuthenticateChallenge error mismatch")
+				assert.ErrorContains(t, err, "challenge extensions must not be set")
+			},
+		},
+		{
+			name: "OK browser MFA challenge extensions applied from SSO MFA session",
+			setup: func(t *testing.T) {
+				session := &services.SSOMFASessionData{
+					RequestID:     "test-request-1",
+					Username:      userCreds.username,
+					ConnectorID:   "Browser",
+					ConnectorType: "Browser",
+					ChallengeExtensions: &mfatypes.ChallengeExtensions{
+						Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+						AllowReuse:                  mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+						UserVerificationRequirement: "required",
+					},
+				}
+				err := a.UpsertSSOMFASessionData(ctx, session)
+				require.NoError(t, err)
+			},
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "test-request-1",
+			},
+			wantExtensions: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				AllowReuse:                  mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				UserVerificationRequirement: "required",
+			},
+		},
+		{
+			name: "NOK nil challenge extensions",
+			setup: func(t *testing.T) {
+				session := &services.SSOMFASessionData{
+					RequestID:           "test-request-2",
+					Username:            userCreds.username,
+					ConnectorID:         "Browser",
+					ConnectorType:       "Browser",
+					ChallengeExtensions: nil,
+				}
+				err := a.UpsertSSOMFASessionData(ctx, session)
+				require.NoError(t, err)
+			},
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "test-request-2",
+			},
+			checkError: func(t *testing.T, err error) {
+				assert.ErrorAs(t, err, new(*trace.BadParameterError), "CreateAuthenticateChallenge error mismatch")
+				assert.ErrorContains(t, err, "stored session lacks challenge extensions")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			var gotExtensions *mfav1.ChallengeExtensions
+			a.ObserveBrowserMFAChallengeExtensionsForTesting = func(ext *mfav1.ChallengeExtensions) {
+				gotExtensions = ext
+			}
+
+			challenge, err := a.CreateAuthenticateChallenge(ctx, tt.request)
+
+			if tt.checkError != nil {
+				tt.checkError(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, challenge)
+			assert.NotNil(t, challenge.WebauthnChallenge, "expected WebAuthn challenge to be present")
+
+			if tt.wantExtensions != nil {
+				require.Equal(t, tt.wantExtensions, gotExtensions)
 			}
 		})
 	}
