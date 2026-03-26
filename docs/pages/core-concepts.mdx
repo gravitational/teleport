@@ -45,8 +45,8 @@ Read our guides to how [authorization](reference/architecture/authorization.mdx)
 The **Teleport Proxy Service** allows for secure access to resources in your
 infrastructure from the public internet without the need for a VPN.
 
-It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
-Services**, which can run in private networks. This means that, in the Proxy
+It establishes reverse tunnels to **Teleport Services** providing connections to the **Teleport Auth Service **,
+which can run in private networks. This means that, in the Proxy
 Service's minimal configuration, you can expose only port `443` to the internet
 and run the rest of your infrastructure in private networks.
 
