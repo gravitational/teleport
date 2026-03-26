@@ -397,8 +397,11 @@ func (a *Middleware) rateLimitUnaryInterceptor() grpc.UnaryServerInterceptor {
 			"/proto.AuthService/GetAccountRecoveryToken",
 			"/proto.AuthService/StartAccountRecovery",
 			"/proto.AuthService/VerifyAccountRecovery":
-			if err := a.accountRecoveryLimiter.RegisterRequest(clientIP); err != nil {
-				return nil, trace.LimitExceeded("rate limit exceeded")
+			if a.accountRecoveryLimiter != nil {
+				err := a.accountRecoveryLimiter.RegisterRequest(clientIP)
+				if err != nil {
+					return nil, trace.LimitExceeded("rate limit exceeded")
+				}
 			}
 		}
 		return handler(ctx, req)
