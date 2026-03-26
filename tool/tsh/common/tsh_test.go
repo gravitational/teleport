@@ -8421,13 +8421,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 	runSSH := func(t *testing.T, tc testCase, homePath string, login string) (string, error) {
 		stdout := &output{buf: bytes.Buffer{}}
 
-		// If the shell succeeds, ensure it exits immediately.
-		stdin := &bytes.Buffer{}
-		if len(tc.remoteCommand) == 0 {
-			_, err := stdin.WriteString("exit\n")
-			require.NoError(t, err)
-		}
-
 		args := []string{"ssh", "--insecure"}
 		if tc.tty {
 			args = append(args, "--tty")
@@ -8440,7 +8433,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 			setHomePath(homePath),
 			func(conf *CLIConf) error {
 				conf.OverrideStdout = stdout
-				conf.overrideStdin = stdin
 				return nil
 			},
 		)
@@ -8461,8 +8453,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				// The top level ssh error comes after the forwarding errors and after terminal setup.
-				// If there is a tty allocated, we expect CRLF instead of just LF.
 				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 
 				// Check for exact match to catch regressions with new lines.
@@ -8485,8 +8475,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 				require.ErrorAs(t, err, &exitCodeErr)
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
-				// The top level ssh error comes after the forwarding errors and after terminal setup.
-				// If there is a tty allocated, we expect CRLF instead of just LF.
 				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
 					user.UnknownUserError(missingLogin),
 					types.KindRole,
