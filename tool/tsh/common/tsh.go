@@ -286,6 +286,10 @@ type CLIConf struct {
 	BeamLocalPath string
 	// BeamRemotePath is the remote filesystem path used by `tsh beams push/pull`.
 	BeamRemotePath string
+	// BeamMountPoint is the local mount point used by `tsh beams mount`.
+	BeamMountPoint string
+	// BeamMountDebug enables sshfs debug output for `tsh beams mount`.
+	BeamMountDebug bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -999,6 +1003,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// * "-T Disable pseudo-terminal allocation."
 	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
 	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
+	// The following flags are OpenSSH compatibility no-ops, used by tools like
+	// sshfs that invoke ssh with hardcoded OpenSSH flags.
+	var sshCompatNoOp bool
+	ssh.Flag(uuid.New().String(), "").Short('x').Hidden().BoolVar(&sshCompatNoOp)
+	ssh.Flag(uuid.New().String(), "").Short('a').Hidden().BoolVar(&sshCompatNoOp)
+	ssh.Flag(uuid.New().String(), "").Short('2').Hidden().BoolVar(&sshCompatNoOp)
 
 	resolve := app.Command("resolve", "Resolves an SSH host.")
 	resolve.Arg("host", "Remote hostname to resolve.").Required().StringVar(&cf.UserHost)
@@ -1090,6 +1100,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsPull.Flag("local", "Local copy location.").Required().StringVar(&cf.BeamLocalPath)
 	beamsPull.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
 	beamsPull.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
+	beamsMount := beams.Command("mount", "Mount a beam filesystem locally via SSHFS.")
+	beamsMount.Arg("beam-id", "Beam ID or alias to mount.").Required().StringVar(&cf.BeamID)
+	beamsMount.Arg("mount-point", "Local directory to mount the beam at.").Required().StringVar(&cf.BeamMountPoint)
+	beamsMount.Arg("remote-path", "Remote path to mount.").Default("/").StringVar(&cf.BeamRemotePath)
+	beamsMount.Flag("sshfs-debug", "Enable sshfs debug output (implies foreground).").BoolVar(&cf.BeamMountDebug)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1867,6 +1882,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsPush(&cf)
 	case beamsPull.FullCommand():
 		err = onBeamsPull(&cf)
+	case beamsMount.FullCommand():
+		err = onBeamsMount(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
@@ -4509,10 +4526,23 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 		cf.RemoteCommand = cf.RemoteCommand[1:]
 	}
 
+	// Handle OpenSSH -s flag for subsystem requests (e.g. "-s sftp" from sshfs).
+	// With Interspersed(false), flags after the positional host argument end up
+	// in RemoteCommand, so we detect and extract the subsystem here.
+	var sshSubsystem string
+	if len(cf.RemoteCommand) >= 2 && cf.RemoteCommand[0] == "-s" {
+		sshSubsystem = cf.RemoteCommand[1]
+		cf.RemoteCommand = cf.RemoteCommand[2:]
+	}
+	logger.DebugContext(cf.Context, "SSH args", "remote_command", cf.RemoteCommand, "subsystem", sshSubsystem, "user_host", cf.UserHost)
+
 	tc.Stdin = cf.Stdin()
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
+			if sshSubsystem != "" {
+				opts = append(opts, client.WithSubsystem(sshSubsystem))
+			}
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
