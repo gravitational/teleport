@@ -4,12 +4,11 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/xml"
-	"net/http"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/google/go-cmp/cmp"
@@ -25,6 +24,69 @@ import (
 )
 
 func TestMakeAssertion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		attributeMapping []*types.SAMLAttributeMapping
+		traits           map[string][]string
+		wantAttributes   []saml.AttributeStatement
+	}{
+		{
+			name:             "no custom mapping keeps defaults",
+			attributeMapping: nil,
+			wantAttributes: []saml.AttributeStatement{{
+				Attributes: []saml.Attribute{
+					attribute.New("uid", types.SAMLUIDName, types.SAMLURINameFormat, "test-user"),
+					attribute.New("eduPersonAffiliation", types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "group1", "group2"),
+				},
+			}},
+		},
+		{
+			name: "custom mapping adds attributes alongside defaults",
+			attributeMapping: []*types.SAMLAttributeMapping{
+				{Name: "customUId", Value: "strings.upper(uid)"},
+				{Name: "firstname", Value: "user.spec.traits.firstname"},
+				{Name: "username", Value: "user.metadata.name"},
+				{Name: "roles", Value: "user.spec.roles"},
+				{Name: "roles2", Value: `eduPersonAffiliation.add("superadmin")`},
+			},
+			wantAttributes: []saml.AttributeStatement{{
+				Attributes: []saml.Attribute{
+					attribute.New("customUId", "customUId", types.SAMLUnspecifiedNameFormat, "TEST-USER"),
+					attribute.New("firstname", "firstname", types.SAMLUnspecifiedNameFormat, "userf"),
+					attribute.New("username", "username", types.SAMLUnspecifiedNameFormat, "test-user"),
+					attribute.New("roles", "roles", types.SAMLUnspecifiedNameFormat, "r1", "r2"),
+					attribute.New("roles2", "roles2", types.SAMLUnspecifiedNameFormat, "r1", "r2", "superadmin"),
+					attribute.New("uid", types.SAMLUIDName, types.SAMLURINameFormat, "test-user"),
+					attribute.New("eduPersonAffiliation", types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "group1", "group2"),
+				},
+			}},
+		},
+		{
+			name: "custom eduPersonAffiliation",
+			attributeMapping: []*types.SAMLAttributeMapping{
+				{
+					Name:       types.SAMLEduPersonAffiliationName,
+					NameFormat: types.SAMLURINameFormat,
+					Value:      `user.spec.roles`,
+				},
+			},
+			wantAttributes: []saml.AttributeStatement{{
+				Attributes: []saml.Attribute{
+					attribute.New("uid", types.SAMLUIDName, types.SAMLURINameFormat, "test-user"),
+					attribute.New("eduPersonAffiliation", types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "group1", "group2"),
+					// The "eduPersonAffiliation" attribute is duplicated because a default one is
+					// always generated with user roles as values, regardless of custom mappings.
+					//
+					// TODO(smallinsky): allow overriding the default "eduPersonAffiliation" attribute
+					// via custom mapping to handle cases where only known roles should be included
+					// in the assertion or the number of roles should be limited.
+					attribute.New(types.SAMLEduPersonAffiliationName, types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "r1", "r2"),
+				},
+			}},
+		},
+	}
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 	env := newTEnv(ctx, t, clock)
@@ -33,171 +95,82 @@ func TestMakeAssertion(t *testing.T) {
 	idp, err := env.samlIdPService.createIdP(ctx)
 	require.NoError(t, err)
 
-	// The assertion maker will use the ServiceProviderProvider to ensure
-	// that associated entity IDs are present, so we need to add a service
-	// provider into the backend for testing.
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp1",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1", "https://sp1.com/acs"),
-			EntityID:         "sp1",
-			AttributeMapping: []*types.SAMLAttributeMapping{
-				{
-					Name:  "customUId",
-					Value: "strings.upper(uid)",
-				},
-				{
-					Name:  "firstname",
-					Value: "user.spec.traits.firstname",
-				},
-				{
-					Name:  "username",
-					Value: "user.metadata.name",
-				},
-				{
-					Name:  "roles",
-					Value: "user.spec.roles",
-				},
-				{
-					Name:  "roles2",
-					Value: `eduPersonAffiliation.add("superadmin")`,
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
-
-	ed, err := samlsp.ParseMetadata([]byte(sp1.GetEntityDescriptor()))
-	require.NoError(t, err)
-
-	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
-	testReq := httptest.NewRequest("GET", "/", nil).WithContext(authz.ContextWithUser(ctx, user))
-
-	// Create a valid AuthnRequest.
-	authnReq := saml.AuthnRequest{
-		ID:           "auth-id",
-		Version:      "2.0",
-		IssueInstant: clock.Now(),
-		Issuer: &saml.Issuer{
-			Value: "sp1",
-		},
-	}
-
-	// Create a valid IdpAuthnRequest.
-
-	reqBuffer, err := xml.Marshal(authnReq)
-	require.NoError(t, err)
-	req := &saml.IdpAuthnRequest{
-		IDP:                     &idp,
-		SPSSODescriptor:         &saml.SPSSODescriptor{},
-		HTTPRequest:             testReq,
-		RequestBuffer:           reqBuffer,
-		ServiceProviderMetadata: ed,
-		Now:                     clock.Now(),
-	}
-	session := &saml.Session{
-		UserName: "test-user",
-		Groups:   []string{"group1", "group2"},
-		CustomAttributes: SamlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
-			Traits: map[string][]string{
-				"groups":    {"g1", "g2"},
-				"firstname": {"userf"},
-			},
-			Username: "test-user",
-			Roles:    []string{"r1", "r2"},
-		}),
-	}
-
-	// req.Validate mutates the original request.
-	require.NoError(t, req.Validate())
-	require.NoError(t, env.samlIdPService.MakeAssertion(req, session))
-
-	// Create the expected request. We'll copy a few bits of the validated request, as needed,
-	// as it's been altered by the above function calls.
-	expectedAuthnReq := req.Request
-	expectedAuthnReq.Issuer = &saml.Issuer{
-		XMLName: xml.Name{
-			Space: "urn:oasis:names:tc:SAML:2.0:assertion",
-			Local: "Issuer",
-		},
-		Value: "sp1",
-	}
-
-	// There are here so that we can pass in *bools to objects in the expected IdpAuthnRequest.
-	falseBool := false
-	trueBool := true
-
-	expectedReq := &saml.IdpAuthnRequest{
-		IDP: &idp,
-		SPSSODescriptor: &saml.SPSSODescriptor{
-			XMLName: xml.Name{
-				Space: "urn:oasis:names:tc:SAML:2.0:metadata",
-				Local: "SPSSODescriptor",
-			},
-			SSODescriptor: saml.SSODescriptor{
-				RoleDescriptor: saml.RoleDescriptor{
-					ProtocolSupportEnumeration: "urn:oasis:names:tc:SAML:2.0:protocol",
-				},
-				NameIDFormats: []saml.NameIDFormat{
-					"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
-				},
-			},
-			AuthnRequestsSigned:  &falseBool,
-			WantAssertionsSigned: &trueBool,
-			AssertionConsumerServices: []saml.IndexedEndpoint{
-				{
-					Binding:   "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-					Location:  "https://sp1.com/acs",
-					IsDefault: &trueBool,
-				},
-			},
-		},
-		HTTPRequest:   testReq,
-		RequestBuffer: reqBuffer,
-		Request:       expectedAuthnReq,
-		ACSEndpoint: &saml.IndexedEndpoint{
-			Binding:   "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-			Location:  "https://sp1.com/acs",
-			IsDefault: &trueBool,
-		},
-		ServiceProviderMetadata: ed,
-		Assertion: testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr, "auth-id", "https://sp1.com/acs",
-			attribute.New("uid", "urn:oid:0.9.2342.19200300.100.1.1", types.SAMLURINameFormat, "test-user"),
-			attribute.New("eduPersonAffiliation", "urn:oid:1.3.6.1.4.1.5923.1.1.1.1", types.SAMLURINameFormat, "group1", "group2"),
-			attribute.New("customUId", "customUId", types.SAMLUnspecifiedNameFormat, "TEST-USER"),
-			attribute.New("firstname", "firstname", types.SAMLUnspecifiedNameFormat, "userf"),
-			attribute.New("username", "username", types.SAMLUnspecifiedNameFormat, "test-user"),
-			attribute.New("roles", "roles", types.SAMLUnspecifiedNameFormat, "r1", "r2"),
-			attribute.New("roles2", "roles2", types.SAMLUnspecifiedNameFormat, "r1", "r2", "superadmin"),
-		),
-		Now: clock.Now(),
-	}
-
-	// Ignore the HTTP request, identity provider, etree elements, and assertion IDs here.
-	require.Empty(t, cmp.Diff(expectedReq, req,
-		cmpopts.SortSlices(func(a, b saml.AttributeValue) bool {
-			return a.Value < b.Value
-		}),
-		cmpopts.IgnoreTypes(&saml.IdentityProvider{}, &http.Request{}, &etree.Element{}),
-		cmpopts.IgnoreFields(saml.Assertion{}, "ID")))
-
-	// Validate the signature of the resposne.
 	certStore := &dsig.MemoryX509CertificateStore{
-		Roots: []*x509.Certificate{
-			idp.Certificate,
-		},
+		Roots: []*x509.Certificate{idp.Certificate},
 	}
 	validationCtx := dsig.NewDefaultValidationContext(certStore)
 	validationCtx.Clock = dsig.NewFakeClock(clockwork.NewFakeClockAt(idp.Certificate.NotBefore))
-	_, err = validationCtx.Validate(req.ResponseEl)
-	require.NoError(t, err)
+
+	user := setupUser(t, env.testServices, clock.Now().Add(time.Hour))
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spID := fmt.Sprintf("sp%d", i)
+			sp, err := types.NewSAMLIdPServiceProvider(
+				types.Metadata{Name: spID},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: testenv.NewTestEntityDescriptor(spID, "https://"+spID+".com/acs"),
+					EntityID:         spID,
+					AttributeMapping: tt.attributeMapping,
+				},
+			)
+			require.NoError(t, err)
+			require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp))
+
+			ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+			require.NoError(t, err)
+
+			testReq := httptest.NewRequest("GET", "/", nil).WithContext(authz.ContextWithUser(ctx, user))
+
+			authnReq := saml.AuthnRequest{
+				ID:           "auth-id",
+				Version:      "2.0",
+				IssueInstant: clock.Now(),
+				Issuer:       &saml.Issuer{Value: spID},
+			}
+			reqBuffer, err := xml.Marshal(authnReq)
+			require.NoError(t, err)
+
+			req := &saml.IdpAuthnRequest{
+				IDP:                     &idp,
+				SPSSODescriptor:         &saml.SPSSODescriptor{},
+				HTTPRequest:             testReq,
+				RequestBuffer:           reqBuffer,
+				ServiceProviderMetadata: ed,
+				Now:                     clock.Now(),
+			}
+			session := &saml.Session{
+				UserName: "test-user",
+				Groups:   []string{"group1", "group2"},
+				CustomAttributes: SamlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
+					Traits: map[string][]string{
+						"groups":    {"g1", "g2"},
+						"firstname": {"userf"},
+					},
+					Username: "test-user",
+					Roles:    []string{"r1", "r2"},
+				}),
+			}
+
+			require.NoError(t, req.Validate())
+			require.NoError(t, env.samlIdPService.MakeAssertion(req, session))
+
+			wantAssertion := testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr,
+				spID, "auth-id", "https://"+spID+".com/acs", tt.wantAttributes[0].Attributes...)
+			require.Empty(t, cmp.Diff(wantAssertion, req.Assertion,
+				cmpopts.SortSlices(func(a, b saml.Attribute) bool { return a.Name < b.Name }),
+				cmpopts.SortSlices(func(a, b saml.AttributeValue) bool { return a.Value < b.Value }),
+				cmpopts.IgnoreFields(saml.Assertion{}, "ID", "IssueInstant", "Signature"),
+				cmpopts.IgnoreFields(saml.AuthnStatement{}, "AuthnInstant", "SessionIndex"),
+			))
+			_, err = validationCtx.Validate(req.ResponseEl)
+			require.NoError(t, err)
+		})
+	}
 }
 
 // testAssertion creates a test assertion with the given inputs.
-func testAssertion(clock clockwork.Clock, conditions *saml.Conditions, address, inResponseTo, recipient string,
+func testAssertion(clock clockwork.Clock, conditions *saml.Conditions, address, spEntityID, inResponseTo, recipient string,
 	attributes ...saml.Attribute) *saml.Assertion {
 	return &saml.Assertion{
 		IssueInstant: clock.Now(),
@@ -209,7 +182,7 @@ func testAssertion(clock clockwork.Clock, conditions *saml.Conditions, address, 
 		Subject: &saml.Subject{
 			NameID: &saml.NameID{
 				NameQualifier:   "https://test.url/enterprise/saml-idp/metadata",
-				SPNameQualifier: "sp1",
+				SPNameQualifier: spEntityID,
 				Format:          "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 			},
 			SubjectConfirmations: []saml.SubjectConfirmation{
@@ -230,7 +203,7 @@ func testAssertion(clock clockwork.Clock, conditions *saml.Conditions, address, 
 			AudienceRestrictions: []saml.AudienceRestriction{
 				{
 					Audience: saml.Audience{
-						Value: "sp1",
+						Value: spEntityID,
 					},
 				},
 			},
