@@ -1744,8 +1744,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	defer conn.Close()
 
 	// using this connection as regular SSH
-	client2, err := tracessh.NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client2 := tracessh.NewClient(conn, chans, reqs)
 	defer client2.Close()
 
 	se2, err := client2.NewSession(ctx)
@@ -2813,8 +2812,7 @@ func TestX11ProxySupport(t *testing.T) {
 	// Perform ssh handshake and setup client for X11 test server.
 	cltConn, chs, reqs, err := tracessh.NewClientConnWithTimeout(ctx, netConn, node.addr, &cltConfig)
 	require.NoError(t, err)
-	clt, err := tracessh.NewClient(cltConn, chs, reqs)
-	require.NoError(t, err)
+	clt := tracessh.NewClient(cltConn, chs, reqs)
 
 	sess, err := clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -2994,8 +2992,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	defer conn.Close()
 
 	// Run commands over this connection like regular SSH
-	client2, err := tracessh.NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client2 := tracessh.NewClient(conn, chans, reqs)
 	defer client2.Close()
 
 	se2, err := client2.NewSession(ctx)

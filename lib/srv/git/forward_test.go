@@ -266,8 +266,7 @@ func TestForwardServer(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			client, err := tracessh.NewClient(conn, chCh, reqCh)
-			require.NoError(t, err)
+			client := tracessh.NewClient(conn, chCh, reqCh)
 			t.Cleanup(func() {
 				client.Close()
 			})

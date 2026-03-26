@@ -1187,8 +1187,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.NoError(t, err)
 			sshConn, sshChan, sshReq, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
-			sshClient, err := tracessh.NewClient(sshConn, sshChan, sshReq)
-			require.NoError(t, err)
+			sshClient := tracessh.NewClient(sshConn, sshChan, sshReq)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})

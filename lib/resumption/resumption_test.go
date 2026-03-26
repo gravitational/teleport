@@ -234,10 +234,7 @@ func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := tracessh.NewClient(conn, newChC, reqC)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	clt := tracessh.NewClient(conn, newChC, reqC)
 
 	return clt, nil
 }

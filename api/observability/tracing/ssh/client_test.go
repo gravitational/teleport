@@ -71,8 +71,7 @@ func TestIsTracingSupported(t *testing.T) {
 			})
 
 			conn, chans, reqs := srv.GetClient(t)
-			client, err := NewClient(conn, chans, reqs)
-			require.NoError(t, err)
+			client := NewClient(conn, chans, reqs)
 
 			require.Equal(t, tt.expectedCapability, client.capability)
 		})
@@ -183,8 +182,7 @@ func TestSetEnvs(t *testing.T) {
 
 	// create a client and open a session
 	conn, chans, reqs := srv.GetClient(t)
-	client, err := NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client := NewClient(conn, chans, reqs)
 	session, err := client.NewSession(ctx)
 	require.NoError(t, err)
 
@@ -320,8 +318,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	})
 
 	conn, chans, reqs := srv.GetClient(t)
-	client, err := NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client := NewClient(conn, chans, reqs)
 
 	// The client should reply false to any global request from the server, as we
 	// don't currently support a mechanism for the client to register global handlers.

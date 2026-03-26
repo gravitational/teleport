@@ -668,8 +668,7 @@ func TestService_ProxySSH(t *testing.T) {
 	require.NoError(t, err)
 
 	// create the ssh client
-	client, err := tracessh.NewClient(sshconn, chans, reqs)
-	require.NoError(t, err)
+	client := tracessh.NewClient(sshconn, chans, reqs)
 
 	// send an ssh request to our server which will echo the payload
 	// back in the response.

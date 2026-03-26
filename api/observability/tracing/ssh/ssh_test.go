@@ -315,14 +315,13 @@ func TestClient(t *testing.T) {
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
-			client, err := NewClient(
+			client := NewClient(
 				conn,
 				chans,
 				reqs,
 				tracing.WithTracerProvider(tp),
 				tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})),
 			)
-			require.NoError(t, err)
 			require.Equal(t, tt.tracingSupported, client.capability)
 
 			ctx, span := tp.Tracer("test").Start(context.Background(), "test")

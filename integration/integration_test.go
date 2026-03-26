@@ -7818,11 +7818,8 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	cli, err := tracessh.NewClient(modSSHConn, modSSHChans, emptyCh)
-	require.NoError(t, err)
-
 	modNodeCli := client.NodeClient{
-		Client:          cli,
+		Client:          tracessh.NewClient(modSSHConn, modSSHChans, emptyCh),
 		TC:              modTC,
 		Tracer:          modTC.Tracer,
 		FIPSEnabled:     details.FIPS,

@@ -369,13 +369,8 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	clt, err := tracessh.NewClient(sshconn, chans, emptyCh)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	nc := &NodeClient{
-		Client:          clt,
+		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,

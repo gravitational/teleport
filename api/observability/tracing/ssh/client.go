@@ -63,10 +63,10 @@ const (
 func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
 	c, chans, reqs, err := NewClientConnWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
-	return NewClient(c, chans, reqs, opts...)
+	return NewClient(c, chans, reqs, opts...), nil
 }
 
 // NewClient creates a new Client.
@@ -77,7 +77,7 @@ func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, confi
 // payloads will be wrapped in an Envelope with tracing context. All Session
 // and Channel created from the returned Client will honor the clients view
 // of whether they should provide tracing context.
-func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) (*Client, error) {
+func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
 	clt := &Client{
 		Client:          ssh.NewClient(c, chans, reqs),
 		opts:            opts,
@@ -89,7 +89,7 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 		clt.capability = tracingSupported
 	}
 
-	return clt, nil
+	return clt
 }
 
 // DialContext initiates a connection to the addr from the remote host.
