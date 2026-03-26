@@ -4905,6 +4905,16 @@ message WebSessionSpecV2 {
   // Session Credentials. When set, session refresh requires proof of possession
   // of the corresponding private key. See https://www.w3.org/TR/dbsc/
   bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
+  // Usage identifies the intended usage of the session.
+  WebSessionUsage Usage = 17 [(gogoproto.jsontag) = "usage,omitempty"];
+}
+
+// WebSessionUsage identifies the intended usage of a web session.
+enum WebSessionUsage {
+  // Session usage is unspecified (default web session).
+  WEB_SESSION_USAGE_UNSPECIFIED = 0;
+  // Session is used exclusively for Access Graph API authentication.
+  WEB_SESSION_USAGE_ACCESS_GRAPH_API = 1;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
