@@ -134,10 +134,9 @@ type localExec struct {
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
 
-	// waitForOutputStreams is closed when child reexec and shell processes have
-	// their stderr/stdout fully consumed by io.Copy goroutines. This is necessary
-	// due to the use of custom pipes, which exec.Cmd does not wait for closure of
-	// in Wait().
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
 
 	pid int
@@ -148,7 +147,7 @@ func (e *localExec) GetCommand() string {
 	return e.Command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *localExec) SetCommand(command string) {
 	e.Command = command
 }
@@ -420,7 +419,7 @@ func (e *remoteExec) GetCommand() string {
 	return e.command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *remoteExec) SetCommand(command string) {
 	e.command = command
 }

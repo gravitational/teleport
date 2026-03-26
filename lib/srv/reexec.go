@@ -265,7 +265,9 @@ type UaccMetadata struct {
 // system state related to the process and/or thread for PAM and SELinux.
 // The process should exit after this function returns so the potentially
 // modified process and/or thread isn't used with a non-standard state.
-func RunCommand() (execErr error, err error) {
+// Returns exitErr if the exec/shell command runs and exits successfully
+// or err if command fails to run.
+func RunCommand() (exitErr error, err error) {
 	ctx := context.Background()
 
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
@@ -531,8 +533,8 @@ func RunCommand() (execErr error, err error) {
 
 	parkerCancel()
 
-	execErr = waitForShell(terminatefd, cmd)
-	return trace.Wrap(execErr), nil
+	exitErr = waitForShell(terminatefd, cmd)
+	return trace.Wrap(exitErr), nil
 }
 
 // setAuditSessionID ensures the audit login session ID is updated by
@@ -1051,7 +1053,7 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 }
 
 // runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
-func runCheckHomeDir() (code int, err error) {
+func runCheckHomeDir() (code int) {
 	code = teleport.RemoteCommandSuccess
 	if err := hasAccessibleHomeDir(); err != nil {
 		switch {
@@ -1064,11 +1066,11 @@ func runCheckHomeDir() (code int, err error) {
 		}
 	}
 
-	return code, nil
+	return code
 }
 
 // runPark does nothing, forever.
-func runPark() (code int, err error) {
+func runPark() (code int) {
 	// Do not replace this with an empty select because there are no other
 	// goroutines running so it will panic.
 	for {
@@ -1077,7 +1079,7 @@ func runPark() (code int, err error) {
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
-// allows Run{Command,Forward} to use defers and makes sure error messages
+// allows Run{Command,Networking} to use defers and makes sure error messages
 // are consistent across both.
 func RunAndExit(commandType string) {
 	var code int
@@ -1095,9 +1097,9 @@ func RunAndExit(commandType string) {
 	case teleport.NetworkingSubCommand:
 		code, err = RunNetworking()
 	case teleport.CheckHomeDirSubCommand:
-		code, err = runCheckHomeDir()
+		code = runCheckHomeDir()
 	case teleport.ParkSubCommand:
-		code, err = runPark()
+		code = runPark()
 	default:
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1292,15 +1294,15 @@ func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
 		out := os.NewFile(FileTransferOutFile, "FileTransferOutFile")
 		if out == nil {
-			return nil, trace.NotFound("read pipe out file not found")
+			return nil, trace.NotFound("FileTransferOutFile file not found")
 		}
 		in := os.NewFile(FileTransferInFile, "FileTransferInFile")
 		if in == nil {
-			return nil, trace.NotFound("read pipe in file not found")
+			return nil, trace.NotFound("FileTransferInFile file not found")
 		}
 		audit := os.NewFile(AuditInFile, "AuditInFile")
 		if audit == nil {
-			return nil, trace.NotFound("read pipe audit file not found")
+			return nil, trace.NotFound("AuditInFile file not found")
 		}
 		cmd.ExtraFiles = []*os.File{out, in, audit}
 	}

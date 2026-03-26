@@ -4579,6 +4579,10 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
+		if err == nil {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
+
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.

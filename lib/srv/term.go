@@ -146,10 +146,9 @@ type terminal struct {
 	// the process running in the shell should be killed.
 	terminateFD *os.File
 
-	// waitForOutputStreams is closed when child reexec and shell processes have
-	// their stderr/stdout fully consumed by io.Copy goroutines. This is necessary
-	// due to the use of custom pipes, which exec.Cmd does not wait for closure of
-	// in Wait().
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
 
 	pid int

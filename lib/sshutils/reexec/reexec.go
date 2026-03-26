@@ -34,7 +34,7 @@ func ReadChildError(stderr io.Reader) (string, error) {
 	// Read the error msg from stderr.
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, io.LimitReader(stderr, maxRead)); err != nil {
-		return "", trace.Wrap(err, "Failed to read error message from child process")
+		return "", trace.Wrap(err, "failed to read error message from child process")
 	}
 
 	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
