@@ -153,7 +153,7 @@ type UsersService interface {
 
 // RateLimiter is a subset of [limiter.RateLimiter].
 type RateLimiter interface {
-	RegisterRequestWithCustomRate(token string, customRate *limiter.RateSet) error
+	RegisterRequest(token string) error
 }
 
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
@@ -1522,7 +1522,7 @@ func (s *Service) emitDeviceLimitEvent(l prehogv1alpha.LicenseLimit) {
 }
 
 func (s *Service) rateLimitByUser(user string) error {
-	return s.limiter.RegisterRequestWithCustomRate(user, nil /* customRate */)
+	return s.limiter.RegisterRequest(user)
 }
 
 func toGRPCCode(err error) string {

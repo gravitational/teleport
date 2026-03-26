@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	osstestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -355,7 +354,7 @@ func (*noopEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error 
 
 type noopLimiter struct{}
 
-func (*noopLimiter) RegisterRequestWithCustomRate(token string, customRate *limiter.RateSet) error {
+func (*noopLimiter) RegisterRequest(token string) error {
 	return nil
 }
 

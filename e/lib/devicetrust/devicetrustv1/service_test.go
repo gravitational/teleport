@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -365,7 +364,7 @@ type alternatingLimiter struct {
 	keys map[string]struct{}
 }
 
-func (l *alternatingLimiter) RegisterRequestWithCustomRate(token string, customRate *limiter.RateSet) error {
+func (l *alternatingLimiter) RegisterRequest(token string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
