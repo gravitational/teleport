@@ -122,9 +122,9 @@ func (r resourceTeleportTrustedCluster) Create(ctx context.Context, req tfsdk.Cr
 		tries = tries + 1
 		trustedClusterI, err = r.p.Client.GetTrustedCluster(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Errorf("Can not convert %T to TrustedClusterV2", trustedClusterI), "trusted_cluster"))
 		return
 	}
+	trustedCluster = trustedClusterResource
+
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

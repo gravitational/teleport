@@ -116,9 +116,9 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		tries = tries + 1
 		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
 				return
 			case <-retry.After():
 			}
@@ -259,7 +259,7 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
 			return
 		case <-retry.After():
 		}
@@ -272,6 +272,8 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 
 	workloadIdentityResource = workloadIdentityI
 	
+	workloadIdentity = workloadIdentityResource
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

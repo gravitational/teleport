@@ -122,9 +122,9 @@ func (r resourceTeleportRole) Create(ctx context.Context, req tfsdk.CreateResour
 		tries = tries + 1
 		roleI, err = r.p.Client.GetRole(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Wrap(ctx.Err()), "role"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Wrap(ctx.Err()), "role"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Wrap(ctx.Err()), "role"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Wrap(ctx.Err()), "role"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Errorf("Can not convert %T to RoleV6", roleI), "role"))
 		return
 	}
+	role = roleResource
+
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -125,9 +125,9 @@ func (r resourceTeleportMember) Create(ctx context.Context, req tfsdk.CreateReso
 		tries = tries + 1
 		accessListMemberI, err = r.p.Client.AccessListClient().GetStaticAccessListMember(ctx, idPrefix, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
 				return
 			case <-retry.After():
 			}
@@ -282,7 +282,7 @@ func (r resourceTeleportMember) Update(ctx context.Context, req tfsdk.UpdateReso
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
 			return
 		case <-retry.After():
 		}
@@ -295,6 +295,8 @@ func (r resourceTeleportMember) Update(ctx context.Context, req tfsdk.UpdateReso
 
 	accessListMemberResource = accessListMemberI
 	
+	accessListMember = convert.ToMemberProto(accessListMemberResource)
+
 	diags = schemav1.CopyMemberToTerraform(ctx, accessListMember, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

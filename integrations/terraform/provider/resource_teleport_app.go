@@ -122,9 +122,9 @@ func (r resourceTeleportApp) Create(ctx context.Context, req tfsdk.CreateResourc
 		tries = tries + 1
 		appI, err = r.p.Client.GetApp(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(ctx.Err()), "app"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(ctx.Err()), "app"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportApp) Update(ctx context.Context, req tfsdk.UpdateResourc
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(ctx.Err()), "app"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Wrap(ctx.Err()), "app"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportApp) Update(ctx context.Context, req tfsdk.UpdateResourc
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Errorf("Can not convert %T to AppV3", appI), "app"))
 		return
 	}
+	app = appResource
+
 	diags = tfschema.CopyAppV3ToTerraform(ctx, app, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

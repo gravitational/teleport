@@ -122,9 +122,9 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.C
 		tries = tries + 1
 		githubConnectorI, err = r.p.Client.GetGithubConnector(ctx, id, true)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(ctx.Err()), "github"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(ctx.Err()), "github"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(ctx.Err()), "github"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(ctx.Err()), "github"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Errorf("Can not convert %T to GithubConnectorV3", githubConnectorI), "github"))
 		return
 	}
+	githubConnector = githubConnectorResource
+
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

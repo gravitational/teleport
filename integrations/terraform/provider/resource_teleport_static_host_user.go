@@ -117,9 +117,9 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 		tries = tries + 1
 		staticHostUserI, err = r.p.Client.StaticHostUserClient().GetStaticHostUser(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading StaticHostUser", trace.Wrap(ctx.Err()), "static_host_user"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 
 	staticHostUserResource = staticHostUserI
 	
+	staticHostUser = staticHostUserResource
+
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

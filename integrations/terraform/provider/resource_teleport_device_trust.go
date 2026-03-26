@@ -119,9 +119,9 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 		tries = tries + 1
 		trustedDeviceI, err = r.p.Client.GetDeviceResource(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
 				return
 			case <-retry.After():
 			}
@@ -261,7 +261,7 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
 			return
 		case <-retry.After():
 		}
@@ -274,6 +274,8 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 
 	trustedDeviceResource = trustedDeviceI
 	
+	trustedDevice = trustedDeviceResource
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -117,9 +117,9 @@ func (r resourceTeleportHealthCheckConfig) Create(ctx context.Context, req tfsdk
 		tries = tries + 1
 		healthCheckConfigI, err = r.p.Client.GetHealthCheckConfig(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 
 	healthCheckConfigResource = healthCheckConfigI
 	
+	healthCheckConfig = healthCheckConfigResource
+
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

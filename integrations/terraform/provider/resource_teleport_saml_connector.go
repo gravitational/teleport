@@ -122,9 +122,9 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 		tries = tries + 1
 		samlConnectorI, err = r.p.Client.GetSAMLConnector(ctx, id, true)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(ctx.Err()), "saml"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Errorf("Can not convert %T to SAMLConnectorV2", samlConnectorI), "saml"))
 		return
 	}
+	samlConnector = samlConnectorResource
+
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

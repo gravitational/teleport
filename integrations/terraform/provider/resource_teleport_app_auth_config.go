@@ -117,9 +117,9 @@ func (r resourceTeleportAppAuthConfig) Create(ctx context.Context, req tfsdk.Cre
 		tries = tries + 1
 		appauthconfigI, err = r.p.Client.GetAppAuthConfig(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AppAuthConfig", trace.Wrap(ctx.Err()), "app_auth_config"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AppAuthConfig", trace.Wrap(ctx.Err()), "app_auth_config"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportAppAuthConfig) Update(ctx context.Context, req tfsdk.Upd
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AppAuthConfig", trace.Wrap(ctx.Err()), "app_auth_config"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AppAuthConfig", trace.Wrap(ctx.Err()), "app_auth_config"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportAppAuthConfig) Update(ctx context.Context, req tfsdk.Upd
 
 	appauthconfigResource = appauthconfigI
 	
+	appauthconfig = appauthconfigResource
+
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

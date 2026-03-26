@@ -123,9 +123,9 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 		tries = tries + 1
 		inferenceSecretI, err = r.p.Client.SummarizerClient().GetInferenceSecret(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(ctx.Err()), "inference_secret"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(ctx.Err()), "inference_secret"))
 				return
 			case <-retry.After():
 			}
@@ -268,7 +268,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(ctx.Err()), "inference_secret"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(ctx.Err()), "inference_secret"))
 			return
 		case <-retry.After():
 		}
@@ -281,6 +281,8 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 
 	inferenceSecretResource = inferenceSecretI
 	
+	inferenceSecret = inferenceSecretResource
+
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
