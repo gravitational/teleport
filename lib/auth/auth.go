@@ -1498,6 +1498,10 @@ type Server struct {
 	// EncryptedIO provides encryption for session related data such as
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
+
+	// anonymizationKey is used to anonymize sensitive data in a consistent way for
+	// use in telemetry and logging without exposing the original values.
+	anonymizationKey []byte
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2552,21 +2556,65 @@ func (a *Server) GetClusterID(ctx context.Context) (string, error) {
 	return clusterName.GetClusterID(), nil
 }
 
-// GetAnonymizationKey returns the anonymization key that identifies this client.
+// InitializeAnonymizationKey initializes the HMAC anonymization key for this auth server.
+// The anonymization key is used for hashing any PII data (like usernames, hostnames, etc.)
+// that may be included in events emitted by this auth server.
 // The anonymization key may be any of the following, in order of precedence:
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
+// If the anonymization key was already initialized, this function is a no-op.
+func (a *Server) InitializeAnonymizationKey() error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if len(a.anonymizationKey) > 0 {
+		// already initialized, no need to do anything
+		return nil
+	}
+
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
-		return string(key), nil
+		a.anonymizationKey = key
+		return nil
 	}
 
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
-		return string(a.license.AnonymizationKey), nil
+		a.anonymizationKey = a.license.AnonymizationKey
+		return nil
 	}
-	id, err := a.GetClusterID(ctx)
-	return id, trace.Wrap(err)
+
+	// load the cluster name from the backend to get the cluster ID for anonymization key generation
+	clusterName, err := a.Services.GetClusterName(a.closeCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id := clusterName.GetClusterID()
+	if len(id) == 0 {
+		// this should never happen since cluster ID is a required field,
+		// but we check just in case to avoid panics and to provide a more helpful error message.
+		return trace.BadParameter("cluster ID is empty, cannot initialize anonymization key")
+	}
+	a.anonymizationKey = []byte(id)
+	return nil
+}
+
+// GetAnonymizationKey returns the anonymization key for this auth server.
+// Before calling this function, InitializeAnonymizationKey should have been called
+// to ensure the key is properly initialized.
+func (a *Server) GetAnonymizationKey() []byte {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	return a.anonymizationKey
+}
+
+// SetAnonymizationKey sets the anonymization key for this auth server.
+// This is only used by Teleport Cloud where the anonymization key can be
+// refreshed.
+func (a *Server) SetAnonymizationKey(key []byte) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.anonymizationKey = key
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
