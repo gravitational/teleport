@@ -1,0 +1,28 @@
+---
+title: tbot-spiffe-daemon-set Chart Reference
+sidebar_label: tbot-spiffe-daemon-set
+description: Values that can be set using the tbot-spiffe-daemon-set Helm chart
+tags:
+ - reference
+ - mwi
+ - infrastructure-identity
+---
+
+This chart deploys `tbot` as a DaemonSet for issuing SPIFFE SVIDs to workloads
+running on the same node. It configures the SPIFFE Workload API via a Unix
+domain socket. This socket can then be mounted into pods for running workloads
+to allow them to receive SPIFFE SVIDs.
+
+To use the chart, follow steps 1 and 2 of the [Deploying `tbot` on Kubernetes
+guide](../../machine-workload-identity/deployment/kubernetes.mdx) to create a
+Bot and join token, then set the following values at minimum:
+
+- `clusterName`: the name of your Teleport cluster
+- `teleportProxyAddress`: the address of your Teleport Proxy Service
+- `token`: the name of the join token you created
+- `workloadIdentitySelector.name`: the name of the WorkloadIdentity resource to
+  use when issuing SVIDs
+
+## Full reference
+
+(!docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx!)
