@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.beams.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
@@ -25,31 +26,41 @@ message Beam {
   // The kind of resource represented. This is always `beam`.
   string kind = 1;
 
-  // Differentiates variations of the same kind. All resources should contain
-  // one, even if it is never populated.
+  // The sub_kind of the resource. Always "".
   string sub_kind = 2;
 
-  // The version of the resource being represented.
+  // The version of the resource. Always "v1".
   string version = 3;
 
-  // Common metadata that all resources share.
+  // Metadata about the beam, including it's server-generated name and labels.
   teleport.header.v1.Metadata metadata = 4;
 
-  // Configuration of the beam.
-  BeamSpecV1 spec = 5;
+  // User-configurable parts of the beam, including its egress and publishing
+  // settings.
+  BeamSpec spec = 5;
 
-  // Status of the beam and its derived resources.
+  // User-immutable status of the beam and its supporting resources.
   BeamStatus status = 6;
 }
 
-// BeamSpecV1 contains the configuration of the beam.
-message BeamSpecV1 {
-  // EgressMode configures outgoing network connectivity from the beam.
+// BeamSpec contains the configuration of the beam.
+message BeamSpec {
+  // Configures outgoing network connectivity from the beam.
   EgressMode egress = 1;
 
-  // AllowedDomains is an allowlist of FQDNs that can be dialed from inside
-  // the beam, when EGRESS_MODE_RESTRICTED is set.
+  // An allow-list of FQDNs that can be dialed from inside the beam. Can only
+  // be provided when EGRESS_MODE_RESTRICTED is set.
   repeated string allowed_domains = 2;
+
+  // Configures how the beam's application will be published.
+  PublishSpec publish = 3;
+
+  // Expiry time of the beam.
+  //
+  // Note: we do not use the `metadata.expires` field for this, because Teleport
+  // is responsible for garbage-collecting the compute resources, so we need the
+  // actual record not to be deleted until we're ready.
+  google.protobuf.Timestamp expires = 4;
 }
 
 // EgressMode configures outgoing network connectivity from the beam.
@@ -66,6 +77,33 @@ enum EgressMode {
   // outgoing network traffic, and it will be able to reach anything on the public
   // internet.
   EGRESS_MODE_UNRESTRICTED = 2;
+}
+
+// PublishSpec configures how the beam's application will be published.
+message PublishSpec {
+  // Beam-local port that will be published. Must be 8080.
+  uint32 port = 1;
+
+  // Protocol of the app that will be published.
+  //
+  // If PROTOCOL_HTTP is provided, the app will be available to web browsers
+  // without running a local tunnel or VNet, with a TLS certificate.
+  //
+  // If PROTOCOL_TCP is provided, the app can be accessed using a local tunnel
+  // or VNet.
+  Protocol protocol = 2;
+}
+
+// Protocol of the app that will be published.
+enum Protocol {
+  // PROTOCOL_UNSPECIFIED is the enum zero value.
+  PROTOCOL_UNSPECIFIED = 0;
+
+  // PROTOCOL_TCP indicates a plain TCP app.
+  PROTOCOL_TCP = 1;
+
+  // PROTOCOL_HTTP indicates an HTTP app.
+  PROTOCOL_HTTP = 2;
 }
 
 // BeamStatus contains the status of the beam and its derived resources.
@@ -109,4 +147,21 @@ message BeamStatus {
   // WorkloadIdentityName is the name of the workload identity used to
   // authenticate the beam's Envoy proxy.
   string workload_identity_name = 11;
+
+  // ComputeStatus represents the current state of the beam's compute resources.
+  ComputeStatus compute_status = 12;
+}
+
+// ComputeStatus represents the current state of the beam's compute resources.
+enum ComputeStatus {
+  // COMPUTE_STATUS_UNSPECIFIED is the enum zero-value.
+  COMPUTE_STATUS_UNSPECIFIED = 0;
+
+  // COMPUTE_STATUS_PROVISION_PENDING means provisioning of the beam's compute
+  // resources may have started, but has not yet completed.
+  COMPUTE_STATUS_PROVISION_PENDING = 1;
+
+  // COMPUTE_STATUS_PROVISION_COMPLETE means provisioning of the beam's compute
+  // resources has completed.
+  COMPUTE_STATUS_PROVISION_COMPLETE = 2;
 }

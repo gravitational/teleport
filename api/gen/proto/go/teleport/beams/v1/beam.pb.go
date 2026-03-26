@@ -24,6 +24,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -93,21 +94,129 @@ func (EgressMode) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{0}
 }
 
+// Protocol of the app that will be published.
+type Protocol int32
+
+const (
+	// PROTOCOL_UNSPECIFIED is the enum zero value.
+	Protocol_PROTOCOL_UNSPECIFIED Protocol = 0
+	// PROTOCOL_TCP indicates a plain TCP app.
+	Protocol_PROTOCOL_TCP Protocol = 1
+	// PROTOCOL_HTTP indicates an HTTP app.
+	Protocol_PROTOCOL_HTTP Protocol = 2
+)
+
+// Enum value maps for Protocol.
+var (
+	Protocol_name = map[int32]string{
+		0: "PROTOCOL_UNSPECIFIED",
+		1: "PROTOCOL_TCP",
+		2: "PROTOCOL_HTTP",
+	}
+	Protocol_value = map[string]int32{
+		"PROTOCOL_UNSPECIFIED": 0,
+		"PROTOCOL_TCP":         1,
+		"PROTOCOL_HTTP":        2,
+	}
+)
+
+func (x Protocol) Enum() *Protocol {
+	p := new(Protocol)
+	*p = x
+	return p
+}
+
+func (x Protocol) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Protocol) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_proto_enumTypes[1].Descriptor()
+}
+
+func (Protocol) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_proto_enumTypes[1]
+}
+
+func (x Protocol) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Protocol.Descriptor instead.
+func (Protocol) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{1}
+}
+
+// ComputeStatus represents the current state of the beam's compute resources.
+type ComputeStatus int32
+
+const (
+	// COMPUTE_STATUS_UNSPECIFIED is the enum zero-value.
+	ComputeStatus_COMPUTE_STATUS_UNSPECIFIED ComputeStatus = 0
+	// COMPUTE_STATUS_PROVISION_PENDING means provisioning of the beam's compute
+	// resources may have started, but has not yet completed.
+	ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING ComputeStatus = 1
+	// COMPUTE_STATUS_PROVISION_COMPLETE means provisioning of the beam's compute
+	// resources has completed.
+	ComputeStatus_COMPUTE_STATUS_PROVISION_COMPLETE ComputeStatus = 2
+)
+
+// Enum value maps for ComputeStatus.
+var (
+	ComputeStatus_name = map[int32]string{
+		0: "COMPUTE_STATUS_UNSPECIFIED",
+		1: "COMPUTE_STATUS_PROVISION_PENDING",
+		2: "COMPUTE_STATUS_PROVISION_COMPLETE",
+	}
+	ComputeStatus_value = map[string]int32{
+		"COMPUTE_STATUS_UNSPECIFIED":        0,
+		"COMPUTE_STATUS_PROVISION_PENDING":  1,
+		"COMPUTE_STATUS_PROVISION_COMPLETE": 2,
+	}
+)
+
+func (x ComputeStatus) Enum() *ComputeStatus {
+	p := new(ComputeStatus)
+	*p = x
+	return p
+}
+
+func (x ComputeStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ComputeStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_proto_enumTypes[2].Descriptor()
+}
+
+func (ComputeStatus) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_proto_enumTypes[2]
+}
+
+func (x ComputeStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ComputeStatus.Descriptor instead.
+func (ComputeStatus) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{2}
+}
+
 // Beam is an ephemeral AI-optimized compute environment.
 type Beam struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The kind of resource represented. This is always `beam`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Differentiates variations of the same kind. All resources should contain
-	// one, even if it is never populated.
+	// The sub_kind of the resource. Always "".
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// The version of the resource being represented.
+	// The version of the resource. Always "v1".
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Common metadata that all resources share.
+	// Metadata about the beam, including it's server-generated name and labels.
 	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// Configuration of the beam.
-	Spec *BeamSpecV1 `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
-	// Status of the beam and its derived resources.
+	// User-configurable parts of the beam, including its egress and publishing
+	// settings.
+	Spec *BeamSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	// User-immutable status of the beam and its supporting resources.
 	Status        *BeamStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -171,7 +280,7 @@ func (x *Beam) GetMetadata() *v1.Metadata {
 	return nil
 }
 
-func (x *Beam) GetSpec() *BeamSpecV1 {
+func (x *Beam) GetSpec() *BeamSpec {
 	if x != nil {
 		return x.Spec
 	}
@@ -185,32 +294,40 @@ func (x *Beam) GetStatus() *BeamStatus {
 	return nil
 }
 
-// BeamSpecV1 contains the configuration of the beam.
-type BeamSpecV1 struct {
+// BeamSpec contains the configuration of the beam.
+type BeamSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// EgressMode configures outgoing network connectivity from the beam.
+	// Configures outgoing network connectivity from the beam.
 	Egress EgressMode `protobuf:"varint,1,opt,name=egress,proto3,enum=teleport.beams.v1.EgressMode" json:"egress,omitempty"`
-	// AllowedDomains is an allowlist of FQDNs that can be dialed from inside
-	// the beam, when EGRESS_MODE_RESTRICTED is set.
+	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
+	// be provided when EGRESS_MODE_RESTRICTED is set.
 	AllowedDomains []string `protobuf:"bytes,2,rep,name=allowed_domains,json=allowedDomains,proto3" json:"allowed_domains,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Configures how the beam's application will be published.
+	Publish *PublishSpec `protobuf:"bytes,3,opt,name=publish,proto3" json:"publish,omitempty"`
+	// Expiry time of the beam.
+	//
+	// Note: we do not use the `metadata.expires` field for this, because Teleport
+	// is responsible for garbage-collecting the compute resources, so we need the
+	// actual record not to be deleted until we're ready.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *BeamSpecV1) Reset() {
-	*x = BeamSpecV1{}
+func (x *BeamSpec) Reset() {
+	*x = BeamSpec{}
 	mi := &file_teleport_beams_v1_beam_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *BeamSpecV1) String() string {
+func (x *BeamSpec) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*BeamSpecV1) ProtoMessage() {}
+func (*BeamSpec) ProtoMessage() {}
 
-func (x *BeamSpecV1) ProtoReflect() protoreflect.Message {
+func (x *BeamSpec) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_beams_v1_beam_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -222,23 +339,98 @@ func (x *BeamSpecV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BeamSpecV1.ProtoReflect.Descriptor instead.
-func (*BeamSpecV1) Descriptor() ([]byte, []int) {
+// Deprecated: Use BeamSpec.ProtoReflect.Descriptor instead.
+func (*BeamSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *BeamSpecV1) GetEgress() EgressMode {
+func (x *BeamSpec) GetEgress() EgressMode {
 	if x != nil {
 		return x.Egress
 	}
 	return EgressMode_EGRESS_MODE_UNSPECIFIED
 }
 
-func (x *BeamSpecV1) GetAllowedDomains() []string {
+func (x *BeamSpec) GetAllowedDomains() []string {
 	if x != nil {
 		return x.AllowedDomains
 	}
 	return nil
+}
+
+func (x *BeamSpec) GetPublish() *PublishSpec {
+	if x != nil {
+		return x.Publish
+	}
+	return nil
+}
+
+func (x *BeamSpec) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
+	}
+	return nil
+}
+
+// PublishSpec configures how the beam's application will be published.
+type PublishSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Beam-local port that will be published. Must be 8080.
+	Port uint32 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
+	// Protocol of the app that will be published.
+	//
+	// If PROTOCOL_HTTP is provided, the app will be available to web browsers
+	// without running a local tunnel or VNet, with a TLS certificate.
+	//
+	// If PROTOCOL_TCP is provided, the app can be accessed using a local tunnel
+	// or VNet.
+	Protocol      Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=teleport.beams.v1.Protocol" json:"protocol,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishSpec) Reset() {
+	*x = PublishSpec{}
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishSpec) ProtoMessage() {}
+
+func (x *PublishSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishSpec.ProtoReflect.Descriptor instead.
+func (*PublishSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *PublishSpec) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *PublishSpec) GetProtocol() Protocol {
+	if x != nil {
+		return x.Protocol
+	}
+	return Protocol_PROTOCOL_UNSPECIFIED
 }
 
 // BeamStatus contains the status of the beam and its derived resources.
@@ -273,13 +465,15 @@ type BeamStatus struct {
 	// WorkloadIdentityName is the name of the workload identity used to
 	// authenticate the beam's Envoy proxy.
 	WorkloadIdentityName string `protobuf:"bytes,11,opt,name=workload_identity_name,json=workloadIdentityName,proto3" json:"workload_identity_name,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// ComputeStatus represents the current state of the beam's compute resources.
+	ComputeStatus ComputeStatus `protobuf:"varint,12,opt,name=compute_status,json=computeStatus,proto3,enum=teleport.beams.v1.ComputeStatus" json:"compute_status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BeamStatus) Reset() {
 	*x = BeamStatus{}
-	mi := &file_teleport_beams_v1_beam_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +485,7 @@ func (x *BeamStatus) String() string {
 func (*BeamStatus) ProtoMessage() {}
 
 func (x *BeamStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beam_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +498,7 @@ func (x *BeamStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeamStatus.ProtoReflect.Descriptor instead.
 func (*BeamStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{2}
+	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BeamStatus) GetUser() string {
@@ -384,22 +578,33 @@ func (x *BeamStatus) GetWorkloadIdentityName() string {
 	return ""
 }
 
+func (x *BeamStatus) GetComputeStatus() ComputeStatus {
+	if x != nil {
+		return x.ComputeStatus
+	}
+	return ComputeStatus_COMPUTE_STATUS_UNSPECIFIED
+}
+
 var File_teleport_beams_v1_beam_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\n" +
-	"\x1cteleport/beams/v1/beam.proto\x12\x11teleport.beams.v1\x1a!teleport/header/v1/metadata.proto\"\xf3\x01\n" +
+	"\x1cteleport/beams/v1/beam.proto\x12\x11teleport.beams.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xf1\x01\n" +
 	"\x04Beam\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x121\n" +
-	"\x04spec\x18\x05 \x01(\v2\x1d.teleport.beams.v1.BeamSpecV1R\x04spec\x125\n" +
-	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"l\n" +
-	"\n" +
-	"BeamSpecV1\x125\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12/\n" +
+	"\x04spec\x18\x05 \x01(\v2\x1b.teleport.beams.v1.BeamSpecR\x04spec\x125\n" +
+	"\x06status\x18\x06 \x01(\v2\x1d.teleport.beams.v1.BeamStatusR\x06status\"\xda\x01\n" +
+	"\bBeamSpec\x125\n" +
 	"\x06egress\x18\x01 \x01(\x0e2\x1d.teleport.beams.v1.EgressModeR\x06egress\x12'\n" +
-	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\"\xf8\x02\n" +
+	"\x0fallowed_domains\x18\x02 \x03(\tR\x0eallowedDomains\x128\n" +
+	"\apublish\x18\x03 \x01(\v2\x1e.teleport.beams.v1.PublishSpecR\apublish\x124\n" +
+	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"Z\n" +
+	"\vPublishSpec\x12\x12\n" +
+	"\x04port\x18\x01 \x01(\rR\x04port\x127\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2\x1b.teleport.beams.v1.ProtocolR\bprotocol\"\xc1\x03\n" +
 	"\n" +
 	"BeamStatus\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x14\n" +
@@ -414,12 +619,21 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x0fjoin_token_name\x18\t \x01(\tR\rjoinTokenName\x122\n" +
 	"\x15delegation_session_id\x18\n" +
 	" \x01(\tR\x13delegationSessionId\x124\n" +
-	"\x16workload_identity_name\x18\v \x01(\tR\x14workloadIdentityName*c\n" +
+	"\x16workload_identity_name\x18\v \x01(\tR\x14workloadIdentityName\x12G\n" +
+	"\x0ecompute_status\x18\f \x01(\x0e2 .teleport.beams.v1.ComputeStatusR\rcomputeStatus*c\n" +
 	"\n" +
 	"EgressMode\x12\x1b\n" +
 	"\x17EGRESS_MODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16EGRESS_MODE_RESTRICTED\x10\x01\x12\x1c\n" +
-	"\x18EGRESS_MODE_UNRESTRICTED\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\x18EGRESS_MODE_UNRESTRICTED\x10\x02*I\n" +
+	"\bProtocol\x12\x18\n" +
+	"\x14PROTOCOL_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fPROTOCOL_TCP\x10\x01\x12\x11\n" +
+	"\rPROTOCOL_HTTP\x10\x02*|\n" +
+	"\rComputeStatus\x12\x1e\n" +
+	"\x1aCOMPUTE_STATUS_UNSPECIFIED\x10\x00\x12$\n" +
+	" COMPUTE_STATUS_PROVISION_PENDING\x10\x01\x12%\n" +
+	"!COMPUTE_STATUS_PROVISION_COMPLETE\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var (
 	file_teleport_beams_v1_beam_proto_rawDescOnce sync.Once
@@ -433,25 +647,33 @@ func file_teleport_beams_v1_beam_proto_rawDescGZIP() []byte {
 	return file_teleport_beams_v1_beam_proto_rawDescData
 }
 
-var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_beams_v1_beam_proto_goTypes = []any{
-	(EgressMode)(0),     // 0: teleport.beams.v1.EgressMode
-	(*Beam)(nil),        // 1: teleport.beams.v1.Beam
-	(*BeamSpecV1)(nil),  // 2: teleport.beams.v1.BeamSpecV1
-	(*BeamStatus)(nil),  // 3: teleport.beams.v1.BeamStatus
-	(*v1.Metadata)(nil), // 4: teleport.header.v1.Metadata
+	(EgressMode)(0),               // 0: teleport.beams.v1.EgressMode
+	(Protocol)(0),                 // 1: teleport.beams.v1.Protocol
+	(ComputeStatus)(0),            // 2: teleport.beams.v1.ComputeStatus
+	(*Beam)(nil),                  // 3: teleport.beams.v1.Beam
+	(*BeamSpec)(nil),              // 4: teleport.beams.v1.BeamSpec
+	(*PublishSpec)(nil),           // 5: teleport.beams.v1.PublishSpec
+	(*BeamStatus)(nil),            // 6: teleport.beams.v1.BeamStatus
+	(*v1.Metadata)(nil),           // 7: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
 }
 var file_teleport_beams_v1_beam_proto_depIdxs = []int32{
-	4, // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
-	2, // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpecV1
-	3, // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
-	0, // 3: teleport.beams.v1.BeamSpecV1.egress:type_name -> teleport.beams.v1.EgressMode
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	7, // 0: teleport.beams.v1.Beam.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 1: teleport.beams.v1.Beam.spec:type_name -> teleport.beams.v1.BeamSpec
+	6, // 2: teleport.beams.v1.Beam.status:type_name -> teleport.beams.v1.BeamStatus
+	0, // 3: teleport.beams.v1.BeamSpec.egress:type_name -> teleport.beams.v1.EgressMode
+	5, // 4: teleport.beams.v1.BeamSpec.publish:type_name -> teleport.beams.v1.PublishSpec
+	8, // 5: teleport.beams.v1.BeamSpec.expires:type_name -> google.protobuf.Timestamp
+	1, // 6: teleport.beams.v1.PublishSpec.protocol:type_name -> teleport.beams.v1.Protocol
+	2, // 7: teleport.beams.v1.BeamStatus.compute_status:type_name -> teleport.beams.v1.ComputeStatus
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_proto_init() }
@@ -464,8 +686,8 @@ func file_teleport_beams_v1_beam_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_proto_rawDesc), len(file_teleport_beams_v1_beam_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   3,
+			NumEnums:      3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

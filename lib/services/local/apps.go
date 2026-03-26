@@ -150,16 +150,11 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.MarshalApp(app)
+	item, err := itemFromApp(app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.NewKey(appPrefix, app.GetName()),
-		Value:   value,
-		Expires: app.Expiry(),
-	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(ctx, *item)
 	if trace.IsAlreadyExists(err) {
 		return trace.AlreadyExists("app %q already exists", app.GetName())
 	}
@@ -168,6 +163,18 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func itemFromApp(app types.Application) (*backend.Item, error) {
+	value, err := services.MarshalApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:     backend.NewKey(appPrefix, app.GetName()),
+		Value:   value,
+		Expires: app.Expiry(),
+	}, nil
 }
 
 // UpdateApp updates an existing application resource.

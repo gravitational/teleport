@@ -143,12 +143,40 @@ func TestValidateBeam(t *testing.T) {
 			},
 			err: `spec.allowed_domains[0]: "localhost." must be a fully qualified domain name ending with '.'`,
 		},
+		"invalid publish port": {
+			beam: testBeam("beam-alias"),
+			modFn: func(b *beamsv1.Beam) {
+				b.Spec.Publish.Port = 9090
+			},
+			err: `spec.publish.port: must be 8080`,
+		},
+		"invalid publish protocol": {
+			beam: testBeam("beam-alias"),
+			modFn: func(b *beamsv1.Beam) {
+				b.Spec.Publish.Protocol = beamsv1.Protocol(9999)
+			},
+			err: `spec.publish.protocol: must be HTTP or TCP`,
+		},
+		"missing expires": {
+			beam: testBeam("beam-alias"),
+			modFn: func(b *beamsv1.Beam) {
+				b.Spec.Expires = nil
+			},
+			err: "spec.expires: is required",
+		},
 		"missing status": {
 			beam: testBeam("beam-alias"),
 			modFn: func(b *beamsv1.Beam) {
 				b.Status = nil
 			},
 			err: "status: is required",
+		},
+		"invalid alias": {
+			beam: testBeam("beam-alias"),
+			modFn: func(b *beamsv1.Beam) {
+				b.Status.Alias = "beam-123"
+			},
+			err: "beam alias must be a hyphen-separated pair of two lowercase words",
 		},
 	}
 
@@ -171,12 +199,16 @@ func testBeam(alias string) *beamsv1.Beam {
 		Kind:    types.KindBeam,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:    uuid.NewString(),
-			Expires: timestamppb.New(time.Now().Add(time.Hour)),
+			Name: uuid.NewString(),
 		},
-		Spec: &beamsv1.BeamSpecV1{
+		Spec: &beamsv1.BeamSpec{
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_RESTRICTED,
 			AllowedDomains: []string{"example.com."},
+			Publish: &beamsv1.PublishSpec{
+				Port:     8080,
+				Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
+			},
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
 		},
 		Status: &beamsv1.BeamStatus{
 			User:  "alice",
