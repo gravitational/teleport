@@ -3,7 +3,10 @@ title: Teleport Users with Zero Standing Privileges
 sidebar_label: Zero Standing Privileges
 enterprise: Identity Governance
 tags:
+ - access-requests
+ - conceptual
  - identity-governance
+ - privileged-access
 description: Shows you how to configure Teleport roles to require an Access Request for any Teleport access at all.
 ---
 
@@ -16,6 +19,14 @@ approval.
 
 This guide explains the options that allow you to configure Teleport users
 without standing privileges.
+
+<Admonition type="tip">
+
+This guide describes configuration options that require a user to request access
+when signing in to Teleport. To configure the kinds of access a user can
+request, see [Configuring Access Request Creation](requesting.mdx).
+
+</Admonition>
 
 ## Configuration fields
 
@@ -49,6 +60,10 @@ spec:
     request_access: reason
     request_prompt: Please provide your ticket ID
 ```
+
+If you want to configure a user with standing privileges to require a reason
+before making a request for specific roles or resources, configure [request
+reason modes](reviewing.mdx#requiring-request-reasons) instead.
 
 ## Access strategies
 
@@ -87,4 +102,6 @@ refreshes and they can see the resources available to their new role.
 
 Users authenticating with `tsh` have a similar experience: if their access
 strategy is `reason`, they see a prompt to enter a reason. If it is `always`,
-`tsh` creates an Access Request for them immediately.
+`tsh` creates an Access Request for them immediately. (See the [`tsh` CLI
+Reference](../../../reference/cli/tsh.mdx#tsh-login) for more information about
+`tsh login`.)

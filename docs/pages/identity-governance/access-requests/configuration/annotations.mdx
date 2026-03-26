@@ -3,6 +3,12 @@ title: Access Request Annotations
 sidebar_label: Annotations
 sidebar_position: 4
 description: Explains how to include annotations in Access Requests for use with Teleport plugins.
+tags:
+ - access-requests
+ - conceptual
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
 ---
 
 When a user creates an Access Request, the Teleport Auth Service can write
@@ -21,7 +27,7 @@ annotations:
 |---|---|---|
 |Pagerduty|`pagerduty_notify_service`, `pagerduty_services`|Opens an incident in the service named in `pagerduty_notify_service` when a user submits an Access Request. If a user is on the on-call rotation for a service named in `pagerduty_services`, Teleport will approve any Access Request opened by the user.|
 |Opsgenie|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
-|ServiceNow|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
+|ServiceNow|`teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for one of the services listed in `teleport.dev/schedules`.|
 
 ## Allowing and denying annotations
 
