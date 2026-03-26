@@ -33,12 +33,12 @@ export default function ActionMenu(props: Props) {
       }}
       menuProps={menuProps}
     >
-      {showShareDirectory && (
-        <MenuItem onClick={onShareDirectory}>
-          <MenuItemIcon as={Icons.FolderPlus} mr="2" />
-          Share Directory
-        </MenuItem>
-      )}
+       {showShareDirectory && (
+         <MenuItem onClick={onShareDirectory}>
+           <MenuItemIcon as={Icons.FolderPlus} mr="2" />
+           Share Directory
+         </MenuItem>
+       )}
       <MenuItem onClick={onCtrlAltDel}>
         <MenuItemIcon as={Icons.Keyboard} mr="2" />
         Send Ctrl+Alt+Del

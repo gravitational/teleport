@@ -73,17 +73,17 @@ export default function TopBar(props: Props) {
             )}
             placement="bottom"
           >
-          <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+          <SharedDirectoryList sharedDirectories={sharedDirectories} onRemoveSharedDirectory={onRemoveSharedDirectory} onAddSharedDirectory={onShareDirectory}/>
+          {/*<FolderShared style={primaryOnTrue(isSharingDirectory)} />*/}
           </HoverTooltip>
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-          <SharedDirectoryList sharedDirectories={sharedDirectories} onRemoveSharedDirectory={onRemoveSharedDirectory}/>
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />          
           <ActionMenu
-            onDisconnect={onDisconnect}
-            showShareDirectory={canShareDirectory && !isSharingDirectory}
+            showShareDirectory={canShareDirectory}
             onShareDirectory={onShareDirectory}
+            onDisconnect={onDisconnect}
             onCtrlAltDel={onCtrlAltDel}
           />
         </Flex>
@@ -100,9 +100,9 @@ function directorySharingToolTip(
     return 'Directory Sharing Disabled';
   }
   if (!isSharing) {
-    return 'Directory Sharing Inactive';
+    return 'Add Shared Directory';
   }
-  return 'Directory Sharing Enabled';
+  return 'Add or Remove Shared Directory';
 }
 
 type Props = {

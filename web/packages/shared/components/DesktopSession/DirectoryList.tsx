@@ -18,55 +18,64 @@
 
 import styled from 'styled-components';
 
-import { Flex, H2, Text, Toggle } from 'design';
-import { FolderPlus, Trash } from 'design/Icon';
+import { Flex, H2, Text, Toggle, Stack } from 'design';
+import { ButtonWarningBorder , ButtonBorder} from 'design/Button/Button';
+import { FolderShared, Trash, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
     sharedDirectories: DirectoryItem[],
     onRemoveSharedDirectory: (number) => void;
+    onAddSharedDirectory: () => void;
 }
 
 export function SharedDirectoryList({
   sharedDirectories,
   onRemoveSharedDirectory,
-}: SharedDirectoriesProps) {
-
-    console.log("shared directories" + sharedDirectories)
-    //const sharedDirectoryList = sharedDirectories.map(directory => (
-    //     <Toggle
-    //        isToggled={true}
-    //        onToggle={() => {onRemoveSharedDirectory(directory.DirectoryId)}}
-    //    ></Toggle>
-    //))
-    const sharedDirectoryList = sharedDirectories.map(directory => (
-    <Flex key={directory.DirectoryId} alignItems="center" gap={2}>
-        <span>{directory.Name}</span>
-        <button onClick={() => onRemoveSharedDirectory(directory.DirectoryId)}>
-            <Trash />
-        </button>
-    </Flex>
-))
-
+  onAddSharedDirectory,
+}: SharedDirectoriesProps) {     
   return (
-    <MenuIcon Icon={FolderPlus} tooltip="New Shared Directory">
+    <MenuIcon Icon={FolderShared}>
       <Container>
-        <Flex
-          gap={2}
-          flexDirection="column"
-          onClick={e => {
-            // Stop the menu from closing when clicking inside the settings container.
-            e.stopPropagation();
-          }}
-        >
+
+        <Stack gap={1} fullWidth>
+        {/* Header row */}
         
-        <H2 mb={2}>Shared Directories</H2>
-
-        <>
-        {sharedDirectoryList}
-        </>
-
+        <Flex justifyContent="space-between" alignItems="center">
+          <Text typography="h4">Shared Directories</Text>
+          <ButtonBorder
+            size="small"
+            p={1}
+            minWidth={0}
+            height="auto"
+            onClick={onAddSharedDirectory}
+            compact={true}
+            $inputAlignment={false}
+          >
+            <Plus size="small" />
+          </ButtonBorder>
         </Flex>
+
+        {/* Directory list */}
+        <Stack gap={1} fullWidth>
+          {sharedDirectories.map(dir => (
+            <Flex key={dir.DirectoryId} justifyContent="space-between" alignItems="center">
+              <Text>{dir.Name}</Text>
+              <ButtonWarningBorder
+                size="small"
+                p={1}
+                minWidth={0}
+                height="auto"
+                title={'Unshare Directory'}                
+                onClick={() => onRemoveSharedDirectory(dir.DirectoryId)}
+              >
+            <Trash size="small" />
+          </ButtonWarningBorder>          
+            </Flex>
+          ))}
+        </Stack>
+      </Stack>
+
       </Container>
     </MenuIcon>
   );

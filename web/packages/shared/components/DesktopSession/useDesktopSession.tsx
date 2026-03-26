@@ -154,24 +154,10 @@ export default function useDesktopSession(
   };
 
   const onRemoveSharedDirectory = async (directoryId: number) => {
-    let i = 0;
-    for (; i < sharedDirectories.length; i++) {
-      if (sharedDirectories[i].DirectoryId == directoryId) {
-        break;
-      }
-    }
-
-    
-
-    if (i >= sharedDirectories.length) {
-      // DirectoryId not found
-      return;
-    }
-
     try {
       await tdpClient.unshareDirectory(directoryId);
-      sharedDirectories.splice(i, 1)
-      setSharedDirectories(sharedDirectories)
+      const newDirectories = sharedDirectories.filter((val) => val.DirectoryId != directoryId)
+      setSharedDirectories(newDirectories)
     } catch (e) {
       if (isAbortError(e)) {
         return;
