@@ -375,8 +375,6 @@ func newAccountRecoveryLimiter() (*limiter.RateLimiter, error) {
 	})
 }
 
-// accountRecoveryEndpoints is the set of gRPC methods that are subject
-// to the dedicated account recovery rate limiter.
 // rateLimitUnaryInterceptor returns a gRPC unary interceptor that
 // applies the default rate and connection limiter to all endpoints,
 // plus the stricter account recovery limiter on recovery endpoints.
