@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -1491,6 +1492,169 @@ func TestUserSessionRoleNotFoundError(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, checker)
 	})
+}
+
+func TestDelegationSessionResourceRestrictions(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.Wildcard}),
+			types.NewRule(types.KindApp, []string{types.Wildcard}),
+			types.NewRule(types.KindAppServer, []string{types.Wildcard}),
+			types.NewRule(types.KindDatabase, []string{types.Wildcard}),
+			types.NewRule(types.KindDatabaseServer, []string{types.Wildcard}),
+			types.NewRule(types.KindKubernetesCluster, []string{types.Wildcard}),
+			types.NewRule(types.KindKubeServer, []string{types.Wildcard}),
+		})
+	})
+
+	tests := []struct {
+		name            string
+		allowedResource types.ResourceID
+		resource        string
+		verb            string
+		assertAccess    require.ErrorAssertionFunc
+	}{
+		{
+			name: "unrelated resource kind denies create",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindToken,
+			verb:     types.VerbCreate,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "unrelated resource kind denies read",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindToken,
+			verb:     types.VerbRead,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "matching resource kind allows read",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbRead,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind allows list",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind allows read without secrets",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindApp,
+			verb:         types.VerbReadNoSecrets,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "matching resource kind denies create",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource: types.KindApp,
+			verb:     types.VerbCreate,
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "app implies app_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindApp,
+				Name:        "hr-system",
+			},
+			resource:     types.KindAppServer,
+			verb:         types.VerbRead,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "database implies db_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindDatabase,
+				Name:        "payments",
+			},
+			resource:     types.KindDatabaseServer,
+			verb:         types.VerbReadNoSecrets,
+			assertAccess: require.NoError,
+		},
+		{
+			name: "kubernetes cluster implies kube_server",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindKubernetesCluster,
+				Name:        "dev-kube",
+			},
+			resource:     types.KindKubeServer,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+				DelegationSessionID: "delegation-session",
+				AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					tc.allowedResource,
+				}),
+			}, "cluster", NewRoleSet(role))
+
+			err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, tc.resource, tc.verb)
+			tc.assertAccess(t, err)
+
+			err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, tc.resource, tc.verb)
+			tc.assertAccess(t, err)
+		})
+	}
+}
+
+func TestDelegationSessionWithoutResourceIDsDoesNotDenyRuleChecks(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			types.NewRule(types.KindToken, []string{types.VerbCreate}),
+		})
+	})
+
+	checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+		DelegationSessionID: "delegation-session",
+	}, "cluster", NewRoleSet(role))
+
+	err := checker.CheckAccessToRule(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
+
+	err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
+	require.NoError(t, err)
 }
 
 // mockRoleGetter implements RoleGetter for testing

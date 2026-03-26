@@ -267,11 +267,17 @@ func (*DelegationUserSpec_BotName) isDelegationUserSpec_Matcher() {}
 // or workload will be allowed to access on behalf of the user.
 type DelegationResourceSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Kind of resource. A wildcard (kind="*", name="*") may be specified to allow
-	// the bot or workload to use all of the user's permissions.
+	// Kind of resource.
+	//
+	// A wildcard (kind="*", name="*") may be specified to allow the bot or
+	// workload to use all of the user's permissions, including administrative
+	// permissions.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Name of the resource. A wildcard (kind="*", name="*") may be specified to
-	// allow the bot or workload to use all of the user's permissions.
+	// Name of the resource.
+	//
+	// A wildcard (kind="*", name="*") may be specified to allow the bot or
+	// workload to use all of the user's permissions, including administrative
+	// permissions.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Types that are valid to be assigned to Constraints:
 	//

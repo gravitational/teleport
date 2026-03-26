@@ -473,6 +473,11 @@ func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	return c.checker.info
 }
 
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (c *ScopedAccessChecker) DelegationSessionID() string {
+	return c.checker.info.DelegationSessionID
+}
+
 // HostSudoers returns the sudoers rules for the host.
 func (c *ScopedAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	// scoped roles do not currently support host sudoers, but we don't currently foresee
