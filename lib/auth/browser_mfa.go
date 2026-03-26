@@ -20,12 +20,18 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/internal/browsermfa"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // CompleteBrowserMFAChallenge completes an MFA challenge response by returning the redirect URL with encrypted response.
@@ -49,7 +55,7 @@ func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID stri
 	}
 
 	// Valid WebAuthn response, encrypt and return it
-	u, err := url.Parse(mfaSession.ClientRedirectURL)
+	u, err := url.Parse(mfaSession.TSHRedirectURL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -61,4 +67,40 @@ func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID stri
 	}
 
 	return clientRedirectURL, nil
+}
+
+// BeginBrowserMFAChallenge creates a new Browser MFA auth request and session
+// data for the given params and stores it in the backend.
+func (a *Server) BeginBrowserMFAChallenge(ctx context.Context, params mfatypes.BeginBrowserMFAChallengeParams) (*proto.BrowserMFAChallenge, error) {
+	if err := sso.ValidateClientRedirect(params.BrowserMFATSHRedirectURL, sso.CeremonyTypeMFA, nil); err != nil {
+		return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
+	}
+
+	requestID := uuid.NewString()
+	browserChal := &proto.BrowserMFAChallenge{
+		RequestId: requestID,
+	}
+
+	sessionData := &services.MFASessionData{
+		Username:       params.User,
+		RequestID:      requestID,
+		ConnectorID:    constants.BrowserMFA,
+		ConnectorType:  constants.BrowserMFA,
+		TSHRedirectURL: params.BrowserMFATSHRedirectURL,
+		ChallengeExtensions: &mfatypes.ChallengeExtensions{
+			Scope:      params.Ext.Scope,
+			AllowReuse: params.Ext.AllowReuse,
+		},
+		SourceCluster: params.SourceCluster,
+		TargetCluster: params.TargetCluster,
+		Payload: &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: params.SIP.GetSshSessionId(),
+		},
+	}
+
+	if err := a.UpsertMFASessionData(ctx, sessionData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return browserChal, nil
 }
