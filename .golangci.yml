@@ -23,6 +23,23 @@ linters:
   settings:
     depguard:
       rules:
+        api_constants_defaults:
+          files:
+            - '!$test'
+            - '${config-path}/api/*'
+            - '${config-path}/api/constants/*'
+            - '${config-path}/api/defaults/*'
+          list-mode: strict
+          allow:
+            - 'encoding/json$'
+            - 'github.com/coreos/go-semver/semver$'
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/trace$'
+            - 'os$'
+            - 'sync$'
+            - 'time$'
         cgo:
           files:
             - '!$test'
@@ -187,6 +204,21 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        session_submodule:
+          files:
+            - '${config-path}/session/**'
+          list-mode: lax
+          allow:
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/teleport/session/'
+            - 'github.com/gravitational/teleport/session$'
+          deny:
+            - pkg: 'github.com/gravitational/teleport/'
+              desc: the session submodule cannot import packages from the other modules
+            - pkg: 'github.com/gravitational/teleport$'
+              desc: the session submodule cannot import packages from the other modules
         test_packages:
           files:
             - '!$test'
@@ -383,14 +415,14 @@ linters:
         - suite-extra-assert-call
         - suite-thelper
     usetesting:
-        context-todo: true
-        # TODO: Enable the following after the issues are fixed.
-        context-background: false
-        os-chdir: false
-        os-create-temp: false
-        os-mkdir-temp: false
-        os-setenv: false
-        os-temp-dir: false
+      context-todo: true
+      # TODO: Enable the following after the issues are fixed.
+      context-background: false
+      os-chdir: false
+      os-create-temp: false
+      os-mkdir-temp: false
+      os-setenv: false
+      os-temp-dir: false
   exclusions:
     generated: lax
     presets:
