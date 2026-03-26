@@ -82,6 +82,7 @@ export function ReviewAccessRequest(props: {
               mr={2}
               size="large"
               onClick={props.goBack}
+              title="View access requests"
               style={{ textDecoration: 'none', cursor: 'pointer' }}
             />
             <Text>{`Request: ${props.requestId}`}</Text>
