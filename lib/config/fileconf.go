@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -1084,6 +1083,8 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 // resource.
 type StaticScopedTokens []StaticScopedToken
 
+// Parse converts [StaticScopedTokens] into [*joiningv1.StaticScopedTokens] so
+// they can be used to provision static scoped tokens.
 func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 	var scopedTokens []*joiningv1.ScopedToken
 	for _, st := range t {
@@ -1107,19 +1108,23 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 			return nil, trace.Wrap(err)
 		}
 
+		immutableLabels, err := st.ImmutableLabels.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		scopedToken := &joiningv1.ScopedToken{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
 			Metadata: &headerv1.Metadata{
-				Name:    st.Name,
-				Expires: timestamppb.New(time.Unix(0, 0).UTC()),
+				Name: st.Name,
 			},
 			Scope: scopes.Root,
 			Spec: &joiningv1.ScopedTokenSpec{
-				Roles:         roles.StringSlice(),
-				AssignedScope: st.Scope,
-				JoinMethod:    string(types.JoinMethodToken),
-				UsageMode:     string(joining.TokenUsageModeUnlimited),
+				Roles:           roles.StringSlice(),
+				AssignedScope:   st.Scope,
+				JoinMethod:      string(types.JoinMethodToken),
+				UsageMode:       string(joining.TokenUsageModeUnlimited),
+				ImmutableLabels: immutableLabels,
 			},
 			Status: &joiningv1.ScopedTokenStatus{
 				Secret: st.Secret,
@@ -1146,14 +1151,32 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 	}, nil
 }
 
+// ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
+type ImmutableLabels struct {
+	SSH map[string]string `yaml:"ssh"`
+}
+
+// Parse converts [ImmutableLabels] into [*joininv1.ImmutableLabels] so they
+// can be used to provision static scoped tokens.
+func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
+	if il == nil {
+		return nil, nil
+	}
+
+	return &joiningv1.ImmutableLabels{
+		Ssh: il.SSH,
+	}, nil
+}
+
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
 // yaml configuration that can be used to generate a [joiningv1.ScopedToken].
 type StaticScopedToken struct {
-	Name   string   `yaml:"name"`
-	Secret string   `yaml:"secret"`
-	Roles  []string `yaml:"roles"`
-	Scope  string   `yaml:"scope"`
-	Path   string   `yaml:"path"`
+	Name            string           `yaml:"name"`
+	Secret          string           `yaml:"secret"`
+	Roles           []string         `yaml:"roles"`
+	Scope           string           `yaml:"scope"`
+	Path            string           `yaml:"path"`
+	ImmutableLabels *ImmutableLabels `yaml:"immutable_labels"`
 }
 
 // Validate whether or not a [StaticScopedToken] is well formed.
@@ -1196,6 +1219,13 @@ type AuthenticationConfig struct {
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
+
+	// AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+	// authenticating CLI sessions.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowCLIAuthViaBrowser *types.BoolOption `yaml:"allow_cli_auth_via_browser"`
 
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
@@ -1290,6 +1320,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowLocalAuth:          a.LocalAuth,
 		AllowPasswordless:       a.Passwordless,
 		AllowHeadless:           a.Headless,
+		AllowCLIAuthViaBrowser:  a.AllowCLIAuthViaBrowser,
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
@@ -1843,11 +1874,14 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// CgroupPath controls where cgroupv2 hierarchy is mounted.
+	// Deprecated: CgroupPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// RootPath root directory for the Teleport cgroups.
-	// Optional, defaults to /teleport
+	// Deprecated: RootPath is not consumed and only exists for
+	// backwards compatibility with existing config files that may
+	// have it specified.
 	RootPath string `yaml:"root_path"`
 }
 
@@ -1859,8 +1893,6 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
-		CgroupPath:        b.CgroupPath,
-		RootPath:          b.RootPath,
 	}
 }
 
@@ -2895,8 +2927,8 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
 	// LocateServer is the config that enables LDAP server location using DNS SRV records.
 	LocateServer `yaml:"locate_server"`
 }

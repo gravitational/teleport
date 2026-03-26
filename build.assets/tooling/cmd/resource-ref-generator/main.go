@@ -28,11 +28,13 @@ import (
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/resource-ref-generator/reference"
 )
 
-const tmplBase = "reference.tmpl"
-
 var tmplPath = filepath.Join("reference", tmplBase)
 
-const configHelp string = `The path to a YAML configuration file (see the README)`
+const (
+	tmplBase              = "reference.tmpl"
+	configHelp            = `The path to a YAML configuration file (see the README)`
+	teleportPackagePrefix = "github.com/gravitational/teleport"
+)
 
 func main() {
 	conf := flag.String("config", "conf.yaml", configHelp)
@@ -56,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = reference.Generate(genconf, tmpl)
+	err = reference.Generate(teleportPackagePrefix, genconf, tmpl)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the resource reference: %v\n", err)
 		os.Exit(1)

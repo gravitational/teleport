@@ -24,6 +24,10 @@ interface State {
   items: Document[];
 }
 
+function normalizeUrl(value: string): string {
+  return value.length > 1 && value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
 export default class StoreDocs extends Store<State> {
   state: State = {
     items: [],
@@ -85,7 +89,11 @@ export default class StoreDocs extends Store<State> {
   }
 
   findByUrl(url: string) {
-    return this.state.items.find(i => encodeURI(i.url.split('?')[0]) === url);
+    const target = normalizeUrl(url);
+
+    return this.state.items.find(
+      i => normalizeUrl(encodeURI(i.url.split('?')[0])) === target
+    );
   }
 
   getNodeDocuments() {

@@ -64,12 +64,12 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 // CreateValidatedMFAChallenge persists the ValidatedMFAChallenge resource.
 func (s *MFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
+	targetCluster string,
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chal == nil:
 		return nil, trace.BadParameter("param chal must not be nil")
 	}
@@ -80,8 +80,12 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	if challenge.Spec.GetTargetCluster() != targetCluster {
+		return nil, trace.BadParameter("param targetCluster does not match challenge target cluster")
+	}
+
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
 	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
@@ -97,18 +101,18 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 // GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource.
 func (s *MFAService) GetValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
+	targetCluster string,
 	chalName string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chalName == "":
 		return nil, trace.BadParameter("param chalName must not be empty")
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	res, err := svc.GetResource(ctx, chalName)
 	if err != nil {
@@ -116,6 +120,34 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	}
 
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
+}
+
+// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources.
+func (s *MFAService) ListValidatedMFAChallenges(
+	ctx context.Context,
+	pageSize int32,
+	pageToken string,
+	targetCluster string,
+) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	svc := s.service
+
+	if targetCluster != "" {
+		// Scope listing by target cluster when provided to avoid scanning unrelated keys.
+		svc = svc.WithPrefix(targetCluster)
+	}
+
+	internalChallenges, nextPageToken, err := svc.ListResources(ctx, int(pageSize), pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(internalChallenges))
+
+	for _, chal := range internalChallenges {
+		challenges = append(challenges, (*mfav1.ValidatedMFAChallenge)(chal))
+	}
+
+	return challenges, nextPageToken, nil
 }
 
 // validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
@@ -183,6 +215,8 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 		return trace.BadParameter("source_cluster must be set")
 	case chal.Spec.TargetCluster == "":
 		return trace.BadParameter("target_cluster must be set")
+	case chal.Spec.Username == "":
+		return trace.BadParameter("username must be set")
 	default:
 		return nil
 	}

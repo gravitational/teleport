@@ -618,7 +618,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnroll,
+    path: cfg.routes.integrationEnrollNew,
     exact: false,
     component: IntegrationEnroll,
   };
@@ -819,7 +819,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -953,6 +953,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureManagedUpdates(),
@@ -965,7 +966,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureWorkloadIdentity(),
 
     // - Audit

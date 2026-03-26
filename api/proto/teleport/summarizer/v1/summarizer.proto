@@ -322,6 +322,8 @@ message CommandAnalysis {
   google.protobuf.Duration start_offset = 21;
   // EndOffset is the end time of the command, relative to the start of the session.
   google.protobuf.Duration end_offset = 22;
+  // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
+  string inference_error_message = 23;
 }
 
 // SecurityRecommendation represents a security recommendation related to a command
@@ -341,6 +343,9 @@ enum NeedsReviewReason {
   NEEDS_REVIEW_REASON_UNSPECIFIED = 0;
   // NeedsReviewReasonTooLarge indicates that the session is too large to be fully analyzed.
   NEEDS_REVIEW_REASON_TOO_LARGE = 1;
+  // NeedsReviewReasonCommandAnalysisFailed indicates that one or more commands failed to be analyzed by the
+  // inference provider.
+  NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED = 2;
 }
 
 // EnhancedSummary represents an enhanced summary of a session recording,

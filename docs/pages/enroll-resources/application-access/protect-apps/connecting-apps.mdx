@@ -139,7 +139,7 @@ Application Service:
    (!docs/pages/includes/create-role-using-web.mdx!)
 
    When `appuser` attempts to access the application you enrolled earlier
-   through the Teleport Web UI, the the Teleport Proxy Service forwards the
+   through the Teleport Web UI, the Teleport Proxy Service forwards the
    request with a Teleport-signed JSON web token to the Teleport Application
    Service. The Application Service checks the user's roles and, since the value
    of `allow.app_labels` matches one of the labels assigned to the application,

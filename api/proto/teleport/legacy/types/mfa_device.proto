@@ -52,6 +52,7 @@ message MFADevice {
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
     SSOMFADevice sso = 11;
+    BrowserMFADevice browser = 12;
   }
 }
 
@@ -125,3 +126,8 @@ message SSOMFADevice {
   // display_name is the display name of the SSO connector
   string display_name = 3;
 }
+
+// BrowserMFADevice is a synthetic MFA device that is made available if a user
+// has at least one WebAuthn device and no SSO setup. This message doesn't
+// require any fields, it just needs to exist so it can be an MFA option.
+message BrowserMFADevice {}

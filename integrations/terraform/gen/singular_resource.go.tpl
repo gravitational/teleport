@@ -108,7 +108,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 	{{- end}}
 
-	{{.VarName}}Before, err := r.p.Client.Get{{.Name}}(ctx)
+	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -233,7 +233,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 
-	{{.VarName}}I, err := r.p.Client.Get{{.Name}}(ctx)
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -278,6 +278,10 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+{{- if .ForceSetKind }}
+	{{.VarName}}.Kind = {{.ForceSetKind}}
+{{- end}}
+
 {{- if .HasCheckAndSetDefaults }}
 
 	err := {{.VarName}}.CheckAndSetDefaults()
@@ -287,7 +291,16 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	}
 {{- end}}
 
-	{{.VarName}}Before, err := r.p.Client.Get{{.Name}}(ctx)
+	{{- if .DefaultName }}
+	if {{.VarName}}.GetMetadata() == nil {
+		{{.VarName}}.Metadata = &headerv1.Metadata{}
+	}
+	if {{ .VarName }}.GetMetadata().GetName() == "" {
+		{{ .VarName }}.Metadata.Name = {{ .DefaultName }}
+	}
+	{{- end}}
+
+	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -381,7 +394,7 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 
 // ImportState imports {{.Name}} state
 func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	{{.VarName}}I, err := r.p.Client.Get{{.Name}}(ctx)
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return

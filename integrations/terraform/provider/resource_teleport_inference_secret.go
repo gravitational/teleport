@@ -227,6 +227,7 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 	}
 	inferenceSecretResource := inferenceSecret
 
+	inferenceSecretResource.Kind = apitypes.KindInferenceSecret
 
 	
 	name := inferenceSecretResource.Metadata.Name

@@ -38,6 +38,7 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
@@ -255,6 +256,10 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	return server, nil
 }
 
+func (t *TLSServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
+	t.grpcServer.SetServingStatus(service, servingStatus)
+}
+
 // Close closes TLS server non-gracefully - terminates in flight connections
 func (t *TLSServer) Close() error {
 	errC := make(chan error, 2)
@@ -368,20 +373,6 @@ func getCustomRate(endpoint string) *limiter.RateSet {
 			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
 				"error", err,
 				"rpc_method", endpoint)
-			return nil
-		}
-		return rates
-	// Passwordless RPCs (potential unauthenticated challenge generation).
-	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPeriod
-		const average = defaults.LimiterAverage
-		const burst = defaults.LimiterBurst
-		rates := limiter.NewRateSet()
-		if err := rates.Add(period, average, burst); err != nil {
-			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
-				"error", err,
-				"rpc_method", endpoint,
-			)
 			return nil
 		}
 		return rates

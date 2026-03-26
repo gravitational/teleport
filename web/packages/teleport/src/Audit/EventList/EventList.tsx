@@ -18,7 +18,7 @@
 
 import { useState } from 'react';
 
-import { ButtonBorder, Flex } from 'design';
+import { ButtonBorder, Flex, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 
 import { Event } from 'teleport/services/audit';
@@ -38,7 +38,7 @@ export default function EventList(props: Props) {
         columns={[
           {
             key: 'codeDesc',
-            headerText: 'Type',
+            headerText: 'Event',
             isSortable: false,
             render: event => renderTypeCell(event),
           },
@@ -83,7 +83,7 @@ export const renderActionCell = (
     <Flex gap={2} justifyContent="flex-end">
       <ViewInPolicyButton event={event} />
       <ButtonBorder
-        size="small"
+        size="medium"
         onClick={() => onShowDetails(event)}
         width="87px"
       >
@@ -94,11 +94,17 @@ export const renderActionCell = (
 );
 
 export const renderTimeCell = ({ time }: Event) => (
-  <Cell style={{ minWidth: '120px' }}>{time.toISOString()}</Cell>
+  <Cell style={{ minWidth: '120px' }}>
+    <Text color="text.slightlyMuted">{time.toISOString()}</Text>
+  </Cell>
 );
 
 export function renderDescCell({ message }: Event) {
-  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
+  return (
+    <Cell style={{ wordBreak: 'break-word' }}>
+      <Text color="text.slightlyMuted">{message}</Text>
+    </Cell>
+  );
 }
 
 type Props = {

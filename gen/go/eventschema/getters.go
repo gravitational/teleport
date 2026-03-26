@@ -71,7 +71,7 @@ func QueryableEventList() (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		sb.WriteString(fmt.Sprintf("%s, %s\n", name, eventSchema.Description))
+		fmt.Fprintf(&sb, "%s, %s\n", name, eventSchema.Description)
 	}
 	return sb.String(), nil
 }
@@ -137,7 +137,7 @@ func (c *ColumnSchemaDetails) NameJSON() string {
 	sb := strings.Builder{}
 	sb.WriteString("$")
 	for _, item := range c.Path {
-		sb.WriteString(fmt.Sprintf(`["%s"]`, item))
+		fmt.Fprintf(&sb, `["%s"]`, item)
 	}
 	return sb.String()
 }
@@ -251,7 +251,7 @@ func jsonFieldName(path []string) string {
 	sb := strings.Builder{}
 	sb.WriteString("$")
 	for _, item := range path {
-		sb.WriteString(fmt.Sprintf(`["%s"]`, item))
+		fmt.Fprintf(&sb, `["%s"]`, item)
 	}
 	return sb.String()
 }

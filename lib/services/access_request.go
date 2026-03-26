@@ -382,6 +382,10 @@ type DynamicAccessExt interface {
 	CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
 	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+	// the expiry service. Access requests expiration handling is done outside the backend
+	// because we need to emit audit events on the access requests expiry.
+	ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error)
 }
 
 // reviewParamsContext is a simplified view of an access review

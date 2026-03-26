@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -63,7 +64,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -93,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -152,8 +156,10 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
-	// Scope constrains the current operation to a specific target scope
+	// Scope constrains the current operation to a specific target scope. A scope of "" descopes the user.
 	Scope string
+	// ScopeSetByUser specifies whether the flag was set by the user.
+	ScopeSetByUser bool
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -210,6 +216,8 @@ type CLIConf struct {
 	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
+	// DryRun prints the configuration without applying it
+	DryRun bool
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
 	// SessionID identifies the session tsh is operating on.
@@ -487,6 +495,8 @@ type CLIConf struct {
 	// proxy instead of an HTTPS proxy.
 	// TODO(gabrielcorado): DELETE IN 19.0.0
 	AWSEndpointURLMode bool
+	// AWSSSORegion is the AWS region used for SSO.
+	AWSSSORegion string
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
 	AzureIdentity string
@@ -574,8 +584,8 @@ type CLIConf struct {
 	// It shouldn't be used outside testing.
 	KubeConfigPath string
 
-	// Client only version display.  Skips checking proxy version.
-	clientOnlyVersionCheck bool
+	// Skip server-side checks for certain commands (status, version, etc)
+	clientOnlyChecks bool
 
 	// tracer is the tracer used to trace tsh commands.
 	tracer oteltrace.Tracer
@@ -844,6 +854,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
+	// run early to enable debug logging if env var is set.
+	// this makes it possible to debug early startup functionality, particularly command aliases.
+	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
+		printInitLoggerError(err)
+	}
+
 	// We need to parse the arguments before executing managed updates to identify
 	// the profile name and the required version for the current cluster.
 	// All other commands and flags may change between versions, so full parsing
@@ -855,16 +871,21 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
 		slog.WarnContext(ctx, "can't identify current profile", "error", err)
 	}
-	// Check local update for specific proxy from configuration.
-	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
-	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
-		return trace.Wrap(err)
+	// Detect whether the process is running as a Windows service in order to disable automatic updates.
+	// We use this approach because setting `TELEPORT_TOOLS_VERSION=off` for a Windows service via environment variables is cumbersome.
+	//
+	// This is required for VNet, whose system service is implemented by `tsh.exe vnet-service`.
+	// Its service binary must not change unexpectedly.
+	isWinService, err := isWindowsService()
+	if err != nil {
+		logger.ErrorContext(ctx, "Could not determine whether tsh is running as a service; client tools managed updates will not be disabled", "error", err)
 	}
-
-	// run early to enable debug logging if env var is set.
-	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if _, err := initLogger(&cf, utils.LoggingForCLI, parseLoggingOptsFromEnv()); err != nil {
-		printInitLoggerError(err)
+	if !isWinService {
+		// Check local update for specific proxy from configuration.
+		name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
+		if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	moduleCfg := modules.GetModules()
@@ -947,7 +968,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	ver.Flag("client", "Show the client version only (no server required).").
-		BoolVar(&cf.clientOnlyVersionCheck)
+		BoolVar(&cf.clientOnlyChecks)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
@@ -1013,6 +1034,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+
+	// Generate AWS profiles via AWS Identity Center integration.
+	awsProfile := app.Command("aws-profile", "Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.")
+	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
+	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -1093,12 +1119,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
-	proxyMCP.Flag("port", "Specifies the listening port used by by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -1249,7 +1275,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
+	login.Flag("scope", `Scope pins credentials to a given scope. Use "" to explicitly remove scoping.`).
+		IsSetByUser(&cf.ScopeSetByUser).
+		StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
@@ -1328,6 +1356,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates.")
 	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login.").Short('v').BoolVar(&cf.Verbose)
+	status.Flag("client", "Show client information only (no server required).").BoolVar(&cf.clientOnlyChecks)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
@@ -1440,7 +1469,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more Access Requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -1487,6 +1516,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	connectUpdater := app.Command("connect-updater", "Teleport Connect updater commands.").Hidden()
+	connectUpdaterServiceCommand := newConnectUpdaterServiceRunCommand(connectUpdater)
+	connectUpdaterServiceInstallCommand := newConnectUpdaterServiceInstallCommand(connectUpdater)
+	connectUpdaterServiceUninstallCommand := newConnectUpdaterServiceUninstallCommand(connectUpdater)
+	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
+
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1527,7 +1562,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, args)
-	command, err := app.Parse(args)
+	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
 			logger.DebugContext(ctx, "Failing due to recursive alias",
@@ -1878,6 +1913,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case awsProfile.FullCommand():
+		err = onAWSProfile(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
@@ -1927,6 +1964,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallCommand.FullCommand():
+		err = connectUpdaterServiceInstallCommand.run(&cf)
+	case connectUpdaterServiceUninstallCommand.FullCommand():
+		err = connectUpdaterServiceUninstallCommand.run(&cf)
+	case connectUpdaterServiceCommand.FullCommand():
+		err = connectUpdaterServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallUpdateCommand.FullCommand():
+		err = connectUpdaterServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
@@ -2002,23 +2047,20 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
+	var propContext apitracing.PropagationContext
+	if traceContext := os.Getenv(tshTraceContextEnvVar); traceContext != "" {
+		logger.DebugContext(cf.Context, "found tracing context in environment", "context", traceContext)
+		if err := json.Unmarshal([]byte(traceContext), &propContext); err == nil {
+			logger.DebugContext(cf.Context, "tracing context was valid", "context", propContext)
+		}
+	}
+
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
 	const samplingRate = 1.0
-
 	switch {
-	// kubectl is a special case because it is the only command that we re-execute
-	// in order to be able to access the exit code and stdout/stderr of the command
-	// that was run and determine if we should create a new access request from
-	// the output data.
-	// We don't want to enable tracing for the master invocation of tsh kubectl
-	// because the data that we would be tracing would be the tsh kubectl command.
-	// Instead, we want to enable tracing for the re-executed kubectl command and
-	// we do that in the kubectl command handler.
-	case cf.command == "kubectl":
-		return func() {}
 	// The user explicitly asked for traces to be sent to a particular exporter
 	// instead of forwarding them to Auth. Proceed with creating the provider.
 	case cf.SampleTraces && cf.TraceExporter != "":
@@ -2039,7 +2081,7 @@ func initializeTracing(cf *CLIConf) func() {
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		// Start the root span for the command and update the config context so
 		// that all spans created in the future will be rooted at this span.
-		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+		cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -2066,7 +2108,7 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	// Start the root span for the command and update the config context so
 	// that all spans created in the future will be rooted at this span.
-	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
+	cf.Context, rootSpan = cf.tracer.Start(apitracing.WithPropagationContext(cf.Context, propContext), cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
@@ -2105,7 +2147,7 @@ func onVersion(cf *CLIConf) error {
 	proxyVersion := ""
 	proxyPublicAddr := ""
 	// Check proxy version if not in client only mode
-	if !cf.clientOnlyVersionCheck {
+	if !cf.clientOnlyChecks {
 		pv, ppa, err := fetchProxyVersion(cf)
 		if err != nil {
 			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
@@ -2200,6 +2242,35 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 	return string(out), trace.Wrap(err)
 }
 
+// resolveScope determines the target scope based on the CLI flag state and the current
+// profile. It returns the desired scope string and whether the scope differs from the profile's
+// current scope. The 3 cases are:
+//  1. --scope not provided at all -> inherit profile.ScopePin.Scope, scopeChanged = false
+//  2. --scope="" -> explicitly descope, scopeChanged = (profile.ScopePin.Scope != "")
+//  3. --scope=/foo -> switch to /foo, scopeChanged = (profile.ScopePin.Scope != "/foo")
+func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
+	// --scope was explicitly set by the user
+	if cf.ScopeSetByUser {
+		// passing in "" descopes
+		targetScope := cf.Scope
+
+		currentScope := ""
+		if profile != nil && profile.ScopePin != nil {
+			currentScope = profile.ScopePin.Scope
+		}
+
+		return targetScope, targetScope != currentScope
+	}
+
+	// --scope not provided, inherit from profile.
+	if profile != nil && profile.ScopePin != nil {
+		return profile.ScopePin.Scope, false
+	}
+
+	return "", false
+
+}
+
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	showAlerts := true
@@ -2237,6 +2308,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
+	// Resolve the desired scope based on CLI flags and current profile state.
+	targetScope, scopeChanged := resolveScope(cf, profile)
+	cf.Scope = targetScope
+
 	if cf.Scope != "" {
 		// auto-request behavior is incompatible with scopes
 		autoRequest = false
@@ -2249,10 +2324,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if err := scopes.StrongValidate(cf.Scope); err != nil {
 			return trace.Wrap(err)
 		}
-
-		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
-		// look into doing something smarter.
-		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -2290,8 +2361,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
-	// client is already logged in and profile is not expired
-	if profile != nil && !profile.IsExpired(time.Now()) {
+	// client is already logged in and profile is not expired and scope hasn't changed
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -2392,6 +2463,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Reload the profile status to show updated active access requests and roles.
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
@@ -2768,6 +2846,9 @@ func onLogout(cf *CLIConf) error {
 // onListNodes executes 'tsh ls' command.
 func onListNodes(cf *CLIConf) error {
 	if cf.ListAll {
+		if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+			return trace.BadParameter("--all cannot be specified with --headless/--auth=headless")
+		}
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
@@ -4944,8 +5025,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.RemoteForwardPorts = rPorts
 	}
 
-	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
-	c.Scope = cf.Scope
+	if cf.ScopeSetByUser || cf.Scope != "" {
+		c.Scope = cf.Scope
+	}
 
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
@@ -5438,15 +5520,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if cluster != "" {
 		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
-	if p.Scope != "" {
-		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+	if p.ScopePin != nil {
+		fmt.Fprintf(w, "  Scope:              %v\n", p.ScopePin.GetScope())
 		fmt.Fprintf(w, "  Scoped Roles:\n")
-
-		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
-		slices.Sort(assignedScopes)
-		for _, scope := range assignedScopes {
-			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
-		}
+		fmt.Fprintf(w, "%v", pinning.FormatAssignmentTree(p.ScopePin.GetAssignmentTree(), "  "))
 	} else {
 		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
@@ -5615,6 +5692,10 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
+	if cf.clientOnlyChecks {
+		return nil
+	}
+
 	// make the teleport client and retrieve the certificate from the proxy:
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -5647,8 +5728,7 @@ type profileInfo struct {
 	ActiveRequests           []string                 `json:"active_requests,omitempty"`
 	Cluster                  string                   `json:"cluster"`
 	Roles                    []string                 `json:"roles,omitempty"`
-	Scope                    string                   `json:"scope,omitempty"`
-	ScopedRoles              map[string][]string      `json:"scoped_roles,omitempty"`
+	ScopePin                 *scopesv1.Pin            `json:"scope_pin,omitempty"`
 	Traits                   wrappers.Traits          `json:"traits,omitempty"`
 	Logins                   []string                 `json:"logins,omitempty"`
 	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
@@ -5701,8 +5781,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		ActiveRequests:           p.ActiveRequests,
 		Cluster:                  p.Cluster,
 		Roles:                    p.Roles,
-		Scope:                    p.Scope,
-		ScopedRoles:              p.ScopedRoles,
+		ScopePin:                 p.ScopePin,
 		Traits:                   p.Traits,
 		Logins:                   logins,
 		KubernetesEnabled:        p.KubeEnabled,

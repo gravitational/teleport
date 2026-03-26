@@ -35,6 +35,23 @@ interface ClusterStore {
   getRootClusters(): Cluster[];
 }
 
+export interface FsWatcher {
+  on(event: 'close', listener: () => void): this;
+  on(event: 'error', listener: (error: Error) => void): this;
+  off(event: 'close', listener: () => void): this;
+  off(event: 'error', listener: (error: Error) => void): this;
+  close(): void;
+}
+
+export type CreateFsWatcher = (options: {
+  path: string;
+  signal?: AbortSignal;
+  onEvent(): void;
+}) => FsWatcher;
+
+const createNodeFsWatcher: CreateFsWatcher = ({ path, signal, onEvent }) =>
+  watch(path, { signal, recursive: true }, onEvent);
+
 /**
  * Watches the specified `tshDirectory` for profile changes.
  * File system events are debounced with a default 200 ms delay.
@@ -51,6 +68,7 @@ export async function* watchProfiles({
   debounceMs = 200,
   maxFileSystemEvents = 4096,
   signal,
+  createFsWatcher = createNodeFsWatcher,
 }: {
   tshDirectory: string;
   tshClient: TshClient;
@@ -66,15 +84,16 @@ export async function* watchProfiles({
    * */
   maxFileSystemEvents?: number;
   signal?: AbortSignal;
+  createFsWatcher?: CreateFsWatcher;
 }): AsyncGenerator<ProfileChangeSet, void, void> {
   while (!signal?.aborted) {
     try {
-      // eslint-disable-next-line unused-imports/no-unused-vars
       for await (const _ of debounceWatch(
         tshDirectory,
         debounceMs,
         maxFileSystemEvents,
-        signal
+        signal,
+        createFsWatcher
       )) {
         const clusters = await tshClient.listRootClusters();
         const newClusters = new Map(clusters.map(c => [c.uri, c]));
@@ -181,7 +200,8 @@ async function* debounceWatch(
   path: string,
   debounceMs: number,
   maxFileSystemEvents: number,
-  abortSignal: AbortSignal | undefined
+  abortSignal: AbortSignal | undefined,
+  createFsWatcher: CreateFsWatcher
 ): AsyncGenerator<void> {
   let signal = Promise.withResolvers<void>();
   let closed = false;
@@ -201,11 +221,11 @@ async function* debounceWatch(
     scheduleYield();
   };
 
-  const watcher = watch(
+  const watcher = createFsWatcher({
     path,
-    { signal: abortSignal, recursive: true },
-    onEvent
-  );
+    signal: abortSignal,
+    onEvent,
+  });
 
   const closeHandler = () => {
     closed = true;

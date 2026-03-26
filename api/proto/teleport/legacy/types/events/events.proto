@@ -241,6 +241,20 @@ message KubernetesPodMetadata {
   string KubernetesNodeName = 5 [(gogoproto.jsontag) = "kubernetes_node_name,omitempty"];
 }
 
+// WindowsDesktopMetadata contains common windows desktop metadata.
+message WindowsDesktopMetadata {
+  // WindowsDesktopService is the name of the service proxying the RDP session.
+  string WindowsDesktopService = 1 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 2 [(gogoproto.jsontag) = "desktop_addr,omitempty"];
+  // Domain is the Active Directory domain of the desktop.
+  string Domain = 3 [(gogoproto.jsontag) = "windows_domain,omitempty"];
+  // WindowsUser is the Windows username used to connect.
+  string WindowsUser = 4 [(gogoproto.jsontag) = "windows_user,omitempty"];
+  // DesktopLabels are the labels on the desktop resource.
+  map<string, string> DesktopLabels = 5 [(gogoproto.jsontag) = "desktop_labels,omitempty"];
+}
+
 // SAMLIdPServiceProviderMetadata contains common metadata for SAML IdP service provider
 // events.
 message SAMLIdPServiceProviderMetadata {
@@ -539,6 +553,13 @@ message DesktopRecording {
 
   // DelayMilliseconds is the delay in milliseconds from the start of the session
   int64 DelayMilliseconds = 3 [(gogoproto.jsontag) = "ms"]; // JSON tag intentionally matches SessionPrintEvent
+
+  // TDPBMessage is the encoded TDPB message.
+  // Only one of [Message, TDPBMessage] will be set.
+  bytes TDPBMessage = 4 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "tdpb_message"
+  ];
 }
 
 // DesktopClipboardReceive is emitted when Teleport receives
@@ -999,6 +1020,9 @@ message BPFMetadata {
 
   // Program is name of the executable.
   string Program = 3 [(gogoproto.jsontag) = "program"];
+
+  // AuditSessionID is the internal audit login session ID (auid).
+  uint32 AuditSessionID = 4 [(gogoproto.jsontag) = "audit_session_id"];
 }
 
 // Status contains common command or operation status fields
@@ -4979,6 +5003,17 @@ message OneOf {
     events.WorkloadClusterCreate WorkloadClusterCreate = 235;
     events.WorkloadClusterUpdate WorkloadClusterUpdate = 236;
     events.WorkloadClusterDelete WorkloadClusterDelete = 237;
+    events.InferenceModelCreate InferenceModelCreate = 238;
+    events.InferenceModelUpdate InferenceModelUpdate = 239;
+    events.InferenceModelDelete InferenceModelDelete = 240;
+    events.InferenceSecretCreate InferenceSecretCreate = 241;
+    events.InferenceSecretUpdate InferenceSecretUpdate = 242;
+    events.InferenceSecretDelete InferenceSecretDelete = 243;
+    events.InferencePolicyCreate InferencePolicyCreate = 244;
+    events.InferencePolicyUpdate InferencePolicyUpdate = 245;
+    events.InferencePolicyDelete InferencePolicyDelete = 246;
+    events.SessionSummarized SessionSummarized = 247;
+    events.CertAuthorityOverrideEvent CertAuthorityOverrideEvent = 248;
   }
 }
 
@@ -6008,6 +6043,94 @@ message SessionRecordingAccess {
   string Format = 5 [(gogoproto.jsontag) = "format,omitempty"];
 }
 
+// SessionSummarized is emitted when the system creates a session summary.
+message SessionSummarized {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the summarization was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionType is type of the session (ssh, k8s, db, desktop).
+  string SessionType = 4 [(gogoproto.jsontag) = "session_type,omitempty"];
+
+  // ModelName is the name of the InferenceModel resource used to generate the summary.
+  string ModelName = 5 [(gogoproto.jsontag) = "model_name,omitempty"];
+
+  // InferenceStartedAt is the time when the summarization process started.
+  google.protobuf.Timestamp InferenceStartedAt = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "inference_started_at,omitempty"
+  ];
+
+  // InferenceFinishedAt is the time when the summarization process finished.
+  google.protobuf.Timestamp InferenceFinishedAt = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "inference_finished_at,omitempty"
+  ];
+
+  // ShortDescription is a concise description of the session from the enhanced summary.
+  string ShortDescription = 8 [(gogoproto.jsontag) = "short_description,omitempty"];
+
+  // RiskLevel is the overall risk level associated with the session (low, medium, high, critical).
+  string RiskLevel = 9 [(gogoproto.jsontag) = "risk_level,omitempty"];
+
+  // ServerMetadata is a common server metadata (for SSH sessions).
+  ServerMetadata Server = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // KubernetesClusterMetadata contains kubernetes cluster information (for k8s sessions).
+  KubernetesClusterMetadata KubernetesCluster = 11 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // DatabaseMetadata contains database information (for database sessions).
+  DatabaseMetadata Database = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // KubernetesPodMetadata contains kubernetes pod information (for k8s sessions).
+  KubernetesPodMetadata KubernetesPod = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // WindowsDesktopMetadata contains windows desktop information (for desktop sessions).
+  WindowsDesktopMetadata Desktop = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Username is the name of the user who initiated the session.
+  string Username = 15 [(gogoproto.jsontag) = "username,omitempty"];
+}
+
 // KubeClusterMetadata contains common kubernetes cluster information.
 message KubeClusterMetadata {
   // KubeLabels are the configured cluster labels.
@@ -6133,6 +6256,15 @@ message SSMRun {
   // InvocationURL is a link to AWS Web Console for this invocation.
   // An invocation is the execution of a Command in an Instance.
   string InvocationURL = 10 [(gogoproto.jsontag) = "invocation_url"];
+
+  // PlatformName is the operating system name of the EC2 instance.
+  string PlatformName = 11 [(gogoproto.jsontag) = "platform_name"];
+
+  // PlatformType is the operating system platform of the EC2 instance.
+  string PlatformType = 12 [(gogoproto.jsontag) = "platform_type"];
+
+  // PlatformVersion is the version of the operating system running on the EC2 instance.
+  string PlatformVersion = 13 [(gogoproto.jsontag) = "platform_version"];
 }
 
 // CassandraSession is emitted when a Cassandra client sends
@@ -9568,6 +9700,12 @@ message WorkloadClusterCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // WorkloadClusterUpdate is emitted when a workload cluster is updated.
@@ -9605,6 +9743,12 @@ message WorkloadClusterUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 
@@ -9644,4 +9788,438 @@ message WorkloadClusterDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// InferenceModelCreate is emitted when an inference model is created.
+message InferenceModelCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the inference model data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InferenceModelUpdate is emitted when an inference model is updated.
+message InferenceModelUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the inference model data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InferenceModelDelete is emitted when an inference model is deleted.
+message InferenceModelDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// InferenceSecretCreate is emitted when an inference secret is created.
+message InferenceSecretCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// InferenceSecretUpdate is emitted when an inference secret is updated.
+message InferenceSecretUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// InferenceSecretDelete is emitted when an inference secret is deleted.
+message InferenceSecretDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// InferencePolicyCreate is emitted when an inference policy is created.
+message InferencePolicyCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the inference policy data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InferencePolicyUpdate is emitted when an inference policy is updated.
+message InferencePolicyUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the inference policy data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// InferencePolicyDelete is emitted when an inference policy is deleted.
+message InferencePolicyDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// CertAuthorityOverrideEvent is the payload for all cert_authority_override
+// audit events.
+// Refer to the event Type, Code and Status for its meaning and outcome.
+message CertAuthorityOverrideEvent {
+  // Metadata holds common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // UserMetadata holds metadata about the user performing the event.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ResourceMetadata holds metadata about the resource targeted by the event.
+  ResourceMetadata resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates the outcome of the event.
+  Status status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // The CA override targeted by the event.
+  CertAuthorityOverrideMetadata ca_override = 5 [(gogoproto.jsontag) = "ca_override,omitempty"];
+}
+
+// CertAuthorityOverrideMetadata represents a CertAuthorityOverride resource in
+// audit events.
+message CertAuthorityOverrideMetadata {
+  // CA type of the override.
+  string ca_type = 1 [(gogoproto.jsontag) = "ca_type,omitempty"];
+  // Cluster name.
+  string cluster_name = 2 [(gogoproto.jsontag) = "cluster_name,omitempty"];
+  // Certificate overrides.
+  repeated CertificateOverrideMetadata certificate_overrides = 3 [(gogoproto.jsontag) = "certificate_overrides,omitempty"];
+}
+
+// CertificateOverrideMetadata represents a CertificateOverride within a
+// CertAuthorityOverride.
+//
+// See CertAuthorityOverrideMetadata.
+message CertificateOverrideMetadata {
+  // Certificate presented by the override.
+  X509OverrideMetadata certificate = 1 [(gogoproto.jsontag) = "certificate,omitempty"];
+  // Certificate chain for the override.
+  repeated X509OverrideMetadata chain = 2 [(gogoproto.jsontag) = "chain,omitempty"];
+  // If true the override is disabled.
+  bool disabled = 3 [(gogoproto.jsontag) = "disabled,omitempty"];
+}
+
+// X509OverrideMetadata identifies an X.509 certificate.
+message X509OverrideMetadata {
+  // Issuer.
+  string issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
+  // Subject.
+  string subject = 2 [(gogoproto.jsontag) = "subject,omitempty"];
+  // Serial number.
+  string serial_number = 3 [(gogoproto.jsontag) = "serial_number,omitempty"];
+  // Public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
+  string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
 }

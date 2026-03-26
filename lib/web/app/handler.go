@@ -64,8 +64,6 @@ type HandlerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -246,7 +244,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 		return isAppServerDialable(ctx, clusterClient, appServer)
 	})
 	if i < 0 {
-		return trace.NotFound("all app servers unheatlhy")
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil

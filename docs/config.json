@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.6.2",
+      "version": "18.6.4",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -69,7 +69,7 @@
       "major_version": "19",
       "version": "19.0.0-dev",
       "url": "teleport.example.com",
-      "golang": "1.25.6",
+      "golang": "1.25.8",
       "plugin": {
         "version": "13.3.7"
       },
@@ -247,7 +247,12 @@
     },
     {
       "source": "/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
@@ -467,27 +472,52 @@
     },
     {
       "source": "/admin-guides/access-controls/device-trust/device-management/",
-      "destination": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/",
-      "destination": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
-      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
-      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/intune-integration/",
+      "destination": "/zero-trust-access/device-trust/intune-integration/",
       "permanent": true
     },
     {
@@ -3312,7 +3342,7 @@
     },
     {
       "source": "/enroll-resources/application-access/guides/ha/",
-      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3332,7 +3362,7 @@
     },
     {
       "source": "/enroll-resources/application-access/ha/",
-      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3478,6 +3508,21 @@
     {
       "source": "/zero-trust-access/management/daemon/",
       "destination": "/reference/cli/teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/configuration/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/guides/ha/",
+      "destination": "/enroll-resources/agents/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/teleport-resources/saml-idpservice-provider-v1/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/saml-idp-service-provider-v1/",
       "permanent": true
     }
   ]

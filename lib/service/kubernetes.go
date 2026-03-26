@@ -132,6 +132,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
+				InsecureMode:             process.Config.InsecureMode,
 				Component:                teleport.ComponentKube,
 				HostUUID:                 conn.HostID(),
 				Resolver:                 conn.TunnelProxyResolver(),

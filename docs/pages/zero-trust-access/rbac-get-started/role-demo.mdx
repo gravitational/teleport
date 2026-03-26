@@ -87,7 +87,7 @@ but not the scheme (https://).
 
    This Teleport configuration enables the Teleport SSH Service, which enrolls a
    server in your Teleport cluster. The `ssh_service.labels` field adds a label
-   to the server called `env:local`.
+   to the server called `env:local-dev`.
 
 1. Assign the absolute path to the configuration file you created to 
    <Var name="dev-config-path"/>.
@@ -168,7 +168,7 @@ but not the scheme (https://).
    <Var name="prod-config-path" />.
 
 1. Start a Docker container on your workstation to prepare a server that you
-   want enroll as a resource in your Teleport cluster:
+   want to enroll as a resource in your Teleport cluster:
    
    ```code
    $ docker run -v <Var name="prod-config-path"/>:/etc/teleport.yaml --interactive --tty ubuntu:24.04 /bin/bash
@@ -251,14 +251,14 @@ Create a role that can access servers with the `env:local-dev` label but not the
 
 ## Step 3/3. Access your server
 
-In this step, you will create a local Teleport user with the `local-dev-access`
+In this step, you will create a local Teleport user with the `local-dev-only`
 role, then list available servers and connect the one with the label
 `env:local-dev`.
 
-1. Create a local user named `alice` with the `local-dev-access` role:
+1. Create a local user named `alice` with the `local-dev-only` role:
 
    ```code
-   $ tctl users add alice --roles=local-dev-access
+   $ tctl users add alice --roles=local-dev-only
    ```
 
 1. Follow the instructions in your terminal to sign in as `alice`.

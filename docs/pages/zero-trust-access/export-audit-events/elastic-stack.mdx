@@ -1,7 +1,7 @@
 ---
 title: "Export Teleport Audit Events to the Elastic Stack"
 sidebar_label: "Elastic Stack"
-description: "How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack"
+description: "How to configure Teleport's Event Handler plugin to send audit event logs to the Elastic Stack"
 tags:
  - how-to
  - zero-trust
@@ -18,15 +18,11 @@ to send your Teleport audit events to the Elastic Stack.
 
 ## How it works
 
-In this setup, the Event Handler plugin forwards audit events from Teleport to
-Logstash, which stores them in Elasticsearch for visualization and alerting in
-Kibana. 
+The Teleport Event Handler authenticates to the Teleport Auth Service to receive
+audit events over a gRPC stream, then sends those events to Logstash,
+which stores them in Elasticsearch for visualization and alerting in Kibana.
 
 ## Prerequisites
-
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
-(!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 
 - Logstash version 8.4.1 or above running on a Linux host. In this guide, you
   will also run the Event Handler plugin on this host.
@@ -37,80 +33,19 @@ Kibana.
 
   We have tested this guide on the Elastic Stack version 8.4.1.
 
-## Step 1/4. Set up the Event Handler plugin
+- A server, virtual machine, Kubernetes cluster, or Docker environment to run the
+  Teleport Event Handler plugin.
 
-The Event Handler plugin is a binary that runs independently of your Teleport
-cluster. It authenticates to your Teleport cluster and Logstash using mutual
-TLS. In this section, you will install the Event Handler plugin on the Linux
-host where you are running Logstash and generate credentials that the plugin
-will use for authentication.
+This guide requires you to have completed one of the Event Handler setup guides:
 
-### Install the Event Handler plugin
+- [Set up the Event Handler with tctl](event-handler-setup.mdx)
+- [Set up the Event Handler with the Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
 
-Follow the instructions for your environment to install the Event Handler
-plugin on your Logstash host:
+The instructions below demonstrate a local test of the Event Handler plugin on
+your workstation. You will need to adjust paths, ports, and domains for other
+environments.
 
-(!docs/pages/includes/install-event-handler.mdx!)
-
-### Generate a starter config file
-
-Generate a configuration file with placeholder values for the Teleport Event
-Handler plugin. Later in this guide, we will edit the configuration file for
-your environment.
-
-(!docs/pages/includes/configure-event-handler.mdx!)
-
-We'll re-purpose the files generated for Fluentd in our Logstash configuration.
-
-### Define RBAC resources
-
-(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
-
-<details>
-<summary>Using tctl on the Logstash host?</summary>
-
-If you are running Teleport on your Elastic Stack host, e.g., you are exposing
-Kibana's HTTP endpoint via the Teleport Application Service, running the `tctl
-create` command above will generate an error similar to the following:
-
-```text
-ERROR: tctl must be either used on the auth server or provided with the identity file via --identity flag
-```
-
-To avoid this error, create the `teleport-event-handler-role.yaml` file on your
-workstation, then sign in to your Teleport cluster and run the `tctl` command
-locally.
-
-</details>
-
-### Enable issuing of credentials for the Event Handler role
-
-<Tabs>
-<TabItem label="Machine & Workload Identity">
-(!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
-</TabItem>
-<TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/rbac-impersonate-event-handler.mdx!)
-</TabItem>
-</Tabs>
-
-### Export the access plugin identity
-
-Give the plugin access to a Teleport identity file. We recommend using Machine
-ID for this in order to produce short-lived identity files that are less
-dangerous if exfiltrated, though in demo deployments, you can generate
-longer-lived identity files with `tctl`:
-
-<Tabs>
-<TabItem label="Machine & Workload Identity">
-(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
-</TabItem>
-<TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" secret="teleport-event-handler-identity"!)
-</TabItem>
-</Tabs>
-
-## Step 2/4. Configure a Logstash pipeline
+## Step 1/3. Configure a Logstash pipeline
 
 The Event Handler plugin forwards audit logs from Teleport by sending HTTP
 requests to a user-configured endpoint. We will define a Logstash pipeline that
@@ -399,35 +334,31 @@ Edit the file `/etc/elasticsearch/elasticsearch.yml` to set
 
 </details>
 
-## Step 3/4. Run the Event Handler plugin
+## Step 2/3. Run the Event Handler plugin
 
-### Configure the Teleport Event Handler
+In this section, you will modify the Event Handler configuration you generated
+and run the Event Handler to test your configuration.
 
-In this section, you will configure the Teleport Event Handler for your
-environment.
+### Configure the Event Handler
+
+Edit the configuration for the Event Handler, depending on your installation method.
 
 (!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 
-Update the configuration file as follows.
+Update the following fields.
 
-Change `forward.fluentd.url`  to the scheme, host and port you configured for
+(!docs/pages/includes/plugins/finish-event-handler-fields.mdx!)
+
+Change `forward.fluentd.url` to the scheme, host and port you configured for
 your Logstash `http` input earlier, `https://localhost:9601`. Change
 `forward.fluentd.session-url` to the same value with the root URL path:
 `https://localhost:9601/`.
 
-Change `teleport.addr` to the host and port of your Teleport Proxy Service, or
-the Auth Service if you have configured the Event Handler to connect to it
-directly, e.g., `mytenant.teleport.sh:443`.
+### Start the Event Handler
 
-(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
+(!docs/pages/includes/plugins/start-event-handler.mdx!)
 
-(!docs/pages/includes/plugins/machine-id-exporter-config.mdx!)
-
-### Start the Teleport Event Handler
-
-(!docs/pages/includes/start-event-handler.mdx!)
-
-## Step 4/4. Create a data view in Kibana
+## Step 3/3. Create a data view in Kibana
 
 Make it possible to explore your Teleport audit events in Kibana by creating a
 data view. In the Elastic Stack UI, find the hamburger menu on the upper
@@ -461,17 +392,14 @@ Teleport Cluster, ensure that:
 - The certificate the Teleport Event Handler is using to connect to your
   Teleport cluster is not past its expiration date. This is the value of the
   `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
-- Ensure that in your Teleport Event Handler configuration file
-  (`teleport-event-handler.toml`), you have provided the correct host *and* port
-  for the Teleport Proxy Service or Auth Service.
+- In your Teleport Event Handler configuration file, you have provided
+  the correct host *and* port for the Teleport Proxy Service.
 
 ## Next steps
 
-Now that you are exporting your audit events to the Elastic Stack, consult our
+- Now that you are exporting your audit events to the Elastic Stack, consult our
 [audit event reference](../../reference/deployment/monitoring/audit.mdx) so you can plan
 visualizations and alerts.
-
-While this guide uses the `tctl auth sign` command to issue credentials for the
-Teleport Event Handler, production clusters should use Machine & Workload
-Identity for safer, more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
-to getting started with Machine & Workload Identity.
+- To see all of the options you can set in the values file for the
+`teleport-plugin-event-handler` Helm chart, consult our [reference
+guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).

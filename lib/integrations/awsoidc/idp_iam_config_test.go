@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -43,6 +42,7 @@ import (
 func TestIdPIAMConfigReqDefaults(t *testing.T) {
 	baseIdPIAMConfigReq := func() IdPIAMConfigureRequest {
 		return IdPIAMConfigureRequest{
+			Insecure:                true,
 			Cluster:                 "mycluster",
 			IntegrationName:         "myintegration",
 			IntegrationRole:         "integrationrole",
@@ -74,6 +74,7 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 					"teleport.dev/integration": "myintegration",
 					"teleport.dev/origin":      "integration_awsoidc",
 				},
+				Insecure:                true,
 				IntegrationPolicyPreset: PolicyPresetUnspecified,
 				AutoConfirm:             true,
 			},
@@ -171,10 +172,6 @@ func TestConfigureIdPIAM(t *testing.T) {
 	require.NoError(t, err)
 
 	tlsServerIssuer := tlsServerURL.Host
-	// TLS Server starts with self-signed certificates.
-
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 
 	baseIdPIAMConfigReqWithTLServer := func() IdPIAMConfigureRequest {
 		return IdPIAMConfigureRequest{
@@ -298,7 +295,9 @@ func TestConfigureIdPIAM(t *testing.T) {
 				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}
 
-			err := ConfigureIdPIAM(ctx, &clt, tt.req())
+			req := tt.req()
+			req.Insecure = true
+			err := ConfigureIdPIAM(ctx, &clt, req)
 			tt.errCheck(t, err)
 
 			if tt.externalStateCheck != nil {
@@ -311,8 +310,6 @@ func TestConfigureIdPIAM(t *testing.T) {
 func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	ctx := context.Background()
 	tlsServer := httptest.NewTLSServer(nil)
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 	const mockAccountID string = "123456789012"
 	baseIdPIAMConfigReqWithTLServer := func() IdPIAMConfigureRequest {
 		return IdPIAMConfigureRequest{
@@ -321,6 +318,7 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 			IntegrationRole:    "integrationrole",
 			ProxyPublicAddress: tlsServer.URL,
 			AutoConfirm:        true,
+			Insecure:           true,
 		}
 	}
 

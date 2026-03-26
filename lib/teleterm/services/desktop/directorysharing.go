@@ -278,7 +278,7 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 
 	info = &FileOrDirInfo{
 		Size:         f.Size(),
-		LastModified: f.ModTime().Unix(),
+		LastModified: f.ModTime().UnixMilli(),
 		Path:         relativePath,
 		IsEmpty:      false,
 	}

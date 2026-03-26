@@ -76,6 +76,13 @@ func (s *ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 	return &ServiceWrapper[T]{service: s.service.WithPrefix(parts...)}
 }
 
+// WithNameKeyFunc creates a service copy with a distinct NameKeyFunc.
+func (s *ServiceWrapper[T]) WithNameKeyFunc(f func() backend.Key) *ServiceWrapper[T] {
+	return &ServiceWrapper[T]{
+		service: s.service.WithNameKeyFunc(f),
+	}
+}
+
 // UpsertResource upserts a resource.
 func (s *ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))

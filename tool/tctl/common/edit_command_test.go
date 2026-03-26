@@ -35,6 +35,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -110,6 +111,10 @@ func TestEditResources(t *testing.T) {
 		{
 			kind: types.KindHealthCheckConfig,
 			edit: testEditHealthCheckConfig,
+		},
+		{
+			kind: types.KindScopedToken,
+			edit: testEditScopedToken,
 		},
 	}
 
@@ -683,6 +688,58 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
+}
+
+func testEditScopedToken(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	created, err := clt.CreateScopedToken(ctx, &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/staging",
+		Metadata: &headerv1.Metadata{
+			Name: "test-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/staging/aa",
+			Roles:         []string{string(types.RoleNode)},
+			UsageMode:     "unlimited",
+			JoinMethod:    string(types.JoinMethodToken),
+		},
+	})
+	require.NoError(t, err)
+
+	initialRevision := created.GetMetadata().GetRevision()
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		// Always use the original revision — it becomes stale after the first edit.
+		created.GetMetadata().Revision = initialRevision
+		if created.Metadata.Labels == nil {
+			created.Metadata.Labels = make(map[string]string)
+		}
+		created.Metadata.Labels["env"] = "test"
+
+		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
+	require.NoError(t, err)
+	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
+
+	// Second edit with the stale original revision should fail.
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken + "/" + created.GetMetadata().GetName()}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err))
 }
 
 func TestMultipleRoles(t *testing.T) {

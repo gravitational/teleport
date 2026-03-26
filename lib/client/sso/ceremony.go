@@ -33,14 +33,14 @@ type Ceremony struct {
 	clientCallbackURL   string
 	Init                CeremonyInit
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
-	GetCallbackResponse func(ctx context.Context) (*authclient.SSHLoginResponse, error)
+	GetCallbackResponse func(ctx context.Context) (*authclient.CLILoginResponse, error)
 }
 
 // CeremonyInit initializes an SSO login ceremony.
 type CeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error)
 
 // Run the SSO ceremony.
-func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
+func (c *Ceremony) Run(ctx context.Context) (*authclient.CLILoginResponse, error) {
 	redirectURL, err := c.Init(ctx, c.clientCallbackURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,14 +69,14 @@ type SAMLCeremony struct {
 	clientCallbackURL   string
 	Init                SAMLCeremonyInit
 	HandleRequest       func(ctx context.Context, redirectURL, postformData string) error
-	GetCallbackResponse func(ctx context.Context) (*authclient.SSHLoginResponse, error)
+	GetCallbackResponse func(ctx context.Context) (*authclient.CLILoginResponse, error)
 }
 
 // SAMLCeremonyInit initializes an SAML based SSO login ceremony.
 type SAMLCeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL, postformData string, err error)
 
 // Run the SAML SSO ceremony.
-func (c *SAMLCeremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
+func (c *SAMLCeremony) Run(ctx context.Context) (*authclient.CLILoginResponse, error) {
 	redirectURL, postformData, err := c.Init(ctx, c.clientCallbackURL)
 	if err != nil {
 		return nil, trace.Wrap(err)

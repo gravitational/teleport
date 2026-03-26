@@ -718,6 +718,12 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 			var expected []types.ResourceWithLabels
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				// Wait for the primary resource cache to be ready.
+				// Without this, we could end up switching from fallback to the primary
+				// cache while the primary cache is still being populated.
+				if !assert.True(t, w.IsInitialized(), "watcher not yet initialized") {
+					return
+				}
 				var err error
 				expected, err = w.GetUnifiedResources(ctx)
 				require.NoError(t, err)

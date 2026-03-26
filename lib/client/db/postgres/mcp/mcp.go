@@ -42,7 +42,7 @@ var queryTool = mcp.NewTool(dbmcp.ToolName(defaults.ProtocolPostgres, "query"),
 	),
 	mcp.WithString(queryToolQueryParam,
 		mcp.Required(),
-		mcp.Description("PostgresSQL SQL query to execute"),
+		mcp.Description("PostgreSQL SQL query to execute"),
 	),
 )
 

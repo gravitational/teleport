@@ -1,0 +1,63 @@
+name: Manual Test Plan Check
+run-name: Manual Test Plan Check - ${{ github.run_id }} - @${{ github.actor }}
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - edited
+      - labeled
+      - unlabeled
+
+jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          filters: |
+            changed:
+              - '.github/workflows/manual-test-plan.yaml'
+              - '!(docs|rfd)/**'
+
+  build:
+    name: Validate Manual Test Plan
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Validate Test Plan
+        id: validate_test_plan
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=manual-test-plan -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"

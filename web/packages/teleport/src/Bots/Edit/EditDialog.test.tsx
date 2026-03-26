@@ -18,7 +18,6 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -26,8 +25,10 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
@@ -48,20 +49,12 @@ import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { EditDialog } from './EditDialog';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('EditDialog', () => {
   it('should show a fetch error state', async () => {

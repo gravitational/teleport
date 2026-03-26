@@ -111,11 +111,11 @@ Service](./enroll-resources/desktop-access/introduction.mdx).
 
 ### Teleport Jamf Service
 
-The Jamf Service integrates with Jamf to enrolls trusted devices for macOS endpoints. 
+The Jamf Service integrates with Jamf to enroll trusted devices for macOS endpoints. 
 Before a user is granted access, Teleport checks the device's compliance status with Jamf. 
 This service is ideal for organizations that need to verify macOS device posture as part of 
 their access control strategy, ensuring only trusted devices are allowed to connect. 
-[Read more about the Jamf Service](./identity-governance/device-trust/jamf-integration.mdx).
+[Read more about the Jamf Service](./zero-trust-access/device-trust/jamf-integration.mdx).
 
 ### Teleport Debug Service
 
@@ -238,7 +238,7 @@ Teleport allows you to configure a **trusted cluster relationship** between a
 **root cluster** and one or more **leaf clusters** that trust the root cluster
 certificate authority. The trust relationship between the root and leaf clusters
 enables users authenticated in the root cluster to access resources
-in leaf cluster. The root and leaf cluster operate independently with their own
+in the leaf cluster. The root and leaf cluster operate independently with their own
 users, roles, and resources, but the trust relationship allows users with certain roles
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 

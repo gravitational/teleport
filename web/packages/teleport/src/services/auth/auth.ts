@@ -231,14 +231,16 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSsoGet(transactionId: string) {
-    return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
-      json = json || {};
+  headlessSsoGet(transactionId: string, abortSignal?: AbortSignal) {
+    return api
+      .get(cfg.getHeadlessSsoPath(transactionId), abortSignal)
+      .then((json: any) => {
+        json = json || {};
 
-      return {
-        clientIpAddress: json.client_ip_address,
-      };
-    });
+        return {
+          clientIpAddress: json.client_ip_address,
+        };
+      });
   },
 
   headlessSsoAccept(mfa: MfaState, transactionId: string) {

@@ -30,16 +30,15 @@ When you choose to enable summarization, the following options are available:
 | --- | --- | --- |
 | Using OpenAI with your own OpenAI key | ✅ | ✅ |
 | Using OpenAI-compatible LLM gateways such as LiteLLM  | ✅ | ✅ (*) |
-| Using Amazon Bedrock models provided by your own AWS account | ✅ | ❌ (**) |
-| Using an Amazon Bedrock model provided by Teleport | ❌ | ❌ (**) |
+| Using Amazon Bedrock models provided by your own AWS account | ✅ | ✅ |
+| Using an Amazon Bedrock model provided by Teleport | ❌ | ✅ (**) |
 
 (*) In case of Teleport Cloud, the Teleport Auth Service must be able to reach
 the LLM gateway. It means the gateway needs to be publicly accessible and
 properly secured. Access to the gateway should be guarded by the equivalent of
 OpenAI API key (e.g. LiteLLM master key).
 
-(**) Amazon Bedrock will be available in Teleport Enterprise
-Cloud later this year.
+(**) For Teleport Cloud tenants running v18.7.1 or later.
 
 Existing customers will never have AI features automatically enabled without explicit consent.
 Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
@@ -59,9 +58,8 @@ participants, resource labels, user traits, etc.
 If a match is found, Teleport proceeds to summarize the session recording. It
 uses an inference model configuration indicated by the policy to generate a
 summary using an external inference provider, such as OpenAI or Amazon Bedrock.
-There is no way to run this process on demand.
 
-There are three fundamental concepts to that underpin session summarization:
+There are three fundamental concepts that underpin session summarization:
 
 - **Inference providers** (OpenAI, Amazon Bedrock) do the heavy lifting of
   summarization.
@@ -78,20 +76,45 @@ Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
 </Admonition>
 
+Session Recording Summary Player and Timeline
+![Session Detail with High Alert](https://website.goteleport.com/_uploads/session_timeline_high_0755c66e78.png)
+
+
 ## Prerequisites
 
-- A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
+<Tabs>
+<TabItem label="Teleport Enterprise Cloud">
+- A Teleport Enterprise Cloud tenant running v18.2.0 or later with Identity
+  Security enabled. v18.7.1 required to use Teleport managed profiles. 
+- Optionally, access to your own LLM API (OpenAI, Amazon Bedrock, or an
+  OpenAI-compatible gateway). If you don't bring your own, you can use the
+  Teleport-managed model included with your Cloud tenant.
+</TabItem>
+<TabItem label="Self-Hosted">
+- A running Teleport Enterprise cluster v18.2.0 or later with Identity
   Security enabled.
 - Access to an LLM API. This can be:
   - OpenAI or OpenAI-compatible inference API, either public or self-hosted.
-  - Amazon Bedrock (available in self-hosted mode only; see the availability
-    table above).
+  - Amazon Bedrock (see the availability table above).
+</TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Teleport Enterprise Cloud Quick Start">
+Teleport Enterprise Cloud tenants include a pre-provisioned inference model
+(`teleport-cloud-default`). You can skip directly to
+[Step 3: Set up an inference policy](#step-35-set-up-an-inference-policy) to
+start summarizing sessions.
+
+Note: Having the model pre-provisioned does not automatically enable session summarization.
+</Admonition>
 
 ## Step 1/5: Configure access to inference configuration
 
-In order to manage the summary inference configuration, you need a write access
+In order to manage the summary inference configuration, you need write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
 which is granted by default through the preset `editor` role.
+
+
 
 Alternatively, you can create a new role to make sure you have
 access to all necessary resources. To create a new role:
@@ -128,7 +151,7 @@ access to all necessary resources. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
 
-## Step 2/5 : Configure the inference model
+## Step 2/5: Configure the inference model
 
 In this step, you will create an `inference_model` resource. It tells Teleport
 how to summarize a session by pointing it to a large language model (LLM) API.
@@ -140,6 +163,37 @@ gateways by creating multiple Teleport inference models that reference the same
 underlying API-specific model name
 
 <Tabs>
+<TabItem label="Teleport-Managed Model">
+
+Teleport Enterprise Cloud tenants come with a pre-provisioned inference model
+called `teleport-cloud-default`, powered by Amazon Bedrock. Teleport manages the
+underlying model and infrastructure. 
+
+No additional configuration is needed for this step. Skip to
+[Step 3](#step-35-set-up-an-inference-policy) and reference
+`teleport-cloud-default` as the model in your inference policy.
+
+You can also add your own inference models using the **OpenAI** or **Amazon
+Bedrock** tabs, or through the Teleport Web UI.
+
+
+<Admonition type="note">
+The Teleport-managed model is available starting with Teleport v18.7.1. There
+are currently no usage limits, but quotas may be introduced in the future.
+</Admonition>
+
+</TabItem>
+<TabItem label="Web UI">
+
+You can also create an inference model through the Teleport Web UI. Navigate to
+**Identity Security -> Session Recording Summaries** and click **Add Inference Model**.
+Choose **OpenAI-Compatible API** or **Amazon Bedrock** as the provider, fill in the
+required fields, and click **Create**. You can use **Test Connection** to verify
+your configuration before saving.
+
+![Create Inference Model dialog in the Teleport Web UI](https://website.goteleport.com/_uploads/inference_model_9e1bc592d2.png)
+
+</TabItem>
 <TabItem label="OpenAI">
 To communicate with OpenAI, an inference model needs an API key. It's stored
 separately in an `inference_secret` resource and referenced by the
@@ -258,7 +312,7 @@ Replace <Var name="bedrock-model-arn"/> with the ARN of the Amazon Bedrock
 model.
 
 If you're using an inference profile, the `Resource` field must instead specify
-the inference profile ARN, as well as ARNS of *all* of the models that given
+the inference profile ARN, as well as ARNs of *all* of the models that given
 inference profile may end up calling. These can be given either as an array of
 specific elements or using wildcards. For more details, see [the Amazon Bedrock
 documentation on prerequisites for using inference
@@ -329,16 +383,52 @@ can be expressed using inference policies:
 See [Session matching examples](#session-matching-examples) for details on how
 to configure Teleport to achieve these goals.
 
-To create the required configuration resources:
+You can create an inference policy through the Teleport Web UI or using `tctl`.
+
+<Tabs>
+<TabItem label="Web UI">
+
+Navigate to **Identity Security -> Session Recording Summaries** and click **Add Inference Policy**.
+Select **Teleport Cloud** to use the managed model, or **Use your own model**
+to use a model you configured in Step 2. Choose which session types to
+summarize (Kubernetes, Database, SSH), give the policy a name, and click
+**Create**.
+
+![Create Inference Policy dialog in the Teleport Web UI](https://goteleport.com/_uploads/sh_recordings_summaries_f317d70e86.png)
+
+</TabItem>
+<TabItem label="tctl">
 
 1. Create an `inference-policy.yaml` file with the following content:
+
+   <Tabs>
+   <TabItem scope={["cloud"]} label="Teleport-Managed Model">
+
+   ```yaml
+   kind: inference_policy
+   version: v1
+   metadata:
+     name: all-sessions
+     description: Summarize all sessions
+   spec:
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     kinds:
+     - ssh
+     - k8s
+     - db
+     # Name of the pre-provisioned Teleport-managed inference model.
+     model: teleport-cloud-default
+   ```
+
+   </TabItem>
+   <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
    ```yaml
    kind: inference_policy
    version: v1
    metadata:
      name: shell-sessions
-     description: Summarize all sessions using OpenAI
+     description: Summarize all sessions
    spec:
      # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
      kinds:
@@ -350,11 +440,17 @@ To create the required configuration resources:
      model: shell-summary-model
    ```
 
+   </TabItem>
+   </Tabs>
+
 1. Create the inference policy in the backend:
 
    ```code
    $ tctl create -f inference-policy.yaml
    ```
+
+</TabItem>
+</Tabs>
 
 For full description of the inference configuration resources, see appropriate
 sections of [Teleport Resources Reference](../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx):
@@ -406,11 +502,13 @@ That's it! We are ready to conduct a test session. Connect to any of your
 cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
 terminal. Start an interactive session and execute any command, quit the
 session, and go to **Audit -> Session Recordings**. You should see the
-corresponding recording tile with a summary button
-![summary button](../../img/identity-security/summary-button.png). Clicking the
-summary button will show the summary.
+corresponding recording tile with a summary button. Clicking the summary button
+will show the summary.
 
-![Session recording list screen with a summary visible](../../img/identity-security/rec-list-with-summary.png)
+### Session Recording Summary Dashboard 
+
+![Session recording list screen with a summary visible](https://website.goteleport.com/_uploads/session_summary_list_3fe0cae7ac.png)
+
 
 <Admonition type="info">
 It can take a while to generate a summary, and the time depends on multiple
@@ -418,7 +516,55 @@ factors, including session size, model, and its temperature. Usually it should
 appear up to a minute after the session is uploaded to the Auth service.
 </Admonition>
 
+## Audit Events for Session Summaries
+
+After a session is summarized, an audit event is generated. This allows you to
+forward events to a SIEM to alert the high severity sessions. 
+
+```json
+// Example Session Summarization with a critical risk level.
+{
+  "cluster_name": "example.teleport.com",
+  "code": "INF010I",
+  "db_protocol": "",
+  "db_uri": "",
+  "ei": 1771606438680848100,
+  "event": "session.summarized",
+  "inference_finished_at": "2026-02-20T16:53:58.583618024Z",
+  "inference_started_at": "2026-02-20T16:53:15.970015278Z",
+  "model_name": "shell-summary-model",
+  "namespace": "default",
+  "risk_level": "CRITICAL",
+  "server_hostname": "wasabi-db-host",
+  "server_id": "46bdf6db-0b55-4e62-9dcc-32b0958df696",
+  "server_labels": {
+    "cloud": "aws",
+    "env": "prod",
+    "teleport.dev/account-id": "981262289404",
+    "teleport.dev/instance-id": "i-0e94eeb1ff1f46dd7",
+    "type": "teleport-postgres"
+  },
+  "server_sub_kind": "teleport",
+  "server_version": "18.7.0",
+  "session_type": "ssh",
+  "short_description": "Credential harvesting followed by data exfiltration to command-and-control infrastructure with evidence destruction",
+  "sid": "33610f89-096e-4708-9b43-c4b00e7c9c4f",
+  "success": true,
+  "time": "2026-02-20T16:53:58.671136904Z",
+  "uid": "1a3813e0-53a6-4dfa-807c-da6e76215937",
+  "username": "benarent"
+}
+```
+
 ## Limitations
+
+### On-demand summarization is not supported
+
+Summaries are generated automatically after a session ends based on matching
+inference policies. It is not possible to manually trigger summarization for a
+specific session or re-summarize a session that has already been processed.
+
+### Session size limits
 
 Currently, Teleport doesn't attempt to summarize sessions that are larger than
 the model's context window. If after tokenization, the session turns out to be

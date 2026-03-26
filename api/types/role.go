@@ -67,7 +67,8 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 type Role interface {
 	// Resource provides common resource methods.
 	ResourceWithLabels
-
+	// IsEqual determines if two roles are equivalent to one another.
+	IsEqual(Role) bool
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
@@ -358,6 +359,15 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+func (r *RoleV6) IsEqual(other Role) bool {
+	otherv6, ok := other.(*RoleV6)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualRoleV6(r, otherv6)
+}
 
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {

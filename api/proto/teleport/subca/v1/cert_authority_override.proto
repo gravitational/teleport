@@ -1,0 +1,66 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.subca.v1;
+
+import "teleport/header/v1/metadata.proto";
+import "teleport/subca/v1/certificate_override.proto";
+import "teleport/subca/v1/crl.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1";
+
+// CertAuthorityOverride is a Teleport resource that describes a certificate
+// override for a certain Teleport CA. CertAuthorityOverride mirrors, in
+// granularity (and sometimes layout), the CertAuthority resource.
+//
+// Certificate overrides allow customers to chain a Teleport CA to an external
+// authority, effectively making the Teleport CA into a Sub CA (instead of a
+// self-signed root).
+//
+// Key material is never impacted by overrides, only certificates can be
+// overriden.
+//
+// https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
+message CertAuthorityOverride {
+  // Kind is "cert_authority_override".
+  string kind = 1;
+  // Sub kind is the CA type.
+  // Eg: "db_client", "spiffe-tls", "windows".
+  string sub_kind = 2;
+  // Version is "v1".
+  string version = 3;
+  // Metadata for the resource.
+  // The name of the resource is the cluster name.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec for the resource.
+  CertAuthorityOverrideSpec spec = 5;
+  // Dynamic state for the resource.
+  CertAuthorityOverrideStatus status = 7;
+}
+
+// CertAuthorityOverrideSpec is the spec of a CertAuthorityOverride resource.
+message CertAuthorityOverrideSpec {
+  // Certificate overrides.
+  // Required.
+  repeated CertificateOverride certificate_overrides = 1;
+}
+
+// CertAuthorityOverrideStatus is the dynamic, system-managed state of a
+// CertAuthorityOverride resource.
+message CertAuthorityOverrideStatus {
+  // CRLs generated for each certificate override.
+  map<string, CertificateRevocationList> public_key_hash_to_crl = 1;
+}

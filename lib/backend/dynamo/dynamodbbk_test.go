@@ -33,6 +33,7 @@ import (
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -446,4 +447,96 @@ func TestKeyPrefix(t *testing.T) {
 		key := trimPrefix(prefixed)
 		assert.Equal(t, ".locks/test/llama", key.String())
 	})
+}
+
+func TestConvertError(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     error
+		checkFunc func(error) bool
+	}{
+		{
+			name:  "nil error",
+			input: nil,
+			checkFunc: func(err error) bool {
+				return err == nil
+			},
+		},
+		{
+			name: "ConditionalCheckFailedException -> CompareFailed",
+			input: &types.ConditionalCheckFailedException{
+				Message: aws.String("conditional failed"),
+			},
+			checkFunc: trace.IsCompareFailed,
+		},
+		{
+			name: "ProvisionedThroughputExceededException -> ConnectionProblem",
+			input: &types.ProvisionedThroughputExceededException{
+				Message: aws.String("throughput exceeded"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "ResourceNotFoundException -> NotFound",
+			input: &types.ResourceNotFoundException{
+				Message: aws.String("not found"),
+			},
+			checkFunc: trace.IsNotFound,
+		},
+		{
+			name: "ItemCollectionSizeLimitExceededException -> LimitExceeded",
+			input: &types.ItemCollectionSizeLimitExceededException{
+				Message: aws.String("collection limit"),
+			},
+			checkFunc: trace.IsLimitExceeded,
+		},
+		{
+			name: "InternalServerError -> BadParameter",
+			input: &types.InternalServerError{
+				Message: aws.String("internal error"),
+			},
+			checkFunc: trace.IsBadParameter,
+		},
+		{
+			name: "ExpiredIteratorException -> ConnectionProblem",
+			input: &streamtypes.ExpiredIteratorException{
+				Message: aws.String("expired iterator"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "LimitExceededException -> ConnectionProblem",
+			input: &streamtypes.LimitExceededException{
+				Message: aws.String("limit exceeded"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "TrimmedDataAccessException -> ConnectionProblem",
+			input: &streamtypes.TrimmedDataAccessException{
+				Message: aws.String("trimmed access"),
+			},
+			checkFunc: trace.IsConnectionProblem,
+		},
+		{
+			name: "ObjectNotFoundException -> NotFound",
+			input: &autoscalingtypes.ObjectNotFoundException{
+				Message: aws.String("object not found"),
+			},
+			checkFunc: trace.IsNotFound,
+		},
+		{
+			name:  "unknown error passthrough",
+			input: errors.New("random error"),
+			checkFunc: func(err error) bool {
+				return err.Error() == "random error"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.True(t, tt.checkFunc(convertError(tt.input)))
+		})
+	}
 }

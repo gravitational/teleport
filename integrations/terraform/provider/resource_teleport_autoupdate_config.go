@@ -223,6 +223,13 @@ func (r resourceTeleportAutoUpdateConfig) Update(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	autoUpdateConfig.Kind = apitypes.KindAutoUpdateConfig
+	if autoUpdateConfig.GetMetadata() == nil {
+		autoUpdateConfig.Metadata = &headerv1.Metadata{}
+	}
+	if autoUpdateConfig.GetMetadata().GetName() == "" {
+		autoUpdateConfig.Metadata.Name = apitypes.MetaNameAutoUpdateConfig
+	}
 
 	autoUpdateConfigBefore, err := r.p.Client.GetAutoUpdateConfig(ctx)
 	if err != nil {

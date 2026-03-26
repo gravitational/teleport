@@ -205,7 +205,8 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * Indicates origin of user account.
+     * Indicates origin of this user account. Only
+     * recorded for the user login event.
      *
      * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
      */
@@ -223,13 +224,15 @@ export interface UserActivityRecord {
      */
     accessRequestsReviewed: bigint;
     /**
-     * counter of Access List review.
+     * counter of Access Lists reviewed by this user.
      *
      * @generated from protobuf field: uint64 access_lists_reviewed = 22;
      */
     accessListsReviewed: bigint;
     /**
-     * counter of roles or traits grant event based on Access List membership.
+     * counter of roles or traits granted to this user based on
+     * the Access List membership. The event is emitted during
+     * user login state calculation.
      *
      * @generated from protobuf field: uint64 access_lists_grants = 23;
      */
@@ -521,6 +524,12 @@ export interface SessionSummariesGeneratedRecord {
      * @generated from protobuf field: uint64 total_output_tokens = 5;
      */
     totalOutputTokens: bigint;
+    /**
+     * number of summaries generated for this session type and resource combination.
+     *
+     * @generated from protobuf field: uint64 summaries_generated = 6;
+     */
+    summariesGenerated: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.SubmitUsageReportsRequest
@@ -613,7 +622,7 @@ export enum UserKind {
 /**
  * UserOrigin is the origin of a user account.
  * Keep the values in sync with UserOrigin enum defined in
- * API events and prehogv1alpha.
+ * Teleport OSS repository.
  *
  * @generated from protobuf enum prehog.v1.UserOrigin
  */
@@ -1535,7 +1544,8 @@ class SessionSummariesGeneratedRecord$Type extends MessageType<SessionSummariesG
             { no: 1, name: "session_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "resource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "total_input_tokens", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 5, name: "total_output_tokens", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 5, name: "total_output_tokens", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 6, name: "summaries_generated", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<SessionSummariesGeneratedRecord>): SessionSummariesGeneratedRecord {
@@ -1544,6 +1554,7 @@ class SessionSummariesGeneratedRecord$Type extends MessageType<SessionSummariesG
         message.resourceName = "";
         message.totalInputTokens = 0n;
         message.totalOutputTokens = 0n;
+        message.summariesGenerated = 0n;
         if (value !== undefined)
             reflectionMergePartial<SessionSummariesGeneratedRecord>(this, message, value);
         return message;
@@ -1564,6 +1575,9 @@ class SessionSummariesGeneratedRecord$Type extends MessageType<SessionSummariesG
                     break;
                 case /* uint64 total_output_tokens */ 5:
                     message.totalOutputTokens = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 summaries_generated */ 6:
+                    message.summariesGenerated = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1589,6 +1603,9 @@ class SessionSummariesGeneratedRecord$Type extends MessageType<SessionSummariesG
         /* uint64 total_output_tokens = 5; */
         if (message.totalOutputTokens !== 0n)
             writer.tag(5, WireType.Varint).uint64(message.totalOutputTokens);
+        /* uint64 summaries_generated = 6; */
+        if (message.summariesGenerated !== 0n)
+            writer.tag(6, WireType.Varint).uint64(message.summariesGenerated);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
