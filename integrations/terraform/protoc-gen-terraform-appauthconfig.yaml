@@ -34,13 +34,14 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "AppAuthConfig.metadata.id"
+  # Revision must be excluded to avoid a permanent drift in state.
+  - "AppAuthConfig.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
   - "AppAuthConfig.metadata.expires"
   - "AppAuthConfig.metadata.namespace"
-  - "AppAuthConfig.metadata.revision"
   - "AppAuthConfig.kind"
 
 # These fields will be marked as Required: true

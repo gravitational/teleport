@@ -159,6 +159,8 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "Metadata.ID"
+    # Revision must be excluded to avoid a permanent drift in state.
+    - "Metadata.Revision"
 
     # AuthPreference
     - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
@@ -366,7 +368,8 @@ required_fields:
 
     # Provision token
     - "ProvisionTokenV2.Spec"
-    - "ProvisionTokenV2.Spec.Options"
+    # TODO: This attribute does not exist
+    # - "ProvisionTokenV2.Spec.Options"
     - "ProvisionTokenV2.Spec.Roles"
     - "ProvisionTokenV2.Version"
 

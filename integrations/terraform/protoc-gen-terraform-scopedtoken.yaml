@@ -32,12 +32,13 @@ exclude_fields:
   - "ScopedToken.metadata.id"
   # Usage tracking is server-side only
   - "ScopedToken.status"
+  # Revision must be excluded to avoid a permanent drift in state.
+  - "ScopedToken.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
   - "ScopedToken.metadata.expires"
   - "ScopedToken.metadata.namespace"
-  - "ScopedToken.metadata.revision"
   - "ScopedToken.kind"
 
 # These fields will be marked as Required: true

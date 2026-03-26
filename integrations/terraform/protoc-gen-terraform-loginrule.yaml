@@ -29,6 +29,8 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "Metadata.ID"
+    # Revision must be excluded to avoid a permanent drift in state.
+    - "Metadata.Revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
