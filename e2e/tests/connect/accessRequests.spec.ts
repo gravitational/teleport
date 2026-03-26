@@ -536,4 +536,57 @@ test.describe('access requests', () => {
       }).toPass();
     });
   });
+
+  test('search-based request: create with resources from root and leaf', async () => {
+    await using app = await launchAsRequester();
+    const { page } = app;
+
+    // The requester should see resources via search_as_roles, with
+    // "Request Access" instead of "Connect".
+    await expect(page.getByText('docker-root-node')).toBeVisible();
+
+    // Add the root node to the request.
+    await page.getByRole('button', { name: 'Request Access' }).click();
+
+    // Open the leaf cluster to add a leaf resource too.
+    await page.locator('[title*="Open Clusters"]').click();
+    await page.getByText('teleport-e2e-leaf').click();
+
+    // Wait for the leaf cluster tab to load and show the leaf node.
+    await expect(page.getByText('docker-leaf-node')).toBeVisible();
+
+    // Add the leaf node to the request.
+    await page.getByRole('button', { name: 'Add to Request' }).click();
+
+    // Proceed to the request form.
+    await page.getByRole('button', { name: 'Proceed to request' }).click();
+
+    // Verify both resources are listed in the checkout panel.
+    const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+    await expect(checkoutPanel.getByText('docker-root-node')).toBeVisible();
+    await expect(checkoutPanel.getByText('docker-leaf-node')).toBeVisible();
+
+    // Verify suggested reviewer (bob) is shown.
+    const reviewers = checkoutPanel.locator('[data-testid="reviewers"]');
+    await expect(reviewers.getByText('bob')).toBeVisible();
+
+    // Submit the request.
+    await checkoutPanel.getByRole('button', { name: 'Submit Request' }).click();
+    await expect(
+      page.getByText('Resources Requested Successfully')
+    ).toBeVisible();
+
+    // Navigate to the request list and verify the request is pending.
+    await page.getByRole('button', { name: 'See requests' }).click();
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Refresh' }).click();
+      await expect(page.getByText('No Requests Found')).not.toBeVisible({
+        timeout: 500,
+      });
+    }).toPass();
+
+    // Open the request and verify we can't review our own request.
+    await page.getByRole('button', { name: 'View' }).first().click();
+    await expect(page.getByText('Submit Review')).not.toBeVisible();
+  });
 });
