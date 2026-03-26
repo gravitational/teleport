@@ -8,11 +8,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is the Teleport Pro (Enterprise) config
@@ -111,34 +109,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 			return nil, trace.Wrap(err)
 		}
 		go updateService.Run(process.ExitContext())
-	}
-
-	// todo (michellescripts) set this in getSelfHostedLicenseFeatures and treat Features as source of truth
-	if cfg.LicenseFile.License.GetSalesCenterReporting() {
-		const isCloudFalse = false
-
-		anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(process.ExitContext())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// forcibly stops when ExitContext closes or is gracefully stopped in
-		// auth.shutdown
-		if err := prehog.InitAggregatingUsageReporting(
-			process.TeleportProcess,
-			cfg.LicenseFile,
-			isCloudFalse,
-			anonymizer,
-		); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		prehog.ClearAggregatingUsageReportingAlert(process.TeleportProcess)
 	}
 
 	if cfg.AuthPlugin.HostedPlugins.Enabled {

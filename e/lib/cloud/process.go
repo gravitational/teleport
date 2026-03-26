@@ -15,9 +15,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -80,17 +78,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		cloudClient.Close()
 	})
 
-	// the initial anonymization key may come from a self-hosted license, a cloud API call, or default to the cluster ID
-	anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(process.ExitContext())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Start feature service
 	if cfg.LicenseFile.License.GetCloud() {
 		// Use a jittered interval between (defaultFeatureQueryInterval, defaultFeatureQueryInterval * 2)
@@ -101,7 +88,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 			CloudClient:              cloudClient,
 			Interval:                 jitteredQueryInterval,
 			RequestTimeout:           defaultFeatureQueryTimeout,
-			OnAnonymizationKeyUpdate: anonymizer.SetAnonymizationKey,
+			OnAnonymizationKeyUpdate: process.GetAuthServer().SetAnonymizationKey,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -113,26 +100,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		if err := plugins.RegisterPluginManager(cfg.AuthPlugin.HostedPlugins.OAuthProviders, process.TeleportProcess); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-	}
-
-	if err := prehog.InitStreamingUsageReporting(
-		process.ExitContext(),
-		cfg.LicenseFile,
-		process.TeleportProcess,
-		anonymizer,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	const isCloudTrue = true
-	if err := prehog.InitAggregatingUsageReporting(
-		process.TeleportProcess,
-		cfg.LicenseFile,
-		isCloudTrue,
-		anonymizer,
-	); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return process, nil

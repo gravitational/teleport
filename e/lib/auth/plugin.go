@@ -217,11 +217,6 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.BadParameter("missing proto server")
 	}
 
-	keypair := p.Config.License.GetKeyPair()
-	if keypair != nil {
-		p.authServer.AuthServer.SetLicense(keypair)
-	}
-
 	// Register Cloud APIs.
 	cloudapi.RegisterTenantsServiceServer(gRPCServer, &cloudWithRoles{
 		plugin: p,
@@ -264,6 +259,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 	p.authServer.AuthServer.SetOIDCService(oas)
 
+	keypair := p.Config.License.GetKeyPair()
 	// Create the ReleaseClient
 	if keypair != nil {
 		releaseTLSConfig, err := liblicense.MakeTLSConfig(*keypair)

@@ -14,10 +14,12 @@ import (
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
 	emodules "github.com/gravitational/teleport/e/tool/modules"
+	ossauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/healthchecks"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // PluginShimURLEnvVar is the environment variable name
@@ -65,7 +68,23 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	// TODO(tross): delete once modules are injected everywhere.
 	modules.SetModules(mod)
 
-	webPlugin, authPlugin, err := addPlugins(cfg, license)
+	pluginRegistry := plugin.NewRegistry()
+
+	if cfg.Auth.Enabled {
+		// Register the usage reporting init callback so it runs after the OSS auth
+		// server is ready, ensuring enterprise auth extensions see the correct
+		// UsageReporter service.
+		pluginRegistry.SetUsageReportingInitFunc(func(processI any) error {
+			process, ok := processI.(*service.TeleportProcess)
+			if !ok {
+				return trace.BadParameter("invalid process type, expected %T, got %T (this is a bug)", process, processI)
+			}
+
+			return trace.Wrap(initUsageReporting(process, cfg, license))
+		})
+	}
+
+	webPlugin, authPlugin, err := addPlugins(cfg, license, pluginRegistry)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,8 +158,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	return ossProcess, nil
 }
 
-func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPlugin *web.Plugin, authPlugin *auth.Plugin, err error) {
-	pluginRegistry := plugin.NewRegistry()
+func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, pluginRegistry plugin.Registry) (webPlugin *web.Plugin, authPlugin *auth.Plugin, err error) {
 	if cfg.Proxy.Enabled {
 		var pluginShimURL *url.URL
 		if urlVal := os.Getenv(pluginShimURLEnvVar); urlVal != "" {
@@ -209,4 +227,64 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 // registerExpectedServices sets up the instance role -> identity event mapping.
 func registerExpectedServices(cfg *servicecfg.Config) {
 	services.JamfRegister(cfg)
+}
+
+// initUsageReporting starts all usage-reporting pipelines for the given process.
+// It is invoked via the plugin registry callback after the OSS auth server is fully initialized,
+// ensuring enterprise auth extensions receive the correct UsageReporter service.
+//
+// For cloud deployments it starts:
+//  1. Streaming usage reporting — sends events to the Cloud in near real-time.
+//  2. Aggregating usage reporting — batches and forwards events periodically.
+//
+// For self-hosted deployments it starts:
+//  1. Aggregating usage reporting — only when the license has sales-center reporting enabled.
+func initUsageReporting(process *service.TeleportProcess, cfg *servicecfg.Config, license *licensefile.LicenseFile) error {
+	anonymizer, err := newAnonimizer(process.GetAuthServer(), license)
+	if err != nil {
+		return trace.Wrap(err, "failed to initialize HMAC anonymizer")
+	}
+
+	isCloud := cfg.Modules.Features().Cloud
+	if isCloud {
+		if err := prehog.InitStreamingUsageReporting(
+			process.ExitContext(),
+			license,
+			process,
+			anonymizer,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if license.License.GetSalesCenterReporting().Value() || isCloud {
+		if err := prehog.InitAggregatingUsageReporting(
+			process,
+			license,
+			isCloud,
+			anonymizer,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		prehog.ClearAggregatingUsageReportingAlert(process)
+	}
+	return nil
+}
+
+func newAnonimizer(authServer *ossauth.Server, license *licensefile.LicenseFile) (utils.Anonymizer, error) {
+	// set the license before initializing the anonymization key,
+	// since the license may contain the anonymization key for self-hosted clusters.
+	if license != nil {
+		authServer.SetLicense(license.GetKeyPair())
+	}
+
+	if err := authServer.InitializeAnonymizationKey(); err != nil {
+		return nil, trace.Wrap(err, "failed to initialize anonymization key on auth server")
+	}
+
+	anonymizer, err := utils.NewHMACAnonymizer(authServer)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to initialize HMAC anonymizer")
+	}
+	return anonymizer, nil
 }

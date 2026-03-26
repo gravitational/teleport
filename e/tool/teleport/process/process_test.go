@@ -5,14 +5,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -127,6 +131,81 @@ func TestFallbackFeaturesFromLicense(t *testing.T) {
 	require.Equal(t, modules.BuildEnterprise, modules.GetModules().BuildType())
 	features := modules.GetModules().Features()
 	require.True(t, features.Cloud)
+}
+
+func TestNewAnonimizer(t *testing.T) {
+	tests := []struct {
+		name        string
+		testModules modulestest.Modules
+		license     *licensefile.LicenseFile
+		wantKey     string
+	}{
+		{
+			name: "uses CloudAnonymizationKey when present",
+			testModules: modulestest.Modules{
+				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
+			},
+			license: &licensefile.LicenseFile{
+				KeyPair: &liblicense.License{AnonymizationKey: []byte("license-key")},
+			},
+			wantKey: "cloud-key",
+		},
+		{
+			name:        "uses license AnonymizationKey when no cloud key is present",
+			testModules: modulestest.Modules{},
+			license: &licensefile.LicenseFile{
+				KeyPair: &liblicense.License{AnonymizationKey: []byte("license-key")},
+			},
+			wantKey: "license-key",
+		},
+		{
+			name:        "uses cluster ID when neither cloud key nor license key is present",
+			testModules: modulestest.Modules{},
+			license:     &licensefile.LicenseFile{KeyPair: &liblicense.License{}},
+			wantKey:     "cluster-id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+				Dir:       t.TempDir(),
+				ClusterID: "cluster-id",
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			modulestest.SetTestModules(t, tt.testModules)
+
+			anonymizer, err := newAnonimizer(testAuthServer.AuthServer, tt.license)
+			require.NoError(t, err)
+			require.NotNil(t, anonymizer)
+
+			require.Equal(t, tt.wantKey, string(testAuthServer.AuthServer.GetAnonymizationKey()))
+
+			realAuthAnonymizer, err := utils.NewHMACAnonymizer(testAuthServer.AuthServer)
+			require.NoError(t, err)
+
+			staticAuthAnonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString(tt.wantKey))
+			require.NoError(t, err)
+
+			// The real anonymizer should produce the same output as the static one with the expected key.
+			input := []byte("test-input")
+			realOutput := realAuthAnonymizer.Anonymize(input)
+			staticOutput := staticAuthAnonymizer.Anonymize(input)
+			require.Equal(t, staticOutput, realOutput)
+
+			// change the anonymization key and verify that the output changes accordingly
+			testAuthServer.AuthServer.SetAnonymizationKey([]byte("otherKey"))
+
+			staticAuthAnonymizer, err = utils.NewHMACAnonymizer(utils.AnonymizationKeyString("otherKey"))
+			require.NoError(t, err)
+
+			realOutput2 := realAuthAnonymizer.Anonymize(input)
+			staticOutput2 := staticAuthAnonymizer.Anonymize(input)
+			require.Equal(t, staticOutput2, realOutput2)
+		})
+	}
 }
 
 // makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to
