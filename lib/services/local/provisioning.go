@@ -43,12 +43,27 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
+	actions, err := upsertProvisionTokenActions(p)
 	if err != nil {
+		return err
+	}
+
+	if _, err := s.AtomicWrite(ctx, actions); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
+		}
 		return trace.Wrap(err)
 	}
 
-	if _, err := s.AtomicWrite(ctx, []backend.ConditionalAction{
+	return nil
+}
+
+func upsertProvisionTokenActions(p types.ProvisionToken) ([]backend.ConditionalAction, error) {
+	item, err := itemFromProvisionToken(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []backend.ConditionalAction{
 		{
 			Key:       backend.NewKey(tokensPrefix, p.GetName()),
 			Condition: backend.Whatever(),
@@ -62,14 +77,7 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 			// but both conditions must be met
 			Action: backend.Nop(),
 		},
-	}); err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
-		}
-		return trace.Wrap(err)
-	}
-
-	return nil
+	}, nil
 }
 
 // PatchToken uses the supplied function to attempt to patch a token resource.
@@ -109,7 +117,7 @@ func (s *ProvisioningService) PatchToken(
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
-		item, err := s.tokenToItem(updated)
+		item, err := itemFromProvisionToken(updated)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -130,7 +138,7 @@ func (s *ProvisioningService) PatchToken(
 
 // CreateToken creates a new token for the auth server
 func (s *ProvisioningService) CreateToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
+	item, err := itemFromProvisionToken(p)
 	if err != nil {
 		return trace.Wrap(err)
 	}

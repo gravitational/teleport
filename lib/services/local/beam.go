@@ -20,10 +20,12 @@ package local
 
 import (
 	"context"
-	"time"
+	"errors"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -51,7 +53,6 @@ func NewBeamService(b backend.Backend) (*BeamService, error) {
 			BackendPrefix: backend.NewKey(beamPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*beamsv1.Beam],
 			UnmarshalFunc: services.UnmarshalProtoResource[*beamsv1.Beam],
-			ValidateFunc:  services.ValidateBeam,
 		},
 	)
 	if err != nil {
@@ -62,12 +63,6 @@ func NewBeamService(b backend.Backend) (*BeamService, error) {
 		backend: b,
 		svc:     service,
 	}, nil
-}
-
-// CreateBeam creates a new Beam resource.
-func (s *BeamService) CreateBeam(ctx context.Context, beam *beamsv1.Beam) (*beamsv1.Beam, error) {
-	created, err := s.svc.CreateResource(ctx, beam)
-	return created, trace.Wrap(err)
 }
 
 // GetBeam returns the specified Beam resource.
@@ -88,7 +83,7 @@ func (s *BeamService) GetBeamByAlias(ctx context.Context, alias string) (*beamsv
 	item, err := s.backend.Get(ctx, beamAliasKey(alias))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("beam %q doesn't exist", alias)
+			return nil, trace.NotFound("beam %+q doesn't exist", alias)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -102,62 +97,256 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
 	return items, nextKey, nil
 }
 
-// UpdateBeam updates an existing Beam resource.
-func (s *BeamService) UpdateBeam(ctx context.Context, beam *beamsv1.Beam) (*beamsv1.Beam, error) {
-	updated, err := s.svc.ConditionalUpdateResource(ctx, beam)
-	return updated, trace.Wrap(err)
-}
-
-// DeleteBeam removes the specified Beam resource.
-func (s *BeamService) DeleteBeam(ctx context.Context, name string) error {
-	return trace.Wrap(s.svc.DeleteResource(ctx, name))
-}
-
-// CreateBeamAliasLease creates a new alias lease for a beam.
-func (s *BeamService) CreateBeamAliasLease(ctx context.Context, alias, beamID string, expiry time.Time) error {
-	if alias == "" {
-		return trace.BadParameter("alias: must be non-empty")
-	}
-	if beamID == "" {
-		return trace.BadParameter("beamID: must be non-empty")
+// CreateBeam atomically writes the beam and its supporting resources to the
+// backend. If the beam's alias is already in-use, or any other resource name
+// conflicts, an AlreadyExists error will be returned, and the caller should
+// generate a new alias and resource names and try again.
+//
+// This function should be called before the actual VM is provisioned so that
+// if a subsequent operation fails, we maintain a record of it, and can clean
+// the VM up later.
+func (s *BeamService) CreateBeam(ctx context.Context, p services.CreateBeamParams) (*beamsv1.Beam, error) {
+	if err := p.Validate(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	_, err := s.backend.Create(ctx, backend.Item{
-		Key:     beamAliasKey(alias),
-		Value:   []byte(beamID),
-		Expires: expiry,
+	aliasItem := itemFromBeamAlias(p.Beam)
+
+	beamItem, err := itemFromBeam(p.Beam)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	botUserItem, err := itemFromUser(p.BotUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	botRoleItem, err := itemFromRole(p.BotRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	workloadIdentityItem, err := itemFromWorkloadIdentity(p.WorkloadIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions := []backend.ConditionalAction{
+		{
+			Key:       aliasItem.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(aliasItem),
+		},
+		{
+			Key:       beamItem.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*beamItem),
+		},
+		{
+			Key:       botUserItem.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*botUserItem),
+		},
+		{
+			Key:       botRoleItem.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*botRoleItem),
+		},
+		{
+			Key:       workloadIdentityItem.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*workloadIdentityItem),
+		},
+	}
+
+	tokenActions, err := upsertProvisionTokenActions(p.Token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	actions = append(actions, tokenActions...)
+
+	rev, err := s.backend.AtomicWrite(ctx, actions)
+	switch {
+	case errors.Is(err, backend.ErrConditionFailed):
+		return nil, trace.AlreadyExists("beam alias or resource name already in-use")
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	created := proto.CloneOf(p.Beam)
+	created.Metadata.Revision = rev
+	return created, nil
+}
+
+// UpdateBeamCreateNode atomically writes the beam and node to the backend.
+// It is used to "finalize" the creation of the beam.
+func (s *BeamService) UpdateBeamCreateNode(ctx context.Context, beam *beamsv1.Beam, node types.Server) (*beamsv1.Beam, error) {
+	nodeItem, err := itemFromNode(node)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.updateBeam(ctx, beam, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(nodesPrefix, apidefaults.Namespace, node.GetName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*nodeItem),
+		},
 	})
-	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("beam alias %q already exists", alias)
-	}
-	return trace.Wrap(err)
 }
 
-// DeleteBeamAliasLease deletes an alias lease for a Beam.
-func (s *BeamService) DeleteBeamAliasLease(ctx context.Context, alias string) error {
-	if alias == "" {
-		return trace.BadParameter("alias: must be non-empty")
+// UpdateBeamCreateApp atomically writes the beam and app to the backend. It is
+// used to "publish" the beam.
+func (s *BeamService) UpdateBeamCreateApp(ctx context.Context, beam *beamsv1.Beam, app types.Application) (*beamsv1.Beam, error) {
+	appItem, err := itemFromApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	return trace.Wrap(s.backend.Delete(ctx, beamAliasKey(alias)))
+	return s.updateBeam(ctx, beam, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(appPrefix, app.GetName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*appItem),
+		},
+	})
 }
 
-// DeleteAllBeams removes all Beam resources.
-func (s *BeamService) DeleteAllBeams(ctx context.Context) error {
-	if err := s.svc.DeleteAllResources(ctx); err != nil {
+// UpdateBeamDeleteApp atomically writes the beam and deletes its app from
+// the backend. It is used to "unpublish" the beam.
+func (s *BeamService) UpdateBeamDeleteApp(ctx context.Context, beam *beamsv1.Beam, appName string) (*beamsv1.Beam, error) {
+	if appName == "" {
+		return nil, trace.BadParameter("app name is required")
+	}
+	return s.updateBeam(ctx, beam, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(appPrefix, appName),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+	})
+}
+
+func (s *BeamService) updateBeam(ctx context.Context, beam *beamsv1.Beam, actions []backend.ConditionalAction) (*beamsv1.Beam, error) {
+	if err := services.ValidateBeam(beam); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	beamItem, err := itemFromBeam(beam)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	actions = append(actions, backend.ConditionalAction{
+		Key:       beamKey(beam.GetMetadata().GetName()),
+		Condition: backend.Revision(beam.GetMetadata().GetRevision()),
+		Action:    backend.Put(*beamItem),
+	})
+
+	rev, err := s.backend.AtomicWrite(ctx, actions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated := proto.CloneOf(beam)
+	updated.Metadata.Revision = rev
+	return updated, nil
+}
+
+// DeleteBeam atomically deletes the beam and its supporting resources from
+// the backend. It should not be called until the VM has been cleaned up.
+func (s *BeamService) DeleteBeam(ctx context.Context, name string) error {
+	beam, err := s.GetBeam(ctx, name)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Delete all alias leases too.
-	startKey := backend.NewKey(beamAliasPrefix).ExactKey()
-	endKey := backend.RangeEnd(startKey)
-	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, endKey))
+	// TODO(boxofrad): Clean up DelegationSession once #64772 is merged.
+	actions := []backend.ConditionalAction{
+		{
+			Key:       beamAliasKey(beam.GetStatus().GetAlias()),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       beamKey(beam.GetMetadata().GetName()),
+			Condition: backend.Revision(beam.GetMetadata().GetRevision()),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       backend.NewKey(tokensPrefix, beam.GetStatus().GetJoinTokenName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       backend.NewKey(webPrefix, usersPrefix, services.BotResourceName(beam.GetStatus().GetBotName()), paramsPrefix),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       backend.NewKey(rolesPrefix, services.BotResourceName(beam.GetStatus().GetBotName()), paramsPrefix),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       backend.NewKey(workloadIdentityPrefix, beam.GetStatus().GetWorkloadIdentityName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+	}
+
+	if v := beam.GetStatus().GetNodeId(); v != "" {
+		actions = append(actions, backend.ConditionalAction{
+			Key:       backend.NewKey(nodesPrefix, apidefaults.Namespace, v),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		})
+	}
+
+	if v := beam.GetStatus().GetAppName(); v != "" {
+		actions = append(actions, backend.ConditionalAction{
+			Key:       backend.NewKey(appPrefix, v),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		})
+	}
+
+	_, err = s.backend.AtomicWrite(ctx, actions)
+	return trace.Wrap(err)
+}
+
+func beamKey(name string) backend.Key {
+	return backend.NewKey(beamPrefix, name)
 }
 
 func beamAliasKey(alias string) backend.Key {
 	return backend.NewKey(beamAliasPrefix, alias)
+}
+
+func itemFromBeamAlias(beam *beamsv1.Beam) backend.Item {
+	alias := beam.GetStatus().GetAlias()
+	meta := beam.GetMetadata()
+
+	return backend.Item{
+		Key:     beamAliasKey(alias),
+		Value:   []byte(meta.GetName()),
+		Expires: meta.GetExpires().AsTime(),
+	}
+}
+
+func itemFromBeam(beam *beamsv1.Beam) (*backend.Item, error) {
+	meta := beam.GetMetadata()
+
+	value, err := services.MarshalProtoResource(beam)
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend.Item{
+		Key:      beamKey(meta.GetName()),
+		Value:    value,
+		Expires:  meta.GetExpires().AsTime(),
+		Revision: meta.GetRevision(),
+	}, nil
 }
