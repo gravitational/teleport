@@ -2,6 +2,12 @@
 title: Configuring Access Request Reviews
 sidebar_label: Reviewing Requests
 description: Explains how to configure the way Access Requests are reviewed in your Teleport cluster.
+tags:
+ - access-requests
+ - conceptual
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
 ---
 
 This guide explains how to configure the review process for Teleport Access
@@ -45,6 +51,12 @@ If a user with `node-requester` role assigned makes an Access Request for `node-
 resource allowed by `root-node-access` they will be required to provide a reason. If a user's
 role set includes multiple roles governing Access Requests to the same roles and resources,
 `required` mode takes precedence.
+
+Unlike `options.request_access`, which configures whether a user needs to
+provide a reason when first authenticating ([Zero Standing
+Privileges](no-standing-privileges.mdx)), the `spec.allow.request.reason.mode`
+field only configures a request prompt when a user who is already authenticated
+creates a request.
 
 ## Custom request reason prompts
 
@@ -330,7 +342,7 @@ Unlike the `requests.roles` and `requests.claims_to_roles` fields, the
 `review_requests.roles` and `review_requests.claims_to_roles` fields allow you
 to grant or deny permissions to review an Access Request for a role based on a
 `where` expression. If the expression holds for an Access Request, Teleport
-applies the allow or deny rules for the `review_requests_claims_to_roles` and
+applies the allow or deny rules for the `review_requests.claims_to_roles` and
 `review_requests.roles` fields.
 
 For example, the following configuration allows a reviewer to review requests
@@ -395,9 +407,8 @@ Wildcards match any sequence of zero or more characters.
 
 ## Inspecting requested resources
 
-A Teleport user can view information about a resource without having access to
-that resource. This is useful for inspecting a resource before granting another
-user access to it by approving that user's Access Requests.
+You can grant permissions to Access Request reviewers to inspect requested
+resources, giving them the context they need to approve or deny an request.
 
 To grant or deny a user the ability to list Teleport resources without accessing
 them, use the `allow.review_requests.preview_as_roles` and

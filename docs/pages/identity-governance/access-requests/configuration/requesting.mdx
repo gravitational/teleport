@@ -2,6 +2,12 @@
 title: Configuring Access Request Creation
 sidebar_label: Requesting Access
 description: Describes options for limiting the resources and roles that users can request access to, and how long that access lasts. 
+tags:
+ - access-requests
+ - conceptual
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
 ---
 
 This guide explains how to configure the privileges that Teleport users can
@@ -17,6 +23,14 @@ that:
 
 You can also configure a Teleport role to prevent the user from requesting
 access to these roles.
+
+<Admonition type="tip">
+
+This guide describes configuration options for the kinds of access a user can
+request. You can also require a user to request access on login. See [Teleport
+Users with Zero Standing Privileges ](no-standing-privileges.mdx).
+
+</Admonition>
 
 ## Restrict role requests
 
@@ -210,7 +224,11 @@ spec:
       max_duration: 4d
 ```
 
+<Admonition type="warning">
+
 The value of `max_duration` can never exceed fourteen days.
+
+</Admonition>
 
 ### How long Access Requests are valid
 
