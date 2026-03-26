@@ -87,7 +87,7 @@ export function EmailService() {
           Create a Mailgun private key by following the{' '}
           <Link
             target="_blank"
-            href="https://documentation.mailgun.com/docs/mailgun/api-reference/authentication/#domain-sending-keys"
+            href="https://documentation.mailgun.com/docs/mailgun/api-reference/mg-auth#domain-sending-keys"
           >
             Domain Sending Keys
           </Link>{' '}
