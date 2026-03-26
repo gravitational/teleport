@@ -113,7 +113,10 @@ func (s *BeamService) CreateBeam(ctx context.Context, p services.CreateBeamParam
 		return nil, trace.Wrap(err)
 	}
 
-	aliasItem := itemFromBeamAlias(p.Beam)
+	aliasItem, err := itemFromBeamAlias(p.Beam)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	beamItem, err := itemFromBeam(p.Beam)
 	if err != nil {
@@ -138,7 +141,7 @@ func (s *BeamService) CreateBeam(ctx context.Context, p services.CreateBeamParam
 		{
 			Key:       aliasItem.Key,
 			Condition: backend.NotExists(),
-			Action:    backend.Put(aliasItem),
+			Action:    backend.Put(*aliasItem),
 		},
 		{
 			Key:       beamItem.Key,
@@ -324,15 +327,20 @@ func beamAliasKey(alias string) backend.Key {
 	return backend.NewKey(beamAliasPrefix, alias)
 }
 
-func itemFromBeamAlias(beam *beamsv1.Beam) backend.Item {
+func itemFromBeamAlias(beam *beamsv1.Beam) (*backend.Item, error) {
 	alias := beam.GetStatus().GetAlias()
 	meta := beam.GetMetadata()
 
-	return backend.Item{
+	expiry, err := types.GetExpiry(beam)
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend.Item{
 		Key:     beamAliasKey(alias),
 		Value:   []byte(meta.GetName()),
-		Expires: meta.GetExpires().AsTime(),
-	}
+		Expires: expiry,
+	}, nil
 }
 
 func itemFromBeam(beam *beamsv1.Beam) (*backend.Item, error) {
@@ -343,10 +351,15 @@ func itemFromBeam(beam *beamsv1.Beam) (*backend.Item, error) {
 		return nil, err
 	}
 
+	expiry, err := types.GetExpiry(beam)
+	if err != nil {
+		return nil, err
+	}
+
 	return &backend.Item{
 		Key:      beamKey(meta.GetName()),
 		Value:    value,
-		Expires:  meta.GetExpires().AsTime(),
+		Expires:  expiry,
 		Revision: meta.GetRevision(),
 	}, nil
 }
