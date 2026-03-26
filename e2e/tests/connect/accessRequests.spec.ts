@@ -671,4 +671,56 @@ test.describe('access requests', () => {
       await expect(page.locator('.xterm').last()).toContainText('xuqzab');
     });
   });
+
+  test('cannot mix roles and resources into the same request', async () => {
+    await using app = await launchAsRequester();
+    const { page } = app;
+
+    // Add a resource to the request.
+    await page.getByRole('button', { name: 'Request Access' }).click();
+
+    // Try to add a role via the Access Requests menu.
+    await page.locator('#access-requests-menu').click();
+    await page.getByText('New Role Request').click();
+    await page
+      .getByRole('row', { name: /allow-roles-and-nodes/ })
+      .getByRole('button', { name: /Request Access/ })
+      .click();
+
+    // A dialog should warn about mixing roles and resources.
+    await expect(page.getByText('Replace selected resources?')).toBeVisible();
+    await expect(
+      page.getByText(
+        'Resource Access Request cannot be combined with Role Access Request.'
+      )
+    ).toBeVisible();
+
+    // Accept the switch to role request.
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    // Verify the role was added (shown with a "Remove" button).
+    await expect(
+      page
+        .getByRole('row', { name: /allow-roles-and-nodes/ })
+        .getByRole('button', { name: 'Remove' })
+    ).toBeVisible();
+
+    // Now try the other direction: go back to the cluster tab and add a resource.
+    const clusterTab = page.locator(
+      '[role="tab"][data-doc-kind="doc.cluster"]'
+    );
+    await clusterTab.click();
+    await page.getByRole('button', { name: 'Add to Request' }).click();
+
+    // The same dialog should appear again.
+    await expect(page.getByText('Replace selected resources?')).toBeVisible();
+
+    // Accept the switch back to resource request.
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    // Verify the resource is now in the pending request.
+    await page.getByRole('button', { name: 'Proceed to request' }).click();
+    const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+    await expect(checkoutPanel.getByText('docker-root-node')).toBeVisible();
+  });
 });
