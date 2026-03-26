@@ -28,29 +28,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ReadEnvironmentFile will read environment variables from a passed in location.
-// Lines that start with "#" or empty lines are ignored. Assignments are in the
-// form name=value and no variable expansion occurs.
-func ReadEnvironmentFile(filename string) ([]string, error) {
-	// open the users environment file. if we don't find a file, move on as
-	// having this file for the user is optional.
-	file, err := utils.OpenFileNoUnsafeLinks(filename)
-	if err != nil {
-		slog.WarnContext(context.Background(), "Unable to open environment file, skipping",
-			"file", filename,
-			"error", err,
-		)
-		return []string{}, nil
-	}
-	defer file.Close()
-
-	return ReadEnvironment(context.TODO(), file)
-}
+// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
+const MaxEnvironmentFileLines = 1000
 
 func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 	var lineno int
@@ -63,9 +44,9 @@ func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 		// follow the lead of OpenSSH and don't allow more than 1,000 environment variables
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
-		if lineno > teleport.MaxEnvironmentFileLines {
+		if lineno > MaxEnvironmentFileLines {
 			slog.WarnContext(ctx, "Too many lines in environment file, limiting how many are consumed",
-				"lines_consumed", teleport.MaxEnvironmentFileLines,
+				"lines_consumed", MaxEnvironmentFileLines,
 			)
 			return *env, nil
 		}
