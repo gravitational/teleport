@@ -4413,7 +4413,16 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
+	clientRedirectURL := ""
+	if req.BrowserMFARequestID == "" {
+		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
+		// So we can take either one and generate an auth challenge with it.
+		clientRedirectURL = cmp.Or(req.SSOClientRedirectURL, req.BrowserMFATSHRedirectURL)
+	}
+
+	challenges, err := a.mfaAuthChallenge(ctx, username, clientRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -7931,7 +7940,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -7942,6 +7951,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
 	enableSSO := apref.IsSecondFactorSSOAllowed()
+	enableBrowserMFA := apref.GetAllowCLIAuthViaBrowser()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -8036,8 +8046,25 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
-	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+	if enableSSO && groupedDevs.SSO != nil && clientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), clientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// If the user has a WebAuthn device, return a Browser MFA challenge. This
+	// challenge is useful in cases where a user only has a browser-associated
+	// WebAuthn device, but is trying to MFA via a CLI tool (tsh, tctl etc.)
+	if enableBrowserMFA && groupedDevs.Browser != nil && clientRedirectURL != "" {
+		if challenge.BrowserMFAChallenge, err = a.BeginBrowserMFAChallenge(
+			ctx,
+			mfatypes.BeginBrowserMFAChallengeParams{
+				User:                     user,
+				BrowserMFATSHRedirectURL: clientRedirectURL,
+				ProxyAddress:             proxyAddress,
+				Ext:                      challengeExtensions,
+			},
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -8067,6 +8094,7 @@ type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
 	SSO      *types.MFADevice
+	Browser  *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice) devicesByType {
@@ -8085,6 +8113,18 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	// Create a synthetic Browser device if the user has a WebAuthn device.
+	// This enables browser-based MFA for users who have WebAuthn/passkey devices.
+	if len(res.Webauthn) > 0 {
+		res.Browser = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Browser{
+				Browser: &types.BrowserMFADevice{},
+			},
+		}
+	}
+
 	return res
 }
 

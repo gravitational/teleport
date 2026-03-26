@@ -112,6 +112,10 @@ type MFAChallengeRequest struct {
 	Pass string `json:"pass"`
 	// Passwordless explicitly requests a passwordless/usernameless challenge.
 	Passwordless bool `json:"passwordless"`
+	// BrowserMFATSHRedirectURL is the redirect url that tsh provides with a
+	// secret key that the server will use to return a WebAuthn response to.
+	// Format: http://localhost:12345/callback?secret_key=X
+	BrowserMFATSHRedirectURL string `json:"browser_mfa_tsh_redirect_url,omitempty"`
 }
 
 // MFAChallengeResponse holds the response to a MFA challenge.

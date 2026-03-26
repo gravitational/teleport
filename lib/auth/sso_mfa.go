@@ -73,7 +73,13 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		return nil, trace.BadParameter("unsupported sso connector type %v", sso.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, ext); err != nil {
+	if err := a.upsertMFASession(ctx, upsertMFASessionParams{
+		user:          user,
+		sessionID:     chal.RequestId,
+		connectorID:   sso.ConnectorId,
+		connectorType: sso.ConnectorType,
+		ext:           ext,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -142,42 +148,64 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	}, nil
 }
 
-// upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
-// sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
-	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
-		Username:      user,
-		RequestID:     sessionID,
-		ConnectorID:   connectorID,
-		ConnectorType: connectorType,
-		ChallengeExtensions: &mfatypes.ChallengeExtensions{
-			Scope:      ext.Scope,
-			AllowReuse: ext.AllowReuse,
-		},
-	})
-	return trace.Wrap(err)
+// upsertMFASessionParams are the parameters for upsertMFASession.
+type upsertMFASessionParams struct {
+	user           string
+	sessionID      string
+	connectorID    string
+	connectorType  string
+	tshRedirectURL string
+	ext            *mfav1.ChallengeExtensions
 }
 
-// UpsertSSOMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
-func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.SSOMFASessionData) (token string, err error) {
+// upsertMFASession upserts a new unverified MFA session for the given username,
+// sessionID, connector details, and challenge extensions. This is used by both
+// SSO MFA and Browser MFA.
+func (a *Server) upsertMFASession(ctx context.Context, params upsertMFASessionParams) error {
+	data := &services.MFASessionData{
+		Username:       params.user,
+		RequestID:      params.sessionID,
+		ConnectorID:    params.connectorID,
+		ConnectorType:  params.connectorType,
+		TSHRedirectURL: params.tshRedirectURL,
+		ChallengeExtensions: &mfatypes.ChallengeExtensions{
+			Scope:      params.ext.Scope,
+			AllowReuse: params.ext.AllowReuse,
+		},
+	}
+
+	return trace.Wrap(a.UpsertMFASessionData(ctx, data))
+}
+
+// UpsertMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
+func (a *Server) UpsertMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
 	sd.Token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if err := a.UpsertSSOMFASessionData(ctx, sd); err != nil {
+	if err := a.UpsertMFASessionData(ctx, sd); err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	return sd.Token, nil
 }
 
-// GetSSOMFASession returns the SSO MFA session for the given username and sessionID.
-func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+// GetMFASession returns the MFA session for the given username and sessionID.
+func (a *Server) GetMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
 	sd, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sd, nil
+}
+
+// TODO(danielashare): Remove these wrapper functions once `e` points to the renamed versions
+func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
+	return a.UpsertMFASessionWithToken(ctx, sd)
+}
+
+func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
+	return a.GetMFASession(ctx, sessionID)
 }

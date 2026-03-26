@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -4657,6 +4658,7 @@ message MFADevice {
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
     SSOMFADevice sso = 11;
+    BrowserMFADevice browser = 12;
   }
 }
 
