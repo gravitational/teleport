@@ -194,17 +194,17 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 
 	// Capture stderr.
-	stderrr, stderrw, err := os.Pipe()
+	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer stderrw.Close()
-	e.Cmd.Stderr = stderrw
+	defer stderrW.Close()
+	e.Cmd.Stderr = stderrW
 
 	e.waitForOutputStreams.Go(func() {
-		defer stderrr.Close()
+		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrr)
+		childErr, err := reexec.ReadChildError(stderrR)
 		if err != nil {
 			logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
 			return
