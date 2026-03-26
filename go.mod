@@ -87,7 +87,7 @@ require (
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.22.5
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.9.1
-	github.com/beevik/etree v1.4.1
+	github.com/beevik/etree v1.6.0
 	github.com/buildkite/bintest/v3 v3.3.0
 	github.com/charlievieth/strcase v0.0.5
 	github.com/charmbracelet/bubbles v0.21.0
@@ -189,8 +189,8 @@ require (
 	github.com/prometheus/common v0.65.0
 	github.com/quic-go/quic-go v0.57.0
 	github.com/redis/go-redis/v9 v9.12.1 // replaced
-	github.com/russellhaering/gosaml2 v0.9.1
-	github.com/russellhaering/goxmldsig v1.4.0
+	github.com/russellhaering/gosaml2 v0.11.0
+	github.com/russellhaering/goxmldsig v1.6.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shirou/gopsutil/v4 v4.25.6
