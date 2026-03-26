@@ -363,7 +363,7 @@ func (k *KubernetesClusterV3) SetStatus(status *KubernetesClusterStatus) {
 	k.Status = status
 }
 
-// GetScope returns the scope of the kube cluster.
+// GetScope gets the scope of the kube cluster.
 func (k *KubernetesClusterV3) GetScope() string {
 	if k == nil {
 		return ""
