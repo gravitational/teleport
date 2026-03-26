@@ -233,7 +233,7 @@ test.describe('access requests', () => {
   }
 
   test('role-based request: create and review', async () => {
-    await test.step('requester creates a role-based request', async () => {
+    await test.step('requester creates two role-based requests', async () => {
       await using app = await launchAsRequester();
       const { page } = app;
 
@@ -245,13 +245,12 @@ test.describe('access requests', () => {
       await expect(page.getByText('allow-roles-and-nodes')).toBeVisible();
       await expect(page.getByText('allow-users-with-short-ttl')).toBeVisible();
 
-      // Select a role.
+      // Create first request for allow-roles-and-nodes.
       await page
         .getByRole('row', { name: /allow-roles-and-nodes/ })
         .getByRole('button', { name: /Request Access/ })
         .click();
 
-      // The checkout bar should appear. Proceed to the request form.
       await page.getByRole('button', { name: 'Proceed to request' }).click();
 
       // Verify suggested reviewer (bob) is shown in the reviewers section.
@@ -259,7 +258,7 @@ test.describe('access requests', () => {
       const reviewers = checkoutPanel.locator('[data-testid="reviewers"]');
       await expect(reviewers.getByText('bob')).toBeVisible();
 
-      // Add another reviewer by typing in the creatable select.
+      // Add another reviewer.
       await checkoutPanel.getByRole('button', { name: 'Edit' }).click();
       const reviewerInput = checkoutPanel.locator(
         'input[role="combobox"][aria-expanded="true"]'
@@ -270,30 +269,47 @@ test.describe('access requests', () => {
       await expect(reviewers.getByText('charlie')).toBeVisible();
       await expect(reviewers.getByText('bob')).toBeVisible();
 
-      // Submit the request.
       await checkoutPanel
         .getByRole('button', { name: 'Submit Request' })
         .click();
-
-      // Verify success.
       await expect(
         page.getByText('Resources Requested Successfully')
       ).toBeVisible();
 
-      // Navigate to the request list.
-      await page.getByRole('button', { name: 'See requests' }).click();
+      // Create second request for allow-users-with-short-ttl.
+      await page.getByRole('button', { name: 'Make Another Request' }).click();
 
-      // The request might not appear immediately if the backend hasn't
-      // finished processing. Refresh until it shows up.
+      await page
+        .getByRole('row', { name: /allow-users-with-short-ttl/ })
+        .getByRole('button', { name: /Request Access/ })
+        .click();
+
+      await page.getByRole('button', { name: 'Proceed to request' }).click();
+      await checkoutPanel
+        .getByRole('button', { name: 'Submit Request' })
+        .click();
+      await expect(
+        page.getByText('Resources Requested Successfully')
+      ).toBeVisible();
+
+      // Navigate to the request list and verify both requests appear.
+      await page.getByRole('button', { name: 'See requests' }).click();
       await expect(async () => {
+        // The requests might not appear immediately if the backend hasn't finished processing.
+        // Refresh until both show up.
         await page.getByRole('button', { name: 'Refresh' }).click();
-        await expect(page.getByText('No Requests Found')).not.toBeVisible({
-          timeout: 500,
-        });
+        await expect(page.getByRole('row', { name: /PENDING/ })).toHaveCount(
+          2,
+          // Custom timeout so that toPass works as expected.
+          { timeout: 500 }
+        );
       }).toPass();
 
-      // Open the request details and verify reviewers are listed.
-      await page.getByRole('button', { name: 'View' }).first().click();
+      // Open the allow-roles-and-nodes request details and verify reviewers.
+      const nodesRequestRow = page.getByRole('row', {
+        name: /allow-roles-and-nodes/,
+      });
+      await nodesRequestRow.getByRole('button', { name: 'View' }).click();
       const reviewersSection = page.locator('section', {
         has: page.getByRole('heading', { name: 'Reviewers' }),
       });
@@ -304,45 +320,51 @@ test.describe('access requests', () => {
       await expect(page.getByText('Submit Review')).not.toBeVisible();
     });
 
-    await test.step('reviewer approves the request with a message', async () => {
+    await test.step('reviewer approves both requests', async () => {
       await using app = await launchAsReviewer();
       const { page } = app;
 
       await page.getByTitle('Access Requests').click();
       await page.getByText('View Access Requests').click();
 
-      // Open the pending request.
-      await page.getByRole('button', { name: 'View' }).first().click();
-
-      // Approve the request with a message.
+      // Approve allow-roles-and-nodes request.
+      await page
+        .getByRole('row', { name: /allow-roles-and-nodes/ })
+        .getByRole('button', { name: 'View' })
+        .click();
       await page.getByLabel(/Approve short-term access/).click();
       await page
         .getByPlaceholder('Optional message...')
         .fill('Approved for testing');
       await page.getByRole('button', { name: 'Submit Review' }).click();
-
-      // Verify the review stamp and message appear.
-      await expect(page.getByText('APPROVED')).toBeVisible();
+      await expect(page.getByText('APPROVED', { exact: true })).toBeVisible();
       await expect(page.getByText('Approved for testing')).toBeVisible();
+
+      // Go back to the list and approve allow-users-with-short-ttl request.
+      await page.getByTitle('View access requests').click();
+      await page
+        .getByRole('row', { name: /allow-users-with-short-ttl/ })
+        .getByRole('button', { name: 'View' })
+        .click();
+      await page.getByLabel(/Approve short-term access/).click();
+      await page.getByRole('button', { name: 'Submit Review' }).click();
+      await expect(page.getByText('APPROVED', { exact: true })).toBeVisible();
     });
 
     await test.step('requester assumes the request and connects to SSH node', async () => {
       await using app = await launchAsRequester();
       const { page } = app;
 
-      // Assume the request.
+      // Assume the allow-roles-and-nodes request.
       await page.getByTitle('Access Requests').click();
       await page.getByText('View Access Requests').click();
 
-      await expect(page.getByText('APPROVED')).toBeVisible();
-
-      const assumeRolesButton = page.getByRole('button', {
-        name: 'Assume Roles',
+      const nodesRow = page.getByRole('row', {
+        name: /allow-roles-and-nodes/,
       });
-      await assumeRolesButton.click();
-      await expect(assumeRolesButton).not.toBeVisible();
+      await nodesRow.getByRole('button', { name: 'Assume Roles' }).click();
       await expect(
-        page.getByRole('button', { name: 'Assumed' })
+        nodesRow.getByRole('button', { name: 'Assumed' })
       ).toBeDisabled();
 
       // Navigate to the tab with resources and connect to the SSH node.
