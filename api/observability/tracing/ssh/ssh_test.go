@@ -638,3 +638,23 @@ func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
 	require.Nil(t, chans)
 	require.Nil(t, reqs)
 }
+
+// These assertions will fail to compile if the shape of either ssh.ClientConfig or ssh.Config changes. If that happens,
+// we'll need to update our cloneClientConfig function to account for the new field.
+var _ ssh.Config = struct {
+	Rand           io.Reader
+	RekeyThreshold uint64
+	KeyExchanges   []string
+	Ciphers        []string
+	MACs           []string
+}{}
+var _ ssh.ClientConfig = struct {
+	ssh.Config
+	User              string
+	Auth              []ssh.AuthMethod
+	HostKeyCallback   ssh.HostKeyCallback
+	BannerCallback    ssh.BannerCallback
+	ClientVersion     string
+	HostKeyAlgorithms []string
+	Timeout           time.Duration
+}{}

@@ -18,10 +18,8 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"io"
 	"net"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -247,26 +245,6 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 
 	return c, chans, reqs, nil
 }
-
-// These assertions will fail to compile if the shape of either ssh.ClientConfig or ssh.Config changes. If that happens,
-// we'll need to update our cloneOrNewClientConfig function to account for the new field.
-var _ ssh.Config = struct {
-	Rand           io.Reader
-	RekeyThreshold uint64
-	KeyExchanges   []string
-	Ciphers        []string
-	MACs           []string
-}{}
-var _ ssh.ClientConfig = struct {
-	ssh.Config
-	User              string
-	Auth              []ssh.AuthMethod
-	HostKeyCallback   ssh.HostKeyCallback
-	BannerCallback    ssh.BannerCallback
-	ClientVersion     string
-	HostKeyAlgorithms []string
-	Timeout           time.Duration
-}{}
 
 // cloneClientConfig returns a deep copy of the provided ssh.ClientConfig with proper defaults set. If the provided
 // config is nil, an error is returned.
