@@ -2621,7 +2621,7 @@ version: v1`
 func TestInitWithWorkloadIdentityResources(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	resources := []types.Resource{
 		resourceFromYAML(t, workloadIdentityYAML),
 	}
