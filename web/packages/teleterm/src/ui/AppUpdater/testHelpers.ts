@@ -27,7 +27,7 @@ import { shouldAutoDownload } from 'teleterm/services/appUpdater/autoUpdatesStat
 export function makeUpdateInfo(
   nonTeleportCdn: boolean,
   version: string,
-  updateKind: 'upgrade' | 'downgrade'
+  requiresUacPrompt?: boolean
 ): UpdateInfo {
   return {
     files: [
@@ -39,8 +39,8 @@ export function makeUpdateInfo(
         size: 123214312,
       },
     ],
+    requiresUacPrompt,
     releaseDate: '',
-    updateKind,
     version,
     path: '',
     sha512: '',
@@ -113,6 +113,17 @@ export function makeUpdateDownloadedEvent(
 ): AppUpdateEvent {
   return {
     kind: 'update-downloaded',
+    update: updateInfo,
+    autoUpdatesStatus: status,
+  };
+}
+
+export function makeInstallingEvent(
+  updateInfo: UpdateInfo,
+  status: AutoUpdatesEnabled
+): AppUpdateEvent {
+  return {
+    kind: 'installing',
     update: updateInfo,
     autoUpdatesStatus: status,
   };

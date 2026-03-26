@@ -6,6 +6,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-tsh*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -178,6 +180,24 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |command|none (optional)|AWS command and subcommands arguments that are going to be forwarded to AWS CLI.|
+
+## tsh aws-profile
+
+Generate AWS config profiles by syncing with your integrated AWS IAM Identity
+Center account(s). Other profiles in the config file are left untouched.
+
+Usage:
+
+```code
+$ tsh aws-profile [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-sso-region`|none|AWS region for SSO. Auto-detected from cluster if not specified.|
+|`--[no-]dry-run`|`false`|Print the configuration that will be applied without modifying the AWS config file.|
 
 ## tsh az
 
@@ -1083,7 +1103,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|none|Specify the Teleport cluster to connect.|
-|`-p`, `--port`|none|Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
+|`-p`, `--port`|none|Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
 
 Arguments:
 
@@ -1196,6 +1216,8 @@ Flags:
 |`--as`|none|Configure custom Kubernetes user impersonation.|
 |`--as-groups`|none|Configure custom Kubernetes group impersonation.|
 |`-c`, `--cluster`|none|Specify the Teleport cluster to connect.|
+|`--exec-arg`|none|Arguments to pass to the executed command (can be specified multiple times).|
+|`--exec-cmd`|none|Command to execute when --exec is enabled. If not specified, defaults to $SHELL or /bin/bash. Implicitly enables exec mode.|
 |`-f`, `--format`|`unix`|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
 |`--labels`|none|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--namespace`|none|Configure the default Kubernetes namespace.|
@@ -1225,7 +1247,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|none|Specify the Teleport cluster to connect.|
-|`-p`, `--port`|none|Specifies the listening port used by by the proxy app listener.|
+|`-p`, `--port`|none|Specifies the listening port used by the proxy app listener.|
 
 Arguments:
 
@@ -1320,7 +1342,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
 |`--max-duration`|none|How long the access should be granted for.|
 |`--[no-]nowait`|`false`|Finish without waiting for request resolution.|
 |`--reason`|none|Reason for requesting.|
@@ -1379,7 +1401,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).|
+|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g. 2023-12-12T23:20:50.52Z).|
 |`--[no-]approve`|`false`|Review proposes approval.|
 |`--[no-]deny`|`false`|Review proposes denial.|
 |`--reason`|none|Review reason message.|
@@ -1613,6 +1635,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-f`, `--format`|`text`|Format output (text, json, yaml).|
+|`--[no-]client`|`false`|Show client information only (no server required).|
 |`-v`, `--[no-]verbose`|`false`|Show extra status information after successful login.|
 
 ## tsh update

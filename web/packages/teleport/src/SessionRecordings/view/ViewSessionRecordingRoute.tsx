@@ -102,6 +102,15 @@ export function ViewSessionRecordingRoute({
     );
   }
 
+  const recordingWithSummaryComponent = RecordingWithSummaryComponent ? (
+    <RecordingWithSummaryComponent
+      clusterId={clusterId}
+      sessionId={sid}
+      durationMs={durationMs}
+      recordingType={recordingType}
+    />
+  ) : null;
+
   if (RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
     // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
     // and render the SSH player with the session metadata/summary.
@@ -110,27 +119,42 @@ export function ViewSessionRecordingRoute({
     // This is to ensure that the player can still be rendered even if the session metadata
     // cannot be fetched, allowing users to still view the recording.
 
+    const recordingWithMetadataComponent = (
+      <RecordingWithMetadataComponent
+        clusterId={clusterId}
+        recordingType={recordingType}
+        sessionId={sid}
+      />
+    );
+
+    if (recordingWithSummaryComponent) {
+      return (
+        <Suspense fallback={<RecordingPlayerLoading />}>
+          <ErrorBoundary fallback={player}>
+            <ErrorBoundary fallback={recordingWithSummaryComponent}>
+              {recordingWithMetadataComponent}
+            </ErrorBoundary>
+          </ErrorBoundary>
+        </Suspense>
+      );
+    }
+
     return (
       <Suspense fallback={<RecordingPlayerLoading />}>
         <ErrorBoundary fallback={player}>
-          <RecordingWithMetadataComponent
-            clusterId={clusterId}
-            recordingType={recordingType}
-            sessionId={sid}
-          />
+          {recordingWithMetadataComponent}
         </ErrorBoundary>
       </Suspense>
     );
   }
 
-  if (RecordingWithSummaryComponent) {
+  if (recordingWithSummaryComponent) {
     return (
-      <RecordingWithSummaryComponent
-        clusterId={clusterId}
-        sessionId={sid}
-        durationMs={durationMs}
-        recordingType={recordingType}
-      />
+      <Suspense fallback={<RecordingPlayerLoading />}>
+        <ErrorBoundary fallback={player}>
+          {recordingWithSummaryComponent}
+        </ErrorBoundary>
+      </Suspense>
     );
   }
 

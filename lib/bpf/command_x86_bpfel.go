@@ -14,14 +14,16 @@ import (
 )
 
 type commandDataT struct {
-	_       structs.HostLayout
-	Pid     uint64
-	Ppid    uint64
-	Command [16]uint8
-	Type    uint32
-	Argv    [1024]uint8
-	Retval  int32
-	Cgroup  uint64
+	_              structs.HostLayout
+	Pid            uint64
+	Ppid           uint64
+	Command        [16]uint8
+	Type           uint32
+	Argv           [1024]uint8
+	Retval         int32
+	Cgroup         uint64
+	AuditSessionId uint32
+	_              [4]byte
 }
 
 // loadCommand returns the embedded CollectionSpec for command.
@@ -76,10 +78,10 @@ type commandProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type commandMapSpecs struct {
-	ExecveEvents     *ebpf.MapSpec `ebpf:"execve_events"`
-	LostCounter      *ebpf.MapSpec `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.MapSpec `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.MapSpec `ebpf:"monitored_cgroups"`
+	ExecveEvents        *ebpf.MapSpec `ebpf:"execve_events"`
+	LostCounter         *ebpf.MapSpec `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.MapSpec `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.MapSpec `ebpf:"monitored_sessionids"`
 }
 
 // commandVariableSpecs contains global variables before they are loaded into the kernel.
@@ -109,10 +111,10 @@ func (o *commandObjects) Close() error {
 //
 // It can be passed to loadCommandObjects or ebpf.CollectionSpec.LoadAndAssign.
 type commandMaps struct {
-	ExecveEvents     *ebpf.Map `ebpf:"execve_events"`
-	LostCounter      *ebpf.Map `ebpf:"lost_counter"`
-	LostDoorbell     *ebpf.Map `ebpf:"lost_doorbell"`
-	MonitoredCgroups *ebpf.Map `ebpf:"monitored_cgroups"`
+	ExecveEvents        *ebpf.Map `ebpf:"execve_events"`
+	LostCounter         *ebpf.Map `ebpf:"lost_counter"`
+	LostDoorbell        *ebpf.Map `ebpf:"lost_doorbell"`
+	MonitoredSessionids *ebpf.Map `ebpf:"monitored_sessionids"`
 }
 
 func (m *commandMaps) Close() error {
@@ -120,7 +122,7 @@ func (m *commandMaps) Close() error {
 		m.ExecveEvents,
 		m.LostCounter,
 		m.LostDoorbell,
-		m.MonitoredCgroups,
+		m.MonitoredSessionids,
 	)
 }
 

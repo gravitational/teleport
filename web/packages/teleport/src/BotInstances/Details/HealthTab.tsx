@@ -21,7 +21,8 @@ import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { SecondaryOutlined } from 'design/Label/Label';
+import { Dot } from 'design/Icon';
+import { Status, StatusKind } from 'design/Status';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 
@@ -74,20 +75,13 @@ export function HealthTab(props: { data: GetBotInstanceResponse }) {
                         <TimeText>{`Reported ${formatDistanceToNowStrict(new Date(h.updated_at.seconds * 1000))} ago`}</TimeText>
                       </HoverTooltip>
                     ) : undefined}
-                    <SecondaryOutlined>
-                      <Flex
-                        alignItems={'center'}
-                        gap={2}
-                        padding={1}
-                        paddingLeft={2}
-                        paddingRight={0}
-                      >
-                        <Text typography="body3">
-                          {makeHealthLabel(h.status)}
-                        </Text>
-                        <HealthStatusDot $status={h.status} />
-                      </Flex>
-                    </SecondaryOutlined>
+                    <Status
+                      kind={healthStatusToKind(h.status)}
+                      variant="border"
+                      icon={Dot}
+                    >
+                      {makeHealthLabel(h.status)}
+                    </Status>
                   </Flex>
                 </Flex>
 
@@ -123,25 +117,6 @@ const ItemContainer = styled(Flex)`
   border-radius: ${({ theme }) => theme.space[1]}px;
   padding: ${({ theme }) => theme.space[3]}px;
   gap: ${({ theme }) => theme.space[3]}px;
-`;
-
-export const HealthStatusDot = styled.div<{
-  $status: BotInstanceServiceHealthStatus | undefined;
-}>`
-  width: ${({ theme }) => theme.space[3] - theme.space[1]}px;
-  height: ${({ theme }) => theme.space[3] - theme.space[1]}px;
-  border-radius: 999px;
-  background-color: ${({ theme, $status }) =>
-    $status ===
-    BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_HEALTHY
-      ? theme.colors.interactive.solid.success.default
-      : $status ===
-          BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY
-        ? theme.colors.interactive.solid.danger.default
-        : $status ===
-            BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_INITIALIZING
-          ? theme.colors.interactive.tonal.neutral[1]
-          : theme.colors.interactive.solid.alert.default};
 `;
 
 const ReasonContainer = styled.div<{
@@ -192,6 +167,21 @@ const TimeText = styled(Text).attrs({
 })`
   white-space: nowrap;
 `;
+
+export function healthStatusToKind(
+  status: BotInstanceServiceHealthStatus | undefined
+): StatusKind {
+  switch (status) {
+    case BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_HEALTHY:
+      return 'success';
+    case BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY:
+      return 'danger';
+    case BotInstanceServiceHealthStatus.BOT_INSTANCE_HEALTH_STATUS_INITIALIZING:
+      return 'neutral';
+    default:
+      return 'warning';
+  }
+}
 
 function makeHealthLabel(status: BotInstanceServiceHealthStatus | undefined) {
   if (

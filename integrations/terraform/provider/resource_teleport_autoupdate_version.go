@@ -223,6 +223,13 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	autoUpdateVersion.Kind = apitypes.KindAutoUpdateVersion
+	if autoUpdateVersion.GetMetadata() == nil {
+		autoUpdateVersion.Metadata = &headerv1.Metadata{}
+	}
+	if autoUpdateVersion.GetMetadata().GetName() == "" {
+		autoUpdateVersion.Metadata.Name = apitypes.MetaNameAutoUpdateVersion
+	}
 
 	autoUpdateVersionBefore, err := r.p.Client.GetAutoUpdateVersion(ctx)
 	if err != nil {

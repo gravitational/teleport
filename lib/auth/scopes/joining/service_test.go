@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,14 +41,19 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func createToken(ctx context.Context, server *joining.Server, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	cloned := proto.CloneOf(token)
+	cloned.Metadata = &headerv1.Metadata{
+		Name: uuid.New().String(),
+	}
 	res, err := server.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: proto.CloneOf(token),
+		Token: cloned,
 	})
 	if err != nil {
 		return nil, err
@@ -64,11 +70,9 @@ func TestScopedJoiningService(t *testing.T) {
 		service := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
@@ -101,10 +105,6 @@ func TestScopedJoiningService(t *testing.T) {
 		}
 		assert.Empty(t, gocmp.Diff(baseToken, token, createOpts...))
 
-		// make sure update is no-op
-		_, err = service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{})
-		require.True(t, trace.IsNotImplemented(err))
-
 		// fail to create a token with an assigned scope that is orthogonal to its own
 		tokenWithMismatchedScope := proto.CloneOf(baseToken)
 		tokenWithMismatchedScope.Metadata.Name = "invalid-token"
@@ -121,7 +121,8 @@ func TestScopedJoiningService(t *testing.T) {
 
 		// fetch a token
 		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name: token.Metadata.Name,
+			Name:       token.Metadata.Name,
+			WithSecret: true,
 		})
 		require.NoError(t, err)
 		assert.Empty(t, gocmp.Diff(token, fetched.GetToken(), cmpOpts...))
@@ -153,6 +154,7 @@ func TestScopedJoiningService(t *testing.T) {
 
 		// list tokens while filtering their resource scope
 		res, err := service.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+			WithSecrets: true,
 			ResourceScope: &scopesv1.Filter{
 				Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 				Scope: "/staging/cc",
@@ -176,44 +178,54 @@ func TestScopedJoiningService(t *testing.T) {
 		admin := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
 		writer := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-create"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-create"}},
+				}),
 			},
 		})
 
 		reader := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-read"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-read"}},
+				}),
+			},
+		})
+
+		readerNoSecrets := newServerForIdentity(t, pack, &services.AccessInfo{
+			ScopePin: &scopesv1.Pin{
+				Scope: "/staging/aa",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-readnosecrets"}},
+				}),
 			},
 		})
 
 		deleter := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-delete"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-delete"}},
+				}),
+			},
+		})
+
+		updater := newServerForIdentity(t, pack, &services.AccessInfo{
+			ScopePin: &scopesv1.Pin{
+				Scope: "/staging/aa",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-upserter"}},
+				}),
 			},
 		})
 
@@ -230,7 +242,8 @@ func TestScopedJoiningService(t *testing.T) {
 			},
 		}
 
-		// ensure writer can create a token at an accessible scope
+		var stageTokenAA *joiningv1.ScopedToken
+		// ensure writer can create a token at an accessible scope and create base token for use in subtests
 		stageTokenAA, err := createToken(ctx, writer, baseToken)
 		require.NoError(t, err)
 
@@ -244,81 +257,211 @@ func TestScopedJoiningService(t *testing.T) {
 		expectedToken.Status = &joiningv1.ScopedTokenStatus{}
 		assert.Empty(t, gocmp.Diff(expectedToken, stageTokenAA, cmpOpts...))
 
-		// ensure writer can't create a token at an orthogonal scope
 		stageTokenBB := proto.CloneOf(baseToken)
 		stageTokenBB.Scope = "/staging/bb"
 		stageTokenBB.Spec.AssignedScope = "/staging/bb"
-		_, err = createToken(ctx, writer, stageTokenBB)
-		require.True(t, trace.IsAccessDenied(err))
-
-		// ensure other identities can't create a token
-		nonWriterIdents := []*joining.Server{reader, deleter}
-		for _, ident := range nonWriterIdents {
-			_, err = createToken(ctx, ident, baseToken)
-			require.True(t, trace.IsAccessDenied(err))
-		}
-
 		// create an orthogonal token for negative testing read ops
 		stageTokenBB, err = createToken(ctx, admin, stageTokenBB)
 		require.NoError(t, err)
 
-		// ensure reader can get token at accessible scope
-		getRes, err := reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name: stageTokenAA.Metadata.Name,
+		t.Run("ensure writer can't create a token at an orthogonal scope", func(t *testing.T) {
+			t.Parallel()
+			_, err := createToken(ctx, writer, stageTokenBB)
+			require.True(t, trace.IsAccessDenied(err))
 		})
-		require.NoError(t, err)
-		require.Empty(t, gocmp.Diff(expectedToken, getRes.GetToken(), cmpOpts...))
 
-		// ensure reader can't get token at orthogonal scope
-		_, err = reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name: stageTokenBB.Metadata.Name,
+		t.Run("ensure other identities can't create a token", func(t *testing.T) {
+			t.Parallel()
+			nonWriterIdents := []*joining.Server{reader, deleter}
+			for _, ident := range nonWriterIdents {
+				_, err := createToken(ctx, ident, baseToken)
+				require.True(t, trace.IsAccessDenied(err))
+			}
 		})
-		require.True(t, trace.IsAccessDenied(err))
 
-		// ensure other identities can't read a token
-		nonReaderIdents := []*joining.Server{writer, deleter}
-		for _, ident := range nonReaderIdents {
-			_, err = ident.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		t.Run("user with readnosecret role cannot read secret at accessible scope", func(t *testing.T) {
+			t.Parallel()
+			getRes, err := readerNoSecrets.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 				Name: stageTokenAA.Metadata.Name,
 			})
-			require.True(t, trace.IsAccessDenied(err))
-		}
-
-		// ensure reader can list only accessible tokens
-		listRes, err := reader.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
-		require.NoError(t, err)
-		require.Len(t, listRes.GetTokens(), 1)
-
-		// ensure other identities can't list tokens
-		for _, ident := range nonReaderIdents {
-			listRes, err = ident.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
 			require.NoError(t, err)
-			require.Empty(t, listRes.GetTokens())
-		}
+			assert.Empty(t, getRes.GetToken().GetStatus().GetSecret())
 
-		// reverse assertion order so we can confirm non-deleter identities fail before we actually
-		// delete the token
-
-		// ensure other identities can't delete a token
-		nonDeleterIdents := []*joining.Server{reader, writer}
-		for _, ident := range nonDeleterIdents {
-			_, err = ident.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-				Name: stageTokenAA.Metadata.Name,
+			_, err = readerNoSecrets.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+				Name:       stageTokenAA.Metadata.Name,
+				WithSecret: true,
 			})
 			require.True(t, trace.IsAccessDenied(err))
-		}
-
-		// ensure deleter can delete a token
-		_, err = deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-			Name: stageTokenAA.Metadata.Name,
 		})
-		require.NoError(t, err)
 
-		// ensure deleter can't delete a token at an orthogonal scope
-		_, err = deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-			Name: stageTokenBB.Metadata.Name,
+		t.Run("ensure reader can get token at accessible scope with secrets", func(t *testing.T) {
+			t.Parallel()
+			getRes, err := reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+				Name:       stageTokenAA.Metadata.Name,
+				WithSecret: true,
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, getRes.GetToken().GetStatus().GetSecret())
+			require.Equal(t, stageTokenAA.GetStatus().GetSecret(), getRes.GetToken().GetStatus().GetSecret())
+			require.Empty(t, gocmp.Diff(expectedToken, getRes.GetToken(), cmpOpts...))
 		})
-		require.True(t, trace.IsAccessDenied(err))
+
+		t.Run("reader cannot get token at orthogonal scope", func(t *testing.T) {
+			t.Parallel()
+			_, err := reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+				Name: stageTokenBB.Metadata.Name,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		nonReaderIdents := []*joining.Server{writer, deleter}
+		t.Run("ensure other identities can't read a token", func(t *testing.T) {
+			t.Parallel()
+			for _, ident := range nonReaderIdents {
+				_, err := ident.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+					Name: stageTokenAA.Metadata.Name,
+				})
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
+
+		t.Run("ensure reader can list only accessible tokens", func(t *testing.T) {
+			t.Parallel()
+			listRes, err := reader.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
+			require.NoError(t, err)
+			require.NotEmpty(t, listRes.GetTokens())
+			for _, token := range listRes.GetTokens() {
+				require.Equal(t, "/staging/aa", token.GetScope(), "reader should only see tokens at their accessible scope")
+			}
+		})
+
+		t.Run("ensure other identities can't list tokens", func(t *testing.T) {
+			t.Parallel()
+			for _, ident := range nonReaderIdents {
+				listRes, err := ident.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{})
+				require.NoError(t, err)
+				require.Empty(t, listRes.GetTokens())
+			}
+		})
+
+		nonDeleterIdents := []*joining.Server{reader, writer}
+		t.Run("ensure other identities can't delete a token", func(t *testing.T) {
+			t.Parallel()
+			for _, ident := range nonDeleterIdents {
+				_, err := ident.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: stageTokenAA.Metadata.Name,
+				})
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
+
+		t.Run("ensure deleter can delete a token", func(t *testing.T) {
+			t.Parallel()
+			tokenForDelete, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+			_, err = deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+				Name: tokenForDelete.Metadata.Name,
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("ensure deleter can't delete a token at an orthogonal scope", func(t *testing.T) {
+			t.Parallel()
+			_, err := deleter.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+				Name: stageTokenBB.Metadata.Name,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure upserter can update a token at accessible scope", func(t *testing.T) {
+			t.Parallel()
+			tokenForUpsert, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+
+			tokenUpdate := proto.CloneOf(tokenForUpsert)
+			tokenUpdate.Metadata = proto.CloneOf(tokenForUpsert.GetMetadata())
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
+
+			_, err = updater.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.NoError(t, err)
+
+			t.Run("non upserter role cannot update a token", func(t *testing.T) {
+				t.Parallel()
+				nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
+				for _, ident := range nonUpdaterIdents {
+					_, err := ident.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+						Token: tokenUpdate,
+					})
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			})
+		})
+
+		t.Run("ensure upserter cannot upsert a token at an orthogonal scope", func(t *testing.T) {
+			t.Parallel()
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Metadata = proto.CloneOf(stageTokenBB.GetMetadata())
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
+
+			_, err := updater.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater can update a token at accessible scope", func(t *testing.T) {
+			tokenForUpdate, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+
+			tokenUpdate := proto.CloneOf(tokenForUpdate)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "updated"}
+
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.NoError(t, err)
+
+			// Update should fail after updating if revisions don't match.
+			staleUpdate := proto.CloneOf(tokenForUpdate)
+			staleUpdate.Metadata.Labels = map[string]string{"bad": "update"}
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: staleUpdate,
+			})
+			require.True(t, trace.IsCompareFailed(err))
+
+			t.Run("non updater role cannot update a token", func(t *testing.T) {
+				nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
+				for _, ident := range nonUpdaterIdents {
+					_, err := ident.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+						Token: tokenUpdate,
+					})
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			})
+		})
+
+		t.Run("ensure updater cannot update a token at an orthogonal scope", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater cannot bypass scope auth by spoofing scope in request", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Scope = "/staging/aa"
+			tokenUpdate.Spec.AssignedScope = "/staging/aa"
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsBadParameter(err))
+		})
 	})
 }
 
@@ -408,7 +551,7 @@ func newBackendPack(t *testing.T) *backendPack {
 					Rules: []*scopedaccessv1.ScopedRule{
 						{
 							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete},
+							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
 						},
 					},
 				},
@@ -453,6 +596,24 @@ func newBackendPack(t *testing.T) *backendPack {
 		}, {
 			Kind: scopedaccess.KindScopedRole,
 			Metadata: &headerv1.Metadata{
+				Name: "staging-readnosecrets",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/aa"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
 				Name: "staging-delete",
 			},
 			Scope: "/staging",
@@ -463,6 +624,24 @@ func newBackendPack(t *testing.T) *backendPack {
 						{
 							Resources: []string{types.KindScopedToken},
 							Verbs:     []string{types.VerbDelete},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		}, {
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-upserter",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/aa"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Rules: []*scopedaccessv1.ScopedRule{
+						{
+							Resources: []string{types.KindScopedToken},
+							Verbs:     []string{types.VerbUpdate, types.VerbCreate},
 						},
 					},
 				},

@@ -44,13 +44,23 @@ message ScopedRole {
   ScopedRoleSpec spec = 6;
 }
 
-// ScopedRoleSpec is the specification of a scoped role.
+// ScopedRoleSpec is the specification of a scoped role. Note that this type and all of its
+// members (e.g. [ScopedRoleOptions]) are required to have presence enabled for all non-sequence
+// fields (enforced by unit tests in lib/scopes/access). In practice, this means that scalar values
+// should be declared as optional. This policy exists because fields that default to a value that
+// looks potentially meaningful (e.g. false for bools) can cause difficulties when trying to determine
+// if a field was intentionally set to that value or just left unset. For scoped roles we generally
+// want to defer to global configuration for any policy not explicitly set in the role, so its important
+// to always be able to distinguish presence.
 message ScopedRoleSpec {
   // AssignableScopes is a list of scopes to which this role can be assigned.
   repeated string assignable_scopes = 1;
 
   // Allow specifies the permissions granted by this role.
   ScopedRoleConditions allow = 2;
+
+  // Options contains fine tuning options for various protocols/controls.
+  ScopedRoleOptions options = 3;
 }
 
 // ScopedRoleConditions describes a role's allow block.
@@ -73,4 +83,13 @@ message ScopedRule {
   repeated string resources = 1;
   // Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
   repeated string verbs = 2;
+}
+
+// ScopedRoleOptions contains fine tuning options for various protocols/controls.
+message ScopedRoleOptions {
+  // ClientIdleTimeout sets the idle timeout for access sessions. If set to 0 or
+  // an empty string, the appropriate globally defined value is used. The value
+  // must be a valid Go duration string (e.g. "30m", "1h", "90s"). Values that
+  // exceed globally defined limits have no effect.
+  string client_idle_timeout = 1;
 }

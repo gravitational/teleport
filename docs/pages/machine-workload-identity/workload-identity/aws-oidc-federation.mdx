@@ -172,7 +172,7 @@ resource "aws_s3_bucket" "example" {
 
 1. Browse to S3
 1. Select "Create bucket"
-1. Enter a meaningful, unique name for your bucket, e.g `workload-id-demo`
+1. Enter a meaningful, unique name for your bucket, e.g. `workload-id-demo`
 1. Leave other settings as default
 1. Click "Create bucket".
 
@@ -301,7 +301,7 @@ resource "aws_iam_role_policy_attachment" "example" {
   1. Select `example.teleport.sh:sub` for the key
   1. Select "StringEquals" for the condition
   1. Enter the SPIFFE ID of your workload for the value. In our example, this 
-    will be `spiffe://example.teleport.sh/svc/example
+    will be `spiffe://example.teleport.sh/svc/example-service`
 1. Click "Next"
 1. Select the IAM policy you created earlier, and click "Next"
 1. Enter a unique and meaningful name for this role, in our example, this will
@@ -431,7 +431,7 @@ Add the following to your `~/.aws/config` file:
 # your use-case.
 [profile workload-id-demo]
 # Replace with the ARN of the role you created earlier.
-role_arn=arn:aws:iam:123456789012:role/workload-id-demo
+role_arn=arn:aws:iam::123456789012:role/workload-id-demo
 # Replace with the directory and file name you configured `tbot` to write the
 # JWT to.
 web_identity_token_file=/opt/workload-identity/jwt_svid
@@ -442,10 +442,10 @@ web_identity_token_file=/opt/workload-identity/jwt_svid
 
 Configure the following environment variables:
 
-- `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g 
+- `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g.
   `arn:aws:iam::123456789012:role/workload-id-demo`
 - `AWS_WEB_IDENTITY_TOKEN_FILE`: The path to the JWT file that `tbot` is writing,
-  e.g `/opt/workload-identity/jwt_svid`
+  e.g. `/opt/workload-identity/jwt_svid`
 
 </TabItem>
 </Tabs>

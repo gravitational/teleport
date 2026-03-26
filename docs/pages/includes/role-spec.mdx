@@ -197,7 +197,7 @@ spec:
     kubernetes_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g us-west-1, us-west-2
+      # User can access any region in us-west, e.g. us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -283,7 +283,7 @@ spec:
     app_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g us-west-1, us-west-2
+      # User can access any region in us-west, e.g. us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -369,7 +369,7 @@ spec:
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
 
-    # request allows a user user request roles matching
+    # request allows a user to request roles matching
     # expressions below
     request:
       # the 'roles' list can be a mixture of literals and wildcard matchers

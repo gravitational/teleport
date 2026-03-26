@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -91,6 +92,7 @@ func (s *Service) GetVnetConfig(ctx context.Context, _ *vnet.GetVnetConfigReques
 		return nil, trace.Wrap(err)
 	}
 
+	typesvnet.SetDefaultsVnetConfig(vnetConfig)
 	return vnetConfig, nil
 }
 
@@ -109,6 +111,10 @@ func (s *Service) CreateVnetConfig(ctx context.Context, req *vnet.CreateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetVnetConfig() == nil {
+		req.VnetConfig = &vnet.VnetConfig{}
+	}
+	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
 	vnetConfig, err := s.storage.CreateVnetConfig(ctx, req.VnetConfig)
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))
@@ -133,6 +139,10 @@ func (s *Service) UpdateVnetConfig(ctx context.Context, req *vnet.UpdateVnetConf
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetVnetConfig() == nil {
+		req.VnetConfig = &vnet.VnetConfig{}
+	}
+	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
 	vnetConfig, err := s.storage.UpdateVnetConfig(ctx, req.VnetConfig)
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newUpdateAuditEvent(ctx, status))
@@ -158,6 +168,10 @@ func (s *Service) UpsertVnetConfig(ctx context.Context, req *vnet.UpsertVnetConf
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetVnetConfig() == nil {
+		req.VnetConfig = &vnet.VnetConfig{}
+	}
+	typesvnet.SetDefaultsVnetConfig(req.VnetConfig)
 	vnetConfig, err := s.storage.UpsertVnetConfig(ctx, req.VnetConfig)
 	status := eventStatus(err)
 	s.emitAuditEvent(ctx, newCreateAuditEvent(ctx, status))

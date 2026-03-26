@@ -424,7 +424,8 @@ type ServerContext struct {
 	contw *os.File
 
 	// ready{r,w} is used to send the ready signal from the child process
-	// to the parent process.
+	// to the parent process. If ESR is enabled, the child signals after
+	// the audit session login ID (auid) is received.
 	readyr *os.File
 	readyw *os.File
 
@@ -611,28 +612,36 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		child.logw = fileWriter
 	} else {
-		// Create a pipe so we can pass the writing side as an *os.File to the child process.
-		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
-		r, w, err := os.Pipe()
-		if err != nil {
-			childErr := child.Close()
-			return nil, trace.NewAggregate(err, childErr)
+		if err := child.streamChildLogs(logCfg.Writer); err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		child.logw = w
-		child.AddCloser(r)
-		child.AddCloser(w)
-
-		// Copy logs from the child process to the parent process over
-		// the pipe until it is closed by the child context.
-		go func() {
-			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
-			}
-		}()
 	}
 
 	return child, nil
+}
+
+func (c *ServerContext) streamChildLogs(logCfgWriter io.Writer) error {
+	// Create a pipe so we can pass the writing side as an *os.File to the child process.
+	// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+	r, w, err := os.Pipe()
+	if err != nil {
+		childErr := c.Close()
+		return trace.NewAggregate(err, childErr)
+	}
+
+	c.logw = w
+	c.AddCloser(r)
+	c.AddCloser(w)
+
+	// Copy logs from the child process to the parent process over
+	// the pipe until it is closed by the child context.
+	go func() {
+		if _, err := io.Copy(logCfgWriter, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+			slog.ErrorContext(c.CancelContext(), "Failed to copy logs over pipe", "error", err)
+		}
+	}()
+
+	return nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -1172,7 +1181,19 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
+		RecordWithBPF:         c.recordWithBPF(),
 	}, nil
+}
+
+func (c *ServerContext) recordWithBPF() bool {
+	if !c.srv.GetBPF().Enabled() || c.Identity.AccessPermit == nil {
+		return false
+	}
+
+	// BPF programs will only be monitoring this session if Enhanced
+	// Session Recording is enabled on the server and the access permit
+	// enables at least one ESR event.
+	return len(eventsMapFromSSHAccessPermit(c.Identity.AccessPermit)) > 0
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
@@ -1372,25 +1393,21 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	return req
 }
 
-// The child does not signal until completing PAM setup, which can take an arbitrary
+// The child does not signal until it completes PAM setup, which can take an arbitrary
 // amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
 const childReadyWaitTimeout = 3 * time.Minute
 
 // WaitForChild waits for the child process to signal ready through the named pipe.
 func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	bpfService := c.srv.GetBPF()
-	pam := c.srv.GetPAM()
 
-	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
+	// Only wait for the child to be "ready" if BPF is enabled. This is required
+	// because if BPF is enabled the child process will need to change its audit
+	// login session ID, and the we (the parent) need to wait for the session ID
+	// to change on the child so we can read it and use it to correlate Enhanced
+	// Session Recording events to the SSH session.
 	var waitErr error
-	if bpfService.Enabled() && pam.Enabled {
+	if bpfService.Enabled() {
 		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}

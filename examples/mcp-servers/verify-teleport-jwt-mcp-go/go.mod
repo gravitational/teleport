@@ -1,6 +1,6 @@
 module verify-teleport-jwt-mcp-go
 
-go 1.25.6
+go 1.25.8
 
 require (
 	github.com/auth0/go-jwt-middleware/v2 v2.3.0
@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

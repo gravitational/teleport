@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -69,6 +70,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -588,7 +590,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclien
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -663,7 +665,11 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	identity := a.context.Identity.GetIdentity()
-	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
+	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
+		Req:                req,
+		AgentScope:         identity.AgentScope,
+		ImmutableLabelHash: identity.ImmutableLabelHash,
+	})
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -803,7 +809,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
 	hello.Scope = agentScope
-
+	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
+	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
+		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
+			return nil, trace.AccessDenied("immutable labels do not match their agent identity")
+		}
+	}
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
@@ -3831,58 +3842,58 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
-	certReq := certRequest{
-		mfaVerified:                      verifiedMFADeviceID,
-		user:                             user,
-		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:                    req.Format,
-		sshPublicKey:                     req.SSHPublicKey,
-		tlsPublicKey:                     req.TLSPublicKey,
-		sshPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
-		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:                   req.RouteToCluster,
-		requesterName:                    req.RequesterName,
-		kubernetesCluster:                req.KubernetesCluster,
-		dbService:                        req.RouteToDatabase.ServiceName,
-		dbProtocol:                       req.RouteToDatabase.Protocol,
-		dbUser:                           req.RouteToDatabase.Username,
-		dbName:                           req.RouteToDatabase.Database,
-		dbRoles:                          req.RouteToDatabase.Roles,
-		appSessionID:                     appSessionID,
-		appName:                          req.RouteToApp.Name,
-		appPublicAddr:                    req.RouteToApp.PublicAddr,
-		appURI:                           req.RouteToApp.URI,
-		appTargetPort:                    int(req.RouteToApp.TargetPort),
-		appClusterName:                   req.RouteToApp.ClusterName,
-		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
-		azureIdentity:                    req.RouteToApp.AzureIdentity,
-		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
+	certReq := cert.Request{
+		MFAVerified:                      verifiedMFADeviceID,
+		User:                             user,
+		TTL:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		Compatibility:                    req.Format,
+		SSHPublicKey:                     req.SSHPublicKey,
+		TLSPublicKey:                     req.TLSPublicKey,
+		SSHPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		TLSPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		OverrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		RouteToCluster:                   req.RouteToCluster,
+		RequesterName:                    req.RequesterName,
+		KubernetesCluster:                req.KubernetesCluster,
+		DBService:                        req.RouteToDatabase.ServiceName,
+		DBProtocol:                       req.RouteToDatabase.Protocol,
+		DBUser:                           req.RouteToDatabase.Username,
+		DBName:                           req.RouteToDatabase.Database,
+		DBRoles:                          req.RouteToDatabase.Roles,
+		AppSessionID:                     appSessionID,
+		AppName:                          req.RouteToApp.Name,
+		AppPublicAddr:                    req.RouteToApp.PublicAddr,
+		AppURI:                           req.RouteToApp.URI,
+		AppTargetPort:                    int(req.RouteToApp.TargetPort),
+		AppClusterName:                   req.RouteToApp.ClusterName,
+		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
+		AzureIdentity:                    req.RouteToApp.AzureIdentity,
+		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		CheckerContext:                   services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		loginIP:                a.context.Identity.GetIdentity().LoginIP,
-		traits:                 accessInfo.Traits,
-		activeRequests:         req.AccessRequests,
-		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		botName:                getBotName(user),
+		LoginIP:                a.context.Identity.GetIdentity().LoginIP,
+		Traits:                 accessInfo.Traits,
+		ActiveRequests:         req.AccessRequests,
+		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
+		BotName:                getBotName(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots
 		// joining without an instance ID may have one generated when
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
-		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
-		joinToken:     a.context.Identity.GetIdentity().JoinToken,
+		BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		JoinToken:     a.context.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
 		// identity.
-		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
+		JoinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
 	}
 
 	if user.GetName() != a.context.User.GetName() {
-		certReq.impersonator = a.context.User.GetName()
+		certReq.Impersonator = a.context.User.GetName()
 	} else if isRoleImpersonation(req) {
 		// Role impersonation uses the user's own name as the impersonator value.
-		certReq.impersonator = a.context.User.GetName()
+		certReq.Impersonator = a.context.User.GetName()
 
 		// By default, deny reissuing certs to prevent privilege re-escalation.
 		// (E.g a cert generated intended for use for Kubernetes Access against
@@ -3890,21 +3901,21 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// This can be overridden by the user if they acknowledge the risk and
 		// require a certificate which can be reissued (e.g dynamic app access
 		// use-case).
-		certReq.disallowReissue = true
+		certReq.DisallowReissue = true
 		if req.ReissuableRoleImpersonation {
-			certReq.disallowReissue = false
+			certReq.DisallowReissue = false
 		}
 	} else if a.context.Identity != nil && a.context.Identity.GetIdentity().Impersonator != "" {
 		// impersonating users can receive new certs
-		certReq.impersonator = a.context.Identity.GetIdentity().Impersonator
+		certReq.Impersonator = a.context.Identity.GetIdentity().Impersonator
 	}
 	switch req.Usage {
 	case proto.UserCertsRequest_Database:
-		certReq.usage = []string{teleport.UsageDatabaseOnly}
+		certReq.Usage = []string{teleport.UsageDatabaseOnly}
 	case proto.UserCertsRequest_App:
-		certReq.usage = []string{teleport.UsageAppsOnly}
+		certReq.Usage = []string{teleport.UsageAppsOnly}
 	case proto.UserCertsRequest_Kubernetes:
-		certReq.usage = []string{teleport.UsageKubeOnly}
+		certReq.Usage = []string{teleport.UsageKubeOnly}
 	case proto.UserCertsRequest_SSH:
 		// SSH certs are ssh-only by definition, certReq.usage only applies to
 		// TLS certs.
@@ -3912,7 +3923,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// Unrestricted usage.
 	case proto.UserCertsRequest_WindowsDesktop:
 		// Desktop certs.
-		certReq.usage = []string{teleport.UsageWindowsDesktopOnly}
+		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}
@@ -3927,27 +3938,27 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
 		!isRoleImpersonation(req) &&
-		!certReq.disallowReissue {
-		certReq.renewable = true
+		!certReq.DisallowReissue {
+		certReq.Renewable = true
 	}
 
 	// If the cert is renewable, process any bot instance updates (generation
 	// counter, auth records, etc). `updateBotInstance()` may modify certain
 	// `certReq` attributes (generation, botInstanceID).
-	if certReq.renewable {
+	if certReq.Renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
 
 		// If we're handling a renewal for a bot, we want to return the
 		// Host CAs as well as the User CAs.
-		if certReq.botName != "" {
-			certReq.includeHostCA = true
+		if certReq.BotName != "" {
+			certReq.IncludeHostCA = true
 		}
 
 		// Update the bot instance based on this authentication. This may create
 		// a new bot instance record if the identity is missing an instance ID.
 		if err := a.authServer.updateBotInstance(
-			ctx, &certReq, user.GetName(), certReq.botName,
-			certReq.botInstanceID, nil, int32(currentIdentityGeneration),
+			ctx, &certReq, user.GetName(), certReq.BotName,
+			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
 		); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4097,30 +4108,6 @@ func hasOneNonPresetUser(users []types.User) bool {
 	}
 
 	return qtyNonPreset == 1
-}
-
-// CompareAndSwapUser updates an existing user in a backend, but fails if the
-// backend's value does not match the expected value.
-// Captures the auth user who modified the user record.
-func (a *ServerWithRoles) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
-	if err := a.authorizeAction(types.KindUser, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, new); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Checking the `existing` origin should be enough to assert that okta has
-	// write access to the user, because if the backend record says something
-	// different then the `CompareAndSwap()` will fail anyway, and this way we
-	// save ourselves a backend user lookup.
-
-	if err := okta.CheckAccess(&a.context, existing, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.CompareAndSwapUser(ctx, new, existing)
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
@@ -5362,7 +5349,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5412,7 +5399,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		},
 		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit auth preference update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5498,7 +5485,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event", "error", auditErr)
 	}
 	return trace.Wrap(err)
 }
@@ -5550,7 +5537,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit cluster networking config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5605,7 +5592,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)
@@ -5650,7 +5637,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 			UserMessage: msg,
 		},
 	}); auditErr != nil {
-		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event event", "error", auditErr)
+		a.authServer.logger.WarnContext(ctx, "Failed to emit session recording config update event", "error", auditErr)
 	}
 
 	return trace.Wrap(err)

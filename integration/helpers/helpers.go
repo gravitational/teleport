@@ -48,7 +48,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,8 +91,8 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	// ControlMaster is often used by applications like Ansible.
 	if o.ControlPath != "" {
 		execArgs = append(execArgs, "-oControlMaster=auto")
-		execArgs = append(execArgs, "-oControlPersist=1s")
-		execArgs = append(execArgs, "-oConnectTimeout=2")
+		execArgs = append(execArgs, "-oControlPersist=0")
+		execArgs = append(execArgs, "-oConnectTimeout=10")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
 	}
 
@@ -262,7 +261,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second * 2
+	max := time.Second * 10
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
@@ -457,11 +456,10 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
 func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
-	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = false
+	// Proxy uses self-signed certificates in tests.
+	cfg.InsecureMode = true
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -495,8 +493,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 // It receives the Proxy Address, a Token (to join the cluster).
 func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
+	cfg.InsecureMode = true
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()

@@ -19,6 +19,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - usetesting
   settings:
     depguard:
       rules:
@@ -90,11 +91,8 @@ linters:
             - '!**/lib/services/suite/**'
             - '!**/e/lib/accesslist/equal.go'
             - '!**/e/lib/auth/saml.go'
-            - '!**lib/services/authority.go'
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
-            - '!**/lib/services/local/users.go'
-            - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
@@ -204,6 +202,7 @@ linters:
             - '!**/integrations/lib/testing/**'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/lib/auth/authtest/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -244,27 +243,19 @@ linters:
             - '!**/e/lib/auth/ssotestlib.go'
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/idp/saml/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
-            - '!**/lib/auth/helpers.go'
-            - '!**/lib/auth/keystore/testhelpers.go'
-            - '!**/lib/backend/test/**'
-            - '!**/lib/events/test/**'
-            - '!**/lib/services/suite/**'
-            - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
-            - '!**/lib/teleterm/gatewaytest/**'
-            - '!**/lib/utils/mcptest/**'
-            - '!**/lib/utils/testutils/**'
             - '!**/integration/appaccess/fixtures.go'
             - '!**/integration/appaccess/jwt.go'
             - '!**/integration/appaccess/pack.go'
             - '!**/integration/db/fixture.go'
-            - '!**/integration/hsm/helpers.go'
             - '!**/integration/helpers/**'
+            - '!**/integration/hsm/helpers.go'
             - '!**/integration/proxy/proxy_helpers.go'
-            - '!**/integrations/access/email/testlib/**'
             - '!**/integrations/access/datadog/testlib/**'
             - '!**/integrations/access/discord/testlib/**'
+            - '!**/integrations/access/email/testlib/**'
             - '!**/integrations/access/jira/testlib/**'
             - '!**/integrations/access/mattermost/testlib/**'
             - '!**/integrations/access/msteams/testlib/**'
@@ -277,7 +268,17 @@ linters:
             - '!**/integrations/lib/testing/integration/authhelper.go'
             - '!**/integrations/lib/testing/integration/suite.go'
             - '!**/integrations/operator/controllers/resources/testlib/**'
-            - '!**/e/lib/intune/testenv/**'
+            - '!**/lib/auth/helpers.go'
+            - '!**/lib/auth/keystore/testhelpers.go'
+            - '!**/lib/backend/test/**'
+            - '!**/lib/events/test/**'
+            - '!**/lib/services/suite/**'
+            - '!**/lib/subca/testenv/**'
+            - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
+            - '!**/lib/teleterm/gatewaytest/**'
+            - '!**/lib/utils/mcptest/**'
+            - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -287,11 +288,11 @@ linters:
             - '!**/api/testhelpers/**'
             - '!**/e/lib/auth/ssotestlib.go'
             - '!**/e/lib/aws/identitycenter/test/**'
-            - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/devicetrust/storage/storage.go'
+            - '!**/e/lib/devicetrust/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
-            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/intune/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/okta/api/oktaapitest/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
@@ -304,19 +305,21 @@ linters:
             - '!**/lib/auth/helpers.go'
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
-            - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
+            - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/events/test/**'
             - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'
             - '!**/lib/services/local/users.go'
             - '!**/lib/services/suite/**'
+            - '!**/lib/subca/testenv/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -327,6 +330,7 @@ linters:
     forbidigo:
       forbid:
         - pattern: ^rsa\.GenerateKey$
+          pkg: ^crypto/rsa$
           msg: generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type
         - pattern: ^common\.StringToRegion$
           msg: use oraclejoincommon.StringToRegion to avoid OCI SDK data races
@@ -342,6 +346,10 @@ linters:
           msg: use protojson.UnmarshalOptions and consider enabling DiscardUnknown
         - pattern: ^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$
           msg: use protojson if possible, or use jsonpb.Unmarshaler and consider enabling AllowUnknownFields
+        - pattern: ^semver\.New$
+          pkg: ^github.com/coreos/go-semver/semver$
+          msg: construct a semver.Version manually or use semver.NewVersion
+      analyze-types: true
     misspell:
       locale: US
     nolintlint:
@@ -374,6 +382,15 @@ linters:
         - len
         - suite-extra-assert-call
         - suite-thelper
+    usetesting:
+        context-todo: true
+        # TODO: Enable the following after the issues are fixed.
+        context-background: false
+        os-chdir: false
+        os-create-temp: false
+        os-mkdir-temp: false
+        os-setenv: false
+        os-temp-dir: false
   exclusions:
     generated: lax
     presets:

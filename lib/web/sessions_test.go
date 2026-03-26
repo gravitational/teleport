@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -188,14 +187,8 @@ func TestGetUserClient(t *testing.T) {
 }
 
 func TestSessionCache_watcher(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	// Requires Enterprise to work.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	webSuite := newWebSuite(t)
+	testModules := modulestest.EnterpriseModules()
+	webSuite := newWebSuiteWithConfig(t, webSuiteConfig{modules: testModules})
 	authServer := webSuite.server.AuthServer.AuthServer
 	authClient := webSuite.proxyClient
 	clock := webSuite.clock
@@ -205,6 +198,7 @@ func TestSessionCache_watcher(t *testing.T) {
 
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
+		buildType:   testModules.BuildType(),
 		proxyClient: authClient,
 		accessPoint: authClient,
 		servers: []utils.NetAddr{

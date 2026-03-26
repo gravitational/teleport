@@ -18,7 +18,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
@@ -43,8 +43,8 @@ import { EmptyState } from './EmptyState/EmptyState';
 import { WorkloadIdetitiesList } from './List/WorkloadIdentitiesList';
 
 export function WorkloadIdentities() {
-  const history = useHistory();
-  const location = useLocation<{ prevPageTokens?: readonly string[] }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const sortField = queryParams.get('sort_field') || 'name';
@@ -77,7 +77,8 @@ export function WorkloadIdentities() {
     staleTime: 30_000, // Cached pages are valid for 30 seconds
   });
 
-  const { prevPageTokens = [] } = location.state ?? {};
+  const { prevPageTokens = [] } =
+    (location.state as { prevPageTokens?: readonly string[] }) ?? {};
   const hasNextPage = !!data?.next_page_token;
   const hasPrevPage = !!pageToken;
 
@@ -85,18 +86,21 @@ export function WorkloadIdentities() {
     const search = new URLSearchParams(location.search);
     search.set('page', data?.next_page_token ?? '');
 
-    history.replace(
+    navigate(
       {
         pathname: location.pathname,
         search: search.toString(),
       },
       {
-        prevPageTokens: [...prevPageTokens, pageToken],
+        replace: true,
+        state: {
+          prevPageTokens: [...prevPageTokens, pageToken],
+        },
       }
     );
   }, [
     data?.next_page_token,
-    history,
+    navigate,
     location.pathname,
     location.search,
     pageToken,
@@ -110,16 +114,19 @@ export function WorkloadIdentities() {
     const search = new URLSearchParams(location.search);
     search.set('page', nextToken ?? '');
 
-    history.replace(
+    navigate(
       {
         pathname: location.pathname,
         search: search.toString(),
       },
       {
-        prevPageTokens: prevTokens,
+        replace: true,
+        state: {
+          prevPageTokens: prevTokens,
+        },
       }
     );
-  }, [history, location.pathname, location.search, prevPageTokens]);
+  }, [navigate, location.pathname, location.search, prevPageTokens]);
 
   const sortType: SortType = {
     fieldName: sortField,
@@ -133,12 +140,15 @@ export function WorkloadIdentities() {
       search.set('sort_dir', sortType.dir);
       search.set('page', '');
 
-      history.replace({
-        pathname: location.pathname,
-        search: search.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: search.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const handleSearchChange = useCallback(
@@ -147,12 +157,15 @@ export function WorkloadIdentities() {
       search.set('search', term);
       search.set('page', '');
 
-      history.replace({
-        pathname: `${location.pathname}`,
-        search: search.toString(),
-      });
+      navigate(
+        {
+          pathname: `${location.pathname}`,
+          search: search.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const hasUnsupportedSortError = isError && isUnsupportedSortError(error);

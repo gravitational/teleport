@@ -262,6 +262,7 @@ func TestClientStore(t *testing.T) {
 					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
 					SiteName:     idx.ClusterName,
 					Username:     idx.Username,
+					Scope:        "/production",
 				}
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
@@ -292,6 +293,7 @@ func TestClientStore(t *testing.T) {
 
 				otherProfile := profile.Copy()
 				otherProfile.WebProxyAddr = "other.example.com:3080"
+				otherProfile.Scope = "/staging"
 				err = clientStore.SaveProfile(otherProfile, false)
 				require.NoError(t, err)
 
@@ -319,9 +321,51 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, expectOtherStatus, currentStatus)
 				require.Len(t, otherStatuses, 1)
 				require.Equal(t, expectStatus, otherStatuses[0])
+				require.Equal(t, currentStatus.ScopePin, expectOtherStatus.ScopePin)
 			})
 		})
 	}
+}
+
+func TestPartialProfileStatusScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil ScopePin when profile has no scope", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "noscope.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
+
+			// No key ring saved — ReadProfileStatus should return partial status.
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.Nil(t, status.ScopePin)
+		})
+	})
+
+	t.Run("ScopePin set when profile has scope", func(t *testing.T) {
+		t.Parallel()
+		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+			p := &profile.Profile{
+				WebProxyAddr: "scoped.example.com:3080",
+				SiteName:     "root",
+				Username:     "alice",
+				Scope:        "/production",
+			}
+			err := clientStore.SaveProfile(p, true)
+			require.NoError(t, err)
+
+			status, err := clientStore.ReadProfileStatus(p.Name())
+			require.NoError(t, err)
+			require.NotNil(t, status.ScopePin)
+			require.Equal(t, "/production", status.ScopePin.Scope)
+		})
+	})
 }
 
 // TestProxySSHConfig tests proxy client SSH config function
@@ -437,6 +481,9 @@ func TestProxySSHConfig(t *testing.T) {
 // fast to avoid adding latency to all kubectl calls. It should tolerate being
 // called many times in parallel.
 func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(b, err)
 

@@ -142,7 +142,7 @@ disable may be forced via the `--force` flag.
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth delete-override --type=db_client`
+`tctl auth delete-override --type=db_client --public-key='AB:CD:EF:...'`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force` flag.
@@ -331,7 +331,7 @@ resource.
 
 Certificates supplied to an override are validated to make sure they can
 function as CA certificates and fulfill Teleport's requirements. This includes
-[Subject requirements][#subject-customization] and that the certificate's
+[Subject requirements](#subject-customization) and that the certificate's
 expiration is not after than the corresponding self-signed CA certificate
 (typically valid for 10y).
 
@@ -476,22 +476,6 @@ https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b6
 If customization of the O= field is desired then cluster name is recorded using
 OID "1.3.9999.4.1". If any Subject customization is at play then the system
 favors the alternate OID to the O= field.
-
-In an attempt to make CA certificate requirements clearer and more maintainable
-in code, the tlsca.ClusterName() function is to be removed and replaced by the
-following:
-
-```go
-package tlsca // lib/tlsca
-
-func CAInfoFromSubject(subject pkix.Name) (*CAInfo, error) {
-	// (...)
-}
-
-type CAInfo struct {
-	ClusterName string
-}
-```
 
 Managed Subjects may have, at the system's discretion, the certificate serial
 number added to their Subject. Customized Subjects are not changed in this
@@ -705,7 +689,7 @@ message RemoveCertificateOverrideResponse {}
 ```
 
 The storage key space for cert_authority_override resources is
-`/cert_authority_overrides/{ca_type}`.
+`/cert_authority_overrides/cluster/{clusterName}/{caType}`.
 
 ### Cache and event stream
 
@@ -748,22 +732,23 @@ message CertAuthorityOverrideEvent {
   UserMetadata user = 2;
   ResourceMetadata resource = 3; // name=cluster name
   Status status = 4;             // Distinguishes successes and failures.
-  CertAuthorityOverrideMetadata cert_authority_override = 4;
+  CertAuthorityOverrideMetadata cert_authority_override = 5;
 }
 
 message CertAuthorityOverrideMetadata {
   string ca_type = 1;
-  repeated CertAuthorityCertificateOverrideMetadata certificate_overrides = 2;
+  string cluster_name = 2; // for clarity
+  repeated CertificateOverrideMetadata  certificate_overrides = 3;
 }
 
-message CertAuthorityCertificateOverrideMetadata {
-  CertificateOverrideMetadata certificate = 1;
-  repeated CertificateOverrideMetadata chain = 2;
+message CertificateOverrideMetadata  {
+  X509OverrideMetadata certificate = 1;
+  repeated X509OverrideMetadata chain = 2;
   bool disabled = 3;
   // Note: entry delete tracked by the event code.
 }
 
-message CertificateOverrideMetadata {
+message X509OverrideMetadata {
   string issuer = 1;
   string subject = 2;
   string serial_number = 3;

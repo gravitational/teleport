@@ -226,6 +226,9 @@ type Config struct {
 	// AppServerWatcher is a app server watcher.
 	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
+	// DatabaseServerWatcher is a database server watcher.
+	DatabaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
 
@@ -304,6 +307,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.AppServerWatcher == nil {
 		return trace.BadParameter("missing parameter AppServerWatcher")
+	}
+	if cfg.DatabaseServerWatcher == nil {
+		return trace.BadParameter("missing parameter DatabaseServerWatcher")
 	}
 
 	if cfg.EICEDialer == nil {
@@ -652,7 +658,10 @@ func (s *server) Wait(ctx context.Context) {
 }
 
 func (s *server) Start() error {
-	go s.srv.Serve(s.Listener)
+	if err := s.srv.SetListener(s.Listener); err != nil {
+		return trace.Wrap(err)
+	}
+	go s.srv.Serve()
 	return nil
 }
 
@@ -1299,6 +1308,18 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 	leaf.appServerWatcher = appServerWatcher
+
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(closeContext, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leaf.databaseServerWatcher = databaseServerWatcher
 
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each cluster (instead of creating it in

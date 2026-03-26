@@ -19,8 +19,6 @@
 package recordingmetadatav1
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -28,168 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
-	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
-
-func TestProcessSessionRecording(t *testing.T) {
-	startTime := time.Now()
-
-	tests := []struct {
-		name               string
-		events             []apievents.AuditEvent
-		expectError        bool
-		expectedThumbnails func(t *testing.T, thumbnailData []byte)
-		expectedMetadata   func(t *testing.T, metadata *pb.SessionRecordingMetadata)
-		expectedFrames     func(t *testing.T, frames []*pb.SessionRecordingThumbnail)
-	}{
-		{
-			name:   "basic session with print events",
-			events: generateBasicSession(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
-				require.NotNil(t, metadata)
-				require.NotNil(t, metadata.Duration)
-				require.Equal(t, int32(80), metadata.StartCols)
-				require.Equal(t, int32(24), metadata.StartRows)
-			},
-			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
-				require.NotEmpty(t, frames)
-			},
-			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
-				var thumbnail pb.SessionRecordingThumbnail
-				err := proto.Unmarshal(thumbnailData, &thumbnail)
-				require.NoError(t, err)
-				require.NotEmpty(t, thumbnail.Svg)
-			},
-		},
-		{
-			name:   "basic session with print events with immediate resize after start",
-			events: generateBasicSessionWithImmediateResize(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
-				require.NotNil(t, metadata)
-				require.NotNil(t, metadata.Duration)
-				require.Equal(t, int32(100), metadata.StartCols)
-				require.Equal(t, int32(30), metadata.StartRows)
-			},
-			expectedFrames: func(t *testing.T, frames []*pb.SessionRecordingThumbnail) {
-				require.NotEmpty(t, frames)
-			},
-			expectedThumbnails: func(t *testing.T, thumbnailData []byte) {
-				var thumbnail pb.SessionRecordingThumbnail
-				err := proto.Unmarshal(thumbnailData, &thumbnail)
-				require.NoError(t, err)
-				require.NotEmpty(t, thumbnail.Svg)
-			},
-		},
-		{
-			name:   "session with resize events",
-			events: generateSessionWithResize(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
-				require.NotNil(t, metadata)
-
-				var hasResize bool
-				for _, event := range metadata.Events {
-					if resize := event.GetResize(); resize != nil {
-						hasResize = true
-						require.Equal(t, int32(120), resize.Cols)
-						require.Equal(t, int32(40), resize.Rows)
-					}
-				}
-				require.True(t, hasResize, "expected resize event")
-			},
-		},
-		{
-			name:   "session with inactivity periods",
-			events: generateSessionWithInactivity(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
-				require.NotNil(t, metadata)
-
-				var hasInactivity bool
-				for _, event := range metadata.Events {
-					if event.GetInactivity() != nil {
-						hasInactivity = true
-						require.NotNil(t, event.StartOffset)
-						require.NotNil(t, event.EndOffset)
-					}
-				}
-				require.True(t, hasInactivity, "expected inactivity event")
-			},
-		},
-		{
-			name:   "session with join and leave events",
-			events: generateSessionWithJoinLeave(startTime),
-			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
-				require.NotNil(t, metadata)
-
-				joinUsers := make(map[string]bool)
-				for _, event := range metadata.Events {
-					if join := event.GetJoin(); join != nil {
-						joinUsers[join.User] = true
-					}
-				}
-				require.True(t, joinUsers["alice"], "expected alice join event")
-				require.True(t, joinUsers["bob"], "expected bob join event")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sessionID := session.NewID()
-
-			streamer := &mockStreamer{
-				events:       tt.events,
-				errorOnEvent: -1,
-			}
-			uploadHandler := newMockUploadHandler()
-
-			service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-				Streamer:      streamer,
-				UploadHandler: uploadHandler,
-			})
-			require.NoError(t, err)
-
-			lastEventTime := tt.events[len(tt.events)-1].GetTime()
-
-			err = service.ProcessSessionRecording(t.Context(), sessionID, lastEventTime.Sub(startTime))
-
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-
-				uploadHandler.mu.Lock()
-				metadataData, ok := uploadHandler.metadata[string(sessionID)]
-				uploadHandler.mu.Unlock()
-				require.True(t, ok, "metadata should be uploaded")
-
-				metadata, frames, err := unmarshalMetadata(metadataData)
-				require.NoError(t, err)
-
-				if tt.expectedMetadata != nil {
-					tt.expectedMetadata(t, metadata)
-				}
-
-				if tt.expectedFrames != nil {
-					tt.expectedFrames(t, frames)
-				}
-
-				uploadHandler.mu.Lock()
-				thumbnailData, ok := uploadHandler.thumbnails[string(sessionID)]
-				uploadHandler.mu.Unlock()
-				if ok && tt.expectedThumbnails != nil {
-					tt.expectedThumbnails(t, thumbnailData)
-				}
-			}
-		})
-	}
-}
 
 func TestProcessSessionRecording_StreamError(t *testing.T) {
 	sessionID := session.NewID()
@@ -205,7 +48,7 @@ func TestProcessSessionRecording_StreamError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream error")
 }
@@ -227,7 +70,7 @@ func TestProcessSessionRecording_UploadError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "upload failed")
 }
@@ -250,7 +93,7 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 
 	processDone := make(chan error, 1)
 	go func() {
-		processDone <- service.ProcessSessionRecording(ctx, sessionID, 10*time.Second)
+		processDone <- service.ProcessSessionRecording(ctx, sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
 	}()
 
 	streamer.WaitUntilBlocking()
@@ -267,104 +110,9 @@ func TestProcessSessionRecording_ContextCancellation(t *testing.T) {
 }
 
 func TestProcessSessionRecording_UnsupportedSessionTypes(t *testing.T) {
-	startTime := time.Now()
 	sessionID := session.NewID()
-
-	tests := []struct {
-		name   string
-		events []apievents.AuditEvent
-	}{
-		{
-			name: "database session",
-			events: []apievents.AuditEvent{
-				&apievents.DatabaseSessionStart{
-					Metadata: apievents.Metadata{
-						Type: "db.session.start",
-						Time: startTime,
-					},
-				},
-			},
-		},
-		{
-			name: "windows desktop session",
-			events: []apievents.AuditEvent{
-				&apievents.WindowsDesktopSessionStart{
-					Metadata: apievents.Metadata{
-						Type: "windows.desktop.session.start",
-						Time: startTime,
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			streamer := &mockStreamer{
-				events:       tt.events,
-				errorOnEvent: -1,
-			}
-			uploadHandler := newMockUploadHandler()
-
-			service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
-				Streamer:      streamer,
-				UploadHandler: uploadHandler,
-			})
-			require.NoError(t, err)
-
-			err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
-
-			require.NoError(t, err)
-
-			uploadHandler.mu.Lock()
-			metadataLen := len(uploadHandler.metadata)
-			thumbnailsLen := len(uploadHandler.thumbnails)
-			uploadHandler.mu.Unlock()
-
-			require.Equal(t, 0, metadataLen, "metadata should be empty")
-			require.Equal(t, 0, thumbnailsLen, "thumbnails should be empty")
-		})
-	}
-}
-
-func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
-	startTime := time.Now()
-	sessionID := session.NewID()
-
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Hello\n"),
-		},
-		&apievents.Resize{
-			Metadata: apievents.Metadata{
-				Type: "resize",
-				Time: startTime.Add(2 * time.Second),
-			},
-			TerminalSize: "invalid:terminal:size",
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
 
 	streamer := &mockStreamer{
-		events:       events,
 		errorOnEvent: -1,
 	}
 	uploadHandler := newMockUploadHandler()
@@ -375,7 +123,43 @@ func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeUnspecified, 10*time.Second)
+
+	require.NoError(t, err)
+
+	uploadHandler.mu.Lock()
+	metadataLen := len(uploadHandler.metadata)
+	thumbnailsLen := len(uploadHandler.thumbnails)
+	uploadHandler.mu.Unlock()
+
+	require.Equal(t, 0, metadataLen, "metadata should be empty")
+	require.Equal(t, 0, thumbnailsLen, "thumbnails should be empty")
+}
+
+func TestProcessSessionRecording_MalformedResizeEvent(t *testing.T) {
+	startTime := time.Now()
+	sessionID := session.NewID()
+
+	evts := []apievents.AuditEvent{
+		sessionStartEvent(startTime, "80:24"),
+		sessionPrintEvent(startTime.Add(1*time.Second), "Hello\n"),
+		resizeEvent(startTime.Add(2*time.Second), "invalid:terminal:size"),
+		sessionEndEvent(startTime, startTime.Add(10*time.Second)),
+	}
+
+	streamer := &mockStreamer{
+		events:       evts,
+		errorOnEvent: -1,
+	}
+	uploadHandler := newMockUploadHandler()
+
+	service, err := NewRecordingMetadataService(RecordingMetadataServiceConfig{
+		Streamer:      streamer,
+		UploadHandler: uploadHandler,
+	})
+	require.NoError(t, err)
+
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "parsing terminal size")
@@ -390,40 +174,15 @@ func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
 	startTime := time.Now()
 	sessionID := session.NewID()
 
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Hello\n"),
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(2 * time.Second),
-			},
-			Data: []byte("World\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
+	evts := []apievents.AuditEvent{
+		sessionStartEvent(startTime, "80:24"),
+		sessionPrintEvent(startTime.Add(1*time.Second), "Hello\n"),
+		sessionPrintEvent(startTime.Add(2*time.Second), "World\n"),
+		sessionEndEvent(startTime, startTime.Add(10*time.Second)),
 	}
 
 	streamer := &mockStreamer{
-		events:       events,
+		events:       evts,
 		errorOnEvent: -1,
 	}
 
@@ -437,10 +196,53 @@ func TestProcessSessionRecording_UploadFailsDuringProcessing(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "simulated upload failure")
+}
+
+func sessionStartEvent(t time.Time, size string) *apievents.SessionStart {
+	return &apievents.SessionStart{
+		Metadata:     apievents.Metadata{Type: "session.start", Time: t},
+		TerminalSize: size,
+	}
+}
+
+func sessionPrintEvent(t time.Time, data string) *apievents.SessionPrint {
+	return &apievents.SessionPrint{
+		Metadata: apievents.Metadata{Type: "print", Time: t},
+		Data:     []byte(data),
+	}
+}
+
+func resizeEvent(t time.Time, size string) *apievents.Resize {
+	return &apievents.Resize{
+		Metadata:     apievents.Metadata{Type: "resize", Time: t},
+		TerminalSize: size,
+	}
+}
+
+func sessionEndEvent(startTime time.Time, endTime time.Time) *apievents.SessionEnd {
+	return &apievents.SessionEnd{
+		Metadata:  apievents.Metadata{Type: "session.end", Time: endTime},
+		StartTime: startTime,
+		EndTime:   endTime,
+	}
+}
+
+func sessionJoinEvent(t time.Time, user string) *apievents.SessionJoin {
+	return &apievents.SessionJoin{
+		Metadata:     apievents.Metadata{Type: "session.join", Time: t},
+		UserMetadata: apievents.UserMetadata{User: user},
+	}
+}
+
+func sessionLeaveEvent(t time.Time, user string) *apievents.SessionLeave {
+	return &apievents.SessionLeave{
+		Metadata:     apievents.Metadata{Type: "session.leave", Time: t},
+		UserMetadata: apievents.UserMetadata{User: user},
+	}
 }
 
 // mockUploadHandlerFailAfterRead simulates an upload failure after reading some bytes
@@ -486,224 +288,6 @@ func (m *mockUploadHandlerFailAfterRead) UploadMetadata(ctx context.Context, ses
 
 func (m *mockUploadHandlerFailAfterRead) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return "thumbnail/success", nil
-}
-
-func generateBasicSessionWithImmediateResize(startTime time.Time) []apievents.AuditEvent {
-	events := generateBasicSession(startTime)
-
-	// Insert a resize event immediately after session start
-	resizeEvent := &apievents.Resize{
-		Metadata: apievents.Metadata{
-			Type: "resize",
-			Time: startTime.Add(500 * time.Millisecond),
-		},
-		TerminalSize: "100:30",
-	}
-
-	events = append([]apievents.AuditEvent{events[0], resizeEvent}, events[1:]...)
-
-	return events
-}
-
-func generateBasicSession(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Hello World\n"),
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(2 * time.Second),
-			},
-			Data: []byte("$ ls -la\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
-	return events
-}
-
-func generateSessionWithResize(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Initial output\n"),
-		},
-		&apievents.Resize{
-			Metadata: apievents.Metadata{
-				Type: "resize",
-				Time: startTime.Add(2 * time.Second),
-			},
-			TerminalSize: "120:40",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(3 * time.Second),
-			},
-			Data: []byte("After resize\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
-	return events
-}
-
-func generateSessionWithInactivity(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(1 * time.Second),
-			},
-			Data: []byte("Active\n"),
-		},
-		// 20 second gap
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(21 * time.Second),
-			},
-			Data: []byte("After inactivity\n"),
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(20 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(20 * time.Second),
-		},
-	}
-	return events
-}
-
-func generateSessionWithJoinLeave(startTime time.Time) []apievents.AuditEvent {
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				Type: "session.start",
-				Time: startTime,
-			},
-			TerminalSize: "80:24",
-		},
-		&apievents.SessionJoin{
-			Metadata: apievents.Metadata{
-				Type: "session.join",
-				Time: startTime.Add(2 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "alice",
-			},
-		},
-		&apievents.SessionPrint{
-			Metadata: apievents.Metadata{
-				Type: "print",
-				Time: startTime.Add(3 * time.Second),
-			},
-			Data: []byte("Alice joined\n"),
-		},
-		&apievents.SessionJoin{
-			Metadata: apievents.Metadata{
-				Type: "session.join",
-				Time: startTime.Add(4 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "bob",
-			},
-		},
-		&apievents.SessionLeave{
-			Metadata: apievents.Metadata{
-				Type: "session.leave",
-				Time: startTime.Add(6 * time.Second),
-			},
-			UserMetadata: apievents.UserMetadata{
-				User: "alice",
-			},
-		},
-		&apievents.SessionEnd{
-			Metadata: apievents.Metadata{
-				Type: "session.end",
-				Time: startTime.Add(10 * time.Second),
-			},
-			StartTime: startTime,
-			EndTime:   startTime.Add(10 * time.Second),
-		},
-	}
-	return events
-}
-
-func unmarshalMetadata(data []byte) (*pb.SessionRecordingMetadata, []*pb.SessionRecordingThumbnail, error) {
-	reader := bufio.NewReader(bytes.NewReader(data))
-
-	var metadata *pb.SessionRecordingMetadata
-	var frames []*pb.SessionRecordingThumbnail
-
-	for {
-		msgBytes, err := readDelimitedMessage(reader)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-		}
-
-		var m pb.SessionRecordingMetadata
-		if err := proto.Unmarshal(msgBytes, &m); err == nil {
-			metadata = &m
-
-			continue
-		}
-
-		var f pb.SessionRecordingThumbnail
-		if err := proto.Unmarshal(msgBytes, &f); err == nil {
-			frames = append(frames, &f)
-			continue
-		}
-
-		return nil, nil, trace.BadParameter("failed to parse message as metadata or thumbnail")
-	}
-
-	return metadata, frames, nil
 }
 
 // mockStreamer implements player.Streamer for testing
@@ -860,19 +444,19 @@ func (m *mockUploadHandler) UploadThumbnail(ctx context.Context, sessionID sessi
 	return path, nil
 }
 
-func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 
-func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (m *mockUploadHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return nil
 }
 

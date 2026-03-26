@@ -205,7 +205,7 @@ Ensure the bot identity is allowed to log in as the requested user by taking any
 of the following actions:
 
  - Changing the SSH command to log in as an allowed user
- - Modifying the `access` role to allow the `alice` principal
+ - Modifying the `access` role to allow the `bob` principal
  - Adding a role granting login via the `bob` principal
 
 Note that if roles are added or modified, the certificates will need to be
@@ -347,7 +347,7 @@ Failure to add the `disable_exec_plugin` flag will result in a warning being dis
 ## Configuring `tbot` for split DNS proxies
 
 When you have deployed your Proxy Service in such a way that it is
-accessible via two different DNS names, e.g an internal and external address,
+accessible via two different DNS names, e.g. an internal and external address,
 you may find that a `tbot` that is configured to use one of these addresses may
 attempt to use the other address and that this may cause connections to fail.
 

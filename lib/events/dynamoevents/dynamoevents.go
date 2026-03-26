@@ -775,7 +775,7 @@ type legacyCheckpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -787,7 +787,7 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1109,6 +1109,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condExpr   string
 	condParams condFilterParams
 	filterFunc utils.FieldsCondition
@@ -1618,9 +1619,49 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
+		if l.filter.search != "" && !events.MatchSearch(l.filter.search, string(data)) {
+			continue
+		}
 
 		// Stop early when the fetcher's total size exceeds the response size limit.
-		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
+		if l.totalSize+len(data) > events.MaxEventBytesInResponse {
+			// Encountered an event that would push the total page over the size limit.
+			// Return all processed events, and the next event will be picked up on the next page.
+			if len(out) > 0 {
+				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			e.FieldsMap, err = trimToMaxSize(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err, "failed to trim event to max size")
+			}
+			trimmedData, err := json.Marshal(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err)
+			}
+
+			if l.totalSize+len(trimmedData) > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				l.log.WarnContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+					"event_type", e.FieldsMap.GetType(),
+					"event_id", e.FieldsMap.GetID(),
+					"event_size", len(data),
+					"event_size_after_trim", len(trimmedData),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
+
+			l.totalSize += len(trimmedData)
+			out = append(out, e)
+			l.left--
+
+			// Since we reached the response size limit, simply return the event.
 			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
 				return nil, false, trace.Wrap(err)
 			}
@@ -1638,6 +1679,26 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 		}
 	}
 	return out, false, nil
+}
+
+// trimToMaxSize attempts to trim the event to fit into the maximum response size (MaxEventBytesInResponse).
+// If the event is larger than the maximum response size, it will be trimmed
+// to the maximum size, which may result in loss of data.
+// Trimming requires unmarshalling the event to apievents.AuditEvent and then
+// calling TrimToMaxSize on it.
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
+// so it should not be a problem in practice.
+func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
+	event, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	fields, err = events.ToEventFields(event)
+	return fields, trace.Wrap(err)
 }
 
 // saveCheckpointAtEvent updates the checkpoint iterator at the given event.

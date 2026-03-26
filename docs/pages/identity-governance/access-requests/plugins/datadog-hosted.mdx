@@ -208,7 +208,7 @@ approve or deny the request:
 
 When the Datadog plugin sends a notification, anyone who receives the
 notification can follow the enclosed link to an Access Request URL. While users
-must be authorized via their Teleport roles to review Access Request, you
+must be authorized via their Teleport roles to review Access Requests, you
 should still check the Teleport audit log to ensure that the right users are
 reviewing the right requests.
 
@@ -260,6 +260,10 @@ spec:
 To trigger an auto-approval, login to Teleport as the current on-call user in Datadog,
 and create an Access Request for the `editor` role. Automatic approvals requires
 that the Teleport username matches the Datadog on-call user email.
+
+## Troubleshooting
+
+(!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
 
 ## Next steps
 

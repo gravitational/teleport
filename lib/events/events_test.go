@@ -270,12 +270,29 @@ var eventsMap = map[string]apievents.AuditEvent{
 	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
 	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
 	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
+	WorkloadClusterCreateEvent:                    &apievents.WorkloadClusterCreate{},
+	WorkloadClusterUpdateEvent:                    &apievents.WorkloadClusterUpdate{},
+	WorkloadClusterDeleteEvent:                    &apievents.WorkloadClusterDelete{},
+	InferenceModelCreateEvent:                     &apievents.InferenceModelCreate{},
+	InferenceModelUpdateEvent:                     &apievents.InferenceModelUpdate{},
+	InferenceModelDeleteEvent:                     &apievents.InferenceModelDelete{},
+	InferenceSecretCreateEvent:                    &apievents.InferenceSecretCreate{},
+	InferenceSecretUpdateEvent:                    &apievents.InferenceSecretUpdate{},
+	InferenceSecretDeleteEvent:                    &apievents.InferenceSecretDelete{},
+	InferencePolicyCreateEvent:                    &apievents.InferencePolicyCreate{},
+	InferencePolicyUpdateEvent:                    &apievents.InferencePolicyUpdate{},
+	InferencePolicyDeleteEvent:                    &apievents.InferencePolicyDelete{},
+	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
 	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
 	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
 	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
+	CertAuthOverrideCreateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -395,7 +412,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session command event",
-			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
+			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"audit_session_id":9001,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: apievents.SessionCommand{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -418,9 +435,10 @@ func TestJSON(t *testing.T) {
 					Login: "alice",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID: 4294971450,
-					Program:  "dirname",
-					PID:      31638,
+					CgroupID:       4294971450,
+					AuditSessionID: 9001,
+					Program:        "dirname",
+					PID:            31638,
 				},
 				PPID:       31637,
 				ReturnCode: 0,
@@ -430,7 +448,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session network event",
-			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
+			json: `{"dst_port":443,"cgroup_id":4294976805,"audit_session_id":9001,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
 			event: apievents.SessionNetwork{
 				Metadata: apievents.Metadata{
 					Index:       0,
@@ -453,9 +471,10 @@ func TestJSON(t *testing.T) {
 					Login: "alice",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID: 4294976805,
-					Program:  "curl",
-					PID:      17604,
+					CgroupID:       4294976805,
+					AuditSessionID: 9001,
+					Program:        "curl",
+					PID:            17604,
 				},
 				DstPort:    443,
 				DstAddr:    "2607:f8b0:400a:801::200e",
@@ -467,7 +486,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session disk event",
-			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
+			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"audit_session_id":9001,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: apievents.SessionDisk{
 				Metadata: apievents.Metadata{
 					Index:       175,
@@ -490,9 +509,10 @@ func TestJSON(t *testing.T) {
 					Login: "bob",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID: 4294976835,
-					Program:  "clear_console",
-					PID:      31521,
+					CgroupID:       4294976835,
+					AuditSessionID: 9001,
+					Program:        "clear_console",
+					PID:            31521,
 				},
 				Flags:      142606336,
 				Path:       "/etc/ld.so.cache",
@@ -1339,4 +1359,230 @@ func toV2Proto(t testingVal, e apievents.AuditEvent) protoreflect.ProtoMessage {
 	pm, ok := e.(protoiface.MessageV1)
 	require.True(t, ok)
 	return protoadapt.MessageV2Of(pm)
+}
+
+// TestInferenceEvents tests the inference model, secret, and policy events
+func TestInferenceEvents(t *testing.T) {
+	t.Parallel()
+
+	testTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		event      apievents.AuditEvent
+		eventType  string
+		eventCode  string
+		hasPayload bool
+	}{
+		{
+			name: "InferenceModelCreate",
+			event: &apievents.InferenceModelCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelCreateEvent,
+					Code:        InferenceModelCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelCreateEvent,
+			eventCode:  InferenceModelCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferenceModelUpdate",
+			event: &apievents.InferenceModelUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelUpdateEvent,
+					Code:        InferenceModelUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelUpdateEvent,
+			eventCode:  InferenceModelUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferenceModelDelete",
+			event: &apievents.InferenceModelDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferenceModelDeleteEvent,
+					Code:        InferenceModelDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceModelDeleteEvent,
+			eventCode:  InferenceModelDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretCreate",
+			event: &apievents.InferenceSecretCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretCreateEvent,
+					Code:        InferenceSecretCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretCreateEvent,
+			eventCode:  InferenceSecretCreateCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretUpdate",
+			event: &apievents.InferenceSecretUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretUpdateEvent,
+					Code:        InferenceSecretUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretUpdateEvent,
+			eventCode:  InferenceSecretUpdateCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferenceSecretDelete",
+			event: &apievents.InferenceSecretDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferenceSecretDeleteEvent,
+					Code:        InferenceSecretDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-secret",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferenceSecretDeleteEvent,
+			eventCode:  InferenceSecretDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "InferencePolicyCreate",
+			event: &apievents.InferencePolicyCreate{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyCreateEvent,
+					Code:        InferencePolicyCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyCreateEvent,
+			eventCode:  InferencePolicyCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferencePolicyUpdate",
+			event: &apievents.InferencePolicyUpdate{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyUpdateEvent,
+					Code:        InferencePolicyUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyUpdateEvent,
+			eventCode:  InferencePolicyUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "InferencePolicyDelete",
+			event: &apievents.InferencePolicyDelete{
+				Metadata: apievents.Metadata{
+					Type:        InferencePolicyDeleteEvent,
+					Code:        InferencePolicyDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-policy",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  InferencePolicyDeleteEvent,
+			eventCode:  InferencePolicyDeleteCode,
+			hasPayload: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.eventType, tt.event.GetType())
+			require.Equal(t, tt.eventCode, tt.event.GetCode())
+			require.Equal(t, "test-cluster", tt.event.GetClusterName())
+
+			data, err := json.Marshal(tt.event)
+			require.NoError(t, err)
+
+			fields := make(EventFields)
+			err = json.Unmarshal(data, &fields)
+			require.NoError(t, err)
+			require.Equal(t, tt.eventType, fields.GetType())
+			require.Equal(t, tt.eventCode, fields.GetCode())
+
+			converted, err := FromEventFields(fields)
+			require.NoError(t, err)
+			require.IsType(t, tt.event, converted)
+
+			oneOf, err := apievents.ToOneOf(tt.event)
+			require.NoError(t, err)
+			fromOneOf, err := apievents.FromOneOf(*oneOf)
+			require.NoError(t, err)
+			require.IsType(t, tt.event, fromOneOf)
+
+			trimmed := tt.event.TrimToMaxSize(100)
+			require.Equal(t, tt.event, trimmed)
+		})
+	}
 }

@@ -762,7 +762,7 @@ export class Popover extends Component<Props> {
 
 export default Popover;
 
-interface Props extends Omit<ModalProps, 'children' | 'open'> {
+export interface Props extends Omit<ModalProps, 'children' | 'open'> {
   /**
    * This is callback property. It's called by the component on mount.  This is
    * useful when you want to trigger an action programmatically.  It currently
@@ -777,6 +777,7 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
    * This is the DOM element, or a function that returns the DOM element, that
    * may be used to set the position of the popover.
    */
+  // TODO(ravicious): Change this to anchorRef: RefObject<HTMLElement | null>.
   anchorEl?: Element | (() => Element) | null;
 
   /**
@@ -809,7 +810,10 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
    * set the position of the popover.  The positioning strategy tries to make
    * the content anchor element just above the anchor element.
    */
-  getContentAnchorEl?: (paperElement: HTMLElement) => HTMLElement;
+  getContentAnchorEl?:
+    | ((paperElement: HTMLElement) => HTMLElement)
+    | null
+    | undefined;
 
   /**
    * Specifies how close to the edge of the window the popover can appear.

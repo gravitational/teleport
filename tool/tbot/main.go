@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -79,7 +80,7 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd := app.Command("start", "Starts an instance of tbot.")
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("output", "Path to write the generated configuration file to rather. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
+	configureCmd.Flag("output", "Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
 
 	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
 
@@ -131,6 +132,9 @@ func Run(args []string, stdout io.Writer) error {
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewNoopCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewNoopCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -366,7 +370,7 @@ func onConfigure(
 	// Ensure they have provided either a valid joining URI, or a
 	// join method to use in the configuration.
 	if cfg.JoinURI != "" {
-		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+		if _, err := joinuri.Parse(cfg.JoinURI); err != nil {
 			return trace.Wrap(err, "invalid joining URI")
 		}
 	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {

@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -30,6 +31,8 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -53,6 +56,12 @@ type AuthServer interface {
 		token string,
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
+
+	CompleteBrowserMFAChallenge(
+		ctx context.Context,
+		requestID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+	) (string, error)
 }
 
 // Cache defines the subset of cache methods used by the MFA service.
@@ -84,15 +93,22 @@ type Identity interface {
 // See lib/auth.MFAService.
 type MFAService interface {
 	CreateValidatedMFAChallenge(ctx context.Context,
-		username string,
+		targetCluster string,
 		chal *mfav1.ValidatedMFAChallenge,
 	) (*mfav1.ValidatedMFAChallenge, error)
 
 	GetValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
+		targetCluster string,
 		challengeName string,
 	) (*mfav1.ValidatedMFAChallenge, error)
+
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		pageSize int32,
+		pageToken string,
+		targetCluster string,
+	) ([]*mfav1.ValidatedMFAChallenge, string, error)
 }
 
 // ServiceConfig holds creation parameters for [Service].
@@ -117,6 +133,14 @@ type Service struct {
 	identity   Identity
 	storage    MFAService
 }
+
+const (
+	// verifyValidatedMFAChallengeTimeout is the max wait time for a validated challenge to appear.
+	verifyValidatedMFAChallengeTimeout = 5 * time.Minute
+
+	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge to appear.
+	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
+)
 
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -208,8 +232,8 @@ func (s *Service) CreateSessionChallenge(
 	)
 
 	// Create the MFA challenge response with a randomly generated UUID for its name. This name is used to track the
-	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The name
-	// is scoped to the user and the actual challenge has a short TTL, so collisions are extremely unlikely.
+	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The key
+	// is scoped by target cluster and the actual challenge has a short TTL, so collisions are extremely unlikely.
 	challenge := &mfav1.CreateSessionChallengeResponse{
 		MfaChallenge: &mfav1.AuthenticateChallenge{
 			Name: uuid.NewString(),
@@ -354,10 +378,10 @@ func (s *Service) ValidateSessionChallenge(
 	// Store the validated challenge resource.
 	_, err = s.storage.CreateValidatedMFAChallenge(
 		ctx,
-		username,
+		details.TargetCluster,
 		&mfav1.ValidatedMFAChallenge{
 			Kind:    types.KindValidatedMFAChallenge,
-			Version: "v1",
+			Version: types.V1,
 			Metadata: &types.Metadata{
 				Name: req.GetMfaResponse().GetName(),
 			},
@@ -369,6 +393,7 @@ func (s *Service) ValidateSessionChallenge(
 				},
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
+				Username:      username,
 			},
 		},
 	)
@@ -383,6 +408,99 @@ func (s *Service) ValidateSessionChallenge(
 	s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, details.Device, nil)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
+}
+
+// ListValidatedMFAChallenges implements the mfav1.MFAServiceServer.ListValidatedMFAChallenges method.
+func (s *Service) ListValidatedMFAChallenges(
+	ctx context.Context,
+	req *mfav1.ListValidatedMFAChallengesRequest,
+) (*mfav1.ListValidatedMFAChallengesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !isLocalProxy(*authCtx) {
+		return nil, trace.AccessDenied("only local proxy identities can list validated MFA challenges")
+	}
+
+	if err := checkListValidatedMFAChallengesRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If a filter is provided with a target cluster, use it to scope the listing of validated MFA challenges.
+	targetCluster := cmp.Or(req.GetFilter().GetTargetCluster(), "")
+
+	challenges, nextPageToken, err := s.storage.ListValidatedMFAChallenges(
+		ctx,
+		req.GetPageSize(),
+		req.GetPageToken(),
+		targetCluster,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.ListValidatedMFAChallengesResponse{
+		ValidatedChallenges: challenges,
+		NextPageToken:       nextPageToken,
+	}, nil
+}
+
+// ReplicateValidatedMFAChallenge implements the mfav1.MFAServiceServer.ReplicateValidatedMFAChallenge method.
+func (s *Service) ReplicateValidatedMFAChallenge(
+	ctx context.Context,
+	req *mfav1.ReplicateValidatedMFAChallengeRequest,
+) (*mfav1.ReplicateValidatedMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !isRemoteProxy(*authCtx) {
+		return nil, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges")
+	}
+
+	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currentCluster, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetTargetCluster() != currentCluster.GetClusterName() {
+		return nil,
+			trace.BadParameter(
+				"target cluster %q does not match current cluster %q",
+				req.GetTargetCluster(),
+				currentCluster.GetClusterName(),
+			)
+	}
+
+	chal := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: types.V1,
+		Metadata: &types.Metadata{
+			Name: req.GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload:       req.GetPayload(),
+			SourceCluster: req.GetSourceCluster(),
+			TargetCluster: req.GetTargetCluster(),
+			Username:      req.GetUsername(),
+		},
+	}
+
+	created, err := s.storage.CreateValidatedMFAChallenge(ctx, req.GetTargetCluster(), chal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.ReplicateValidatedMFAChallengeResponse{
+		ReplicatedChallenge: created,
+	}, nil
 }
 
 func (s *Service) VerifyValidatedMFAChallenge(
@@ -402,14 +520,31 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
+	currentCluster, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
-	// the request. Performed first to reduce unnecessary information leakage.
-	if req.GetSourceCluster() != chal.GetSpec().GetSourceCluster() {
+	// The challenge may not exist at the time of the request since there is some delay between when the challenge
+	// response is validated and when the validated challenge resource is created in the local storage. For example, in
+	// the case of trusted clusters, the validated challenge is created in the root cluster and then eventually
+	// replicated to the leaf cluster. Until the replication occurs, the validated challenge won't exist in the leaf
+	// cluster storage and therefore won't be found by this method.
+	chal, err := s.waitForValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetUsername() != chal.GetSpec().GetUsername():
+		// Ensure the username in the request matches the username in the challenge to prevent replay attacks where an
+		// attacker could use a validated challenge for one user to authenticate as a different user.
+		return nil, trace.AccessDenied("request username does not match validated challenge username")
+
+	case req.GetSourceCluster() != chal.GetSpec().GetSourceCluster():
+		// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided
+		// in the request to prevent replay attacks where an attacker could use a validated challenge created in one
+		// cluster to authenticate in a different cluster.
 		return nil, trace.AccessDenied("request source cluster does not match validated challenge source cluster")
 	}
 
@@ -429,13 +564,8 @@ func (s *Service) VerifyValidatedMFAChallenge(
 }
 
 func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
-	payload := req.GetPayload()
-	if payload == nil {
-		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
-	}
-
-	if len(payload.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// If either SSO challenge field is set, both must be set.
@@ -657,11 +787,39 @@ func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, err
 	return u2f, webauthn, nil
 }
 
+func checkReplicateValidatedMFAChallengeRequest(req *mfav1.ReplicateValidatedMFAChallengeRequest) error {
+	switch {
+	case req.GetName() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name")
+
+	case req.GetSourceCluster() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
+
+	case req.GetTargetCluster() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster")
+
+	case req.GetUsername() == "":
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest username")
+	}
+
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func checkListValidatedMFAChallengesRequest(req *mfav1.ListValidatedMFAChallengesRequest) error {
+	switch {
+	case req.GetPageSize() <= 0:
+		return trace.BadParameter("param ListValidatedMFAChallengesRequest.page_size must be a positive integer")
+	}
+
+	return nil
+}
+
 func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChallengeRequest) error {
 	switch {
-	case req == nil:
-		return trace.BadParameter("param VerifyValidatedMFAChallengeRequest is nil")
-
 	case req.GetUsername() == "":
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username")
 
@@ -669,14 +827,47 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
 	}
 
-	payload := req.GetPayload()
-	if payload == nil {
-		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest payload")
+	if err := checkPayload(req.GetPayload()); err != nil {
+		return trace.Wrap(err)
 	}
 
-	switch p := payload.GetPayload().(type) {
+	return nil
+}
+
+func (s *Service) waitForValidatedMFAChallenge(ctx context.Context, username, challengeName string) (*mfav1.ValidatedMFAChallenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, verifyValidatedMFAChallengeTimeout)
+	defer cancel()
+
+	retry, err := retryutils.NewConstant(verifyValidatedMFAChallengePollInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var chal *mfav1.ValidatedMFAChallenge
+
+	if err := retry.For(
+		ctx,
+		func() error {
+			var err error
+
+			chal, err = s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
+}
+
+func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {
+	switch payload := sip.GetPayload().(type) {
 	case *mfav1.SessionIdentifyingPayload_SshSessionId:
-		if len(p.SshSessionId) == 0 {
+		if len(payload.SshSessionId) == 0 {
 			return trace.BadParameter("empty SshSessionId in payload")
 		}
 
@@ -684,8 +875,71 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 		return trace.NotImplemented("missing or unsupported SessionIdentifyingPayload in request")
 
 	default:
-		return trace.BadParameter("unexpected SessionIdentifyingPayload type %T (this is a bug)", p)
+		return trace.BadParameter("unexpected SessionIdentifyingPayload type %T (this is a bug)", payload)
 	}
 
 	return nil
+}
+
+func isLocalProxy(authContext authz.Context) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.BuiltinRole); !ok {
+		return false
+	}
+
+	if !authContext.Checker.HasRole(string(types.RoleProxy)) {
+		return false
+	}
+
+	return true
+}
+
+func isRemoteProxy(authContext authz.Context) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
+		return false
+	}
+
+	if !authContext.Checker.HasRole(string(types.RoleRemoteProxy)) {
+		return false
+	}
+
+	return true
+}
+
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
+	}
+
+	if req.BrowserMfaResponse == nil {
+		return nil, trace.BadParameter("missing browser_mfa_response in request")
+	}
+
+	if req.BrowserMfaResponse.RequestId == "" {
+		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
+	}
+
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
+		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
+	}
+
+	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
+		TshRedirectUrl: tshRedirectURL,
+	}, nil
 }

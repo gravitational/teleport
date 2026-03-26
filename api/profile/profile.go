@@ -136,6 +136,9 @@ type Profile struct {
 	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
 	// Connect in the proxy host allow list.
 	SSOHost string `yaml:"sso_host,omitempty"`
+
+	// Scope is the target scope that credentials are pinned to, if any.
+	Scope string `yaml:"scope,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.

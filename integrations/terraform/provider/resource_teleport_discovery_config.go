@@ -226,6 +226,7 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Errorf("Can not convert %T to DiscoveryConfig: %s", discoveryConfigResource, err), "discovery_config"))
 		return
 	}
+	discoveryConfigResource.Kind = apitypes.KindDiscoveryConfig
 
 	
 	name := discoveryConfigResource.Metadata.Name

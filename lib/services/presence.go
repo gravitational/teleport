@@ -48,7 +48,8 @@ type NodesGetter interface {
 
 // DatabaseServersGetter is a service that gets database servers.
 type DatabaseServersGetter interface {
-	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // AppServersGetter is a service that gets application servers.

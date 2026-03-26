@@ -70,10 +70,6 @@ type AccessChecker interface {
 	// and a nil error indicates that no additional preconditions are required for access.
 	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error)
 
-	// CheckDeviceAccess verifies if the current device state satisfies the
-	// device trust requirements of the user's RoleSet.
-	CheckDeviceAccess(state AccessState) error
-
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
@@ -1069,7 +1065,7 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher
 	case types.KindLinuxDesktop:
-		newLoginMatcher = NewLinuxLoginMatcher
+		newLoginMatcher = NewLinuxDesktopLoginMatcher
 	case types.KindApp:
 		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
 			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)

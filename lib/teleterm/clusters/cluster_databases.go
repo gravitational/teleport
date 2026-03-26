@@ -33,11 +33,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	"github.com/gravitational/teleport/lib/services"
 	dbrole "github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// AutoUserProvisioning contains auto-user provisioning information.
+type AutoUserProvisioning struct {
+	// DatabaseRoles is the list of database roles that will be assigned to the auto-provisioned user.
+	DatabaseRoles []string
+}
 
 // Database describes database
 type Database struct {
@@ -47,6 +52,12 @@ type Database struct {
 	// TargetHealth describes the health status of network connectivity
 	// reported from an agent (db_service) that is proxying this database.
 	TargetHealth types.TargetHealth
+	// AutoUserProvisioning contains auto-user provisioning information.
+	AutoUserProvisioning *AutoUserProvisioning
+	// DatabaseUsers is a list of allowed database users that Teleport RBAC permits the user to connect as.
+	DatabaseUsers []string
+	// WildcardUserAllowed is true when the user's role grants db_users: ["*"].
+	WildcardUserAllowed bool
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal
@@ -108,31 +119,6 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 
 	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
 	return dbCert, trace.Wrap(err)
-}
-
-// GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient authclient.ClientI, dbURI string) ([]string, error) {
-	dbResourceURI, err := uri.ParseDBURI(dbURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.clusterClient.SiteName, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	db, err := c.GetDatabase(ctx, authClient, dbResourceURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dbUsers.Allowed(), nil
 }
 
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").

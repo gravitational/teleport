@@ -110,9 +110,10 @@ type Suite struct {
 	appAWS                *types.AppV3
 	appAWSWithIntegration *types.AppV3
 
-	user       types.User
-	role       types.Role
-	serverPort string
+	user        types.User
+	role        types.Role
+	serverPort  string
+	lockWatcher *services.LockWatcher
 
 	login string
 }
@@ -339,7 +340,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application with integration
 	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
 
-	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
+	s.lockWatcher, err = services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
 			Client:    s.authClient,
@@ -349,12 +350,12 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: "cluster-name",
 		AccessPoint: s.authClient,
-		LockWatcher: lockWatcher,
+		LockWatcher: s.lockWatcher,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		lockWatcher.Close()
+		s.lockWatcher.Close()
 	})
 
 	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
@@ -1049,15 +1050,39 @@ func TestAuthorize(t *testing.T) {
 // a matching lock in force.
 func TestAuthorizeWithLocks(t *testing.T) {
 	s := SetUpSuite(t)
+
+	// Subscribe to the lock watcher before upserting so we can wait for the
+	// event deterministically.
+	lockWatch, err := s.lockWatcher.Subscribe(s.closeContext)
+	require.NoError(t, err)
+	defer lockWatch.Close()
+
 	// Create a lock targeting the user.
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{User: s.user.GetName()},
 	})
 	require.NoError(t, err)
-	s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	err = s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	require.NoError(t, err)
 	defer func() {
-		s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+		err := s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+		assert.NoError(t, err)
 	}()
+
+	// Wait for the lock watcher to process the event before making the
+	// request. This follows the same subscribe-then-wait pattern used in
+	// lib/authz/permissions_test.go (upsertLockWithPutEvent).
+loop:
+	for {
+		select {
+		case event := <-lockWatch.Events():
+			if event.Type == types.OpPut && event.Resource.GetName() == lock.GetName() {
+				break loop
+			}
+		case <-lockWatch.Done():
+			t.Fatal("lock watcher closed while waiting for lock event")
+		}
+	}
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -1065,30 +1090,6 @@ func TestAuthorizeWithLocks(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Forbidden", strings.TrimSpace(string(buf)))
 	})
-}
-
-// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
-func TestGetConfigForClient(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
-func TestRewriteRequest(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
-func TestRewriteResponse(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestSessionClose makes sure sessions are closed after the given session time period.
-func TestSessionClose(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
 }
 
 // TestAWSConsoleRedirect verifies AWS management console access.

@@ -193,7 +193,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
-		require.Equal(t, len(expectedRes), len(res))
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -227,7 +227,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 			return ok && node.GetAddr() == "192.168.0.1:22"
 		})
 		require.True(t, serverUpdated)
-		require.Equal(t, len(expectedRes), len(res))
+		require.Len(t, res, len(expectedRes))
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be updated")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
@@ -718,6 +718,12 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 
 			var expected []types.ResourceWithLabels
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				// Wait for the primary resource cache to be ready.
+				// Without this, we could end up switching from fallback to the primary
+				// cache while the primary cache is still being populated.
+				if !assert.True(t, w.IsInitialized(), "watcher not yet initialized") {
+					return
+				}
 				var err error
 				expected, err = w.GetUnifiedResources(ctx)
 				require.NoError(t, err)
@@ -1538,6 +1544,9 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 		ResourceGetter: clt,
 	})
 	require.NoError(t, err)
+
+	// Wait for cache initialization to avoid test flakiness
+	assert.Eventually(t, w.IsInitialized, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources cache initialization")
 
 	// Add a Linux desktop
 	linuxDesktop := &linuxdesktopv1.LinuxDesktop{

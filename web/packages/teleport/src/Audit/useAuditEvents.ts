@@ -19,7 +19,7 @@
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { endOfDay, startOfDay } from 'date-fns';
 import { useCallback, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import type { SortDir, SortType } from 'design/DataTable/types';
 
@@ -34,7 +34,7 @@ export default function useAuditEvents(
   clusterId: string,
   eventCode?: EventCode
 ) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const queryParams = useMemo(
@@ -55,6 +55,7 @@ export default function useAuditEvents(
     error,
     fetchNextPage,
     hasNextPage,
+    isPlaceholderData,
     isFetchingNextPage,
     isLoading,
     isSuccess,
@@ -104,12 +105,12 @@ export default function useAuditEvents(
       params.set('from', newRange.from.toISOString());
       params.set('to', newRange.to.toISOString());
 
-      history.push({
+      navigate({
         pathname: location.pathname,
         search: params.toString(),
       });
     },
-    [history, location]
+    [navigate, location]
   );
 
   const setSearch = useCallback(
@@ -121,12 +122,12 @@ export default function useAuditEvents(
         params.delete('search');
       }
 
-      history.push({
+      navigate({
         pathname: location.pathname,
         search: params.toString(),
       });
     },
-    [history, location]
+    [navigate, location]
   );
 
   const setSort = useCallback(
@@ -135,12 +136,15 @@ export default function useAuditEvents(
       const nextDir: SortDir = nextSort.dir === 'ASC' ? 'ASC' : 'DESC';
       params.set('order', nextDir);
 
-      history.replace({
-        pathname: location.pathname,
-        search: params.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: params.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location]
+    [navigate, location]
   );
 
   const sort: SortType = { fieldName: 'time', dir: sortDir };
@@ -149,6 +153,7 @@ export default function useAuditEvents(
     events,
     fetchNextPage,
     hasNextPage,
+    isPlaceholderData,
     isFetchingNextPage,
     isLoading,
     error,

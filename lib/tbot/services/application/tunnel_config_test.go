@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
@@ -47,6 +49,8 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClock()
+
 	tests := []testCheckAndSetDefaultsCase[*TunnelConfig]{
 		{
 			name: "valid",
@@ -55,7 +59,14 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 					Listen:  "tcp://0.0.0.0:3621",
 					Roles:   []string{"role1", "role2"},
 					AppName: "my-app",
+					clock:   clock,
 				}
+			},
+			want: &TunnelConfig{
+				Listen:  "tcp://0.0.0.0:3621",
+				Roles:   []string{"role1", "role2"},
+				AppName: "my-app",
+				clock:   clock,
 			},
 			wantErr: "",
 		},

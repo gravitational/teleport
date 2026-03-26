@@ -38,7 +38,7 @@ import (
 const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
-	if len(s.databaseFetchers) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.databaseFetchers) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -252,9 +252,10 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		databaseEventPrefix + database.GetName(): {
-			ResourceType:   types.DiscoveredResourceDatabase,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  database.GetCloud(),
+			ResourceType:        types.DiscoveredResourceDatabase,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       database.GetCloud(),
+			DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
 				DbType:     database.GetType(),
 				DbProtocol: database.GetProtocol(),

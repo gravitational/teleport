@@ -21,13 +21,18 @@ package reversetunnel
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -181,11 +186,142 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	}
 }
 
+type fakeRetry struct {
+	retryutils.Retry
+}
+
+func (fakeRetry) Reset() {}
+
+func (fakeRetry) After() <-chan time.Time {
+	return make(chan time.Time)
+}
+
+func TestRemoteClusterTunnelManager(t *testing.T) {
+	t.Parallel()
+
+	events := make(chan types.Event, 1)
+
+	w := &RemoteClusterTunnelManager{
+		pools: make(map[remoteClusterKey]*AgentPool),
+		retry: fakeRetry{},
+		cfg: RemoteClusterTunnelManagerConfig{
+			Logger: slog.New(slog.DiscardHandler),
+			AccessPoint: mockAuthClient{
+				tunnelEvents: events,
+				reverseTunnels: []types.ReverseTunnel{
+					mustNewReverseTunnel(t, "cluster-a", []string{"addr-a", "addr-b", "addr-c"}),
+					mustNewReverseTunnel(t, "cluster-b", []string{"addr-b"}),
+					mustNewReverseTunnel(t, "cluster-c", []string{"addr-c1", "addr-c2"}),
+				},
+			},
+		},
+		newAgentPool: func(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
+			resolverFn := func(addr string) reversetunnelclient.Resolver {
+				return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+					return &utils.NetAddr{
+						Addr:        addr,
+						AddrNetwork: "tcp",
+						Path:        "",
+					}, types.ProxyListenerMode_Multiplex, nil
+				}
+			}
+
+			return &AgentPool{
+				AgentPoolConfig: AgentPoolConfig{Cluster: cluster, Resolver: resolverFn(addr)},
+				cancel:          func() {},
+			}, nil
+		},
+	}
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	// Events are queued up in a goroutine to be processed when
+	// Run has established its watcher. The last event sent is a
+	// bogus event so that we ensure all events that we care about
+	// are processed before exiting this goroutine. On completion of the
+	// goroutine, the context is canceled which unblocks Run below.
+	go func() {
+		defer cancel()
+
+		events <- types.Event{
+			Type: types.OpInit,
+		}
+
+		events <- types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:    types.KindReverseTunnel,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name: "cluster-a",
+				},
+			},
+		}
+
+		events <- types.Event{
+			Type:     types.OpPut,
+			Resource: mustNewReverseTunnel(t, "cluster-b", []string{"addr-c", "addr-d"}),
+		}
+
+		events <- types.Event{
+			Type: types.OpUnreliable,
+		}
+
+	}()
+
+	w.Run(ctx)
+
+	assert.Len(t, w.pools, 4)
+	assert.NotNil(t, w.pools[remoteClusterKey{cluster: "cluster-c", addr: "addr-c1"}])
+	assert.NotNil(t, w.pools[remoteClusterKey{cluster: "cluster-c", addr: "addr-c2"}])
+	assert.NotNil(t, w.pools[remoteClusterKey{cluster: "cluster-b", addr: "addr-c"}])
+	assert.NotNil(t, w.pools[remoteClusterKey{cluster: "cluster-b", addr: "addr-d"}])
+
+}
+
+type fakeWatcher struct {
+	done     chan struct{}
+	events   chan types.Event
+	doneOnce sync.Once
+}
+
+func (f *fakeWatcher) Events() <-chan types.Event {
+	return f.events
+}
+
+func (f *fakeWatcher) Close() error {
+	f.doneOnce.Do(func() {
+		close(f.done)
+		close(f.events)
+	})
+	return nil
+}
+
+func (f *fakeWatcher) Error() error {
+	return nil
+}
+
+func (f *fakeWatcher) Done() <-chan struct{} {
+	return f.done
+}
+
 type mockAuthClient struct {
 	authclient.ClientI
 
 	reverseTunnels    []types.ReverseTunnel
 	reverseTunnelsErr error
+	tunnelEvents      chan types.Event
+}
+
+func (c mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	w := &fakeWatcher{
+		done:   make(chan struct{}),
+		events: c.tunnelEvents,
+	}
+
+	return w, nil
 }
 
 func (c mockAuthClient) ListReverseTunnels(

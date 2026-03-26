@@ -45,46 +45,12 @@ var (
 	excludeUpdates   = testCmd.Flag("exclude-updates", "Exclude updated test methods").Short('u').Bool()
 	onlyRunFlag      = testCmd.Flag("only-run-flag", "Show only -run flag").Short('r').Bool()
 	escapeDollarSign = testCmd.Flag("escape-dollar-sign", "Output $ as $$").Short('d').Bool()
-
-	// testsToSkip contains a list of tests that are excluded from running.
-	testsToSkip = []string{
-		// TestCompletenessReset and TestCompletenessInit take around 8s and 17s respectively to run.
-		// The script for Flaky Tests is running 100x, which gives us a total of 800s and 1700s.
-		// The timeout for running all the tests (`go test ... -count=100`) is 600s, which is not enough.
-		// These tests are now skipped and should be added back when they take less time to run.
-		"TestCompletenessReset", "TestCompletenessInit",
-
-		// TestSSHOnMultipleNodes and its successor TestSSHWithMFA take ~10-15s to run which prevents
-		// it from ever completing the 100 runs successfully.
-		"TestSSHOnMultipleNodes", "TestSSHWithMFA",
-
-		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
-		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
-		"TestProxySSH", "TestSSHLoadAllCAs", "TestList", "TestForwardingTraces", "TestExportingTraces",
-
-		// TestDiagnoseSSHConnection takes around 15s to run.
-		// When running 100x it exceeds the 600s defined to run the tests.
-		"TestDiagnoseSSHConnection",
-
-		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
-		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
-		"TestServer_Authenticate_headless",
-
-		// TestWithRsync takes ~10 seconds to run
-		"TestWithRsync",
-
-		// TestAdminActionMFA takes longer than 6 seconds to run.
-		"TestAdminActionMFA",
-	}
 )
 
 func main() {
 	command := kingpin.Parse()
 
-	if *skip != "" {
-		extraSkip := strings.Fields(*skip)
-		testsToSkip = append(testsToSkip, extraSkip...)
-	}
+	testsToSkip := strings.Fields(*skip)
 
 	// Set default git directory to cwd
 	if repoPath == nil {
@@ -126,7 +92,7 @@ func main() {
 	case "diff":
 		diff(*repoPath, ref, changedFiles, time.Since(start))
 	case "test":
-		test(*repoPath, ref, changedFiles)
+		test(*repoPath, ref, changedFiles, testsToSkip)
 	}
 }
 
@@ -164,7 +130,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 }
 
 // test builds and prints go test flags
-func test(repoPath string, ref string, changedFiles []string) {
+func test(repoPath string, ref string, changedFiles []string, testsToSkip []string) {
 	dirs := make(StringSet)
 	methods := make([]string, 0)
 

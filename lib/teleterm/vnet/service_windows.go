@@ -18,9 +18,13 @@ package vnet
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
@@ -45,4 +49,34 @@ func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, err
 		routeConflictDiag,
 		sshDiag,
 	}, nil
+}
+
+// CheckInstallTimeRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.
+func (s *Service) CheckInstallTimeRequirements(_ context.Context, _ *api.CheckInstallTimeRequirementsRequest) (*api.CheckInstallTimeRequirementsResponse, error) {
+	err := vnet.VerifyServiceInstalledAndMatchesClient()
+	if err == nil {
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_OK,
+			},
+		}, nil
+	}
+
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST,
+			},
+		}, nil
+
+	}
+	if trace.IsCompareFailed(err) {
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_VERSION_MISMATCH,
+			},
+		}, nil
+
+	}
+	return nil, trace.Wrap(err)
 }

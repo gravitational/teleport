@@ -11,7 +11,49 @@ This guide covers the basics of authenticating to Teleport and
 accessing resources. It's written for end-users of resources protected by
 Teleport, and includes links to more detailed documentation at the end.
 
-## Client tools
+## Choosing a client
+
+Teleport provides three tools for accessing protected infrastructure. `tsh` is a
+command-line client, Teleport Connect is a graphical native client, and the
+Teleport Web UI is a browser-based console available at the URL of your Teleport
+cluster.
+
+You should get familiar with all three tools, since each provides access to a
+different set of resources and offers a different user experience. This section
+includes a summary of the capabilities available in each client tool.
+
+Accessing infrastructure:
+
+| Resource                             | Teleport Connect | Web UI        | tsh |
+|--------------------------------------|------------------|---------------|-----|
+| Browser-based web applications       | ⚠️<sup>1</sup>    | ✅            | ❌  |
+| TCP apps and HTTP APIs               | ✅               | ❌            | ✅  |
+| Databases with GUI client tools      | ✅               | ❌            | ✅  |
+| Databases with command-line clients  | ✅               | ⚠️<sup>2</sup> | ✅  |
+| Remote desktops                      | ✅               | ✅            | ❌  |
+| Kubernetes clusters                  | ✅               | ⚠️<sup>3</sup> | ✅  |
+| Linux servers (Teleport SSH Service) | ✅               | ✅            | ✅  |
+| MCP servers                          | ✅               | ⚠️<sup>2</sup> | ✅  |
+
+<sup>1</sup> Browser-based web applications in Teleport Connect open in the
+default web browser.
+
+<sup>2</sup> For resources that require a command-line tool to access, the
+Teleport Web UI shows you instructions for using a terminal to access the
+resource. You can establish sessions with certain databases in the Web UI. See
+[Starting a database session](web-ui.mdx#starting-a-database-session) for
+supported databases.
+
+<sup>3</sup> You can `exec` into a Kubernetes pod using a browser-based terminal
+in the Teleport Web UI. Full `kubectl` access is not supported.
+
+Other client operations:
+
+| Task                      | Teleport Connect | Web UI | tsh |
+|---------------------------|------------------|--------|-----|
+| Manage Access Requests    | ✅                | ✅      | ✅   |
+| Start VNet                | ✅                | ❌      | ✅   |
+| Access session recordings | ❌                | ✅      | ✅   |
 
 ### tsh
 
@@ -62,7 +104,7 @@ If browser window does not open automatically, open it by clicking on the link:
 ```
 
 Depending on how Teleport was configured for your network, you may not need
-the additional flags `--auth`. Your administrator should provide the details
+the additional flag `--auth`. Your administrator should provide the details
 required for your particular use case.
 
 </TabItem>
@@ -71,7 +113,7 @@ required for your particular use case.
 ### Teleport Connect
 
 The Teleport Connect app provides all the same access to resources as `tsh` in
-a friendly graphic user interface. After [downloading](https://goteleport.com/download/)
+a friendly graphical user interface. After [downloading](https://goteleport.com/download/)
 and installing Teleport Connect, you can log in and initiate sessions for
 server and database access within a single window.
 
@@ -100,7 +142,7 @@ but you should confirm the Web UI URL with the team that manages your Teleport
 deployment.
 
 The Web UI provides similar access to resources as Teleport Connect, and
-additional access to to Request and Activity logs for users with the right
+additional access to Request and Activity logs for users with the right
 permissions.
 
 ## Connecting to resources
@@ -286,7 +328,7 @@ create a local tunnel to point your software to:
 
 ```code
 $ tsh proxy db myelastic --db-user=alice --tunnel
-Started authenticated tunnel for the Elasticsearch database "myelastic" in cluster "example.come" on 192.0.2.58:52669.
+Started authenticated tunnel for the Elasticsearch database "myelastic" in cluster "example.com" on 192.0.2.58:52669.
 
 Use one of the following commands to connect to the database:
 
@@ -351,7 +393,7 @@ either directly or through proxy tunnels.
 
   Learn more about it from [Using the tsh Command Line Tool](./tsh.mdx).
 
-- Teleport Connect is a graphic utility for connecting to resources through
+- Teleport Connect is a graphical utility for connecting to resources through
   Teleport. You use it to connect to servers, databases, and Kubernetes
   clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 

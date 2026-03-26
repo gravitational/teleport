@@ -26,8 +26,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib"
 )
 
 func TestThumbprint(t *testing.T) {
@@ -35,11 +33,7 @@ func TestThumbprint(t *testing.T) {
 
 	tlsServer := httptest.NewTLSServer(nil)
 
-	// Proxy starts with self-signed certificates.
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
-	thumbprint, err := ThumbprintIdP(ctx, tlsServer.URL)
+	thumbprint, err := ThumbprintIdP(ctx, tlsServer.URL, true)
 	require.NoError(t, err)
 
 	serverCertificateSHA1 := sha1.Sum(tlsServer.Certificate().Raw)

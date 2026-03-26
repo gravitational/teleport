@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -144,6 +145,9 @@ type ProvisionToken interface {
 	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// GetAWSAllowRules returns the list of AWS-specific allow rules. GetAllowRules is kept for backwards compatibility,
+	// but GetAWSAllowRules should be preferred.
+	GetAWSAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
@@ -155,6 +159,15 @@ type ProvisionToken interface {
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetGitlabRules will return the GitLab rules within this token.
 	GetGitlabRules() *ProvisionTokenSpecV2GitLab
+	// GetAzure will return the Azure specific configuration for this token.
+	GetAzure() *ProvisionTokenSpecV2Azure
+	// GetAzureDevops will return the AzureDevops specific configuration for this token.
+	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
+	// GetOracle will return the Oracle specific configuration for this token.
+	GetOracle() *ProvisionTokenSpecV2Oracle
+	// GetKubernetes will return the Kubernetes specific configuration for this
+	// token.
+	GetKubernetes() *ProvisionTokenSpecV2Kubernetes
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -189,6 +202,10 @@ type ProvisionToken interface {
 	// GetSecret returns the token's secret value and a bool representing whether
 	// or not the token had a secret..
 	GetSecret() (string, bool)
+
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
@@ -507,9 +524,14 @@ func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
 	p.Metadata.Labels = l
 }
 
-// GetAllowRules returns the list of allow rules
-func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+// GetAWSAllowRules returns the list of AWS-specific allow rules
+func (p *ProvisionTokenV2) GetAWSAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// GetAllowRules returns the list of allow rules.
+func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
+	return p.GetAWSAllowRules()
 }
 
 // SetAllowRules sets the allow rules.
@@ -517,7 +539,7 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP rules within this token.
+// GetGCPRules will return the GCP-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
@@ -535,6 +557,26 @@ func (p *ProvisionTokenV2) GetGitlabRules() *ProvisionTokenSpecV2GitLab {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
+}
+
+// GetAzure the Azure specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
+	return p.Spec.Azure
+}
+
+// GetAzureDevops will return the AzureDevops specific configuration for this token.
+func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
+	return p.Spec.AzureDevops
+}
+
+// GetOracle will return the Oracle specific configuration for this token.
+func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
+	return p.Spec.Oracle
+}
+
+// GetKubernetes will return the Kubernetes specific configuration for this token.
+func (p *ProvisionTokenV2) GetKubernetes() *ProvisionTokenSpecV2Kubernetes {
+	return p.Spec.Kubernetes
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
@@ -683,6 +725,12 @@ func (p *ProvisionTokenV2) GetAssignedScope() string {
 // dedicated secret value. The name itself is the secret for the "token" join method.
 func (p *ProvisionTokenV2) GetSecret() (string, bool) {
 	return "", false
+}
+
+// GetImmutableLabels always returns nil labels because a [ProvisionTokenV2] can not assign
+// immutable labels
+func (p *ProvisionTokenV2) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return nil
 }
 
 // String returns the human readable representation of a provisioning token.

@@ -219,6 +219,7 @@ func (r resourceTeleportInferenceModel) Update(ctx context.Context, req tfsdk.Up
 	}
 	inferenceModelResource := inferenceModel
 
+	inferenceModelResource.Kind = apitypes.KindInferenceModel
 
 	
 	name := inferenceModelResource.Metadata.Name

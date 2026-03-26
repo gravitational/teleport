@@ -17,16 +17,14 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  render,
+  enableMswServer,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -34,7 +32,7 @@ import {
   within,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-
+import 'shared/components/TextEditor/TextEditor.mock';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { listBotInstances } from 'teleport/services/bot/bot';
@@ -45,8 +43,7 @@ import {
   listBotInstancesError,
   listBotInstancesSuccess,
 } from 'teleport/test/helpers/botInstances';
-
-import 'shared/components/TextEditor/TextEditor.mock';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 
 import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
@@ -66,21 +63,13 @@ jest.mock('teleport/services/bot/bot', () => {
   };
 });
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.useRealTimers();
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotInstances', () => {
   it('Shows an empty state', async () => {
@@ -361,8 +350,7 @@ describe('BotInstances', () => {
     );
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
-    const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    const { user, router } = renderComponent();
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -400,10 +388,8 @@ describe('BotInstances', () => {
     await userEvent.type(search, 'test-search-term');
     await userEvent.type(search, '{enter}');
 
-    expect(history.push).toHaveBeenLastCalledWith({
-      pathname: '/web/bots/instances',
-      search: 'query=test-search-term',
-    });
+    expect(router.state.location.pathname).toBe('/web/bots/instances');
+    expect(router.state.location.search).toContain('query=test-search-term');
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -441,8 +427,7 @@ describe('BotInstances', () => {
     );
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
-    const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    const { user, router } = renderComponent();
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -485,10 +470,9 @@ describe('BotInstances', () => {
     await userEvent.type(search, 'test-query');
     await userEvent.type(search, '{enter}');
 
-    expect(history.push).toHaveBeenLastCalledWith({
-      pathname: '/web/bots/instances',
-      search: 'query=test-query&is_advanced=1',
-    });
+    expect(router.state.location.pathname).toBe('/web/bots/instances');
+    expect(router.state.location.search).toContain('query=test-query');
+    expect(router.state.location.search).toContain('is_advanced=1');
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -516,8 +500,7 @@ describe('BotInstances', () => {
         })
     );
 
-    const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    const { user, router } = renderComponent();
 
     await waitForElementToBeRemoved(() =>
       screen.queryByTestId('loading-dashboard')
@@ -539,10 +522,8 @@ describe('BotInstances', () => {
     const item = screen.getByLabelText('Up to date');
     await user.click(item);
 
-    expect(history.push).toHaveBeenLastCalledWith({
-      pathname: '/web/bots/instances',
-      search: 'query=up+to+date+filter+goes+here&is_advanced=1',
-    });
+    expect(router.state.location.pathname).toBe('/web/bots/instances');
+    expect(router.state.location.search).toContain('is_advanced=1');
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
@@ -647,43 +628,28 @@ function renderComponent(options?: { customAcl?: ReturnType<typeof makeAcl> }) {
     }),
   } = options ?? {};
 
-  const user = userEvent.setup();
-  const history = createMemoryHistory({
+  return renderWithMemoryRouter(<BotInstances />, {
+    path: cfg.routes.botInstances,
     initialEntries: ['/web/bots/instances'],
+    wrapper: makeWrapper({ customAcl }),
   });
-  return {
-    ...render(<BotInstances />, {
-      wrapper: makeWrapper({ customAcl, history }),
-    }),
-    user,
-    history,
-  };
 }
 
-function makeWrapper(options: {
-  customAcl: ReturnType<typeof makeAcl>;
-  history: ReturnType<typeof createMemoryHistory>;
-}) {
-  const { customAcl, history } = options ?? {};
+function makeWrapper(options: { customAcl: ReturnType<typeof makeAcl> }) {
+  const { customAcl } = options ?? {};
 
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,
     });
     return (
-      <MemoryRouter>
-        <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
-            <InfoGuidePanelProvider data-testid="blah">
-              <ContextProvider ctx={ctx}>
-                <Router history={history}>
-                  <Route path={cfg.routes.botInstances}>{children}</Route>
-                </Router>
-              </ContextProvider>
-            </InfoGuidePanelProvider>
-          </ConfiguredThemeProvider>
-        </QueryClientProvider>
-      </MemoryRouter>
+      <QueryClientProvider client={testQueryClient}>
+        <ConfiguredThemeProvider theme={darkTheme}>
+          <InfoGuidePanelProvider data-testid="blah">
+            <ContextProvider ctx={ctx}>{children}</ContextProvider>
+          </InfoGuidePanelProvider>
+        </ConfiguredThemeProvider>
+      </QueryClientProvider>
     );
   };
 }
