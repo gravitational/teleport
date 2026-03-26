@@ -453,9 +453,9 @@ func (x *DelegationMCPResourceConstraints) GetTools() []string {
 type DelegationDatabaseResourceConstraints struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Names of databases that may be accessed.
-	Databases []string `protobuf:"bytes,1,rep,name=databases,proto3" json:"databases,omitempty"`
+	DbNames []string `protobuf:"bytes,1,rep,name=db_names,json=dbNames,proto3" json:"db_names,omitempty"`
 	// Names of database users that may be used.
-	Users         []string `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
+	DbUsers       []string `protobuf:"bytes,2,rep,name=db_users,json=dbUsers,proto3" json:"db_users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -490,16 +490,16 @@ func (*DelegationDatabaseResourceConstraints) Descriptor() ([]byte, []int) {
 	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *DelegationDatabaseResourceConstraints) GetDatabases() []string {
+func (x *DelegationDatabaseResourceConstraints) GetDbNames() []string {
 	if x != nil {
-		return x.Databases
+		return x.DbNames
 	}
 	return nil
 }
 
-func (x *DelegationDatabaseResourceConstraints) GetUsers() []string {
+func (x *DelegationDatabaseResourceConstraints) GetDbUsers() []string {
 	if x != nil {
-		return x.Users
+		return x.DbUsers
 	}
 	return nil
 }
@@ -507,8 +507,8 @@ func (x *DelegationDatabaseResourceConstraints) GetUsers() []string {
 // DelegationSSHResourceConstraints constrains access to node resources.
 type DelegationSSHResourceConstraints struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// SSH users that may be used.
-	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	// SSH logins that may be used.
+	Logins        []string `protobuf:"bytes,1,rep,name=logins,proto3" json:"logins,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -543,9 +543,9 @@ func (*DelegationSSHResourceConstraints) Descriptor() ([]byte, []int) {
 	return file_teleport_delegation_v1_delegation_session_resource_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *DelegationSSHResourceConstraints) GetUsers() []string {
+func (x *DelegationSSHResourceConstraints) GetLogins() []string {
 	if x != nil {
-		return x.Users
+		return x.Logins
 	}
 	return nil
 }
@@ -700,12 +700,12 @@ const file_teleport_delegation_v1_delegation_session_resource_proto_rawDesc = ""
 	"kubernetesB\r\n" +
 	"\vconstraints\"8\n" +
 	" DelegationMCPResourceConstraints\x12\x14\n" +
-	"\x05tools\x18\x01 \x03(\tR\x05tools\"[\n" +
-	"%DelegationDatabaseResourceConstraints\x12\x1c\n" +
-	"\tdatabases\x18\x01 \x03(\tR\tdatabases\x12\x14\n" +
-	"\x05users\x18\x02 \x03(\tR\x05users\"8\n" +
-	" DelegationSSHResourceConstraints\x12\x14\n" +
-	"\x05users\x18\x01 \x03(\tR\x05users\"}\n" +
+	"\x05tools\x18\x01 \x03(\tR\x05tools\"]\n" +
+	"%DelegationDatabaseResourceConstraints\x12\x19\n" +
+	"\bdb_names\x18\x01 \x03(\tR\adbNames\x12\x19\n" +
+	"\bdb_users\x18\x02 \x03(\tR\adbUsers\":\n" +
+	" DelegationSSHResourceConstraints\x12\x16\n" +
+	"\x06logins\x18\x01 \x03(\tR\x06logins\"}\n" +
 	"'DelegationKubernetesResourceConstraints\x12R\n" +
 	"\tresources\x18\x01 \x03(\v24.teleport.delegation.v1.DelegationKubernetesResourceR\tresources\"\x81\x01\n" +
 	"\x1cDelegationKubernetesResource\x12\x12\n" +

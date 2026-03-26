@@ -100,16 +100,16 @@ message DelegationMCPResourceConstraints {
 // DelegationDatabaseResourceConstraints constrains access to database resources.
 message DelegationDatabaseResourceConstraints {
   // Names of databases that may be accessed.
-  repeated string databases = 1;
+  repeated string db_names = 1;
 
   // Names of database users that may be used.
-  repeated string users = 2;
+  repeated string db_users = 2;
 }
 
 // DelegationSSHResourceConstraints constrains access to node resources.
 message DelegationSSHResourceConstraints {
-  // SSH users that may be used.
-  repeated string users = 1;
+  // SSH logins that may be used.
+  repeated string logins = 1;
 }
 
 // DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
