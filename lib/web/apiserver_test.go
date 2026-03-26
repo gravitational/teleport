@@ -233,9 +233,6 @@ type webSuiteConfig struct {
 	// alpnHandler allows setting custom alpnHandler.
 	alpnHandler ConnectionHandler
 
-	// trustXForwardedFor enables NewXForwardedForMiddleware.
-	trustXForwardedFor bool
-
 	// modules to inject into components.
 	modules *modulestest.Modules
 
