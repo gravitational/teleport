@@ -140,6 +140,13 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+// ScopedResourceWithLabels is a common interface for scoped resources that have labels.
+type ScopedResourceWithLabels interface {
+	ResourceWithLabels
+	// GetScope returns the resource's scope.
+	GetScope() string
+}
+
 // EnrichedResource is a [ResourceWithLabels] wrapped with
 // additional user-specific information.
 type EnrichedResource struct {
