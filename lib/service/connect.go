@@ -1550,6 +1550,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		DialTimeout:          process.Config.Testing.ClientTimeout,
 		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialOpts:             dialOpts,
+		LocalAuth:            process.Config.Auth.Enabled,
 	}, cltParams...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
