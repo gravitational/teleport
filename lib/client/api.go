@@ -1920,6 +1920,10 @@ type SSHOptions struct {
 	// --fork-after authentications. It runs after authentication completes
 	// but before the session begins.
 	OnChildAuthenticate func() error
+	// Subsystem is the name of an SSH subsystem to request (e.g. "sftp").
+	// When set, a subsystem request is made instead of executing a command
+	// or starting a shell.
+	Subsystem string
 }
 
 func (opts SSHOptions) forkAfterAuthentication() bool {
@@ -1939,6 +1943,14 @@ func WithHostAddress(addr string) func(*SSHOptions) {
 func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
 		opt.LocalCommandExecutor = executor
+	}
+}
+
+// WithSubsystem returns a SSHOptions which requests the given SSH
+// subsystem (e.g. "sftp") instead of executing a command or shell.
+func WithSubsystem(name string) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.Subsystem = name
 	}
 }
 
@@ -2269,6 +2281,10 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
 		return options.LocalCommandExecutor(tc.Config.HostLogin, command)
+	}
+
+	if options.Subsystem != "" {
+		return nodeClient.RunSubsystem(ctx, options.Subsystem)
 	}
 
 	if len(command) > 0 {

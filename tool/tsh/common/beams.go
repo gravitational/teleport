@@ -22,6 +22,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -599,6 +602,49 @@ func startBeamSpinner(w io.Writer, msg string) func(finalLine string) {
 		done <- finalLine
 		<-stopped
 	}
+}
+
+func onBeamsMount(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tshPath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "could not determine tsh path")
+	}
+	if tshPath, err = filepath.Abs(tshPath); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshfsTarget := fmt.Sprintf("beams@%s:%s", nodeID, cf.BeamRemotePath)
+	sshCmd := tshPath + " ssh"
+	if cf.Debug {
+		sshCmd = tshPath + " --debug ssh"
+	}
+	args := []string{
+		"-o", fmt.Sprintf("ssh_command=%s", sshCmd),
+		"-o", "idmap=user",
+		"-o", "no_check_root",
+	}
+	if cf.BeamMountDebug {
+		args = append(args, "-o", "sshfs_debug", "-d")
+	}
+	args = append(args, sshfsTarget, cf.BeamMountPoint)
+	cmd := exec.CommandContext(cf.Context, "sshfs", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = cf.Stdout()
+	cmd.Stderr = os.Stderr
+
+	fmt.Fprintf(cf.Stdout(), "Mounting beam %q at %s\n", cf.BeamID, cf.BeamMountPoint)
+	return trace.Wrap(cmd.Run())
 }
 
 func beamNodeTarget(nodeID string) *client.TargetNode {
