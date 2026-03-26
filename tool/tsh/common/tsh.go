@@ -1515,6 +1515,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
@@ -1970,6 +1971,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case beamsCmd.ls.FullCommand():
+		err = beamsCmd.ls.run(&cf)
+	case beamsCmd.add.FullCommand():
+		err = beamsCmd.add.run(&cf)
+	case beamsCmd.rm.FullCommand():
+		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.ssh.FullCommand():
+		err = beamsCmd.ssh.run(&cf)
+	case beamsCmd.exec.FullCommand():
+		err = beamsCmd.exec.run(&cf)
+	case beamsCmd.publish.FullCommand():
+		err = beamsCmd.publish.run(&cf)
+	case beamsCmd.unpublish.FullCommand():
+		err = beamsCmd.unpublish.run(&cf)
+	case beamsCmd.scp.FullCommand():
+		err = beamsCmd.scp.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case updateCommand.update.FullCommand():
