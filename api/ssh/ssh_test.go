@@ -17,11 +17,11 @@ package ssh_test
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/ssh"
-	"github.com/gravitational/trace"
 )
 
 func TestClientVersionWithFeatures(t *testing.T) {
