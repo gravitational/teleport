@@ -341,7 +341,6 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(ctx, termType, sess)
 	if err != nil {
-		_ = sess.Close()
 		return trace.Wrap(err)
 	}
 	defer remoteTerm.Close()

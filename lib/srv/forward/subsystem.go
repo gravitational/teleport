@@ -95,7 +95,7 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 	}
 
 	// request the subsystem from the remote node. if successful, the user can
-	// interact with the remote subsystem with stdin, stdout, and stderr.
+	// interact with the remote subsystem with stdin and stdout.
 	err = session.RequestSubsystem(ctx, r.subsystemName)
 	if err != nil {
 		// emit an event to the audit log with the reason remote execution failed
@@ -104,7 +104,7 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 		return trace.Wrap(err)
 	}
 
-	// copy back and forth between stdin, stdout, and stderr and the SSH channel.
+	// copy back and forth between stdin, stdout and the SSH channel.
 	go func() {
 		defer session.Close()
 

@@ -220,7 +220,6 @@ func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
 	)
 
 	_, err := networking.NewProcess(t.Context(), cmd, nil)
-	require.Error(t, err)
 	require.ErrorContains(t, err, expectedChildErr)
 }
 
