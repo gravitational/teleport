@@ -1,0 +1,21 @@
+(!docs/pages/includes/server-access/custom-installer-editing.mdx!)
+
+Multiple `installer` resources can exist and be specified in the
+`gcp.install.script_name` section:
+
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+Edit the Discovery Config to specify a custom installer script:
+```yaml
+(!docs/pages/includes/server-access/custom-installer-gcp-dynamic.yaml!)
+```
+</TabItem>
+<TabItem label="Static configuration">
+Edit the `teleport.yaml` configuration to specify a custom installer script:
+```yaml
+(!docs/pages/includes/server-access/custom-installer-gcp.yaml!)
+```
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/server-access/custom-installer-reference.mdx!)
