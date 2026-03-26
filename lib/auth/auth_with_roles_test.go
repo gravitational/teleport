@@ -4882,10 +4882,10 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
-	s := auth.NewServerWithRoles(
+	s := auth.NewScopedServerWithRoles(
 		srv.AuthServer,
 		srv.AuditLog,
-		*authContext,
+		authz.ScopedContextFromUnscopedContext(authContext),
 	)
 
 	testNames := []string{"a", "b", "c", "d"}
@@ -5020,10 +5020,10 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}).I))
 	require.NoError(t, err)
 
-	s := auth.NewServerWithRoles(
+	s := auth.NewScopedServerWithRoles(
 		srv.AuthServer,
 		srv.AuditLog,
-		*authContext,
+		authz.ScopedContextFromUnscopedContext(authContext),
 	)
 
 	// Test create.
