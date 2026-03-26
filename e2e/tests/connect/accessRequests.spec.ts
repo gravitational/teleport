@@ -537,56 +537,138 @@ test.describe('access requests', () => {
     });
   });
 
-  test('search-based request: create with resources from root and leaf', async () => {
-    await using app = await launchAsRequester();
-    const { page } = app;
+  test('search-based request: create, review, and assume', async () => {
+    await test.step('requester creates a search-based request', async () => {
+      await using app = await launchAsRequester();
+      const { page } = app;
 
-    // The requester should see resources via search_as_roles, with
-    // "Request Access" instead of "Connect".
-    await expect(page.getByText('docker-root-node')).toBeVisible();
+      // The requester should see resources via search_as_roles, with
+      // "Request Access" instead of "Connect".
+      await expect(page.getByText('docker-root-node')).toBeVisible();
 
-    // Add the root node to the request.
-    await page.getByRole('button', { name: 'Request Access' }).click();
+      // Add the root node to the request.
+      await page.getByRole('button', { name: 'Request Access' }).click();
 
-    // Open the leaf cluster to add a leaf resource too.
-    await page.locator('[title*="Open Clusters"]').click();
-    await page.getByText('teleport-e2e-leaf').click();
+      // Open the leaf cluster to add a leaf resource too.
+      await page.locator('[title*="Open Clusters"]').click();
+      await page.getByText('teleport-e2e-leaf').click();
 
-    // Wait for the leaf cluster tab to load and show the leaf node.
-    await expect(page.getByText('docker-leaf-node')).toBeVisible();
+      // Wait for the leaf cluster tab to load and show the leaf node.
+      await expect(page.getByText('docker-leaf-node')).toBeVisible();
 
-    // Add the leaf node to the request.
-    await page.getByRole('button', { name: 'Add to Request' }).click();
+      // Add the leaf node to the request.
+      await page.getByRole('button', { name: 'Add to Request' }).click();
 
-    // Proceed to the request form.
-    await page.getByRole('button', { name: 'Proceed to request' }).click();
+      // Proceed to the request form.
+      await page.getByRole('button', { name: 'Proceed to request' }).click();
 
-    // Verify both resources are listed in the checkout panel.
-    const checkoutPanel = page.locator('[data-testid="request-checkout"]');
-    await expect(checkoutPanel.getByText('docker-root-node')).toBeVisible();
-    await expect(checkoutPanel.getByText('docker-leaf-node')).toBeVisible();
+      // Verify both resources are listed in the checkout panel.
+      const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+      await expect(checkoutPanel.getByText('docker-root-node')).toBeVisible();
+      await expect(checkoutPanel.getByText('docker-leaf-node')).toBeVisible();
 
-    // Verify suggested reviewer (bob) is shown.
-    const reviewers = checkoutPanel.locator('[data-testid="reviewers"]');
-    await expect(reviewers.getByText('bob')).toBeVisible();
+      // Verify suggested reviewer (bob) is shown and add another.
+      const reviewers = checkoutPanel.locator('[data-testid="reviewers"]');
+      await expect(reviewers.getByText('bob')).toBeVisible();
 
-    // Submit the request.
-    await checkoutPanel.getByRole('button', { name: 'Submit Request' }).click();
-    await expect(
-      page.getByText('Resources Requested Successfully')
-    ).toBeVisible();
+      await checkoutPanel.getByRole('button', { name: 'Edit' }).click();
+      const reviewerInput = checkoutPanel.locator(
+        'input[role="combobox"][aria-expanded="true"]'
+      );
+      await reviewerInput.fill('charlie');
+      await reviewerInput.press('Enter');
+      await checkoutPanel.getByRole('button', { name: 'Done' }).click();
+      await expect(reviewers.getByText('charlie')).toBeVisible();
+      await expect(reviewers.getByText('bob')).toBeVisible();
 
-    // Navigate to the request list and verify the request is pending.
-    await page.getByRole('button', { name: 'See requests' }).click();
-    await expect(async () => {
-      await page.getByRole('button', { name: 'Refresh' }).click();
-      await expect(page.getByText('No Requests Found')).not.toBeVisible({
-        timeout: 500,
+      // Submit the request.
+      await checkoutPanel
+        .getByRole('button', { name: 'Submit Request' })
+        .click();
+      await expect(
+        page.getByText('Resources Requested Successfully')
+      ).toBeVisible();
+
+      // Navigate to the request list and verify the request is pending.
+      await page.getByRole('button', { name: 'See requests' }).click();
+      await expect(async () => {
+        await page.getByRole('button', { name: 'Refresh' }).click();
+        await expect(page.getByText('No Requests Found')).not.toBeVisible({
+          timeout: 500,
+        });
+      }).toPass();
+
+      // Open the request and verify reviewers in the detail view.
+      await page.getByRole('button', { name: 'View' }).click();
+      const reviewersSection = page.locator('section', {
+        has: page.getByRole('heading', { name: 'Reviewers' }),
       });
-    }).toPass();
+      await expect(reviewersSection.getByText('bob')).toBeVisible();
+      await expect(reviewersSection.getByText('charlie')).toBeVisible();
 
-    // Open the request and verify we can't review our own request.
-    await page.getByRole('button', { name: 'View' }).first().click();
-    await expect(page.getByText('Submit Review')).not.toBeVisible();
+      // Verify we can't review our own request.
+      await expect(page.getByText('Submit Review')).not.toBeVisible();
+    });
+
+    await test.step('reviewer approves the request', async () => {
+      await using app = await launchAsReviewer();
+      const { page } = app;
+
+      await page.getByTitle('Access Requests').click();
+      await page.getByText('View Access Requests').click();
+
+      await page.getByRole('button', { name: 'View' }).click();
+      await page.getByLabel(/Approve short-term access/).click();
+      await page.getByRole('button', { name: 'Submit Review' }).click();
+      await expect(page.getByText('APPROVED', { exact: true })).toBeVisible();
+    });
+
+    await test.step('requester assumes and sees requested resources', async () => {
+      await using app = await launchAsRequester();
+      const { page } = app;
+
+      // Assume the request from the Access Requests menu.
+      await page.locator('#access-requests-menu').click();
+      await page.locator('[title*="Assume the request for node"]').click();
+      await page.keyboard.press('Escape');
+
+      // Verify the node is visible and we can connect to it.
+      await expect(page.getByText('docker-root-node')).toBeVisible();
+      await page.getByRole('button', { name: 'Connect', exact: true }).click();
+      const loginInput = page.getByPlaceholder('Search logins…');
+      await expect(loginInput).toBeVisible();
+      await loginInput.fill('root');
+      await loginInput.press('Enter');
+
+      const currentTab = page.locator('[role="tab"][aria-selected="true"]');
+      await expect(currentTab).toHaveText('root@docker-root-node');
+      const terminalInput = page.getByRole('textbox', {
+        name: 'Terminal input',
+      });
+      await expect(terminalInput).toBeVisible();
+      await terminalInput.pressSequentially('echo foobar | rev\n');
+      await expect(page.locator('.xterm')).toContainText('raboof');
+
+      // Also verify the leaf node is accessible via the search bar.
+      const searchBar = page.getByPlaceholder('Search or jump to');
+      await searchBar.click();
+      await searchBar.fill('docker-leaf-node');
+      await page.getByText(/Connect over SSH to/).click();
+
+      // The search bar prompts for a login.
+      const leafLoginInput = page.getByPlaceholder('Provide login');
+      await expect(leafLoginInput).toBeVisible();
+      await leafLoginInput.fill('root');
+      await leafLoginInput.press('Enter');
+
+      // Verify we can run commands on the leaf node.
+      await expect(currentTab).toHaveText('root@docker-leaf-node');
+      const leafTerminalInput = page.getByRole('textbox', {
+        name: 'Terminal input',
+      });
+      await expect(leafTerminalInput).toBeVisible();
+      await leafTerminalInput.pressSequentially('echo bazqux | rev\n');
+      await expect(page.locator('.xterm').last()).toContainText('xuqzab');
+    });
   });
 });
