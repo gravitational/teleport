@@ -500,8 +500,8 @@ func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
 		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
 	}
 
-	// TODO: Consider whether or not to support environment variable config. Is
-	// there precedent for agents?
+	// Note: no env var support like in tbot, we could consider adding it in the
+	// future.
 
 	switch {
 	case b.RegistrationSecretPath != "":
@@ -532,7 +532,8 @@ func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
 		return bytes, nil
 	}
 
-	// TODO: Consider env var support
+	// Note: no env var support like in tbot, may consider adding it in the
+	// future.
 
 	// No static key configured, nothing to return.
 	return nil, nil
