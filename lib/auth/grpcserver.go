@@ -6374,13 +6374,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Clock:      cfg.AuthServer.clock,
-		Emitter:    cfg.Emitter,
-		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
-		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
-		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Authorizer:    cfg.Authorizer,
+		Backend:       cfg.AuthServer.Services,
+		Clock:         cfg.AuthServer.clock,
+		Emitter:       cfg.Emitter,
+		UsageReporter: cfg.AuthServer.UsageReporter,
 		Logger:        cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
