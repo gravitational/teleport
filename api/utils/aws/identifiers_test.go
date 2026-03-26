@@ -269,7 +269,12 @@ func TestIsValidRegionWithWeakCheck(t *testing.T) {
 		{
 			name:     "uppercase letters",
 			region:   "US-EAST-1",
-			errCheck: isBadParamErrFn,
+			errCheck: require.NoError,
+		},
+		{
+			name:     "underscores",
+			region:   "US_EAST_1",
+			errCheck: require.NoError,
 		},
 		{
 			name:     "special symbols",

@@ -209,7 +209,7 @@ var (
 	// convention (e.g. users that have AWS compatible services). This prevents
 	// invalid input (special characters, whitespace, injection
 	// attempts).
-	weakRegionValidation = regexp.MustCompile(`^[a-z0-9-]+$`)
+	weakRegionValidation = regexp.MustCompile(`^[a-zA-Z0-9-_]+$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString
