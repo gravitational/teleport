@@ -107,6 +107,8 @@ type NewWebSessionRequest struct {
 	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
 	// authentication and some differences in locking behavior.
 	Scope string
+	// Usage identifies the intended usage of the session.
+	Usage types.WebSessionUsage
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -365,6 +367,7 @@ func (a *Server) newWebSession(
 		LoginTime:           req.LoginTime,
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
+		Usage:               req.Usage,
 	}
 
 	UserLoginCount.Inc()

@@ -11522,16 +11522,17 @@ func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "access-graph-user@example.com", nil)
 
-	var sessionID string
-	for _, cookie := range pack.cookies {
-		if cookie.Name == websession.CookieName {
-			decoded, err := websession.DecodeCookie(cookie.Value)
-			require.NoError(t, err)
-			sessionID = decoded.SID
-			break
-		}
-	}
-	require.NotEmpty(t, sessionID, "session ID not found in cookies")
+	// Create a web session with Access Graph API usage for testing.
+	userInfo, err := proxy.auth.Auth().GetUser(context.Background(), pack.user, false)
+	require.NoError(t, err)
+	agSession, err := proxy.auth.Auth().CreateWebSessionFromReq(context.Background(), auth.NewWebSessionRequest{
+		User:   pack.user,
+		Roles:  userInfo.GetRoles(),
+		Traits: userInfo.GetTraits(),
+		Usage:  types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
+	})
+	require.NoError(t, err)
+	agSessionID := agSession.GetName()
 
 	t.Run("cert with access graph usage but unknown session returns access denied", func(t *testing.T) {
 		t.Parallel()
@@ -11552,7 +11553,7 @@ func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
 			Username:     pack.user,
 			Groups:       []string{"access"},
 			Usage:        []string{teleport.UsageAccessGraphAPIOnly},
-			WebSessionID: sessionID,
+			WebSessionID: agSessionID,
 		})
 		sctx, err := proxy.handler.handler.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
 		require.NoError(t, err)

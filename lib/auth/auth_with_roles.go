@@ -3851,6 +3851,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			LoginTime:        a.authServer.clock.Now().UTC(),
 			AccessRequests:   req.AccessRequests,
 			AttestWebSession: true,
+			Usage:            types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
