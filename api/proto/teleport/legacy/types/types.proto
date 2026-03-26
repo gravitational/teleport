@@ -2764,13 +2764,17 @@ message AuthPreferenceSpecV2 {
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
 
-  // AllowBrowserAuthentication enables/disables browser-based authentication for
+  reserved 23; // AllowBrowserAuthentication replaced by AllowCLIAuthViaBrowser
+  reserved "AllowBrowserAuthentication";
+
+  // AllowCLIAuthViaBrowser enables/disables browser-based authentication for
   // authenticating CLI sessions.
   // When set to false, authentication flows that require a browser will be disabled.
-  // Defaults to true.
-  BoolValue AllowBrowserAuthentication = 23 [
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowCLIAuthViaBrowser = 24 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "allow_browser_authentication,omitempty",
+    (gogoproto.jsontag) = "allow_cli_auth_via_browser,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 }
