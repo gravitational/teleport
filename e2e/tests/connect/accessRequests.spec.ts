@@ -305,6 +305,11 @@ test.describe('access requests', () => {
         );
       }).toPass();
 
+      // Verify that pending requests don't have an "Assume Roles" button.
+      await expect(
+        page.getByRole('button', { name: 'Assume Roles' })
+      ).toHaveCount(0);
+
       // Open the allow-roles-and-nodes request details and verify reviewers.
       const nodesRequestRow = page.getByRole('row', {
         name: /allow-roles-and-nodes/,
@@ -340,6 +345,11 @@ test.describe('access requests', () => {
       await expect(page.getByText('APPROVED', { exact: true })).toBeVisible();
       await expect(page.getByText('Approved for testing')).toBeVisible();
 
+      // Reviewer should not see "Assume Roles" on another user's request.
+      await expect(
+        page.getByRole('button', { name: 'Assume Roles' })
+      ).not.toBeVisible();
+
       // Go back to the list and approve allow-users-with-short-ttl request.
       await page.getByTitle('View access requests').click();
       await page
@@ -365,6 +375,12 @@ test.describe('access requests', () => {
       await nodesRow.getByRole('button', { name: 'Assume Roles' }).click();
       await expect(
         nodesRow.getByRole('button', { name: 'Assumed' })
+      ).toBeDisabled();
+
+      // Verify the button is also disabled in the detail view.
+      await nodesRow.getByRole('button', { name: 'View' }).click();
+      await expect(
+        page.getByRole('button', { name: 'Assumed' })
       ).toBeDisabled();
 
       // Navigate to the tab with resources and connect to the SSH node.
