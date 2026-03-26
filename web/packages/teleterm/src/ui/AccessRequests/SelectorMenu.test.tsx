@@ -18,8 +18,10 @@
 
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { addHours, subHours } from 'date-fns';
 
 import { render } from 'design/utils/testing';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
@@ -148,5 +150,65 @@ test('assumed request are always visible, even if getAccessRequests no longer re
   expect(await screen.findByText('access-b')).toBeInTheDocument();
   expect(
     await screen.findByText('request-with-details-not-available')
+  ).toBeInTheDocument();
+});
+
+test('after assuming a request and waiting for it to expire, the menu says the request has expired', async () => {
+  const user = userEvent.setup();
+  const appContext = new MockAppContext();
+  const now = new Date();
+  const futureExpires = Timestamp.fromDate(addHours(now, 4));
+  const pastExpires = Timestamp.fromDate(subHours(now, 5));
+  const accessRequest = makeAccessRequest({
+    resources: [],
+    roles: ['allow-users-with-short-ttl'],
+    expires: futureExpires,
+  });
+  const cluster = makeRootCluster({
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+  });
+  appContext.addRootCluster(cluster);
+  jest
+    .spyOn(appContext.clustersService, 'assumeRoles')
+    .mockImplementation(async () => {
+      appContext.clustersService.setState(state => {
+        state.clusters.get(cluster.uri).loggedInUser.activeRequests = [
+          accessRequest.id,
+        ];
+      });
+    });
+  appContext.tshd.getAccessRequests = () =>
+    new MockedUnaryCall({ requests: [accessRequest] });
+  appContext.tshd.getAccessRequest = () =>
+    new MockedUnaryCall({ request: accessRequest });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ResourcesContextProvider>
+        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
+            <SelectorMenu />
+          </AccessRequestsContextProvider>
+        </MockWorkspaceContextProvider>
+      </ResourcesContextProvider>
+    </MockAppContextProvider>
+  );
+
+  // Open the menu and assume the request.
+  await user.click(await screen.findByTitle('Access Requests'));
+  await user.click(await screen.findByText('allow-users-with-short-ttl'));
+  expect(
+    await screen.findByText(/access assumed · expires in/i)
+  ).toBeInTheDocument();
+
+  // Simulate the request expiring by updating the mock to return a past expiry.
+  accessRequest.expires = pastExpires;
+
+  // Close and re-open the menu to trigger a refetch.
+  await user.click(await screen.findByTitle('Access Requests'));
+  await user.click(await screen.findByTitle('Access Requests'));
+
+  expect(
+    await screen.findByText('Access assumed · Expired')
   ).toBeInTheDocument();
 });
