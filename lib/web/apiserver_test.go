@@ -2094,21 +2094,16 @@ func TestUIConfig(t *testing.T) {
 	}
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
 	clt := s.client(t)
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	t.Cleanup(cancel)
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
+	cfg := testGRVConfig(t, re.Bytes())
+
 	require.Equal(t, uiConfig, cfg.UI)
 }
 
@@ -4922,6 +4917,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.AccessMonitoring):           {Enabled: false},
 			string(entitlements.AccessRequests):             {Enabled: false},
 			string(entitlements.App):                        {Enabled: true},
+			string(entitlements.Beams):                      {Enabled: false},
 			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 			string(entitlements.DB):                         {Enabled: true},
@@ -4958,6 +4954,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		IsStripeManaged:                false,
 		PremiumSupport:                 false,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+		BeamsUI:                        false,
 	}
 
 	// Make a request.
@@ -4965,14 +4962,9 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
+	cfg := testGRVConfig(t, re.Bytes())
+
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
@@ -5018,10 +5010,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
 		require.NoError(t, err)
-		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
+
+		err = parseGRVConfig(re.Bytes(), &cfg)
 		require.NoError(t, err)
+
 		diff := cmp.Diff(expectedCfg, cfg)
 		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
@@ -5054,13 +5046,71 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		re, err := clt.Get(ctx, endpoint, nil)
 		require.NoError(t, err)
 
-		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		err = parseGRVConfig(re.Bytes(), &cfg)
 		require.NoError(t, err)
+
 		diff := cmp.Diff(expectedCfg, cfg)
 		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
+}
+
+func TestGetWebConfig_WithBeamsEntitlement(t *testing.T) {
+	ctx := t.Context()
+
+	env := newWebPack(t, 1, withModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Beams: {Enabled: true},
+			},
+		},
+	}))
+
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+
+	cfg := testGRVConfig(t, re.Bytes())
+
+	require.Equal(t, webclient.EntitlementInfo{
+		Enabled: true,
+		Limit:   0,
+	}, cfg.Entitlements[string(entitlements.Beams)])
+}
+
+func TestGetWebConfig_WithBeamsUI(t *testing.T) {
+	ctx := t.Context()
+
+	env := newWebPack(t, 1, withModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			BeamsUI: true,
+		},
+	}))
+
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+
+	cfg := testGRVConfig(t, re.Bytes())
+
+	require.True(t, cfg.BeamsUI)
+}
+
+func testGRVConfig(t *testing.T, data []byte) webclient.WebConfig {
+	require.True(t, strings.HasPrefix(string(data), "var GRV_CONFIG"))
+	var cfg webclient.WebConfig
+	err := parseGRVConfig(data, &cfg)
+	require.NoError(t, err)
+	return cfg
+}
+
+func parseGRVConfig(data []byte, cfg *webclient.WebConfig) error {
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	str := strings.ReplaceAll(string(data), "var GRV_CONFIG = ", "")
+	err := json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	return err
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {

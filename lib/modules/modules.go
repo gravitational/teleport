@@ -66,6 +66,8 @@ type Features struct {
 	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
 	// license file).
 	CloudAnonymizationKey []byte
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -141,6 +143,7 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
 		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
+		BeamsUI:              f.BeamsUI,
 	}
 }
 
