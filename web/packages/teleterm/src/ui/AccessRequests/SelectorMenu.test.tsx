@@ -36,6 +36,7 @@ import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspace
 import { AccessRequestsContextProvider } from './AccessRequestsContext';
 
 test('assuming or dropping a request calls API', async () => {
+  const user = userEvent.setup();
   const appContext = new MockAppContext();
   const accessRequest = makeAccessRequest();
   const cluster = makeRootCluster({
@@ -76,17 +77,17 @@ test('assuming or dropping a request calls API', async () => {
   );
 
   const accessRequestsMenu = await screen.findByTitle('Access Requests');
-  await userEvent.click(accessRequestsMenu);
+  await user.click(accessRequestsMenu);
 
   const item = await screen.findByText(accessRequest.resources.at(0).id.name);
-  await userEvent.click(item);
+  await user.click(item);
   expect(appContext.clustersService.assumeRoles).toHaveBeenCalledTimes(1);
   expect(appContext.clustersService.assumeRoles).toHaveBeenCalledWith(
     cluster.uri,
     [accessRequest.id]
   );
   expect(await screen.findByText(/access assumed/i)).toBeInTheDocument();
-  await userEvent.click(item);
+  await user.click(item);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledTimes(1);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledWith(
     cluster.uri,
@@ -95,6 +96,7 @@ test('assuming or dropping a request calls API', async () => {
 });
 
 test('assumed request are always visible, even if getAccessRequests no longer returns them', async () => {
+  const user = userEvent.setup();
   const requestA = makeAccessRequest({
     id: '67bea2b6-9390-43a5-af47-c391561dbfba',
     resources: [],
@@ -137,7 +139,7 @@ test('assumed request are always visible, even if getAccessRequests no longer re
   );
 
   const accessRequestsMenu = await screen.findByTitle('Access Requests');
-  await userEvent.click(accessRequestsMenu);
+  await user.click(accessRequestsMenu);
 
   // Even though getAccessRequests only returned requestA, the UI always displays the assumed requests:
   // - requestB, which details exists in the useAssumedRequests cache
