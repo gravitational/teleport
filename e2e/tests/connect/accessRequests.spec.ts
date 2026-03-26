@@ -232,7 +232,7 @@ test.describe('access requests', () => {
     return launchFromSnapshot(reviewerSnapshot);
   }
 
-  test('role-based request: create and review', async () => {
+  test('role-based request: create, review, assume, and drop', async () => {
     await test.step('requester creates two role-based requests', async () => {
       await using app = await launchAsRequester();
       const { page } = app;
@@ -351,7 +351,7 @@ test.describe('access requests', () => {
       await expect(page.getByText('APPROVED', { exact: true })).toBeVisible();
     });
 
-    await test.step('requester assumes the request and connects to SSH node', async () => {
+    await test.step('requester assumes roles, verifies access, and drops roles', async () => {
       await using app = await launchAsRequester();
       const { page } = app;
 
@@ -390,6 +390,64 @@ test.describe('access requests', () => {
       await expect(terminalInput).toBeVisible();
       await terminalInput.pressSequentially(`echo foobar | rev\n`);
       await expect(terminal).toContainText(`raboof`);
+
+      // Close the SSH tab now that we've verified access.
+      await currentTab.getByTitle('Close').click();
+
+      // Verify the Access Requests menu shows the assumed request with countdown, then assume
+      // allow-users-with-short-ttl directly from the menu.
+      await page.locator('#access-requests-menu').click();
+      await expect(page.getByText(/Expires in about 8 hours/)).toBeVisible();
+      await expect(page.getByText(/Expires in 4 minutes/)).toBeVisible();
+      await page
+        .locator(
+          '[title*="Assume the request for role: allow-users-with-short-ttl"]'
+        )
+        .click();
+      await page.keyboard.press('Escape');
+
+      // Verify the SSH node is no longer accessible.
+      await clusterTab.click();
+      await expect(page.getByText('docker-root-node')).not.toBeVisible();
+
+      // Drop both assumed roles via the Access Requests menu.
+      await page.locator('#access-requests-menu').click();
+      await page
+        .locator('[title*="Drop the request for role: allow-roles-and-nodes"]')
+        .click();
+      // Wait for the first drop to take effect before dropping the second.
+      await expect(
+        page.locator(
+          '[title*="Assume the request for role: allow-roles-and-nodes"]'
+        )
+      ).toBeVisible();
+      await page
+        .locator(
+          '[title*="Drop the request for role: allow-users-with-short-ttl"]'
+        )
+        .click();
+
+      // Verify the menu no longer shows assumed requests.
+      await expect(page.getByText(/Access assumed/)).toHaveCount(0);
+      await page.keyboard.press('Escape');
+
+      // Wait for the drop to be fully processed before checking roles.
+      await page.waitForTimeout(250);
+
+      // Verify that roles reverted to defaults by opening the profile selector.
+      await page.getByTitle(/Open Profiles/).click();
+      const popover = page.locator('[data-testid="Modal"]');
+      await expect(popover.getByText('test-role-based-requests')).toBeVisible();
+      await expect(
+        popover.getByText('test-search-based-requests')
+      ).toBeVisible();
+      // Roles from now unassumed requests should not be visible.
+      await expect(
+        popover.getByText('allow-roles-and-nodes')
+      ).not.toBeVisible();
+      await expect(
+        popover.getByText('allow-users-with-short-ttl')
+      ).not.toBeVisible();
     });
   });
 
