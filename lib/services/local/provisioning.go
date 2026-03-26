@@ -167,24 +167,6 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 	return nil
 }
 
-func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
-	if err := services.CheckAndSetDefaults(p); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rev := p.GetRevision()
-	data, err := services.MarshalProvisionToken(p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := &backend.Item{
-		Key:      backend.NewKey(tokensPrefix, p.GetName()),
-		Value:    data,
-		Expires:  p.Expiry(),
-		Revision: rev,
-	}
-	return item, nil
-}
-
 // DeleteAllTokens deletes all provisioning tokens
 func (s *ProvisioningService) DeleteAllTokens() error {
 	startKey := backend.NewKey(tokensPrefix)
