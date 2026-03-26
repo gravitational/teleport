@@ -99,7 +99,7 @@ export function SessionSummariesUnifiedResourcesCta() {
         <SessionPreview />
 
         <Text typography="body1">
-          Available exclusively though Teleport Identity Security, Session
+          Available exclusively through Teleport Identity Security, Session
           Recording Summaries help you quickly review* what’s happened in SSH,
           Kubernetes, and Postgres database sessions in your cluster.
         </Text>

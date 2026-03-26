@@ -45,7 +45,7 @@ export function Container() {
         >
           GCP documentation
         </Link>{' '}
-        for instruction's on how to obtain the Entity ID and ACS URL.
+        for instructions on how to obtain the Entity ID and ACS URL.
         {isUpdateFlow && (
           <>
             <br />
