@@ -21,6 +21,8 @@ import {
   createPrivateKey,
   createPublicKey,
   createSign,
+  KeyObject,
+  randomBytes,
 } from 'crypto';
 
 import { Page } from '@playwright/test';
@@ -39,90 +41,9 @@ export async function mockWebAuthn(page: Page) {
     return;
   }
 
-  const credIdBuf = Buffer.from(webauthnCredentialId, 'base64');
-  const privateKey = createPrivateKey({
-    key: Buffer.from(webauthnPrivateKey, 'base64'),
-    format: 'der',
-    type: 'pkcs8',
-  });
-  const jwk = privateKey.export({ format: 'jwk' });
-  const x = Buffer.from(jwk.x!, 'base64url');
-  const y = Buffer.from(jwk.y!, 'base64url');
-  const pubKeyCOSE = encodeEC2PublicKeyCOSE(x, y);
-  const spkiPubicKey = createPublicKey(privateKey).export({
-    format: 'der',
-    type: 'spki',
-  });
-  const credIdB64 = credIdBuf.toString('base64');
-  const spkiPublicKeyB64 = spkiPubicKey.toString('base64');
-
-  let signCount = 0;
-  await page.exposeFunction('__e2eWebAuthn', async (optionsJSON: string) => {
-    const opts: WebAuthnRequest = JSON.parse(optionsJSON);
-
-    signCount++;
-
-    const clientDataJSON = Buffer.from(
-      JSON.stringify({
-        type: opts.type,
-        challenge: opts.challenge,
-        origin: opts.origin,
-        crossOrigin: false,
-      })
-    );
-
-    const rpIdHash = createHash('sha256').update(opts.rpId).digest();
-
-    const counter = Buffer.alloc(4);
-    counter.writeUInt32BE(signCount);
-
-    if (opts.type === 'webauthn.create') {
-      const authenticatorData = Buffer.concat([
-        rpIdHash,
-        Buffer.from([0x45]), // UP + UV + AT
-        counter,
-        Buffer.alloc(16), // aaguid
-        Buffer.from([credIdBuf.length >> 8, credIdBuf.length & 0xff]),
-        credIdBuf,
-        pubKeyCOSE,
-      ]);
-
-      const result: WebAuthnCreateResult = {
-        credentialId: credIdB64,
-        authenticatorData: authenticatorData.toString('base64'),
-        clientDataJSON: clientDataJSON.toString('base64'),
-        attestationObject:
-          encodeAttestationObject(authenticatorData).toString('base64'),
-        publicKey: spkiPublicKeyB64,
-        publicKeyAlgorithm: -7,
-      };
-
-      return JSON.stringify(result);
-    }
-
-    const authenticatorData = Buffer.concat([
-      rpIdHash,
-      Buffer.from([0x05]), // UP + UV
-      counter,
-    ]);
-
-    const signature = createSign('SHA256')
-      .update(
-        Buffer.concat([
-          authenticatorData,
-          createHash('sha256').update(clientDataJSON).digest(),
-        ])
-      )
-      .sign(privateKey);
-
-    const result: WebAuthnGetResult = {
-      credentialId: credIdB64,
-      authenticatorData: authenticatorData.toString('base64'),
-      clientDataJSON: clientDataJSON.toString('base64'),
-      signature: signature.toString('base64'),
-    };
-
-    return JSON.stringify(result);
+  await page.exposeFunction('__e2eWebAuthn', async (requestJSON: string) => {
+    const request: WebAuthnRequest = JSON.parse(requestJSON);
+    return JSON.stringify(currentDevice.processRequest(request));
   });
 
   await page.addInitScript(initWebAuthnOverride);
@@ -343,4 +264,126 @@ function encodeAttestationObject(authData: Buffer) {
       authData,
     })
   );
+}
+
+/**
+ * A fake WebAuthn authenticator that emulates registration (attestation) and
+ * authentication (assertion) ceremonies.
+ */
+export class WebAuthnDevice {
+  private readonly credentialIdBuf: Buffer;
+  private readonly credentialIdB64: string;
+  private readonly privateKey: KeyObject;
+  private readonly pubKeyCOSE: Buffer;
+  private readonly spkiPublicKeyB64: string;
+  private signCount: number = 0;
+
+  public constructor(credentialIdBase64?: string) {
+    this.credentialIdBuf = credentialIdBase64
+      ? Buffer.from(credentialIdBase64, 'base64')
+      : randomBytes(32);
+    this.credentialIdB64 =
+      credentialIdBase64 || this.credentialIdBuf.toString('base64');
+
+    this.privateKey = createPrivateKey({
+      key: Buffer.from(webauthnPrivateKey, 'base64'),
+      format: 'der',
+      type: 'pkcs8',
+    });
+    const jwk = this.privateKey.export({ format: 'jwk' });
+    const x = Buffer.from(jwk.x!, 'base64url');
+    const y = Buffer.from(jwk.y!, 'base64url');
+    this.pubKeyCOSE = encodeEC2PublicKeyCOSE(x, y);
+    const spkiPubicKey = createPublicKey(this.privateKey).export({
+      format: 'der',
+      type: 'spki',
+    });
+    this.spkiPublicKeyB64 = spkiPubicKey.toString('base64');
+  }
+
+  public processRequest(
+    request: WebAuthnRequest
+  ): WebAuthnCreateResult | WebAuthnGetResult {
+    // This counter is still local to the worker process; a more accurate
+    // emulation would require storing the counter in a temporary file or some
+    // other kind of cache. Right now it only triggers a credential clone
+    // warning in the logs, so it's not a big deal.
+    this.signCount++;
+
+    const clientDataJSON = Buffer.from(
+      JSON.stringify({
+        type: request.type,
+        challenge: request.challenge,
+        origin: request.origin,
+        crossOrigin: false,
+      })
+    );
+
+    const rpIdHash = createHash('sha256').update(request.rpId).digest();
+
+    const counter = Buffer.alloc(4);
+    counter.writeUInt32BE(this.signCount);
+
+    if (request.type === 'webauthn.create') {
+      const authenticatorData = Buffer.concat([
+        rpIdHash,
+        Buffer.from([0x45]), // UP + UV + AT
+        counter,
+        Buffer.alloc(16), // aaguid
+        Buffer.from([
+          this.credentialIdBuf.length >> 8,
+          this.credentialIdBuf.length & 0xff,
+        ]),
+        this.credentialIdBuf,
+        this.pubKeyCOSE,
+      ]);
+
+      const result: WebAuthnCreateResult = {
+        credentialId: this.credentialIdB64,
+        authenticatorData: authenticatorData.toString('base64'),
+        clientDataJSON: clientDataJSON.toString('base64'),
+        attestationObject:
+          encodeAttestationObject(authenticatorData).toString('base64'),
+        publicKey: this.spkiPublicKeyB64,
+        publicKeyAlgorithm: -7,
+      };
+
+      return result;
+    }
+
+    const authenticatorData = Buffer.concat([
+      rpIdHash,
+      Buffer.from([0x05]), // UP + UV
+      counter,
+    ]);
+
+    const signature = createSign('SHA256')
+      .update(
+        Buffer.concat([
+          authenticatorData,
+          createHash('sha256').update(clientDataJSON).digest(),
+        ])
+      )
+      .sign(this.privateKey);
+
+    const result: WebAuthnGetResult = {
+      credentialId: this.credentialIdB64,
+      authenticatorData: authenticatorData.toString('base64'),
+      clientDataJSON: clientDataJSON.toString('base64'),
+      signature: signature.toString('base64'),
+    };
+
+    return result;
+  }
+}
+
+const defaultDevice = new WebAuthnDevice(webauthnCredentialId);
+let currentDevice = defaultDevice;
+
+/**
+ * Sets currently used WebAuthn device. From now on, all WebAuthn operations
+ * will be performed using this device.
+ */
+export function setCurrentDevice(device: WebAuthnDevice) {
+  currentDevice = device;
 }
