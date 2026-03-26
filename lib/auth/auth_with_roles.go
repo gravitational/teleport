@@ -6327,21 +6327,21 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	return nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-// Only the session owner can set the DBSC public key on their session, and only
-// if the key has not already been set (one-time binding).
-func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+// SetAppSessionDBSCPublicKey verifies a DBSC response for an application web session
+// and stores the bound public key if the session has not already been bound.
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	session, err := a.authorizeDBSCRequest(ctx, sessionID, "set DBSC public keys")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	publicKey, err := a.authServer.verifyDBSCResponse(ctx, string(responseJWT), sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	const iterationLimit = 3
 	for range iterationLimit {
-		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !authz.IsCurrentUser(a.context, session.GetUser()) {
-			return trace.AccessDenied("only session owner can set DBSC public key")
-		}
-
 		// DBSC public key can only be set once to prevent rebinding to a different key.
 		if existingKey := session.GetDBSCPublicKey(); len(existingKey) > 0 {
 			// Allow idempotent retries with the same key.
@@ -6353,10 +6353,15 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 
 		session.SetDBSCPublicKey(publicKey)
 		if err := a.authServer.UpdateAppSession(ctx, session); err != nil {
-			if trace.IsCompareFailed(err) {
-				continue
+			if !trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
 			}
-			return trace.Wrap(err)
+			// Reload after a compare-and-swap conflict and retry.
+			session, err = a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			continue
 		}
 
 		return nil
@@ -6446,6 +6451,62 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// SignDBSCChallenge creates a signed challenge.
+func (a *ServerWithRoles) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	if _, err := a.authorizeDBSCRequest(ctx, sessionID, "sign DBSC challenges"); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challenge, err := a.authServer.signDBSCChallenge(ctx, sessionID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return challenge, nil
+}
+
+// authorizeDBSCRequest verifies that the caller is an allowed proxy for this DBSC session-scoped operation.
+// It also loads and returns the target app session for callers that need it.
+func (a *ServerWithRoles) authorizeDBSCRequest(ctx context.Context, sessionID string, action string) (types.WebSession, error) {
+	isLocalProxy := a.hasBuiltinRole(types.RoleProxy)
+	remoteRole, ok := a.context.Identity.(authz.RemoteBuiltinRole)
+	if !isLocalProxy && (!a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok) {
+		return nil, trace.AccessDenied("only proxies can %s", action)
+	}
+
+	// Check to ensure the session exists before proceeding, and that remote proxies
+	// only operate on sessions for their own cluster.
+	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !isLocalProxy {
+		clusterName, err := getAppSessionRouteClusterName(session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if remoteRole.ClusterName != clusterName {
+			return nil, trace.AccessDenied("only the local proxy or a remote proxy of cluster %q can %s", clusterName, action)
+		}
+	}
+
+	return session, nil
+}
+
+func getAppSessionRouteClusterName(session types.WebSession) (string, error) {
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session TLS cert")
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing app session identity")
+	}
+	if identity.RouteToApp.ClusterName == "" {
+		return "", trace.BadParameter("app session missing route cluster name")
+	}
+	return identity.RouteToApp.ClusterName, nil
 }
 
 func (a *ServerWithRoles) Close() error {

@@ -950,18 +950,29 @@ message DeleteAppSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
 }
 
-// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
-// on an application web session.
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to verify a browser
+// DBSC response and bind the resulting public key on an application web session.
 message SetAppSessionDBSCPublicKeyRequest {
   // The ID of the application session to update.
   string session_id = 1;
-  // The device-bound public key (JWK format) for Device Bound
-  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  // The browser's signed DBSC response JWT. See https://www.w3.org/TR/dbsc/
   bytes public_key = 2;
 }
 
 // SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
 message SetAppSessionDBSCPublicKeyResponse {}
+
+// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
+message SignDBSCChallengeRequest {
+  // The app session ID to include in the challenge.
+  string session_id = 1;
+}
+
+// SignDBSCChallengeResponse contains the signed DBSC challenge.
+message SignDBSCChallengeResponse {
+  // The signed JWT challenge received from the browser.
+  string challenge = 1;
+}
 
 // DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
 message DeleteSnowflakeSessionRequest {
@@ -3231,6 +3242,8 @@ service AuthService {
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
   // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
   rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
+  // SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.
