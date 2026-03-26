@@ -961,6 +961,18 @@ message SetAppSessionDBSCPublicKeyRequest {
 // SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
 message SetAppSessionDBSCPublicKeyResponse {}
 
+// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
+message SignDBSCChallengeRequest {
+  // SessionID is the app session ID to include in the challenge.
+  string SessionID = 1;
+}
+
+// SignDBSCChallengeResponse contains the signed DBSC challenge.
+message SignDBSCChallengeResponse {
+  // Challenge is the signed JWT challenge.
+  string Challenge = 1;
+}
+
 // DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
 message DeleteSnowflakeSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
@@ -3201,6 +3213,8 @@ service AuthService {
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
   // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
   rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
+  // SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

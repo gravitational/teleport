@@ -857,8 +857,11 @@ type WebService interface {
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
 
-	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error
+	// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+	// resulting public key to an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error
+	// SignDBSCChallenge signs a challenge used to bind a device to a web session.
+	SignDBSCChallenge(ctx context.Context, sessionID string) (string, error)
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters

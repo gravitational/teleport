@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -5245,6 +5247,8 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 	// Register users.
 	aliceClt := userClient("alice")
 	bobClt := userClient("bob")
+	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
 
 	// Register an application.
 	app, err := types.NewAppV3(types.Metadata{
@@ -5275,9 +5279,16 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Alice can set the DBSC public key on her own session.
-	testDBSCPublicKey := []byte(`{"kty":"EC","crv":"P-256","x":"test","y":"test"}`)
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+
+	responseJWT, expectedPublicKey := makeDBSCResponseJWT(t, deviceKey, challenge)
+
+	// Proxy can verify the response and bind the public key to the session.
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
 	require.NoError(t, err)
 
 	// Verify the update persisted.
@@ -5285,15 +5296,17 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 		SessionID: aliceSession.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, testDBSCPublicKey, updatedSession.GetDBSCPublicKey())
+	require.Equal(t, expectedPublicKey, updatedSession.GetDBSCPublicKey())
 
-	// Setting the same key again should succeed (idempotent retry).
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	// Setting the same response again should succeed (idempotent retry).
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
 	require.NoError(t, err)
 
-	// Alice cannot set a different DBSC public key (one-time binding).
-	differentKey := []byte(`{"kty":"EC","crv":"P-256","x":"different","y":"different"}`)
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), differentKey)
+	// A different browser key cannot be rebound onto the same session.
+	differentDeviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	differentResponseJWT, _ := makeDBSCResponseJWT(t, differentDeviceKey, challenge)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(differentResponseJWT))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -5302,15 +5315,104 @@ func TestSetAppSessionDBSCPublicKey(t *testing.T) {
 		SessionID: aliceSession.GetName(),
 	})
 	require.NoError(t, err)
-	require.Equal(t, testDBSCPublicKey, unchangedSession.GetDBSCPublicKey())
+	require.Equal(t, expectedPublicKey, unchangedSession.GetDBSCPublicKey())
 
-	// Alice cannot set the DBSC public key on bob's session.
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, bobSession.GetName(), testDBSCPublicKey)
+	// A response bound to bob's challenge cannot be replayed onto alice's session.
+	bobChallenge, err := proxyClt.SignDBSCChallenge(ctx, bobSession.GetName())
+	require.NoError(t, err)
+	bobResponseJWT, _ := makeDBSCResponseJWT(t, deviceKey, bobChallenge)
+	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(bobResponseJWT))
+	require.Error(t, err)
+
+	// Human users cannot call this RPC directly.
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// Bob cannot set the DBSC public key on alice's session.
-	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func makeDBSCResponseJWT(t *testing.T, deviceKey crypto.Signer, challenge string) (string, []byte) {
+	t.Helper()
+
+	jwk := jose.JSONWebKey{Key: deviceKey.Public()}
+
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.ES256,
+		Key:       deviceKey,
+	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", jwk.Public()))
+	require.NoError(t, err)
+
+	token, err := josejwt.Signed(signer).Claims(josejwt.Claims{
+		ID: challenge,
+	}).CompactSerialize()
+	require.NoError(t, err)
+
+	publicKeyJSON, err := jwk.Public().MarshalJSON()
+	require.NoError(t, err)
+
+	return token, publicKeyJSON
+}
+
+func TestSignDBSCChallenge(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	userClient := func(username string) *authclient.Client {
+		user, _, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
+		require.NoError(t, err)
+		clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+		return clt
+	}
+
+	aliceClt := userClient("alice")
+	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	appClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	require.NoError(t, err)
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	aliceSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+
+	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+	require.NotEmpty(t, challenge)
+
+	anotherChallenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.NoError(t, err)
+	require.NotEmpty(t, anotherChallenge)
+
+	missingSessionChallenge, err := proxyClt.SignDBSCChallenge(ctx, "missing-session")
+	require.NoError(t, err)
+	require.NotEmpty(t, missingSessionChallenge)
+
+	_, err = aliceClt.SignDBSCChallenge(ctx, aliceSession.GetName())
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = appClt.SignDBSCChallenge(ctx, aliceSession.GetName())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }

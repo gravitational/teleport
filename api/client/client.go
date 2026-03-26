@@ -1659,6 +1659,17 @@ func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID strin
 	return trace.Wrap(err)
 }
 
+// SignDBSCChallenge signs a DBSC challenge.
+func (c *Client) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	resp, err := c.grpc.SignDBSCChallenge(ctx, &proto.SignDBSCChallengeRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.Challenge, nil
+}
+
 // CreateSnowflakeSession creates a Snowflake web session.
 func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{

@@ -283,6 +283,51 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 	}
 }
 
+func TestKey_SignAndVerifyDBSCChallenge(t *testing.T) {
+	t.Parallel()
+	for _, alg := range supportedAlgorithms {
+		t.Run(alg.String(), func(t *testing.T) {
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClockAt(time.Now())
+			const (
+				clusterName = "teleport-test"
+				sessionID   = "app-session-id"
+			)
+
+			key, err := New(&Config{
+				PrivateKey:  privateKey,
+				ClusterName: clusterName,
+				Clock:       clock,
+			})
+			require.NoError(t, err)
+
+			token, err := key.SignDBSCChallenge(DBSCChallengeParams{
+				SessionID: sessionID,
+			})
+			require.NoError(t, err)
+
+			err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
+				RawToken:  token,
+				SessionID: sessionID,
+			})
+			require.NoError(t, err)
+
+			err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
+				RawToken:  token,
+				SessionID: "other-session-id",
+			})
+			require.ErrorContains(t, err, "invalid subject")
+
+			_, err = key.SignDBSCChallenge(DBSCChallengeParams{
+				SessionID: "",
+			})
+			require.ErrorContains(t, err, "session ID required")
+		})
+	}
+}
+
 func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 	t.Parallel()
 	for _, alg := range supportedAlgorithms {

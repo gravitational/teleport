@@ -6264,19 +6264,23 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 	return nil
 }
 
-// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-// Only the session owner can set the DBSC public key on their session, and only
-// if the key has not already been set (one-time binding).
-func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+// SetAppSessionDBSCPublicKey verifies a DBSC response for an application web session
+// and stores the bound public key if the session has not already been bound.
+func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		return trace.AccessDenied("only proxies can set DBSC public keys")
+	}
+
+	publicKey, err := a.authServer.verifyDBSCResponse(ctx, string(responseJWT), sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	const iterationLimit = 3
 	for range iterationLimit {
 		session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: sessionID})
 		if err != nil {
 			return trace.Wrap(err)
-		}
-
-		if !authz.IsCurrentUser(a.context, session.GetUser()) {
-			return trace.AccessDenied("only session owner can set DBSC public key")
 		}
 
 		// DBSC public key can only be set once to prevent rebinding to a different key.
@@ -6383,6 +6387,19 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// SignDBSCChallenge creates a signed challenge.
+func (a *ServerWithRoles) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		return "", trace.AccessDenied("only proxies can sign DBSC challenges")
+	}
+
+	challenge, err := a.authServer.signDBSCChallenge(ctx, sessionID)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return challenge, nil
 }
 
 func (a *ServerWithRoles) Close() error {

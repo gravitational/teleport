@@ -468,6 +468,60 @@ func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 	return k.sign(claims, nil)
 }
 
+// DBSCChallengeParams are the parameters needed to sign a DBSC challenge.
+type DBSCChallengeParams struct {
+	// SessionID is the app session ID.
+	SessionID string
+}
+
+const expirationDBSCChallenge = 60 * time.Second
+
+// SignDBSCChallenge creates a signed challenge.
+func (k *Key) SignDBSCChallenge(p DBSCChallengeParams) (string, error) {
+	if p.SessionID == "" {
+		return "", trace.BadParameter("session ID required")
+	}
+
+	claims := Claims{
+		Claims: jwt.Claims{
+			Subject:   p.SessionID,
+			Issuer:    k.config.ClusterName,
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationDBSCChallenge)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		},
+	}
+
+	return k.sign(claims, nil)
+}
+
+// DBSCChallengeVerifyParams are the parameters needed to verify a DBSC challenge.
+type DBSCChallengeVerifyParams struct {
+	// RawToken is the challenge JWT.
+	RawToken string
+	// SessionID is the expected session ID.
+	SessionID string
+}
+
+// VerifyDBSCChallenge verifies a DBSC challenge was signed by this cluster.
+func (k *Key) VerifyDBSCChallenge(p DBSCChallengeVerifyParams) error {
+	if p.RawToken == "" {
+		return trace.BadParameter("challenge token required")
+	}
+	if p.SessionID == "" {
+		return trace.BadParameter("session ID required")
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:  k.config.ClusterName,
+		Subject: p.SessionID,
+		Time:    k.config.Clock.Now(),
+	}
+
+	_, err := k.verify(p.RawToken, expectedClaims)
+	return trace.Wrap(err)
+}
+
 // VerifyParams are the parameters needed to pass the token and data needed to verify.
 type VerifyParams struct {
 	// Username is the Teleport identity.

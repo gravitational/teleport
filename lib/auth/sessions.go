@@ -782,6 +782,41 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 	return token, nil
 }
 
+// signDBSCChallenge creates a signed challenge.
+func (a *Server) signDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.JWTSigner,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	signer, err := a.GetKeyStore().GetJWTSigner(ctx, ca)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), a.clock)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	challenge, err := privateKey.SignDBSCChallenge(jwt.DBSCChallengeParams{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return challenge, nil
+}
+
 // SessionCertsRequest is a request for new user session certs.
 type SessionCertsRequest struct {
 	UserState               services.UserState
