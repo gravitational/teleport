@@ -73,7 +73,7 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 
 const (
 	// minUploadBytes is the minimum part file size required to trigger its upload.
-	minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
+	minUploadBytes = constants.MaxProtoMessageSizeBytes * 8
 	// reservationSize is the size new reservations will preallocate.
 	reservationSize = minUploadBytes + constants.MaxProtoMessageSizeBytes
 )
@@ -83,7 +83,7 @@ type StreamerConfig struct {
 	Dir string
 	// MinUploadBytes is the minimum size at which upload parts are submitted.
 	// Due to the nature of the gzip writer, each upload part maybe be marginally
-	// larger, but not smaller, than the minimum size. Defaults to 128KB.
+	// larger, but not smaller, than the minimum size. Defaults to 512KB.
 	MinUploadBytes int64
 	// Encrypter wraps the final gzip writer with encryption.
 	Encrypter events.EncryptionWrapper
