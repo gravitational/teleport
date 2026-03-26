@@ -32,7 +32,8 @@ Center groups and manage Group membership.
 
 ## Prerequisites
 
-- A Teleport cluster.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - An AWS role configured as per the [AWS IAM Identity Center guide](./guide.mdx#step-16-configure-aws-integration)
   for the integration to use.
 - AWS credentials configured for the Teleport Auth Service to pick up and use
@@ -42,6 +43,7 @@ Center groups and manage Group membership.
   - View groups and their details.
   - View applications and their details.
 - The AWS IAM Identity Center ARN, AWS region, SCIM base address and SCIM bearer token.
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Partial hand-off (Hybrid setup)
 
@@ -314,8 +316,8 @@ and switch back to Teleport.
 
 #### Create the Teleport SAML Service Provider
 
-Create a SAML Service Provider in Teleport following the (Using Teleport as a SAML
-Identity Provider)[../idps/saml-guide.mdx] guide. Use the Identity Center SAML
+Create a SAML Service Provider in Teleport following the [Using Teleport as a SAML
+Identity Provider](../idps/saml-guide.mdx) guide. Use the Identity Center SAML
 Metadata file from the previous step to provide the Identity Center metadata to
 Teleport.
 
@@ -356,7 +358,7 @@ $ tctl edit plugins/aws-identity-center
 ```
 
 To enable Full hand-off mode, set the `saml_idp_service_provider_name` field in
-the `aws_ic` block to the name of the SAML Service Provider created in (Step 1)[#step-14-create-a-teleport-saml-idp-service-provider] above. 
+the `aws_ic` block to the name of the SAML Service Provider created in [Step 1](#step-16-install-okta-saml-connector) above. 
 
 ```YAML
 kind: plugin
