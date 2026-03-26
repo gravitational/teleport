@@ -238,26 +238,14 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-	testServer, err := testAuthServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
-
-	a := testServer.Auth()
-
-	username := "test-user"
-	_, _, err = authtest.CreateUserAndRole(a, username, []string{"role"}, nil)
-	require.NoError(t, err)
+	env := newBrowserMFATestEnv(t)
+	a := env.auth
+	username := env.webauthnUser.GetName()
 
 	secretKey, err := secret.NewKey()
 	require.NoError(t, err)
 
-	rawID := []byte("test-raw-id")
+	rawID := env.webauthnDev.GetWebauthn().CredentialId
 	webauthnResponse := &wantypes.CredentialAssertionResponse{
 		PublicKeyCredential: wantypes.PublicKeyCredential{
 			Credential: wantypes.Credential{
@@ -403,23 +391,16 @@ func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, testServer.Close()) })
+	env := newBrowserMFATestEnv(t)
+	a := env.auth
 
-	a := testServer.Auth()
-
-	userCreds, err := createUserWithSecondFactors(testServer.TLS)
-	require.NoError(t, err)
+	password := []byte("test-password")
+	require.NoError(t, a.UpsertPassword(env.webauthnUser.GetName(), password))
 
 	userCredsRequest := &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 		UserCredentials: &proto.UserCredentials{
-			Username: userCreds.username,
-			Password: userCreds.password,
+			Username: env.webauthnUser.GetName(),
+			Password: password,
 		},
 	}
 
@@ -456,13 +437,13 @@ func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
 			},
 		},
 		{
-			name: "OK browser MFA challenge extensions applied from SSO MFA session",
+			name: "OK browser MFA challenge extensions applied from MFA session",
 			setup: func(t *testing.T) {
-				session := &services.SSOMFASessionData{
+				session := &services.MFASessionData{
 					RequestID:     "test-request-1",
-					Username:      userCreds.username,
-					ConnectorID:   "Browser",
-					ConnectorType: "Browser",
+					Username:      env.webauthnUser.GetName(),
+					ConnectorID:   constants.BrowserMFA,
+					ConnectorType: constants.BrowserMFA,
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
 						Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 						AllowReuse:                  mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
@@ -485,11 +466,11 @@ func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
 		{
 			name: "NOK nil challenge extensions",
 			setup: func(t *testing.T) {
-				session := &services.SSOMFASessionData{
+				session := &services.MFASessionData{
 					RequestID:           "test-request-2",
-					Username:            userCreds.username,
-					ConnectorID:         "Browser",
-					ConnectorType:       "Browser",
+					Username:            env.webauthnUser.GetName(),
+					ConnectorID:         constants.BrowserMFA,
+					ConnectorType:       constants.BrowserMFA,
 					ChallengeExtensions: nil,
 				}
 				err := a.UpsertMFASessionData(ctx, session)
@@ -573,6 +554,16 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = a.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	samlUser.SetCreatedBy(types.CreatedBy{
+		Time: env.clock.Now(),
+		Connector: &types.ConnectorRef{
+			ID:   samlConnector.GetName(),
+			Type: samlConnector.GetKind(),
+		},
+	})
+	_, err = a.UpsertUser(ctx, samlUser)
 	require.NoError(t, err)
 
 	loginExt := &mfav1.ChallengeExtensions{
@@ -679,8 +670,7 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 				require.NotNil(t, chal.BrowserMFAChallenge, "expected Browser MFA challenge to be returned")
 				assert.NotEmpty(t, chal.BrowserMFAChallenge.RequestId, "request ID should be generated")
 
-				// Find SSO MFA session data tied to the challenge.
-				// Browser MFA reuses the SSO MFA session data storage.
+				// Find MFA session data tied to the challenge.
 				sd, err := a.GetSSOMFASessionData(ctx, chal.BrowserMFAChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, &services.MFASessionData{
@@ -709,7 +699,7 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 			assertChallenge: func(t *testing.T, chal *proto.MFAAuthenticateChallenge) {
 				require.NotNil(t, chal.BrowserMFAChallenge, "expected Browser MFA challenge to be returned")
 
-				// We should find SSO MFA session data tied to the challenge by request ID.
+				// We should find MFA session data tied to the challenge by request ID.
 				sd, err := a.GetSSOMFASessionData(ctx, chal.BrowserMFAChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)

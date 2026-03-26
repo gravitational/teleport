@@ -77,7 +77,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	}
 
 	presenceCeremony := &mfa.Ceremony{
-		SSOMFACeremonyConstructor: baseCeremony.SSOMFACeremonyConstructor,
+		MFACeremonyConstructor: baseCeremony.MFACeremonyConstructor,
 		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 				// Replace normal output with terminal messages specific to moderated sessions.
