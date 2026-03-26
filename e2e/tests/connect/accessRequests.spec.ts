@@ -672,6 +672,24 @@ test.describe('access requests', () => {
     });
   });
 
+  test('search-based request: request via search bar', async () => {
+    await using app = await launchAsRequester();
+    const { page } = app;
+
+    // Use the search bar to find and request access to a resource.
+    const searchBar = page.getByPlaceholder('Search or jump to');
+    await searchBar.click();
+    await searchBar.fill('docker-root-node');
+
+    // Click on the "Request access to server" action.
+    await page.getByText(/Request access to server/).click();
+
+    // Verify the resource was added to the pending request.
+    await page.getByRole('button', { name: 'Proceed to request' }).click();
+    const checkoutPanel = page.locator('[data-testid="request-checkout"]');
+    await expect(checkoutPanel.getByText('docker-root-node')).toBeVisible();
+  });
+
   test('cannot mix roles and resources into the same request', async () => {
     await using app = await launchAsRequester();
     const { page } = app;
