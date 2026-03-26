@@ -22,9 +22,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -36,7 +34,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -78,72 +75,53 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		return trace.Wrap(err)
 	}
 
+	resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
-	useTunnel := conn.UseTunnel()
-	// This service can run in 2 modes:
-	// 1. Reachable (by the proxy) - registers with auth server directly and
-	//    creates a local listener to accept proxy conns.
-	// 2. Not reachable ("IoT mode") - creates a reverse tunnel to a proxy and
-	//    handles registration and incoming connections through that.
-	//
-	// The listener exposes incoming connections over either mode.
-	var listener net.Listener
-	var agentPool *reversetunnel.AgentPool
-	switch {
-	// Filter out cases where both listen_addr and tunnel are set or both are
-	// not set.
-	case useTunnel && !cfg.LinuxDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set linux_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
-	case !useTunnel && cfg.LinuxDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("set linux_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
+	tunnelAddrResolver := conn.TunnelProxyResolver()
+	if tunnelAddrResolver == nil {
+		tunnelAddrResolver = process.SingleProcessModeResolver(resp.GetProxyListenerMode())
 
-	// Start a local listener and let proxies dial in.
-	case !useTunnel && !cfg.LinuxDesktop.ListenAddr.IsEmpty():
-		logger.InfoContext(process.ExitContext(), "Using local listener and registering directly with auth server")
-		listener, err = process.importOrCreateListener(ListenerLinuxDesktop, cfg.LinuxDesktop.ListenAddr.Addr)
+		// run the resolver. this will check configuration for errors.
+		_, _, err := tunnelAddrResolver(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer func() {
-			if retErr != nil {
-				warnOnErr(process.ExitContext(), listener.Close(), logger)
-			}
-		}()
-
-	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
-	case useTunnel && cfg.LinuxDesktop.ListenAddr.IsEmpty():
-		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalLinuxDesktop)
-		listener = shtl
-		agentPool, err = reversetunnel.NewAgentPool(
-			process.ExitContext(),
-			reversetunnel.AgentPoolConfig{
-				Component:                teleport.ComponentLinuxDesktop,
-				HostUUID:                 conn.HostID(),
-				Resolver:                 conn.TunnelProxyResolver(),
-				Client:                   conn.Client,
-				AccessPoint:              accessPoint,
-				AuthMethods:              conn.ClientAuthMethods(),
-				Cluster:                  conn.ClusterName(),
-				Server:                   shtl,
-				FIPS:                     process.Config.FIPS,
-				ConnectedProxyGetter:     proxyGetter,
-				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
-			})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err = agentPool.Start(); err != nil {
-			return trace.Wrap(err)
-		}
-		defer func() {
-			if retErr != nil {
-				agentPool.Stop()
-			}
-		}()
-		logger.InfoContext(process.ExitContext(), "Using a reverse tunnel to register and handle proxy connections")
 	}
+	
+	// create an adapter, from reversetunnel.ServerHandler to net.Listener.
+	listener := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalLinuxDesktop)
+	agentPool, err := reversetunnel.NewAgentPool(
+		process.ExitContext(),
+		reversetunnel.AgentPoolConfig{
+			Component:                teleport.ComponentLinuxDesktop,
+			HostUUID:                 conn.HostID(),
+			Resolver:                 tunnelAddrResolver,
+			Client:                   conn.Client,
+			Server:                   listener,
+			AccessPoint:              accessPoint,
+			AuthMethods:              conn.ClientAuthMethods(),
+			Cluster:                  conn.ClusterName(),
+			FIPS:                     process.Config.FIPS,
+			ConnectedProxyGetter:     proxyGetter,
+			StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = agentPool.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if retErr != nil {
+			agentPool.Stop()
+		}
+	}()
+	logger.InfoContext(process.ExitContext(), "Using a reverse tunnel to register and handle proxy connections")
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -201,18 +179,6 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 
 	connLimiter := limiter.NewConnectionsLimiter(cfg.LinuxDesktop.ConnLimiter.MaxConnections)
 
-	var publicAddr string
-	switch {
-	case useTunnel:
-		publicAddr = listener.Addr().String()
-	case len(cfg.LinuxDesktop.PublicAddrs) > 0:
-		publicAddr = cfg.LinuxDesktop.PublicAddrs[0].String()
-	case cfg.Hostname != "":
-		publicAddr = net.JoinHostPort(cfg.Hostname, strconv.Itoa(cfg.LinuxDesktop.ListenAddr.Port(defaults.LinuxDesktopListenPort)))
-	default:
-		publicAddr = listener.Addr().String()
-	}
-
 	srv, err := desktop.NewLinuxService(desktop.LinuxServiceConfig{
 		DataDir:              process.Config.DataDir,
 		Logger:               process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentLinuxDesktop, process.id)),
@@ -230,7 +196,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		Hostname:             process.Config.Hostname,
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    conn.HostUUID(),
-			PublicAddr:  publicAddr,
+			PublicAddr:  listener.Addr().String(),
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentLinuxDesktop),
 		},
 		ChildLogConfig: getChildLogConfig(cfg),
@@ -244,11 +210,8 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		}
 	}()
 	process.RegisterCriticalFunc("linux_desktop.serve", func() error {
-		if useTunnel {
-			logger.InfoContext(process.ExitContext(), "Starting Linux desktop service via proxy reverse tunnel.")
-		} else {
-			logger.InfoContext(process.ExitContext(), "Starting Linux desktop service.", "listen_address", listener.Addr())
-		}
+		logger.InfoContext(process.ExitContext(), "Starting Linux desktop service via proxy reverse tunnel.")
+
 		process.BroadcastEvent(Event{Name: LinuxDesktopReady, Payload: nil})
 
 		mux, err := multiplexer.New(multiplexer.Config{

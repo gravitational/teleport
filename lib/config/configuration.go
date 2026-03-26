@@ -2409,20 +2409,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.LinuxDesktop.Enabled = true
 
-	if fc.LinuxDesktop.ListenAddress != "" {
-		listenAddr, err := utils.ParseHostPortAddr(fc.LinuxDesktop.ListenAddress, defaults.LinuxDesktopListenPort)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.LinuxDesktop.ListenAddr = *listenAddr
-	}
-
-	var err error
-	cfg.LinuxDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.LinuxDesktop.PublicAddr, defaults.LinuxDesktopListenPort)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if fc.LinuxDesktop.Labels != nil {
 		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
 	}

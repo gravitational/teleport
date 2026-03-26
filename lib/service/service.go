@@ -4416,7 +4416,6 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			utils.NetAddr{Addr: reversetunnelclient.LocalLinuxDesktop},
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
-		addrs = append(addrs, process.Config.LinuxDesktop.PublicAddrs...)
 	}
 
 	if process.Config.OpenSSH.Enabled {
