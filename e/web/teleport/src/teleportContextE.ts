@@ -87,7 +87,7 @@ class TeleportEContext extends TeleportContext {
     if (
       !isDismissed &&
       this.isCloud &&
-      cfg.externalAuditStorage &&
+      cfg.entitlements.ExternalAuditStorage.enabled &&
       this.storeUser.getExternalAuditStorageAccess().read
     ) {
       try {

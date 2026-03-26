@@ -19,6 +19,8 @@ import { IntegrationEnroll } from '../IntegrationEnroll';
 describe('test PluginPick.tsx', () => {
   const originalCloudFlag = cfg.isCloud; // should be false
   const originalMdmEntitlement = cfg.entitlements.MobileDeviceManagement;
+  const originalExternalAuditStorageEntitlement =
+    cfg.entitlements.ExternalAuditStorage;
   beforeEach(() => {
     cfg.isCloud = true;
     jest
@@ -34,6 +36,8 @@ describe('test PluginPick.tsx', () => {
   afterEach(() => {
     cfg.isCloud = originalCloudFlag;
     cfg.entitlements.MobileDeviceManagement = originalMdmEntitlement;
+    cfg.entitlements.ExternalAuditStorage =
+      originalExternalAuditStorageEntitlement;
     jest.clearAllMocks();
   });
 
@@ -48,7 +52,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('full access and slack available to enroll', async () => {
-    cfg.externalAuditStorage = true;
+    cfg.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
     cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
@@ -93,7 +97,7 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('no plugin access disables plugin tiles', async () => {
-    cfg.externalAuditStorage = true;
+    cfg.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
     cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, plugins: noAccess },
