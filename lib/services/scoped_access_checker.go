@@ -186,6 +186,12 @@ func (c *ScopedAccessChecker) SSH() *SSHAccessChecker {
 	return &SSHAccessChecker{checker: c}
 }
 
+// Kube returns a kube-specific access checker backed by this checker. All kube-specific methods
+// (users, groups, idle timeout, etc.) live on [KubeAccessChecker].
+func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
+	return &KubeAccessChecker{checker: c}
+}
+
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	if !c.isScoped() {
