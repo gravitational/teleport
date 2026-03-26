@@ -284,7 +284,7 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 			setupSession: func(t *testing.T) string {
 				requestID := uuid.NewString()
 				redirectURL := "http://127.0.0.1:62972/callback?secret_key=" + secretKey.String()
-				session := &services.SSOMFASessionData{
+				session := &services.MFASessionData{
 					RequestID:      requestID,
 					Username:       "other-user", // mismatch username
 					TSHRedirectURL: redirectURL,
@@ -309,7 +309,7 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 			name: "NOK invalid redirect URL in session",
 			setupSession: func(t *testing.T) string {
 				requestID := uuid.NewString()
-				session := &services.SSOMFASessionData{
+				session := &services.MFASessionData{
 					RequestID:      requestID,
 					Username:       username,
 					TSHRedirectURL: "://invalid-url",
@@ -332,7 +332,7 @@ func TestCompleteBrowserMFAChallenge(t *testing.T) {
 			setupSession: func(t *testing.T) string {
 				requestID := uuid.NewString()
 				redirectURL := "http://127.0.0.1:62972/callback?secret_key=" + secretKey.String()
-				session := &services.SSOMFASessionData{
+				session := &services.MFASessionData{
 					RequestID:      requestID,
 					Username:       username,
 					TSHRedirectURL: redirectURL,
@@ -713,6 +713,7 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 			if tt.setup != nil {
 				tt.setup(t)
 			}
+
 			chal, err := userClient.CreateAuthenticateChallenge(ctx, tt.challengeRequest)
 
 			if tt.checkError != nil {
@@ -725,6 +726,111 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 			require.NotNil(t, chal)
 			if tt.assertChallenge != nil {
 				tt.assertChallenge(t, chal)
+			}
+		})
+	}
+}
+
+func TestBrowserMFAChallenge_Validation(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	env := newBrowserMFATestEnv(t)
+	a := env.auth
+
+	for _, tt := range []struct {
+		name             string
+		sd               *services.MFASessionData
+		requestID        string
+		checkError       func(t *testing.T, err error)
+		assertValidation func(t *testing.T, sd *services.MFASessionData)
+	}{
+		{
+			name:      "NOK session data not found",
+			sd:        nil,
+			requestID: "nonexistent-request",
+			checkError: func(t *testing.T, err error) {
+				require.Error(t, err, "should fail when session data not found")
+			},
+		},
+		{
+			name: "OK session data retrieved correctly",
+			sd: &services.MFASessionData{
+				RequestID:      "request1",
+				Username:       env.webauthnUser.GetName(),
+				ConnectorID:    constants.BrowserMFA,
+				ConnectorType:  constants.BrowserMFA,
+				TSHRedirectURL: browserMFARedirectURL,
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+			},
+			requestID: "request1",
+			assertValidation: func(t *testing.T, sd *services.MFASessionData) {
+				require.NotNil(t, sd)
+				assert.Equal(t, "request1", sd.RequestID)
+				assert.Equal(t, env.webauthnUser.GetName(), sd.Username)
+				assert.Equal(t, constants.BrowserMFA, sd.ConnectorID)
+				assert.Equal(t, constants.BrowserMFA, sd.ConnectorType)
+				assert.Equal(t, browserMFARedirectURL, sd.TSHRedirectURL)
+				assert.Equal(t, mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN, sd.ChallengeExtensions.Scope)
+			},
+		},
+		{
+			name: "OK session data with allow reuse",
+			sd: &services.MFASessionData{
+				RequestID:      "request2",
+				Username:       env.webauthnUser.GetName(),
+				ConnectorID:    constants.BrowserMFA,
+				ConnectorType:  constants.BrowserMFA,
+				TSHRedirectURL: browserMFARedirectURL,
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+			},
+			requestID: "request2",
+			assertValidation: func(t *testing.T, sd *services.MFASessionData) {
+				require.NotNil(t, sd)
+				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)
+			},
+		},
+		{
+			name: "OK session data with admin action scope",
+			sd: &services.MFASessionData{
+				RequestID:      "request3",
+				Username:       env.webauthnUser.GetName(),
+				ConnectorID:    constants.BrowserMFA,
+				ConnectorType:  constants.BrowserMFA,
+				TSHRedirectURL: browserMFARedirectURL,
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+			},
+			requestID: "request3",
+			assertValidation: func(t *testing.T, sd *services.MFASessionData) {
+				require.NotNil(t, sd)
+				assert.Equal(t, mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION, sd.ChallengeExtensions.Scope)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.sd != nil {
+				err := a.UpsertMFASessionData(ctx, tt.sd)
+				require.NoError(t, err)
+			}
+
+			sd, err := a.GetSSOMFASessionData(ctx, tt.requestID)
+
+			if tt.checkError != nil {
+				require.Error(t, err)
+				tt.checkError(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.assertValidation != nil {
+				tt.assertValidation(t, sd)
 			}
 		})
 	}
