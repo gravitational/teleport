@@ -52,10 +52,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/uacc"
 )
 
 // teleportFakeUser is a user that doesn't exist, used for tests.

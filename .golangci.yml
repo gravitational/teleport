@@ -68,8 +68,8 @@ linters:
               desc: '"lib/inventory/metadata" requires CGO'
             - pkg: github.com/gravitational/teleport/session/pam$
               desc: '"session/pam" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/srv/uacc
-              desc: '"lib/srv/uacc" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/uacc$
+              desc: '"session/uacc" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/system/signal
               desc: '"lib/system/signal" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/vnet/daemon
