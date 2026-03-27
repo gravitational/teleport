@@ -169,6 +169,8 @@ type Request struct {
 	// a valid web session so that we can properly report access graph usage
 	// and reuse the same handlers.
 	WebSessionID string
+	// Login is the SSH login (OS username) the user is requesting to connect as.
+	Login string
 }
 
 // Check verifies the cert request is valid.

@@ -1011,9 +1011,12 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.GetScope() != "" {
-		return nil, trace.BadParameter("UpsertNode does not yet support scoped resources")
+
+	agentScope := a.context.Identity.GetIdentity().AgentScope
+	if nodeScope := s.GetScope(); agentScope != "" && nodeScope != agentScope {
+		return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
 	}
+
 	return a.authServer.UpsertNode(ctx, s)
 }
 

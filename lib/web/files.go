@@ -167,7 +167,12 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	signer := agentless.SignerFromSSHIdentity(ident, h.auth.accessPoint, tc.SiteName, tc.Username)
+	certGen, err := h.cfg.Router.GetSiteClient(ctx, tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := agentless.SignerFromSSHIdentity(ident, h.auth.accessPoint, certGen, tc.SiteName, tc.Username)
 
 	clientDstAddr := h.cfg.ProxyWebAddr
 	if srvConn, err := authz.ConnFromContext(r.Context()); err == nil {
