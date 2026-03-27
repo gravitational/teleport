@@ -125,7 +125,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
 	for _, precond := range preconds {
 		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA, decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP:
 			// OK
 
 		default:
