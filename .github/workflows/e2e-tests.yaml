@@ -306,7 +306,7 @@ jobs:
   update-pr-comment:
     name: Update PR comment
     needs: test
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    if: ${{ always() && needs.test.result != 'skipped' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
