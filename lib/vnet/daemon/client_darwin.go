@@ -58,7 +58,9 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		C.OpenSystemSettingsLoginItems()
 	}
 
+	requiredEnablement := false
 	if initialStatus != ServiceStatusEnabled {
+		requiredEnablement = true
 		status, err := register(ctx, bundlePath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -73,27 +75,40 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err = startByCalling(ctx, bundlePath, config); err != nil {
-		if !errors.Is(err, errAlreadyRunning) {
+	err = startByCalling(ctx, bundlePath, config)
+
+	// On the very first launch after the user enables the login item, the XPC connection can fail
+	// with NSXPCConnectionInvalid ("No such process") because SMAppService.status can report
+	// "enabled" before launchd has finished submitting the job and registering the XPC service.
+	// Retry a few times with a short delay to let launchd catch up.
+	for retries := 0; requiredEnablement && errors.Is(err, errXPCConnectionInvalid) && retries < 3; retries++ {
+		log.DebugContext(ctx, "XPC connection invalid, retrying after a short delay",
+			"retries", retries, "error", err)
+		const connInvalidInterval = 500 * time.Millisecond
+		if err := sleepOrDone(ctx, connInvalidInterval); err != nil {
 			return trace.Wrap(err)
 		}
+		err = startByCalling(ctx, bundlePath, config)
+	}
 
-		// If the daemon was already running, it might mean two things:
-		//
-		// 1. The user attempted to start a second instance of VNet.
-		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
-		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
-		//
-		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
-		// just about to quit.
+	// If the daemon was already running, it might mean two things:
+	//
+	// 1. The user attempted to start a second instance of VNet.
+	// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+	// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+	//
+	// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+	// just about to quit.
+	if errors.Is(err, errAlreadyRunning) {
 		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
 		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
 			return trace.Wrap(err)
 		}
+		err = startByCalling(ctx, bundlePath, config)
+	}
 
-		if err := startByCalling(ctx, bundlePath, config); err != nil {
-			return trace.Wrap(err)
-		}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -285,6 +300,11 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
 				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
 				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInvalid {
+				errC <- trace.Wrap(errXPCConnectionInvalid, "%v", C.GoString(res.error_description))
 				return
 			}
 
