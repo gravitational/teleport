@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -179,23 +180,11 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
-			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
-			},
-			UserMetadata: userMeta,
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  clientConn.LocalAddr().String(),
-				RemoteAddr: clientConn.RemoteAddr().String(),
-			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   err.Error(),
-			},
-		})
+		connMeta := apievents.ConnectionMetadata{
+			LocalAddr:  clientConn.LocalAddr().String(),
+			RemoteAddr: clientConn.RemoteAddr().String(),
+		}
+		h.emitAuthAttempt(connMeta, identity, ws.GetUser(), err)
 		return err
 	}
 
@@ -380,12 +369,18 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 // getAppSession retrieves the `types.WebSession` using the provided
 // `http.Request`.
 func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
-	// We have a client certificate with encoded session id in application
-	// access CLI flow i.e. when users log in using "tsh apps login" and
-	// then connect to the apps with the issued certs.
-	if HasClientCert(r) {
+	switch {
+	case IsHTTPSTunnelConn(r):
+		// Special TLS-routing handler where an HTTPS connection is tunneled in
+		// mTLS. Identity comes from outer TLS-routing tunnel. See
+		// NewHTTPSTunnelHandler for more details.
+		ws, err = h.getAppSessionFromHTTPSTunnelConn(r)
+	case HasClientCert(r):
+		// We have a client certificate with encoded session id in application
+		// access CLI flow i.e. when users log in using "tsh apps login" and
+		// then connect to the apps with the issued certs.
 		ws, err = h.getAppSessionFromCert(r)
-	} else {
+	default:
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
@@ -419,6 +414,10 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return h.getAppSessionFromIdentity(r, identity)
+}
+
+func (h *Handler) getAppSessionFromIdentity(r *http.Request, identity *tlsca.Identity) (types.WebSession, error) {
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
@@ -430,23 +429,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		err := trace.AccessDenied("session owner %q does not match caller %q",
 			ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
-			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
-			},
-			UserMetadata: userMeta,
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   err.Error(),
-			},
-		})
+		h.emitAuthAttempt(connectionMetadataFromRequest(r), identity, ws.GetUser(), err)
 		return nil, err
 	}
 	return ws, nil
@@ -470,27 +453,130 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	}
 	if ws.GetBearerToken() != subjectValue {
 		err := trace.AccessDenied("subject session token does not match")
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
-			Metadata: apievents.Metadata{
-				Type: events.AuthAttemptEvent,
-				Code: events.AuthAttemptFailureCode,
-			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
-			Status: apievents.Status{
-				Success: false,
-				Error:   err.Error(),
-			},
-		})
+		identity, _ := getIdentityFromWebSession(ws)
+		h.emitAuthAttempt(connectionMetadataFromRequest(r), identity, ws.GetUser(), err)
 		return nil, err
 	}
 	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromHTTPSTunnelConn(r *http.Request) (types.WebSession, error) {
+	identity, err := getIdentityFromHTTPsTunnelRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := h.getAppSessionFromIdentity(r, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Double-check for dual credentials.
+	switch {
+	case HasClientCert(r):
+		innerWS, err := h.getAppSessionFromCert(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := h.checkForDualCredentialMismatch(identity, innerWS); err != nil {
+			h.emitAuthAttempt(connectionMetadataFromRequest(r), identity, innerWS.GetUser(), err)
+			return nil, trace.Wrap(err)
+		}
+
+		h.logger.DebugContext(r.Context(), "Using inner client cert from HTTPS tunnel connection", "user", ws.GetUser())
+		return innerWS, nil
+
+	case HasSessionCookie(r):
+		innerWS, err := h.getAppSessionFromCookie(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := h.checkForDualCredentialMismatch(identity, innerWS); err != nil {
+			h.emitAuthAttempt(connectionMetadataFromRequest(r), identity, innerWS.GetUser(), err)
+			return nil, trace.Wrap(err)
+		}
+
+		h.logger.DebugContext(r.Context(), "Using inner cookie from HTTPS tunnel connection", "user", ws.GetUser())
+		return innerWS, nil
+
+	default:
+		h.logger.DebugContext(r.Context(), "Using outer identity from HTTPS tunnel connection", "user", ws.GetUser())
+		return ws, nil
+	}
+}
+
+func connectionMetadataFromRequest(r *http.Request) apievents.ConnectionMetadata {
+	conn, err := authz.ConnFromContext(r.Context())
+	if err != nil {
+		return apievents.ConnectionMetadata{
+			RemoteAddr: r.RemoteAddr,
+		}
+	}
+	return apievents.ConnectionMetadata{
+		LocalAddr:  conn.LocalAddr().String(),
+		RemoteAddr: conn.RemoteAddr().String(),
+	}
+}
+
+func userMetadataFromIdentity(identity *tlsca.Identity, login string) apievents.UserMetadata {
+	if identity == nil {
+		return apievents.UserMetadata{
+			User:  "unknown",
+			Login: login,
+		}
+	}
+	m := identity.GetUserMetadata()
+	m.Login = login
+	return m
+}
+
+func appMetadataFromIdentity(identity *tlsca.Identity) *apievents.AppMetadata {
+	if identity == nil {
+		return nil
+	}
+
+	return &apievents.AppMetadata{
+		AppName:       identity.RouteToApp.Name,
+		AppPublicAddr: identity.RouteToApp.PublicAddr,
+	}
+}
+
+func (h *Handler) emitAuthAttempt(connMeta apievents.ConnectionMetadata, identity *tlsca.Identity, login string, err error) {
+	emitError := h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		Metadata: apievents.Metadata{
+			Type: events.AuthAttemptEvent,
+			Code: events.AuthAttemptFailureCode,
+		},
+		UserMetadata:       userMetadataFromIdentity(identity, login),
+		AppMetadata:        appMetadataFromIdentity(identity),
+		ConnectionMetadata: connMeta,
+		Status: apievents.Status{
+			Success: false,
+			Error:   err.Error(),
+		},
+	})
+	if emitError != nil {
+		h.logger.WarnContext(h.closeContext, "Failed to emit auth attempt event", "error", emitError)
+	}
+}
+
+func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, innerWS types.WebSession) error {
+	if outerIdentity.Username != innerWS.GetUser() {
+		return trace.AccessDenied("user %q does not match session user %q", outerIdentity.Username, innerWS.GetUser())
+	}
+	innerIdentity, err := getIdentityFromWebSession(innerWS)
+	if err != nil {
+		return trace.AccessDenied("cannot extract identity from session: %s", err)
+	}
+	if outerIdentity.Username != innerIdentity.Username {
+		return trace.AccessDenied("user %q does not match session identity %q", outerIdentity.Username, innerIdentity.Username)
+	}
+	if outerIdentity.RouteToApp.ClusterName != innerIdentity.RouteToApp.ClusterName {
+		return trace.AccessDenied("cluster name %q does not match session cluster name %q", outerIdentity.RouteToApp.ClusterName, innerIdentity.RouteToApp.ClusterName)
+	}
+	if outerIdentity.RouteToApp.Name != innerIdentity.RouteToApp.Name {
+		return trace.AccessDenied("app name %q does not match session app name %q", outerIdentity.RouteToApp.Name, innerIdentity.RouteToApp.Name)
+	}
+	return nil
 }
 
 // getSession returns a request session used to proxy the request to the

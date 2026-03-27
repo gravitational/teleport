@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -49,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -99,6 +101,7 @@ func TestAuthPOST(t *testing.T) {
 		outStatusCode   int
 		makeRequestBody func(types.WebSession) fragmentRequest
 		getEventChecks  func(types.WebSession) []eventCheckFn
+		setupServer     func(t *testing.T, p *testServer, appSession types.WebSession)
 	}{
 		{
 			desc: "success",
@@ -218,6 +221,48 @@ func TestAuthPOST(t *testing.T) {
 				return []eventCheckFn{hasAuditEventCount(0)}
 			},
 		},
+		{
+			desc: "HTTPS tunnel conn with mismatched session",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User:            appSession.GetUser(),
+							Login:           appSession.GetUser(),
+							UserKind:        apievents.UserKind_USER_KIND_HUMAN,
+							UserClusterName: "test-cluster",
+						},
+						AppMetadata: &apievents.AppMetadata{
+							AppName:       "different-app",
+							AppPublicAddr: "app.example.com",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   `app name "different-app" does not match session app name "testapp"`,
+						},
+					}),
+				}
+			},
+			setupServer: func(t *testing.T, p *testServer, appSession types.WebSession) {
+				fn := func(ctx context.Context, c net.Conn) context.Context {
+					return authz.ContextWithConn(ctx, makeHTTPSTunnelConnFromAppSession(appSession, "different-app"))
+				}
+				p.serverConnContext.Store(&fn)
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
@@ -228,6 +273,9 @@ func TestAuthPOST(t *testing.T) {
 				appSession:   appSession,
 			}
 			p := setup(t, fakeClock, authClient, nil)
+			if test.setupServer != nil {
+				test.setupServer(t, p, appSession)
+			}
 
 			reqBody := test.makeRequestBody(appSession)
 			req, err := json.Marshal(reqBody)
@@ -441,7 +489,8 @@ func TestHealthCheckAppServer(t *testing.T) {
 }
 
 type testServer struct {
-	serverURL *url.URL
+	serverURL         *url.URL
+	serverConnContext atomic.Pointer[func(context.Context, net.Conn) context.Context]
 }
 
 func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
@@ -455,15 +504,22 @@ func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.Clien
 	})
 	require.NoError(t, err)
 
+	ts := &testServer{}
 	server := httptest.NewUnstartedServer(appHandler)
+	server.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+		if fn := ts.serverConnContext.Load(); fn != nil {
+			return (*fn)(ctx, c)
+		}
+		return ctx
+	}
 	server.StartTLS()
+	t.Cleanup(server.Close)
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	return &testServer{
-		serverURL: url,
-	}
+	ts.serverURL = url
+	return ts
 }
 
 func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody []byte, cookies []http.Cookie) (int, string) {
@@ -525,6 +581,15 @@ func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	defer c.mtx.Unlock()
 	c.emittedEvents = append(c.emittedEvents, event)
 	return nil
+}
+
+func (c *mockAuthClient) lastEmittedEvent() apievents.AuditEvent {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if len(c.emittedEvents) == 0 {
+		return nil
+	}
+	return c.emittedEvents[len(c.emittedEvents)-1]
 }
 
 func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteAppSessionRequest) error {
@@ -866,6 +931,53 @@ func TestHandlerAuthenticate(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("with HTTPS tunnel conn", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, "testapp")
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.NoError(t, err)
+	})
+
+	t.Run("with HTTPS tunnel conn and mismatched cookie", func(t *testing.T) {
+		// Use t.Name() as the app name so the mismatch error is uniquely identifiable.
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, t.Name())
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		lastEvent, ok := authClient.lastEmittedEvent().(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, events.AuthAttemptEvent, lastEvent.GetType())
+		require.Contains(t, lastEvent.Status.Error, t.Name())
+	})
+
+	t.Run("with HTTPS tunnel conn and mismatched client cert", func(t *testing.T) {
+		clientCert, err := tls.X509KeyPair(authClient.appSession.GetTLSCert(), authClient.appSession.GetTLSPriv())
+		require.NoError(t, err)
+		x509Cert, err := x509.ParseCertificate(clientCert.Certificate[0])
+		require.NoError(t, err)
+
+		tunnelConn := makeHTTPSTunnelConnFromAppSession(authClient.appSession, t.Name())
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		request = request.WithContext(authz.ContextWithConn(request.Context(), tunnelConn))
+		request.TLS.PeerCertificates = []*x509.Certificate{x509Cert}
+
+		_, err = appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+
+		lastEvent, ok := authClient.lastEmittedEvent().(*apievents.AuthAttempt)
+		require.True(t, ok)
+		require.Equal(t, events.AuthAttemptEvent, lastEvent.GetType())
+		require.Contains(t, lastEvent.Status.Error, t.Name())
+	})
+
 	t.Run("without cookie or client cert", func(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		_, err := appHandler.authenticate(ctx, request)
@@ -939,4 +1051,92 @@ func addValidSessionCookiesToRequest(appSession types.WebSession, r *http.Reques
 		Name:  SubjectCookieName,
 		Value: appSession.GetBearerToken(),
 	})
+}
+
+func Test_checkForDualCredentialMismatch(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	clock := clockwork.NewFakeClock()
+
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appSession := createAppSession(t, clock, caKey, caCert, clusterName, publicAddr)
+	appSessionIdentity, err := getIdentityFromWebSession(appSession)
+	require.NoError(t, err)
+	require.NotNil(t, appSessionIdentity)
+
+	tests := []struct {
+		name          string
+		outerIdentity tlsca.Identity
+		wantErr       bool
+	}{
+		{
+			name:          "match",
+			outerIdentity: *appSessionIdentity,
+		},
+		{
+			name: "username mismatch",
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.Username = "different-user"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "cluster name mismatch",
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.ClusterName = "different-cluster"
+				return id
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "app name mismatch",
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.Name = "different-app"
+				return id
+			}(),
+			wantErr: true,
+		},
+	}
+
+	h := &Handler{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := h.checkForDualCredentialMismatch(&tt.outerIdentity, appSession)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func makeHTTPSTunnelConnFromAppSession(session types.WebSession, appName string) *httpsTunnelConn {
+	return &httpsTunnelConn{
+		TLSConn: &mockTLSConn{},
+		user: authz.LocalUser{
+			Username: session.GetUser(),
+			Identity: tlsca.Identity{
+				Username:        session.GetUser(),
+				TeleportCluster: "test-cluster",
+				RouteToApp: tlsca.RouteToApp{
+					SessionID:   session.GetName(),
+					Name:        appName,
+					ClusterName: "test-cluster",
+					PublicAddr:  "app.example.com",
+				},
+			},
+		},
+	}
 }

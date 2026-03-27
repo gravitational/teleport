@@ -21,6 +21,7 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -66,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -1253,12 +1256,33 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
+
+	// Setup web proxy cert. Wildcard covers app public addresses.
+	proxyWebCert, err := cert.GenerateSelfSignedCert(
+		[]string{"*.example.com", "example.com", "localhost"},
+		[]string{"127.0.0.1"},
+		nil,
+		time.Now,
+	)
+	require.NoError(t, err)
+	proxyWebCertFile := filepath.Join(t.TempDir(), "proxy_cert.pem")
+	proxyWebKeyFile := filepath.Join(t.TempDir(), "proxy_key.pem")
+	require.NoError(t, os.WriteFile(proxyWebCertFile, proxyWebCert.Cert, 0o600))
+	require.NoError(t, os.WriteFile(proxyWebKeyFile, proxyWebCert.PrivateKey, 0o600))
+
+	proxyWebCertPool := x509.NewCertPool()
+	proxyWebCertPool.AppendCertsFromPEM(proxyWebCert.Cert)
+
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
 		RootConfig: func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
+				Certificate: proxyWebCertFile,
+				PrivateKey:  proxyWebKeyFile,
+			}}
 		},
 		LeafConfig: func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -1299,6 +1323,34 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "http://"+lp.GetAddr(), nil)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("HTTPS tunnel", func(t *testing.T) {
+		// Get client cert for the outer mTLS layer.
+		lpClientCert := pack.CreateAppSessionWithClientCert(t)
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:    pack.RootWebAddr(),
+			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolAppHTTPS},
+			InsecureSkipVerify: true,
+			Cert:               lpClientCert[0],
+		})
+
+		// Call https via local proxy.
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: proxyWebCertPool, // Validate web cert.
+				},
+				DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, network, lp.GetAddr())
+				},
+			},
+		}
+
+		resp, err := client.Get("https://" + pack.RootAppPublicAddr())
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
