@@ -43,7 +43,6 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
 | `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
-| `--full`               | `false`          | Enable all optional fixtures                                                            |
 | `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
 | `--teleport-log-level` | `INFO`           | Teleport log severity (`DEBUG`, `INFO`, `WARN`, `ERROR`)                                |
@@ -54,10 +53,16 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 
 ### Fixtures
 
-| Flag              | Description                                                                          |
-|-------------------|--------------------------------------------------------------------------------------|
-| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                               |
-| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect` |
+Fixtures are optional pieces of test infrastructure (like an SSH node or Teleport Connect) that are
+auto-detected from test files. When a test declares `test.use({ fixtures: ['ssh-node'] })`, the runner
+automatically starts the required infrastructure.
+
+Available fixtures:
+
+| Fixture      | Description                                                                          |
+|--------------|--------------------------------------------------------------------------------------|
+| `ssh-node`   | Start and connect a Teleport SSH node (runs in Docker)                               |
+| `connect`    | Build Teleport Connect. Auto-detected from Connect test helpers.                     |
 
 ### Common Commands
 
@@ -65,7 +70,7 @@ Typically, you'll want to run with `--no-build` during test development to skip 
 run. `--quiet` is also useful to reduce the noise from Teleport logs. The logs are captured in `teleport.log` for
 debugging purposes.
 
-Connect is built automatically when running `tests/connect` paths or when using `--browse-connect`, or `--full`.
+Connect is built automatically when running `tests/connect` paths or when using `--browse-connect`.
 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
@@ -90,7 +95,7 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ./e2e/run.sh --codegen
 
 # Update snapshot baselines after a visual change
-./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
+./e2e/run.sh --update-snapshots e2e/tests/web/authenticated/ssh.spec.ts
 ```
 
 ### More Examples
@@ -99,11 +104,11 @@ Connect is built automatically when running `tests/connect` paths or when using 
 # Run all tests
 ./e2e/run.sh
 
-# Run SSH node tests with the fixture enabled
-./e2e/run.sh --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
+# Run SSH node tests (fixture is auto-detected)
+./e2e/run.sh e2e/tests/web/authenticated/ssh.spec.ts
 
-# Run tests with all fixtures enabled, skipping the Teleport build
-./e2e/run.sh --full --no-build
+# Run all tests, skipping the Teleport build
+./e2e/run.sh --no-build
 
 # Run against an existing Teleport instance (doesn't work yet as authentication is hardcoded to the e2e setup and we need to figure out auth for remote instances)
 ./e2e/run.sh --teleport-url https://localhost:3080

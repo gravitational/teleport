@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from './fixtures';
-import { UnifiedResourcesPage } from './pages/UnifiedResources';
+import { test } from '@gravitational/e2e/helpers/test';
 
-export const CLUSTER_NAME = 'teleport-e2e';
+test.use({ fixtures: ['ssh-node'] });
 
-export const test = base.extend<{
-  unifiedResourcesPage: UnifiedResourcesPage;
-}>({
-  unifiedResourcesPage: async ({ page }, use) => {
-    await use(new UnifiedResourcesPage(page));
-  },
+test('verify that a user can SSH into a node', async ({
+  unifiedResourcesPage,
+}) => {
+  await unifiedResourcesPage.goto();
+
+  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
+
+  await terminal.waitForReady();
+  await terminal.exec('ls /');
+  await terminal.waitForText('bin');
 });
-
-export { expect } from '@playwright/test';

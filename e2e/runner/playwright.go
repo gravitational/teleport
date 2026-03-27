@@ -34,8 +34,7 @@ import (
 )
 
 type playwrightRunner struct {
-	config        *e2eConfig
-	extraProjects []string
+	config *e2eConfig
 }
 
 func (p *playwrightRunner) startURL(inst *browserInstance) string {
@@ -91,9 +90,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
 
-	baseProjects := make([]string, 0, 2+len(p.extraProjects))
-	baseProjects = append(baseProjects, "authenticated", "unauthenticated")
-	baseProjects = append(baseProjects, p.extraProjects...)
+	baseProjects := []string{"authenticated", "unauthenticated"}
 
 	var extraArgs []string
 	if p.config.updateSnapshots {

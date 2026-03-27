@@ -110,6 +110,15 @@ jobs:
           key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
           restore-keys: go-mod-${{ runner.os }}-
 
+      - name: Check generated files are up to date
+        run: |
+          go generate ./e2e/runner/...
+          if ! git diff --quiet -- e2e/helpers/fixtures.ts; then
+            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./e2e/runner/...' and commit the result."
+            git diff -- e2e/helpers/fixtures.ts
+            exit 1
+          fi
+
       - name: Restore Rust output cache
         id: rust-cache
         uses: actions/cache/restore@v5
@@ -256,7 +265,7 @@ jobs:
         run: mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
 
       - name: Run tests
-        run: xvfb-run e2e/runner/e2e --no-build --full
+        run: xvfb-run e2e/runner/e2e --no-build
         env:
           E2E_CALLER_DIR: ${{ github.workspace }}
 

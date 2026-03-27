@@ -16,17 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from './fixtures';
-import { UnifiedResourcesPage } from './pages/UnifiedResources';
+package fixtures
 
-export const CLUSTER_NAME = 'teleport-e2e';
+var (
+	SSHNode = register("ssh-node")
+	Connect = register("connect")
+)
 
-export const test = base.extend<{
-  unifiedResourcesPage: UnifiedResourcesPage;
-}>({
-  unifiedResourcesPage: async ({ page }, use) => {
-    await use(new UnifiedResourcesPage(page));
-  },
-});
+type Fixture struct {
+	Name    string
+	Enabled bool
+}
 
-export { expect } from '@playwright/test';
+var all []*Fixture
+
+func register(name string) *Fixture {
+	f := &Fixture{Name: name}
+
+	all = append(all, f)
+
+	return f
+}
+
+func All() []*Fixture {
+	return all
+}
+
+func FindByName(name string) *Fixture {
+	for _, f := range all {
+		if f.Name == name {
+			return f
+		}
+	}
+
+	return nil
+}

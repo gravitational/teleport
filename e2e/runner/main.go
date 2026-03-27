@@ -32,6 +32,8 @@ import (
 
 	"github.com/lmittmann/tint"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 var logLevel = new(slog.LevelVar)
@@ -198,7 +200,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		config.instances = append(config.instances, inst)
 	}
 
-	if connect.enabled {
+	if fixtures.Connect.Enabled {
 		config.connectInstance = &browserInstance{
 			browser: "connect",
 			log:     newBrowserLogger("connect"),
@@ -210,7 +212,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	var portTargets []*int
 	for _, inst := range config.instances {
 		portTargets = append(portTargets, &inst.proxyPort, &inst.authPort)
-		if sshNode.enabled {
+		if fixtures.SSHNode.Enabled {
 			portTargets = append(portTargets, &inst.sshPort)
 		}
 	}
@@ -240,7 +242,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	case os.IsNotExist(statErr) || config.replaceCerts:
 		slog.Info("generating self-signed TLS certificates", "dir", config.certsDir)
 
-		if err := generateSelfSignedCert(config.certsDir, sshNode.enabled); err != nil {
+		if err := generateSelfSignedCert(config.certsDir, fixtures.SSHNode.Enabled); err != nil {
 			return fmt.Errorf("failed to generate TLS certificates: %w", err)
 		}
 	}
@@ -336,7 +338,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 		}()
 
-		if sshNode.enabled {
+		if fixtures.SSHNode.Enabled {
 			slog.Info("running with SSH node fixture enabled")
 
 			nodeBin := config.teleportBin
@@ -400,15 +402,8 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 	}
 
-	var extraProjects []string
-	// Project names from playwright.config.ts.
-	if sshNode.enabled {
-		extraProjects = append(extraProjects, "with-ssh-node")
-	}
-
 	pw := &playwrightRunner{
-		config:        config,
-		extraProjects: extraProjects,
+		config: config,
 	}
 
 	return pw.run(ctx, mode)

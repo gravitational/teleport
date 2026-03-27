@@ -18,36 +18,4 @@
 
 package main
 
-import (
-	"flag"
-)
-
-var allFixtures []*fixture
-
-type fixture struct {
-	name    string
-	usage   string
-	enabled bool
-}
-
-// registerFixture declares a new optional piece of test infrastructure
-// (like an SSH node) and adds it to the global registry so it gets a --with-<name> flag.
-func registerFixture(name, usage string) *fixture {
-	f := &fixture{name: name, usage: usage}
-
-	allFixtures = append(allFixtures, f)
-
-	return f
-}
-
-func bindFixtureFlags(fs *flag.FlagSet) {
-	for _, f := range allFixtures {
-		fs.BoolVar(&f.enabled, "with-"+f.name, false, f.usage)
-	}
-}
-
-func enableAllFixtures() {
-	for _, f := range allFixtures {
-		f.enabled = true
-	}
-}
+//go:generate go run ./cmd/gen-fixtures
