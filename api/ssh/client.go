@@ -19,15 +19,116 @@ import (
 	"context"
 	"net"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
+
+const (
+	// VersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
+	VersionPrefix = "SSH-2.0-Teleport"
+
+	// DefaultClientVersion returns the default SSH client identification string used by Teleport SSH clients.
+	DefaultClientVersion = VersionPrefix + "_" + api.Version
+
+	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
+	InBandMFAFeature = "mfav1"
+)
+
+// clientVersionWithFeatures returns a client version string that includes the specified features. If no features are
+// provided, it returns the default client version string.
+func clientVersionWithFeatures(features ...string) string {
+	if len(features) == 0 {
+		return DefaultClientVersion
+	}
+
+	return DefaultClientVersion + " " + strings.Join(features, ",")
+}
+
+// NonTeleportSSHVersionError is returned by ParseClientVersion when the provided SSH client version string does not
+// have the expected Teleport prefix. The client is either not a Teleport client or is an older Teleport version that
+// did not set a client version string.
+type NonTeleportSSHVersionError struct{}
+
+// Error returns the error message for NonTeleportSSHVersionError.
+func (NonTeleportSSHVersionError) Error() string {
+	return "SSH client version is not a Teleport version"
+}
+
+// ParseClientVersion parses the given SSH client version string and extracts the Teleport version and supported
+// features. It returns the Teleport version and a slice of supported features. If no features are specified, the
+// features slice will be nil. If the client version string does not have the expected Teleport prefix, it returns a
+// NonTeleportSSHVersionError. If the client version string contains invalid characters, it returns a BadParameter
+// error.
+//
+// It intentionally does not attempt to parse the Teleport version into a structured format, as the Teleport version
+// string is primarily used for informational purposes and may include additional metadata in the future. It is also
+// intentional that features may contain spaces.
+//
+//	Accepted formats are:
+//	 - SSH-2.0-Teleport
+//	 - SSH-2.0-Teleport <feature1,feature2,...>
+//	 - SSH-2.0-Teleport_<teleport_version>
+//	 - SSH-2.0-Teleport_<teleport_version> <feature1,feature2,...>
+//	 - SSH-2.0-Teleport<teleport_version>
+//	 - SSH-2.0-Teleport<teleport_version> <feature1,feature2,...>
+func ParseClientVersion(clientVersion string) (string, []string, error) {
+	// Ensure it is actually has the Teleport SSH client version prefix before doing any further parsing or validation.
+	rest, ok := strings.CutPrefix(clientVersion, VersionPrefix)
+	if !ok {
+		return "", nil, NonTeleportSSHVersionError{}
+	}
+
+	// Sanity check that the client version string only contains valid ASCII characters we allow. Since this can be sent
+	// by untrusted clients, we want to avoid any potential issues with invalid characters. We intentionally do not
+	// return the specific invalid character in the error message since it could be used for malicious purposes.
+	if strings.ContainsFunc(
+		clientVersion,
+		func(r rune) bool { return r < 32 || r > 126 },
+	) {
+		return "", nil, trace.BadParameter(
+			"SSH client version contains invalid characters (only ASCII characters 32-126 are allowed)",
+		)
+	}
+
+	// No version or features provided after the prefix, nothing to parse.
+	if rest == "" {
+		return "", nil, nil
+	}
+
+	// Separate the version part from the features part by the first space.
+	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
+
+	// Remove the leading underscore from the version part, if present.
+	versionPart = strings.TrimPrefix(versionPart, "_")
+
+	// If there are no features, return the version.
+	if !hasFeatures {
+		return versionPart, nil, nil
+	}
+
+	// Split the features part into individual features.
+	features := strings.Split(featuresPart, ",")
+
+	return versionPart, features, nil
+}
+
+// IsFeatureSupported checks if the given SSH client version string indicates support for the specified feature.
+func IsFeatureSupported(clientVersion, feature string) (bool, error) {
+	_, features, err := ParseClientVersion(clientVersion)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return slices.Contains(features, feature), nil
+}
 
 // PublicKeyAuthConfig configures the public-key authentication method used by a Teleport SSH client. Exactly one of
 // Signers or GetSigners must be set.
@@ -46,9 +147,8 @@ func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
 
 	case len(c.Signers) > 0 && c.GetSigners != nil:
 		return nil, trace.BadParameter("public key auth supports exactly one of Signers or GetSigners")
-	}
 
-	if c.GetSigners != nil {
+	case c.GetSigners != nil:
 		return ssh.PublicKeysCallback(c.GetSigners), nil
 	}
 
@@ -93,8 +193,8 @@ type ClientConfig struct {
 	// AuthCallback ssh.ClientAuthCallback
 }
 
-// SSHClientConfig builds a fresh [ssh.ClientConfig] from the wrapper config.
-func (c ClientConfig) clientConfig() (*ssh.ClientConfig, error) {
+// SSHClientConfig builds a new [ssh.ClientConfig] from the wrapper config.
+func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 	switch {
 	case c.User == "":
 		return nil, trace.BadParameter("config User must be set")
@@ -109,7 +209,7 @@ func (c ClientConfig) clientConfig() (*ssh.ClientConfig, error) {
 	}
 
 	return &ssh.ClientConfig{
-		Config:            c.SSHConfig, // TODO(cthach): Do we need to clone this? What about setting defaults? 🤔
+		Config:            c.SSHConfig,
 		User:              c.User,
 		Auth:              authMethods,
 		HostKeyCallback:   c.HostKeyCallback,
@@ -120,20 +220,20 @@ func (c ClientConfig) clientConfig() (*ssh.ClientConfig, error) {
 	}, nil
 }
 
-// Dial dials an SSH server using a Teleport-specific SSH client config wrapper.
+// Dial dials an SSH server using the SSH client config wrapper.
 func Dial(
 	ctx context.Context,
 	network string,
 	addr string,
-	cfg ClientConfig,
+	config ClientConfig,
 	opts ...tracing.Option,
 ) (*tracessh.Client, error) {
-	config, err := cfg.clientConfig()
+	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := tracessh.Dial(ctx, network, addr, config, opts...)
+	client, err := tracessh.Dial(ctx, network, addr, sshConfig, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -141,21 +241,20 @@ func Dial(
 	return client, nil
 }
 
-// NewClientWithTimeout creates a traced SSH client over an existing connection using a Teleport-specific SSH client
-// config wrapper.
+// NewClientWithTimeout creates a traced SSH client over an existing connection using the SSH client config wrapper.
 func NewClientWithTimeout(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,
-	cfg ClientConfig,
+	config ClientConfig,
 	opts ...tracing.Option,
 ) (*tracessh.Client, error) {
-	config, err := cfg.clientConfig()
+	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := tracessh.NewClientWithTimeout(ctx, conn, addr, config, opts...)
+	client, err := tracessh.NewClientWithTimeout(ctx, conn, addr, sshConfig, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,16 +262,16 @@ func NewClientWithTimeout(
 	return client, nil
 }
 
-// NewClientConnWithTimeout creates a traced SSH client connection over an existing connection using a Teleport-specific
-// SSH client config wrapper.
+// NewClientConnWithTimeout creates a traced SSH client connection over an existing connection using the SSH client
+// config wrapper.
 func NewClientConnWithTimeout(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,
-	cfg ClientConfig,
+	config ClientConfig,
 	opts ...tracing.Option,
 ) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
-	config, err := cfg.clientConfig()
+	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -181,7 +280,7 @@ func NewClientConnWithTimeout(
 		ctx,
 		conn,
 		addr,
-		config,
+		sshConfig,
 		opts...,
 	)
 	if err != nil {
@@ -192,13 +291,15 @@ func NewClientConnWithTimeout(
 }
 
 func (c ClientConfig) clientVersion() string {
+	switch {
 	// TODO(cthach): Set the in-band MFA feature flag using if AuthCallback is non-nil once
 	// https://github.com/golang/go/issues/76146 is resolved and a new version of x/crypto/ssh is released.
-	// if c.AuthCallback != nil {
-	// 	return ClientVersionWithFeatures(InBandMFAFeature)
-	// }
+	// case c.AuthCallback != nil:
+	// 	return clientVersionWithFeatures(InBandMFAFeature)
 
-	return DefaultClientVersion
+	default:
+		return DefaultClientVersion
+	}
 }
 
 func (c ClientConfig) authMethods() ([]ssh.AuthMethod, error) {
