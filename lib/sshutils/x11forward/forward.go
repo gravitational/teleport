@@ -23,7 +23,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 // RequestForwarding sends an "x11-req" to the server to set up X11 forwarding for the given session.

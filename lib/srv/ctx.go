@@ -57,10 +57,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/session/envutils"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 var ctxID int32
