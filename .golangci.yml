@@ -7,6 +7,7 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - errcheck
     - errorlint
     - forbidigo
     - govet
@@ -21,6 +22,11 @@ linters:
     - unused
     - usetesting
   settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+      disable-default-exclusions: true
+      ignore: 'github.com/gravitational/trace:^$'
     depguard:
       rules:
         cgo:
