@@ -64,43 +64,9 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		attributeConsumingService = &saml.AttributeConsumingService{}
 	}
 
-	var attributes []saml.Attribute
-	// Push in any requested attributes.
-	for _, requestedAttribute := range attributeConsumingService.RequestedAttributes {
-		switch requestedAttribute.NameFormat {
-		case types.SAMLBasicNameFormat, types.SAMLUnspecifiedNameFormat:
-			var value string
-			switch requestedAttribute.Name {
-			case "email", "emailaddress":
-				value = session.UserEmail
-			case "name", "fullname", "cn", "commonname":
-				value = session.UserCommonName
-			case "givenname", "firstname":
-				value = session.UserGivenName
-			case "surname", "lastname", "familyname":
-				value = session.UserSurname
-			case "uid", "user", "userid":
-				value = session.UserName
-			}
-			attributes = addAttributeWithFormat(attributes, requestedAttribute.FriendlyName, requestedAttribute.Name, requestedAttribute.NameFormat, value)
-		}
-	}
-
-	// default assertion
-	attributes = addAttribute(attributes, types.SAMLUIDFriendlyName, types.SAMLUIDName, session.UserName)
-	attributes = addAttribute(attributes, types.SAMLEduPersonAffiliationFriendlyName, types.SAMLEduPersonAffiliationName, session.Groups...)
-	attributes = addAttribute(attributes, "" /* SubjectIDName has no friendly name*/, types.SAMLSubjectIDName, session.SubjectID)
-
-	// custom attribute mapping
-	attrs := attributesToMappableUserSpec(session.CustomAttributes)
-	attrs.Username = session.UserName
-	_, teleportSPSSODescriptor := local.GetTeleportSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
-	for _, acs := range teleportSPSSODescriptor.AttributeConsumingServices {
-		evaluatedAttributes, err := attribute.EvaluateAttributes(acs.RequestedAttributes, attrs)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		attributes = append(attributes, evaluatedAttributes...)
+	attributes, err := s.buildAttributes(req, session, attributeConsumingService)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// allow for some clock skew in the validity period using the
@@ -248,6 +214,62 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	s.emitAuthAttemptEvent(ctx, session.UserName, req.ServiceProviderMetadata.EntityID, "", nil)
 
 	return nil
+}
+
+// buildAttributes assembles the full set of SAML attributes for an assertion.
+func (s *Service) buildAttributes(req *saml.IdpAuthnRequest, session *saml.Session, acs *saml.AttributeConsumingService) ([]saml.Attribute, error) {
+	var attributes []saml.Attribute
+
+	// Collect attributes requested by the SP metadata.
+	for _, ra := range acs.RequestedAttributes {
+		switch ra.NameFormat {
+		case types.SAMLBasicNameFormat, types.SAMLUnspecifiedNameFormat:
+			var value string
+			switch ra.Name {
+			case "email", "emailaddress":
+				value = session.UserEmail
+			case "name", "fullname", "cn", "commonname":
+				value = session.UserCommonName
+			case "givenname", "firstname":
+				value = session.UserGivenName
+			case "surname", "lastname", "familyname":
+				value = session.UserSurname
+			case "uid", "user", "userid":
+				value = session.UserName
+			}
+			attributes = addAttributeWithFormat(attributes, ra.FriendlyName, ra.Name, ra.NameFormat, value)
+		}
+	}
+
+	attributes = addAttribute(attributes, types.SAMLUIDFriendlyName, types.SAMLUIDName, session.UserName)
+	attributes = addAttribute(attributes, types.SAMLEduPersonAffiliationFriendlyName, types.SAMLEduPersonAffiliationName, session.Groups...)
+	attributes = addAttribute(attributes, "" /* no friendly name */, types.SAMLSubjectIDName, session.SubjectID)
+
+	custom, err := s.evaluateCustomAttributes(req, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attributes = append(attributes, custom...)
+
+	return attributes, nil
+}
+
+// evaluateCustomAttributes processes custom attribute mappings from the
+// Teleport resources description.
+func (s *Service) evaluateCustomAttributes(req *saml.IdpAuthnRequest, session *saml.Session) ([]saml.Attribute, error) {
+	var out []saml.Attribute
+	_, teleportSPSSODescriptor := local.GetTeleportSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
+	attrs := attributesToMappableUserSpec(session.CustomAttributes)
+	attrs.Username = session.UserName
+
+	for _, acs := range teleportSPSSODescriptor.AttributeConsumingServices {
+		evaluated, err := attribute.EvaluateAttributes(acs.RequestedAttributes, attrs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, evaluated...)
+	}
+	return out, nil
 }
 
 // addAttribute will add an attribute to the given slice if the number of values is non-zero. If there is one element,
