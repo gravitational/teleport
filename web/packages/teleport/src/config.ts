@@ -240,6 +240,9 @@ const cfg = {
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
 
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
