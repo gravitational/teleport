@@ -5054,47 +5054,71 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	}, time.Second*5, time.Millisecond*50)
 }
 
-func TestGetWebConfig_WithBeamsEntitlement(t *testing.T) {
-	ctx := t.Context()
-
-	env := newWebPack(t, 1, withModules(&modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Beams: {Enabled: true},
-			},
+func TestGetWebConfig_Beams(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		hasBeamsEntitlement    bool
+		hasBeamsUI             bool
+		expectBeamsEntitlement bool
+		expectBeamsUI          bool
+	}{
+		{
+			name:                   "Beams entitlement and UI",
+			hasBeamsEntitlement:    true,
+			hasBeamsUI:             true,
+			expectBeamsEntitlement: true,
+			expectBeamsUI:          true,
 		},
-	}))
-
-	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-
-	cfg := testGRVConfig(t, re.Bytes())
-
-	require.Equal(t, webclient.EntitlementInfo{
-		Enabled: true,
-		Limit:   0,
-	}, cfg.Entitlements[string(entitlements.Beams)])
-}
-
-func TestGetWebConfig_WithBeamsUI(t *testing.T) {
-	ctx := t.Context()
-
-	env := newWebPack(t, 1, withModules(&modulestest.Modules{
-		TestFeatures: modules.Features{
-			BeamsUI: true,
+		{
+			name:                   "Beams entitlement and no UI",
+			hasBeamsEntitlement:    true,
+			hasBeamsUI:             false,
+			expectBeamsEntitlement: true,
+			expectBeamsUI:          false,
 		},
-	}))
+		{
+			name:                   "No beams entitlement and no UI",
+			hasBeamsEntitlement:    false,
+			hasBeamsUI:             false,
+			expectBeamsEntitlement: false,
+			expectBeamsUI:          false,
+		},
+		{
+			name:                   "No beams entitlement, but has UI",
+			hasBeamsEntitlement:    false,
+			hasBeamsUI:             true,
+			expectBeamsEntitlement: false,
+			expectBeamsUI:          false,
+		},
+	}
 
-	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
 
-	cfg := testGRVConfig(t, re.Bytes())
+			env := newWebPack(t, 1, withModules(&modulestest.Modules{
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.Beams: {Enabled: tc.hasBeamsEntitlement},
+					},
+					BeamsUI: tc.hasBeamsUI,
+				},
+			}))
 
-	require.True(t, cfg.BeamsUI)
+			clt := env.proxies[0].newClient(t)
+			endpoint := clt.Endpoint("web", "config.js")
+			re, err := clt.Get(ctx, endpoint, nil)
+			require.NoError(t, err)
+
+			cfg := testGRVConfig(t, re.Bytes())
+
+			require.Equal(t, webclient.EntitlementInfo{
+				Enabled: tc.expectBeamsEntitlement,
+				Limit:   0,
+			}, cfg.Entitlements[string(entitlements.Beams)])
+			require.Equal(t, tc.expectBeamsUI, cfg.BeamsUI)
+		})
+	}
 }
 
 func testGRVConfig(t *testing.T, data []byte) webclient.WebConfig {

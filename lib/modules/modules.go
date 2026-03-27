@@ -143,7 +143,7 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
 		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
-		BeamsUI:              f.BeamsUI,
+		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
 	}
 }
 
