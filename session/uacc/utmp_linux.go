@@ -35,8 +35,6 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Due to thread safety design in glibc we must serialize all access to the accounting database.
@@ -80,7 +78,7 @@ type UtmpBackend struct {
 
 func getTargetFile(candidates ...string) (string, error) {
 	for _, candidate := range candidates {
-		if utils.FileExists(candidate) {
+		if fileExists(candidate) {
 			return candidate, nil
 		}
 	}
@@ -114,8 +112,8 @@ func (u *UtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	addr := utils.FromAddr(remote)
-	if len(addr.Host()) > hostMaxLen {
+	addrHost := hostFromAddr(remote)
+	if len(addrHost) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 	if len(ttyName) > (int)(C.max_len_tty_name()-1) {
@@ -131,7 +129,7 @@ func (u *UtmpBackend) Login(ttyName, username string, remote net.Addr, ts time.T
 
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
-	cHostname := C.CString(addr.Host())
+	cHostname := C.CString(addrHost)
 	defer C.free(unsafe.Pointer(cHostname))
 	cTtyName := C.CString(strings.TrimPrefix(ttyName, "/dev/"))
 	defer C.free(unsafe.Pointer(cTtyName))
@@ -213,8 +211,8 @@ func (u *UtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	if len(username) > userMaxLen {
 		return trace.BadParameter("username length exceeds OS limits")
 	}
-	addr := utils.FromAddr(remote)
-	if len(addr.Host()) > hostMaxLen {
+	addrHost := hostFromAddr(remote)
+	if len(addrHost) > hostMaxLen {
 		return trace.BadParameter("hostname length exceeds OS limits")
 	}
 
@@ -223,7 +221,7 @@ func (u *UtmpBackend) FailedLogin(username string, remote net.Addr, ts time.Time
 	defer C.free(unsafe.Pointer(cBtmpPath))
 	cUsername := C.CString(username)
 	defer C.free(unsafe.Pointer(cUsername))
-	cHostname := C.CString(addr.Host())
+	cHostname := C.CString(addrHost)
 	defer C.free(unsafe.Pointer(cHostname))
 
 	// Convert IPv6 array into C integer format.
