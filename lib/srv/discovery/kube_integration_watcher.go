@@ -234,10 +234,6 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 	s.awsEKSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
 
 	s.awsEKSTasks.reset()
-
-	if len(allFetchers) > 0 {
-		s.submitFetchersEvent(allFetchers)
-	}
 }
 
 func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion *semver.Version, mu *sync.Mutex, enrollingClusters map[string]bool) {

@@ -369,7 +369,7 @@ func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
 }
 
 func (ars *awsResourcesStatus) incrementField(g awsResourceGroup, f func(groupStats *awsResourceGroupResult)) {
-	if g.discoveryConfigName == "" || g.integration == "" {
+	if g.discoveryConfigName == "" {
 		return
 	}
 
