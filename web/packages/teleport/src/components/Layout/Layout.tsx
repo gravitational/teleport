@@ -43,6 +43,7 @@ const FeatureHeader = styled(Flex)`
  */
 const FeatureHeaderTitle = styled(H1)`
   white-space: nowrap;
+  flex-shrink: 0;
 `;
 
 /**
