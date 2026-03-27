@@ -28,7 +28,7 @@ access to these roles.
 
 This guide describes configuration options for the kinds of access a user can
 request. You can also require a user to request access on login. See [Teleport
-Users with Zero Standing Privileges ](no-standing-privileges.mdx).
+Users with Zero Standing Privileges](no-standing-privileges.mdx).
 
 </Admonition>
 
@@ -164,11 +164,13 @@ privileges:
 
 1. Calculate the maximum duration of elevated privileges if the Access Request
    were granted. This is the lowest value of:
+
    - The `--max-duration` flag of the [`tsh request
      create`](../../../reference/cli/tsh.mdx) command (if the
      user creating the request provides this flag).
    - The lowest value of the `request.max_duration` field included in one of
      the user's requested roles.
+
 1. Calculate the session TTL of the certificate the user would receive if
    Teleport were to grant the Access Request. This calculation chooses the
    lowest value of:
@@ -178,10 +180,18 @@ privileges:
    - The remaining time in the user's current Teleport session.
    - The lowest value of the `options.max_session_ttl` field in the user's
      requested roles.
+
 1. If the maximum duration is greater than zero, set the duration of elevated
    privileges to either the maximum duration or the session TTL calculated
    earlier, whichever is shorter. Otherwise, set the duration of elevated
    privileges to the session TTL.
+
+   Teleport only considers the maximum duration greater than zero if either:
+
+   - The requestor provided a value for the `--max-duration` flag
+   - At least one of the requested roles includes a `request.max_duration` field
+
+   If these values are unset, Teleport only uses the session TTL.
 
 ### Setting when users can assume elevated privileges
 
