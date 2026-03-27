@@ -23,14 +23,23 @@ use std::ptr;
 
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
+use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::{
-    fast_path::{Processor, ProcessorBuilder},
-    image::DecodedImage,
+	fast_path::{Processor, ProcessorBuilder},
+	image::DecodedImage,
 };
+
+#[derive(Default)]
+struct CursorState {
+    visible: bool,
+    x: u16,
+    y: u16,
+}
 
 pub struct RdpDecoder {
     image: DecodedImage,
     fast_path_processor: Processor,
+    cursor_state: CursorState,
 }
 
 impl RdpDecoder {
@@ -40,15 +49,18 @@ impl RdpDecoder {
         Self {
             image: DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height),
             fast_path_processor: ProcessorBuilder {
+                // Enable pointer updates so we can get the state of the cursor for when we create
+                // cropped & zoomed in thumbnails in the session recording metadata generation.
+                enable_server_pointer: true,
                 // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
                 // at defaults when decoding session recordings.
                 io_channel_id: 0,
                 user_channel_id: 0,
-                enable_server_pointer: false,
                 pointer_software_rendering: false,
             }
             .build(),
+            cursor_state: Default::default(),
         }
     }
 
@@ -72,12 +84,28 @@ impl RdpDecoder {
         let mut output = WriteBuf::new();
 
         // In a live RDP connection, this would return data that we need
-        // to use to create reponses to send to the server.
+        // to use to create responses to send to the server.
         // We're only interested in updating the internal frame buffer,
         // so we can ignore the result.
-        let _ = self
-            .fast_path_processor
-            .process(&mut self.image, tdp_fast_path_frame, &mut output);
+        if let Ok(updates) =
+            self.fast_path_processor
+                .process(&mut self.image, tdp_fast_path_frame, &mut output)
+        {
+            for update in updates {
+                match update {
+                    UpdateKind::PointerBitmap(_) => {
+                        self.cursor_state.visible = true;
+                    }
+                    UpdateKind::PointerDefault => self.cursor_state.visible = true,
+                    UpdateKind::PointerHidden => self.cursor_state.visible = false,
+                    UpdateKind::PointerPosition { x, y } => {
+                        self.cursor_state.x = x;
+                        self.cursor_state.y = y;
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 }
 
@@ -182,6 +210,31 @@ pub unsafe extern "C" fn rdp_decoder_image_data(
         Ok(p) => p,
         Err(_) => ptr::null(),
     }
+}
+
+/// Returns the current cursor position and visibility state.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+/// - All out-params must be valid, non-null pointers.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_cursor_state(
+    ptr: *mut RdpDecoder,
+    out_visible: *mut u8,
+    out_x: *mut u16,
+    out_y: *mut u16,
+) {
+    if ptr.is_null() || out_visible.is_null() || out_x.is_null() || out_y.is_null() {
+        return;
+    }
+
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        *out_visible = decoder.cursor_state.visible as u8;
+        *out_x = decoder.cursor_state.x;
+        *out_y = decoder.cursor_state.y;
+    }));
 }
 
 fn catch_unwind_and_drop_panic_payload<F: FnOnce() -> R, R>(f: F) -> Result<R, ()> {
