@@ -112,7 +112,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
 
 			for _, proj := range baseProjects {
 				args = append(args, "--project="+inst.browser+":"+proj)
@@ -149,7 +149,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts", "--project=connect")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect")
 
 			if len(p.config.testFiles) > 0 {
 				args = append(args, p.config.testFiles...)
@@ -218,7 +218,7 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
 
 	return p.pnpm(ctx, []string{
-		"exec", "tsx", "scripts/open-with-webauthn.ts",
+		"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-with-webauthn.ts"),
 		playwrightCmd,
 		p.startURL(inst),
 	}, env)
@@ -236,7 +236,7 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 	slog.Info("opening Teleport Connect (with auth)")
 
-	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
+	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
 }
 
 

@@ -55,6 +55,10 @@ func pollUntil(ctx context.Context, timeout, interval time.Duration, probe func(
 }
 
 func resolveE2EDir() (string, error) {
+	if v := os.Getenv("E2E_DIR"); v != "" {
+		return filepath.Abs(v)
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", err

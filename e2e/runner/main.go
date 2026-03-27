@@ -122,10 +122,11 @@ func main() {
 
 type e2eConfig struct {
 	e2eFlags
-	isCI     bool
-	repoRoot string
-	e2eDir   string
-	certsDir string
+	isCI      bool
+	repoRoot  string
+	e2eDir    string
+	sharedDir string // shared resource dir (templates, scripts); defaults to e2eDir
+	certsDir  string
 
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
@@ -150,17 +151,25 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	sharedDir := e2eDir
+	if v := os.Getenv("E2E_SHARED_DIR"); v != "" {
+		sharedDir = v
+	}
+
+	repoRoot := filepath.Dir(e2eDir)
+
 	config := &e2eConfig{
 		e2eFlags:               *flags,
 		isCI:                   isCI,
-		repoRoot:               filepath.Dir(e2eDir),
+		repoRoot:               repoRoot,
 		e2eDir:                 e2eDir,
+		sharedDir:              sharedDir,
 		certsDir:               filepath.Join(e2eDir, "certs"),
-		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
-		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
-		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
-		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
-		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
+		stateTemplate:          filepath.Join(sharedDir, "config", "state.yaml.tmpl"),
+		teleportConfigTemplate: filepath.Join(sharedDir, "config", "teleport.yaml.tmpl"),
+		nodeConfigTemplate:     filepath.Join(sharedDir, "node", "node.yaml.tmpl"),
+		connectAppDir:          filepath.Join(repoRoot, "web", "packages", "teleterm"),
+		connectTshBinPath:      filepath.Join(repoRoot, "build", "tsh-e2e-webauthnmock"),
 	}
 
 	switch config.teleportBin {

@@ -27,9 +27,13 @@ export async function login(
   username = 'bob',
   password = e2ePassword
 ) {
-  await page.addInitScript(() =>
-    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
-  );
+  await page.addInitScript(() => {
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true');
+    localStorage.setItem(
+      'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
+      'true'
+    );
+  });
 
   await mockWebAuthn(page);
 
