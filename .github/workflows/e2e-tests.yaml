@@ -121,19 +121,7 @@ jobs:
             'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
       - name: Build Teleport, tctl, and tsh
-        shell: bash
-        run: |
-          set -o pipefail
-          cargo --version && rustc --version && echo "ARCH=$(uname -m)"
-          mkdir -p build-logs
-          make build/teleport 2>&1 | tee build-logs/teleport.log & pid_teleport=$!
-          make build/tctl 2>&1 | tee build-logs/tctl.log & pid_tctl=$!
-          go build -tags webauthnmock -o build/tsh-e2e-webauthnmock ./tool/tsh 2>&1 | tee build-logs/tsh.log & pid_tsh=$!
-          failed=0
-          wait $pid_teleport || { echo "::error::make build/teleport failed with exit code $?"; failed=1; }
-          wait $pid_tctl    || { echo "::error::make build/tctl failed with exit code $?"; failed=1; }
-          wait $pid_tsh     || { echo "::error::go build tsh failed with exit code $?"; failed=1; }
-          exit $failed
+        run: make e2e-binaries
         env:
           IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
           RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
