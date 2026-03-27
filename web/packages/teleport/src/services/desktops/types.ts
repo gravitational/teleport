@@ -20,7 +20,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 
 // Desktop is a remote desktop.
 export type Desktop = {
-  kind: 'windows_desktop';
+  kind: 'windows_desktop' | 'linux_desktop';
   // OS is the os of this desktop.
   os: 'windows' | 'linux' | 'darwin';
   // Name is name (uuid) of the windows desktop.

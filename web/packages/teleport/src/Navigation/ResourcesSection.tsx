@@ -232,7 +232,8 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive('windows_desktop'),
+      customRouteMatchFn: () =>
+        isKindActive('windows_desktop') || isKindActive('linux_desktop'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },

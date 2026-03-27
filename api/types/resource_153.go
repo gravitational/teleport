@@ -328,6 +328,11 @@ type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	resource153ToResourceWithLabelsAdapter[T]
 }
 
+func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
+	clone := proto.CloneOf(r.inner)
+	return ProtoResource153ToLegacy(clone)
+}
+
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
 // the codebase as a legacy Resource.
 //
@@ -351,11 +356,16 @@ func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func ProtoResource153ToLegacy[T ProtoResource153](r T) ResourceWithLabels {
+func ProtoResource153ToLegacy[T ProtoResource153](r T) ClonableResourceWithLabels {
 	return &protoResource153ToLegacyAdapter[T]{
 		r,
 		resource153ToResourceWithLabelsAdapter[T]{
 			resource153ToLegacyAdapter[T]{r},
 		},
 	}
+}
+
+type ClonableResourceWithLabels interface {
+	ResourceWithLabels
+	CloneResource() ResourceWithLabels
 }

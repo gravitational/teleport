@@ -184,6 +184,8 @@ function getIcon(item: RequestableResourceKind): ComponentType<IconProps> {
       return Icon.GitHub;
     case 'windows_desktop':
       return Icon.Desktop;
+    case 'linux_desktop':
+      return Icon.Linux;
     case 'resource': // This probably never shows in the UI.
       return Icon.Server;
     default:
