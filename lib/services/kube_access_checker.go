@@ -19,6 +19,8 @@
 package services
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -62,4 +64,13 @@ func (c *KubeAccessChecker) CanAccessCluster(target types.KubeCluster) error {
 		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})
 	}
 	return c.checker.scopedCompatChecker.CheckAccess(target, AccessState{MFAVerified: true})
+}
+
+// CheckGroupsAndUsers returns the list of kube groups and users that are allowed to be impersonated.
+func (c *KubeAccessChecker) CheckGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error) {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+	}
+
+	return c.checker.scopedCompatChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }
