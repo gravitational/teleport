@@ -2094,13 +2094,13 @@ func TestUIConfig(t *testing.T) {
 	}
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
 	clt := s.client(t)
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
+	t.Cleanup(cancel)
 
 	cfg := testGRVConfig(t, re.Bytes())
 
