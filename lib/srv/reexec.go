@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/selinux"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -56,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uds"
 )
@@ -344,7 +344,7 @@ func RunCommand() (code int, err error) {
 		}
 
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -634,7 +634,7 @@ func RunNetworking() (code int, err error) {
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,

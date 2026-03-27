@@ -73,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -84,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // teleportTestUser is additional user used for tests
@@ -248,7 +248,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetLabels(map[string]string{"foo": "bar"}, nil, nil),
 		SetBPF(&bpf.NOP{}),
 		SetClock(clock),
@@ -1844,7 +1844,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
@@ -1987,7 +1987,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
@@ -2185,7 +2185,7 @@ func TestLimiter(t *testing.T) {
 		SetLimiter(limiter),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
@@ -2661,7 +2661,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetProxyMode("", reverseTunnelServer, proxyClient, router),
 			SetEmitter(nodeClient),
 			SetNamespace(apidefaults.Namespace),
-			SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+			SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 			SetBPF(&bpf.NOP{}),
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
@@ -2913,7 +2913,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
@@ -3044,7 +3044,7 @@ func TestEventMetadata(t *testing.T) {
 		SetUUID(nodeID),
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
@@ -3353,7 +3353,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),

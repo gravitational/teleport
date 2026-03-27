@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -786,7 +787,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
