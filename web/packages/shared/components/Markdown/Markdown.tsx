@@ -19,6 +19,10 @@
 import { createElement, useMemo, type ReactNode } from 'react';
 import styled from 'styled-components';
 
+import { ButtonSecondary } from 'design/Button/Button';
+import { Copy } from 'design/Icon';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
+
 export interface MarkdownOptions {
   /**
    * `true` if links should be rendered. Defaults to `false` to protect from
@@ -49,15 +53,6 @@ const StyledLink = styled.a`
   background: none;
   text-decoration: underline;
   text-transform: none;
-`;
-
-const StyledPre = styled.pre`
-  background: ${p => p.theme.colors.spotBackground[1]};
-  border-radius: ${p => p.theme.radii[2]}px;
-  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
-  overflow-x: auto;
-  white-space: pre;
-  margin: ${p => p.theme.space[2]}px 0;
 `;
 
 const parsers: MarkdownParser[] = [
@@ -248,11 +243,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         i += 1;
       }
 
-      items.push(
-        <StyledPre key={`code-${i}`}>
-          <code>{codeLines.join('\n')}</code>
-        </StyledPre>
-      );
+      items.push(<CodeBlock key={`code-${i}`} code={codeLines.join('\n')} />);
 
       continue;
     }
@@ -305,3 +296,49 @@ export function Markdown({ text, ...options }: MarkdownProps) {
     [text, ...Object.values(options)]
   );
 }
+
+function CodeBlock(props: { code: string }) {
+  const { code } = props;
+  return (
+    <CodeBlockContainer>
+      <StyledPre>
+        <code>{code}</code>
+      </StyledPre>
+      <CopyButton value={code} />
+    </CodeBlockContainer>
+  );
+}
+
+function CopyButton(props: { value: string }) {
+  const { value } = props;
+  return (
+    <CodeButton
+      title="Copy to clipboard"
+      onClick={() => copyToClipboard(value)}
+    >
+      <Copy size="medium" />
+    </CodeButton>
+  );
+}
+
+const CodeBlockContainer = styled.div`
+  position: relative;
+  background: ${p => p.theme.colors.interactive.tonal.neutral[1]};
+  border-radius: ${p => p.theme.radii[2]}px;
+  margin: ${p => p.theme.space[2]}px 0;
+`;
+
+const StyledPre = styled.pre`
+  overflow-x: auto;
+  white-space: pre;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  margin: 0;
+`;
+
+const CodeButton = styled(ButtonSecondary)`
+  padding: ${({ theme }) => theme.space[2]}px;
+  background-color: transparent;
+  position: absolute;
+  right: 0;
+  top: 0;
+`;
