@@ -163,7 +163,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
-	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/expiry"
@@ -195,6 +194,7 @@ import (
 	webapp "github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/selinux"
 )
 
 const (
