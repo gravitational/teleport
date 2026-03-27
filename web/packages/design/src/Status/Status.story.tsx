@@ -17,8 +17,10 @@
  */
 
 import { Flex, Text } from 'design';
+import { Dot } from 'design/Icon';
 
-import { Status, StatusKind, StatusVariant } from './Status';
+import { Status, StatusKind, StatusProps, StatusVariant } from './Status';
+import { StatusDot } from './StatusDot';
 
 export default {
   title: 'Design/Status',
@@ -33,96 +35,86 @@ const kinds: StatusKind[] = [
   'primary',
 ];
 
-const variants: StatusVariant[] = ['filled', 'filled-tonal', 'border'];
+const variants: StatusVariant[] = [
+  'filled',
+  'filled-tonal',
+  'filled-subtle',
+  'border',
+];
 
-export const AllVariants = () => (
-  <Flex flexDirection="column" gap={6} p={4} bg="levels.surface">
-    <Flex gap={6}>
-      <Text
-        typography="body2"
-        bold
-        css={{ width: '100px', textAlign: 'right' }}
-      >
-        {/* empty for alignment */}
-      </Text>
-      {variants.map(variant => (
+function StatusGrid({ iconProp }: { iconProp?: StatusProps['icon'] }) {
+  return (
+    <Flex flexDirection="column" gap={6} p={4} bg="levels.surface">
+      <Flex gap={6}>
         <Text
-          key={variant}
           typography="body2"
           bold
-          css={{ width: '160px', textAlign: 'center' }}
+          css={{ width: '100px', textAlign: 'right' }}
         >
-          {variant}
+          {/* empty for alignment */}
         </Text>
+        {variants.map(variant => (
+          <Text
+            key={variant}
+            typography="body2"
+            bold
+            css={{ width: '160px', textAlign: 'center' }}
+          >
+            {variant}
+          </Text>
+        ))}
+      </Flex>
+
+      {kinds.map(kind => (
+        <Flex key={kind} gap={6} alignItems="center">
+          <Text
+            typography="body2"
+            color="text.slightlyMuted"
+            css={{ width: '100px', textAlign: 'right' }}
+          >
+            {kind}
+          </Text>
+          {variants.map(variant => (
+            <Flex
+              key={variant}
+              css={{ width: '160px', justifyContent: 'center' }}
+            >
+              <Status kind={kind} variant={variant} icon={iconProp}>
+                {kind.charAt(0).toUpperCase() + kind.slice(1)}
+              </Status>
+            </Flex>
+          ))}
+        </Flex>
+      ))}
+    </Flex>
+  );
+}
+
+export const AllVariants = () => <StatusGrid />;
+
+export const WithoutIcons = () => <StatusGrid iconProp={false} />;
+
+export const Dots = () => (
+  <Flex flexDirection="column" gap={6} p={4} bg="levels.surface">
+    <Text typography="h3">Standalone StatusDot</Text>
+    <Flex gap={4} alignItems="center">
+      {kinds.map(kind => (
+        <Flex key={kind} gap={2} alignItems="center">
+          <StatusDot kind={kind} />
+          <Text typography="body2">{kind}</Text>
+        </Flex>
       ))}
     </Flex>
 
-    {kinds.map(kind => (
-      <Flex key={kind} gap={6} alignItems="center">
-        <Text
-          typography="body2"
-          color="text.slightlyMuted"
-          css={{ width: '100px', textAlign: 'right' }}
-        >
-          {kind}
-        </Text>
-        {variants.map(variant => (
-          <Flex
-            key={variant}
-            css={{ width: '160px', justifyContent: 'center' }}
-          >
-            <Status kind={kind} variant={variant}>
-              {kind.charAt(0).toUpperCase() + kind.slice(1)}
-            </Status>
-          </Flex>
-        ))}
-      </Flex>
-    ))}
-  </Flex>
-);
-
-export const WithoutIcons = () => (
-  <Flex flexDirection="column" gap={6} p={4} bg="levels.surface">
-    <Flex gap={6}>
-      <Text
-        typography="body2"
-        bold
-        css={{ width: '100px', textAlign: 'right' }}
-      >
-        {/* empty for alignment */}
-      </Text>
-      {variants.map(variant => (
-        <Text
-          key={variant}
-          typography="body2"
-          bold
-          css={{ width: '160px', textAlign: 'center' }}
-        >
-          {variant}
-        </Text>
+    <Text typography="h3" mt={4}>
+      Dot icon inside Status
+    </Text>
+    <Flex gap={4} alignItems="center" flexWrap="wrap">
+      {kinds.map(kind => (
+        <Status key={kind} kind={kind} icon={Dot}>
+          {kind.charAt(0).toUpperCase() + kind.slice(1)}
+        </Status>
       ))}
     </Flex>
-
-    {kinds.map(kind => (
-      <Flex key={kind} gap={6} alignItems="center">
-        <Text
-          typography="body2"
-          color="text.slightlyMuted"
-          css={{ width: '100px', textAlign: 'right' }}
-        >
-          {kind}
-        </Text>
-        {variants.map(variant => (
-          <Flex
-            key={variant}
-            css={{ width: '160px', justifyContent: 'center' }}
-          >
-            <Status kind={kind} variant={variant} noIcon>
-              {kind.charAt(0).toUpperCase() + kind.slice(1)}
-            </Status>
-          </Flex>
-        ))}
-      </Flex>
-    ))}
   </Flex>
 );

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -491,11 +492,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "basic allow",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: true,
 		},
@@ -503,11 +502,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "too narrow scope",
 			pin: &scopesv1.Pin{
 				Scope: "/staging/west/narrow",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -515,11 +512,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "label mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-blue"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-blue"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -527,11 +522,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "scope permission mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/east": {
-						Roles: []string{"staging-east-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/east": {"/staging/east": {"staging-east-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -539,11 +532,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "orthogonal scope",
 			pin: &scopesv1.Pin{
 				Scope: "/prod",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/prod/west": {
-						Roles: []string{"prod-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/prod/west": {"/prod/west": {"prod-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -551,11 +542,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "no labels",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-no-labels"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -563,11 +552,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "wrong login",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-wrong-login"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -740,6 +727,78 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
+}
+
+func TestCheckAgentForward(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		component      string
+		accessPermit   *decisionpb.SSHAccessPermit
+		proxyingPermit *proxyingPermit
+		expectAllowed  bool
+	}{
+		{
+			name:          "access permit allows agent forwarding",
+			component:     teleport.ComponentNode,
+			accessPermit:  &decisionpb.SSHAccessPermit{ForwardAgent: true},
+			expectAllowed: true,
+		},
+		{
+			name:           "proxy allows proxying permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
+		{
+			name:           "forwarding node allows proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  true,
+		},
+		{
+			name:           "non-proxy component denies proxying permit",
+			component:      teleport.ComponentNode,
+			proxyingPermit: &proxyingPermit{},
+			expectAllowed:  false,
+		},
+		{
+			name:           "proxy denies without permit",
+			component:      teleport.ComponentProxy,
+			proxyingPermit: nil,
+			expectAllowed:  false,
+		},
+		{
+			name:           "forwarding node denies without proxying permit",
+			component:      teleport.ComponentForwardingNode,
+			proxyingPermit: nil,
+			expectAllowed:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ah := &AuthHandlers{c: &AuthHandlerConfig{
+				Component: tt.component,
+			}}
+			ctx := &ServerContext{
+				Identity: IdentityContext{
+					AccessPermit:   tt.accessPermit,
+					ProxyingPermit: tt.proxyingPermit,
+				},
+			}
+
+			err := ah.CheckAgentForward(ctx)
+			if tt.expectAllowed {
+				require.NoError(t, err)
+				return
+			}
+
+			var accessDenied *trace.AccessDeniedError
+			require.ErrorAs(t, err, &accessDenied)
+		})
+	}
 }
 
 // TestRBACJoinMFA tests that MFA is enforced correctly when joining

@@ -43,8 +43,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
 |roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
 |spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
-|suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
-|suggested_labels|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
+|suggested_agent_matcher_labels|[object](#specsuggested_agent_matcher_labels)|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
+|suggested_labels|[object](#specsuggested_labels)|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
 |terraform_cloud|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.|
 |tpm|[object](#spectpm)|TPM allows the configuration of options specific to the "tpm" join method.|
 
@@ -291,6 +291,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |caller_type|string||
 |scope|string||
 |space_id|string||
+
+### spec.suggested_agent_matcher_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.suggested_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.terraform_cloud
 

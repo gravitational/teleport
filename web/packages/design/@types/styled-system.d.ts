@@ -17,7 +17,6 @@
  */
 
 import 'styled-system';
-
 import type * as PropTypes from 'prop-types';
 
 declare module 'styled-system' {

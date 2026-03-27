@@ -766,6 +766,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
+							types.NewRule(types.KindScopedToken, RW()),
 						},
 					},
 				},

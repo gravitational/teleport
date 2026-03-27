@@ -852,7 +852,7 @@ type joinServiceClient interface {
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
 	return &types.RegisterUsingTokenRequest{
 		Token:                token,
-		HostID:               params.ID.HostUUID,
+		HostID:               params.ID.HostID(),
 		NodeName:             params.ID.NodeName,
 		Role:                 params.ID.Role,
 		AdditionalPrincipals: params.AdditionalPrincipals,

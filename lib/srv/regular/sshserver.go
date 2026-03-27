@@ -449,8 +449,14 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	// Set the listener before starting heartbeats so the first node heartbeat
+	// does not advertise an empty address.
+	if err := s.srv.SetListener(l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.startPeriodicOperations()
-	return trace.Wrap(s.srv.Serve(l))
+	return trace.Wrap(s.srv.Serve())
 }
 
 func (s *Server) startPeriodicOperations() {

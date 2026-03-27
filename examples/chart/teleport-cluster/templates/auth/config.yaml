@@ -101,6 +101,14 @@ data:
               - update
               - delete
           - resources:
+              - saml_idp_service_provider
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
               - login_rule
             verbs:
               - list
@@ -214,6 +222,22 @@ data:
               - delete
           - resources:
               - inference_secret
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - access_monitoring_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - scoped_token
             verbs:
               - list
               - create

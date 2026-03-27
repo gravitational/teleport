@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -942,6 +943,7 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
+	c.Scope = profile.Scope
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -1010,6 +1012,7 @@ func (c *Config) Profile() *profile.Profile {
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
+		Scope:                         c.Scope,
 	}
 }
 
@@ -4043,7 +4046,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.AssignmentTree))
 	}
 
 	return keyRing, nil

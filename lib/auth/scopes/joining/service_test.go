@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,14 +41,19 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func createToken(ctx context.Context, server *joining.Server, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	cloned := proto.CloneOf(token)
+	cloned.Metadata = &headerv1.Metadata{
+		Name: uuid.New().String(),
+	}
 	res, err := server.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: proto.CloneOf(token),
+		Token: cloned,
 	})
 	if err != nil {
 		return nil, err
@@ -64,11 +70,9 @@ func TestScopedJoiningService(t *testing.T) {
 		service := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
@@ -174,66 +178,54 @@ func TestScopedJoiningService(t *testing.T) {
 		admin := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
 		writer := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-create"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-create"}},
+				}),
 			},
 		})
 
 		reader := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-read"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-read"}},
+				}),
 			},
 		})
 
 		readerNoSecrets := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-readnosecrets"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-readnosecrets"}},
+				}),
 			},
 		})
 
 		deleter := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-delete"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-delete"}},
+				}),
 			},
 		})
 
 		updater := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-upserter"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-upserter"}},
+				}),
 			},
 		})
 
@@ -417,6 +409,58 @@ func TestScopedJoiningService(t *testing.T) {
 				Token: tokenUpdate,
 			})
 			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater can update a token at accessible scope", func(t *testing.T) {
+			tokenForUpdate, err := createToken(ctx, admin, baseToken)
+			require.NoError(t, err)
+
+			tokenUpdate := proto.CloneOf(tokenForUpdate)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "updated"}
+
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.NoError(t, err)
+
+			// Update should fail after updating if revisions don't match.
+			staleUpdate := proto.CloneOf(tokenForUpdate)
+			staleUpdate.Metadata.Labels = map[string]string{"bad": "update"}
+			_, err = updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: staleUpdate,
+			})
+			require.True(t, trace.IsCompareFailed(err))
+
+			t.Run("non updater role cannot update a token", func(t *testing.T) {
+				nonUpdaterIdents := []*joining.Server{reader, readerNoSecrets, writer}
+				for _, ident := range nonUpdaterIdents {
+					_, err := ident.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+						Token: tokenUpdate,
+					})
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			})
+		})
+
+		t.Run("ensure updater cannot update a token at an orthogonal scope", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Metadata.Labels = map[string]string{"env": "test"}
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsAccessDenied(err))
+		})
+
+		t.Run("ensure updater cannot bypass scope auth by spoofing scope in request", func(t *testing.T) {
+			tokenUpdate := proto.CloneOf(stageTokenBB)
+			tokenUpdate.Scope = "/staging/aa"
+			tokenUpdate.Spec.AssignedScope = "/staging/aa"
+
+			_, err := updater.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
+				Token: tokenUpdate,
+			})
+			require.True(t, trace.IsBadParameter(err))
 		})
 	})
 }

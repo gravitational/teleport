@@ -1,7 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
   name: teleportappsv3.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -118,27 +117,24 @@ spec:
                     type: integer
                 type: object
               dynamic_labels:
+                additionalProperties:
+                  nullable: true
+                  properties:
+                    command:
+                      description: Command is a command to run
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    period:
+                      description: Period is a time between command runs
+                      format: duration
+                      type: string
+                    result:
+                      description: Result captures standard output
+                      type: string
+                  type: object
                 description: DynamicLabels are the app's command labels.
-                properties:
-                  key:
-                    type: string
-                  value:
-                    nullable: true
-                    properties:
-                      command:
-                        description: Command is a command to run
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      period:
-                        description: Period is a time between command runs
-                        format: duration
-                        type: string
-                      result:
-                        description: Result captures standard output
-                        type: string
-                    type: object
                 type: object
               identity_center:
                 description: IdentityCenter encapsulates information specific to AWS

@@ -1,8 +1,10 @@
+{/* this comment is here to make the includes below render */}
+
 <Tabs>
-<TabItem label="Linux server">
+<TabItem label="Executable">
 
 Earlier, we generated a file called `teleport-event-handler.toml` to configure
-the Fluentd event handler. This file includes setting similar to the following:
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```toml
 storage = "./storage"
@@ -33,24 +35,22 @@ skip-event-types = []
 skip-session-types = []
 
 [forward.fluentd]
-ca = "/home/bob/event-handler/ca.crt"
-cert = "/home/bob/event-handler/client.crt"
-key = "/home/bob/event-handler/client.key"
+ca = <Var name="/home/bob/event-handler" />/ca.crt
+cert = <Var name="/home/bob/event-handler" />/client.crt
+key = <Var name="/home/bob/event-handler" />/client.key
 url = "https://fluentd.example.com:8888/test.log"
 session-url = "https://fluentd.example.com:8888/session"
 
 [teleport]
-addr = "teleport.example.com:443"
+addr = <Var name="teleport.example.com:443" />
 identity = "identity"
 ```
-
-Modify the configuration to replace `fluentd.example.com` with the domain name
-of your Fluentd deployment.
 
 </TabItem>
 <TabItem label="Helm Chart">
 
-Use the following template to create `teleport-plugin-event-handler-values.yaml`:
+Earlier, we generated a file called `teleport-plugin-event-handler-values.yaml` to configure
+the Teleport Event Handler. This file includes setting similar to the following:
 
 ```yaml
 eventHandler:
@@ -81,7 +81,7 @@ eventHandler:
   skipSessionTypes: []
 
 teleport:
-  address: "teleport.example.com:443"
+  address: <Var name="teleport.example.com:443" />
   identitySecretName: teleport-event-handler-identity
   identitySecretPath: identity
 
@@ -97,6 +97,14 @@ fluentd:
 persistentVolumeClaim:
   enabled: true
 ```
+
+</TabItem>
+<TabItem label="Helm Chart with Kubernetes Operator">
+
+Your helm configuration file `teleport-plugin-event-handler-values.yaml` should
+contain settings similar to the following:
+
+(!docs/pages/includes/plugins/helm-operator-config.mdx!)
 
 </TabItem>
 </Tabs>

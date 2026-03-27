@@ -26,7 +26,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 // FakeServer is a fake Server implementation used in tests.
@@ -68,15 +71,30 @@ type FakeCluster struct {
 	closedMtx sync.Mutex
 	// closed is set to true after the cluster is being closed.
 	closed bool
+	// databaseServerWatcher is a database server watcher to speed up database server look up.
+	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 }
 
 // NewFakeCluster is a FakeCluster constructor.
 func NewFakeCluster(clusterName string, accessPoint authclient.RemoteProxyAccessPoint) *FakeCluster {
+	databaseServerWatcher, _ := services.NewDatabaseServerWatcher(context.TODO(), services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "FakeCluster",
+			Client:    accessPoint,
+		},
+	})
+
 	return &FakeCluster{
-		Name:        clusterName,
-		connCh:      make(chan net.Conn),
-		AccessPoint: accessPoint,
+		Name:                  clusterName,
+		connCh:                make(chan net.Conn),
+		AccessPoint:           accessPoint,
+		databaseServerWatcher: databaseServerWatcher,
 	}
+}
+
+// DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster
+func (s *FakeCluster) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return s.databaseServerWatcher, nil
 }
 
 // CachingAccessPoint returns caching auth server client.

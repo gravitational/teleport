@@ -63,12 +63,9 @@ func TestScopedTokenService(t *testing.T) {
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/test/one",
-			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-		Status: &joiningv1.ScopedTokenStatus{
-			Secret: "secret",
+			JoinMethod:    string(types.JoinMethodToken),
 		},
 	}
 
@@ -81,6 +78,9 @@ func TestScopedTokenService(t *testing.T) {
 		protocmp.Transform(),
 	}
 	assert.Empty(t, gocmp.Diff(token, created.Token, cmpOpts...))
+	// ensure the token secret was set if not specified
+	assert.NotEmpty(t, created.Token.GetStatus().GetSecret())
+	token = created.Token
 
 	updatedToken := proto.CloneOf(token)
 	updatedToken.Spec.AssignedScope = "/test/test"
@@ -579,6 +579,135 @@ func TestScopedTokenUse(t *testing.T) {
 	})
 }
 
+func newToken() *joiningv1.ScopedToken {
+	return &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: uuid.New().String(),
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+}
+
+func TestScopedTokenUpdate(t *testing.T) {
+	t.Parallel()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	cases := []struct {
+		name   string
+		mutate func(t *testing.T, update *joiningv1.ScopedToken)
+		assert func(t *testing.T, created, result *joiningv1.ScopedToken, err error)
+	}{
+		{
+			name: "mutable fields are updated",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Metadata.Labels = map[string]string{"env": "test"}
+				update.Spec.AssignedScope = "/test/one/two"
+			},
+			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
+				require.Equal(t, "/test/one/two", result.GetSpec().GetAssignedScope())
+				require.Equal(t, "test", result.GetMetadata().GetLabels()["env"])
+			},
+		},
+		{
+			name: "scope changes result in an error",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Scope = "/other"
+			},
+			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
+				require.ErrorContains(t, err, "cannot modify scope of existing scoped token")
+
+			},
+		},
+		{
+			name: "usage mode changes result in an error",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
+				require.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
+			},
+		},
+		{
+			name: "secret change is not allowed",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Status = &joiningv1.ScopedTokenStatus{Secret: "new-secret"}
+			},
+			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
+				require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
+			},
+		},
+		{
+			name: "assigned scope changed to a non-descendant scope fails",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Spec.AssignedScope = "/notadescendant"
+			},
+			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
+				require.ErrorContains(t, err, "scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			token := newToken()
+			created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: token})
+			require.NoError(t, err)
+
+			updated := proto.CloneOf(created.GetToken())
+			tc.mutate(t, updated)
+
+			res, err := service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{Token: updated})
+
+			tc.assert(t, created.GetToken(), res.GetToken(), err)
+		})
+	}
+
+	t.Run("fails for nonexistent token", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		_, err := service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{Token: token})
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("editing concurrently fails since revision doesn't match", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		updated := proto.CloneOf(created.GetToken())
+		updated.Metadata.Labels = map[string]string{"env": "test"}
+		updated.Spec.AssignedScope = "/test/one/two"
+
+		updated2 := proto.CloneOf(updated)
+		updated2.Metadata.Labels = map[string]string{"env": "production"}
+
+		updateRes1, err := service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{Token: updated})
+		require.NoError(t, err)
+		require.Equal(t, "test", updateRes1.GetToken().GetMetadata().GetLabels()["env"])
+
+		_, err = service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{Token: updated2})
+		require.True(t, trace.IsCompareFailed(err))
+	})
+}
+
 func TestScopedTokenUpsert(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
@@ -588,25 +717,6 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	ctx := t.Context()
 
-	newToken := func() *joiningv1.ScopedToken {
-		return &joiningv1.ScopedToken{
-			Kind:    types.KindScopedToken,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: uuid.New().String(),
-			},
-			Scope: "/test",
-			Spec: &joiningv1.ScopedTokenSpec{
-				AssignedScope: "/test/one",
-				JoinMethod:    "token",
-				Roles:         []string{types.RoleNode.String()},
-				UsageMode:     string(joining.TokenUsageModeUnlimited),
-			},
-			Status: &joiningv1.ScopedTokenStatus{
-				Secret: "secret",
-			},
-		}
-	}
 	cmpOpts := []gocmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
@@ -625,6 +735,32 @@ func TestScopedTokenUpsert(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, gocmp.Diff(upsertedToken.GetToken(), fetched.GetToken(), cmpOpts...))
+	})
+
+	t.Run("upsert creates a new secret when creating a new token with no secret set", func(t *testing.T) {
+		t.Parallel()
+		// Submit a minimal token with no name, join method, or secret — the
+		// create path of UpsertScopedToken will fill in missing information
+		token := &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Scope:   "/test",
+			Metadata: &headerv1.Metadata{
+				Name: uuid.New().String(),
+			},
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				Roles:         []string{types.RoleNode.String()},
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+				JoinMethod:    string(types.JoinMethodToken),
+			},
+		}
+
+		upserted, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+		require.NotEmpty(t, upserted.GetToken().GetMetadata().GetName(), "name should be generated")
+		require.Equal(t, string(types.JoinMethodToken), upserted.GetToken().GetSpec().GetJoinMethod(), "join method should default to token")
+		require.NotEmpty(t, upserted.GetToken().GetStatus().GetSecret(), "secret should be generated")
 	})
 
 	t.Run("upsert updates existing entry", func(t *testing.T) {
@@ -648,46 +784,67 @@ func TestScopedTokenUpsert(t *testing.T) {
 		assert.Empty(t, gocmp.Diff(updatedToken.GetToken(), fetched.GetToken(), cmpOpts...))
 	})
 
-	t.Run("upsert fails because the scope is changed", func(t *testing.T) {
+	rejectCases := []struct {
+		name    string
+		mutate  func(t *testing.T, update *joiningv1.ScopedToken)
+		wantErr string
+	}{
+		{
+			name: "scope is changed",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Scope = "/other"
+				update.Spec.AssignedScope = "/other/one"
+			},
+			wantErr: "cannot modify scope of existing scoped token",
+		},
+		{
+			name: "usage mode is changed",
+			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
+				update.Spec = proto.CloneOf(update.Spec)
+				update.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+			},
+			wantErr: "cannot modify usage mode of existing scoped token",
+		},
+	}
+
+	for _, tc := range rejectCases {
+		t.Run("upsert fails because "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			token := newToken()
+			_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+			require.NoError(t, err)
+
+			updated := proto.CloneOf(token)
+			tc.mutate(t, updated)
+
+			_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+
+	t.Run("secret is preserved when not included", func(t *testing.T) {
 		t.Parallel()
 		token := newToken()
-		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		created, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+		originalSecret := created.GetToken().GetStatus().GetSecret()
+		require.NotEmpty(t, originalSecret)
+
+		// attempt to overwrite the secret via upsert
+		updated := proto.CloneOf(token)
+		updated.Status = nil
+
+		// upsert should succeed but preserve the original secret
+		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
 		require.NoError(t, err)
 
-		updated := proto.CloneOf(token)
-		updated.Scope = "/other"
-		updated.Spec.AssignedScope = "/other/one"
-
-		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
-		require.ErrorContains(t, err, "cannot modify scope of existing scoped token")
-	})
-
-	t.Run("upsert fails because the usage status is changed", func(t *testing.T) {
-		t.Parallel()
-		token := newToken()
-		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		// confirm the original secret is still in place
+		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       token.GetMetadata().GetName(),
+			WithSecret: true,
+		})
 		require.NoError(t, err)
-
-		updated := proto.CloneOf(token)
-		updated.Spec = proto.CloneOf(token.Spec)
-		updated.Spec.UsageMode = string(joining.TokenUsageModeSingle)
-
-		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
-		require.ErrorContains(t, err, "cannot modify usage mode of existing scoped token")
-	})
-
-	t.Run("upsert fails because the secret is changed", func(t *testing.T) {
-		t.Parallel()
-		token := newToken()
-		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
-		require.NoError(t, err)
-
-		updated := proto.CloneOf(token)
-		updated.Status = proto.CloneOf(token.Status)
-		updated.Status.Secret = "new-secret"
-
-		_, err = service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: updated})
-		require.ErrorContains(t, err, "cannot modify secret of existing scoped token")
+		require.Equal(t, originalSecret, fetched.GetToken().GetStatus().GetSecret())
 	})
 
 	t.Run("upsert succeeds when revisions don't match", func(t *testing.T) {

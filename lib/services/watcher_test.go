@@ -756,6 +756,109 @@ func newApp(t *testing.T, name string) *types.AppV3 {
 	return app
 }
 
+// TestDatabaseServerWatcher tests that database server resource watcher properly
+// receives and dispatches updates.
+func TestDatabaseServerWatcher(t *testing.T) {
+	synctest.Test(t, syncTestDatabaseServerWatcher)
+}
+
+func syncTestDatabaseServerWatcher(t *testing.T) {
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	type client struct {
+		services.DatabaseServersGetter
+		types.Events
+	}
+
+	presenceService := local.NewPresenceService(bk)
+	w, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		DatabaseServersGetter: presenceService,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				DatabaseServersGetter: presenceService,
+				Events:                local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Wait for initial load.
+	require.NoError(t, w.WaitInitialization())
+
+	// Initially there are no database servers.
+	servers, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Empty(t, servers)
+
+	// Add a database server and wait for the watcher to process the event.
+	server1 := newDatabaseServer(t, "db1", "host1")
+	_, err = presenceService.UpsertDatabaseServer(ctx, server1)
+	require.NoError(t, err)
+	synctest.Wait()
+
+	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == "db1"
+	})
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server1.GetName(), servers[0].GetName())
+
+	// Add a second database server and wait for the watcher to process the event.
+	server2 := newDatabaseServer(t, "db2", "host2")
+	_, err = presenceService.UpsertDatabaseServer(ctx, server2)
+	require.NoError(t, err)
+	synctest.Wait()
+
+	servers, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 2)
+
+	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == "db2"
+	})
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server2.GetName(), servers[0].GetName())
+
+	// Delete the first database server and wait for the watcher to process the event.
+	err = presenceService.DeleteDatabaseServer(ctx, apidefaults.Namespace, server1.GetHostID(), server1.GetName())
+	require.NoError(t, err)
+	synctest.Wait()
+
+	// Verify the remaining server is server2.
+	servers, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server2.GetName(), servers[0].GetName())
+}
+
+func newDatabaseServer(t *testing.T, dbName, hostID string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{
+				Name: dbName,
+			},
+			Spec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+		},
+		HostID:   hostID,
+		Hostname: dbName,
+	})
+	require.NoError(t, err)
+	return server
+}
+
 func TestCertAuthorityWatcher(t *testing.T) {
 	t.Parallel()
 

@@ -313,7 +313,6 @@ func TestErrorCounter(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 type testPack struct {
@@ -390,18 +389,18 @@ func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID
 	return "", h.err
 }
 
-func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }
 
-func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	return h.err
 }

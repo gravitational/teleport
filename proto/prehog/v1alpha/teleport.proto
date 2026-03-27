@@ -111,6 +111,9 @@ message ResourceCreateEvent {
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;
+  // discovery_config_name is the anonymized name of the DiscoveryConfig that triggered discovery.
+  // Empty for teleport.yaml matcher configuration.
+  string discovery_config_name = 5;
 }
 
 // DiscoveredDatabaseMetadata contains additional database information.
@@ -1155,6 +1158,9 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
+  INTEGRATION_ENROLL_KIND_AWS_CLOUD = 30;
+  INTEGRATION_ENROLL_KIND_AZURE_CLOUD = 31;
+  INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD = 32;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1203,6 +1209,9 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
+
+  // General integration setup steps
+  INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -1720,6 +1729,12 @@ message UserTaskStateEvent {
   //
   // PostHog property: tp.usertask.discover_ec2.instances_count
   int32 instances_count = 4;
+
+  // discovery_config_name is the anonymized name of the DiscoveryConfig used when
+  // the issue was created.
+  //
+  // PostHog property: tp.usertask.discovery_config_name
+  string discovery_config_name = 5;
 }
 
 // AccessRequestCreateEvent is emitted when an Access Request is created.
@@ -1839,6 +1854,30 @@ message SessionSummaryCreateEvent {
   //
   // PostHog property: tp.ai.default_model
   bool is_cloud_default_model = 7;
+}
+
+// DiscoveryConfigAction is the action performed on a DiscoveryConfig.
+enum DiscoveryConfigAction {
+  DISCOVERY_CONFIG_ACTION_UNSPECIFIED = 0;
+  DISCOVERY_CONFIG_ACTION_CREATE = 1;
+  DISCOVERY_CONFIG_ACTION_UPDATE = 2;
+  DISCOVERY_CONFIG_ACTION_DELETE = 3;
+}
+
+// DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
+//
+// PostHog event: tp.discovery.config
+message DiscoveryConfigEvent {
+  // action is the operation performed on the DiscoveryConfig.
+  DiscoveryConfigAction action = 1;
+  // discovery_config_name is the anonymized name of the DiscoveryConfig.
+  string discovery_config_name = 2;
+  // resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
+  repeated string resource_types = 3;
+  // cloud_providers is the list of cloud providers the config has matchers for.
+  repeated string cloud_providers = 4;
+  // creation_method specifies the flow used to create the config ("iac" or "guided")
+  string creation_method = 5;
 }
 
 message SubmitEventRequest {
@@ -2019,6 +2058,8 @@ message SubmitEventRequest {
 
     SessionSummaryCreateEvent session_summary_create_event = 105;
     SessionSummaryAccessEvent session_summary_access_event = 106;
+
+    DiscoveryConfigEvent discovery_config = 107;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

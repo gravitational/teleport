@@ -805,6 +805,62 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
+
+	scopedToken = payload{
+		Name:                  "ScopedToken",
+		TypeName:              "ScopedToken",
+		VarName:               "scopedToken",
+		GetMethod:             "GetScopedToken",
+		CreateMethod:          "CreateScopedToken",
+		UpdateMethod:          "UpsertScopedToken",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedToken",
+		ID:                    "scopedToken.Metadata.Name",
+		Kind:                  "scoped_token",
+		WithSecrets:           "true",
+		HasStaticID:           false,
+		ProtoPackage:          "joiningv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
+		TerraformResourceType: "teleport_scoped_token",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindScopedToken",
+	}
+
+	/*
+		//
+		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
+		//
+			typeA = payload{
+				Name:                  "TypeA",
+				TypeName:              "TypeA",
+				VarName:               "typeA",
+				GetMethod:             "GetTypeA",
+				CreateMethod:          "CreateTypeA",
+				UpsertMethodArity:     2,
+				UpdateMethod:          "UpsertTypeA",
+				DeleteMethod:          "DeleteTypeA",
+				ID:                    "typeA.Metadata.Name",
+				Kind:                  "type_a",
+				HasStaticID:           false,
+				ProtoPackage:          "examplev1",
+				ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/example/v1",
+				SchemaPackage:         "schemav1",
+				SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/example/v1",
+				TerraformResourceType: "teleport_type_a",
+				// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+				// resources are plain structs
+				IsPlainStruct: true,
+				// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+				// We import the package containing kinds, then use ForceSetKind.
+				ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+				ForceSetKind: "apitypes.KindTypeA",
+				// Only set default name if the resource is a singleton
+				// DefaultName:  "apitypes.MetaNameTypeA",
+			}
+	*/
 )
 
 func main() {
@@ -876,6 +932,9 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(scopedToken, pluralResource)
+	generateDataSource(scopedToken, pluralDataSource)
+	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 
 func generateResource(p payload, tpl string) {

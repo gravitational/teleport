@@ -37,10 +37,10 @@ import (
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
@@ -265,6 +265,10 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	return server, nil
 }
 
+func (t *TLSServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
+	t.grpcServer.SetServingStatus(service, servingStatus)
+}
+
 // Close closes TLS server non-gracefully - terminates in flight connections
 func (t *TLSServer) Close() error {
 	errC := make(chan error, 2)
@@ -396,20 +400,6 @@ func getCustomRate(endpoint string) *limiter.RateSet {
 			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
 				"error", err,
 				"rpc_method", endpoint)
-			return nil
-		}
-		return rates
-	// Passwordless RPCs (potential unauthenticated challenge generation).
-	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPeriod
-		const average = defaults.LimiterAverage
-		const burst = defaults.LimiterBurst
-		rates := limiter.NewRateSet()
-		if err := rates.Add(period, average, burst); err != nil {
-			logger.DebugContext(context.Background(), "Failed to define a custom rate for rpc method, using default rate",
-				"error", err,
-				"rpc_method", endpoint,
-			)
 			return nil
 		}
 		return rates
@@ -617,12 +607,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
-	is := []grpc.StreamServerInterceptor{
-		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-		otelgrpc.StreamServerInterceptor(),
-	}
-
+	var is []grpc.StreamServerInterceptor
 	if a.GRPCMetrics != nil {
 		is = append(is, a.GRPCMetrics.StreamServerInterceptor())
 	}

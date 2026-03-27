@@ -22,13 +22,13 @@ applications using Teleport.
 
 Argo CD supports declaratively managing clusters using Kubernetes secrets (see
 the [Argo CD
-documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters).
+documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters)).
 The Argo CD application controller reads these secrets in order to retrieve
 cluster credentials. When configured to use the Argo CD output service, `tbot`
 writes Teleport-signed Kubernetes cluster credentials into secrets that Argo CD
 can then use to access Teleport-protected Kubernetes clusters.
 
-## Prerequisite
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -205,7 +205,7 @@ spec:
     - service_account: "argocd:tbot" # namespace:service_account
 ```
 
-Use `tctl create -f ./join-token.yaml` to create the join.
+Use `tctl create -f ./join-token.yaml` to create the join token.
 
 ## Step 4/4. Deploy `tbot`
 

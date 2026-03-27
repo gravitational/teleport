@@ -37,8 +37,8 @@ import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 
 import argoCD from './argocd.png';
-import controlWorkflowsLightImage from './control-workflows-light.svg';
-import controlWorkflowsImage from './control-workflows.svg';
+import controlWorkflowsDarkImage from './control-workflows-dark.png';
+import controlWorkflowsLightImage from './control-workflows-light.png';
 import elimiateSecretsLightImage from './eliminate-secrets-light.svg';
 import elimiateSecretsImage from './eliminate-secrets.svg';
 
@@ -162,14 +162,14 @@ export const EliminateSecretsPreview = () => {
 
 const controlWorkflowsImages = {
   light: controlWorkflowsLightImage,
-  dark: controlWorkflowsImage,
+  dark: controlWorkflowsDarkImage,
 };
 
 export const ControlWorkflowsPreview = () => {
   const theme = useTheme();
   return (
     <PreviewBox includeShadow>
-      <Image maxHeight="100%" src={controlWorkflowsImages[theme.type]} />
+      <Image height="330px" src={controlWorkflowsImages[theme.type]} />
     </PreviewBox>
   );
 };

@@ -39,7 +39,7 @@ import (
 )
 
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
-var minGetUserCASemver = semver.New("18.7.0-aa")
+var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0, PreRelease: "aa"}
 
 type authServer interface {
 	// GetClusterName returns cluster name
@@ -109,14 +109,20 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// For read without secrets, we use RiskyUnpinnedDecision, this is to allow
+	// scoped identities (regardless of their pinned scope) to be able to fetch
+	// cert_authority resources (which are currently unscoped/treated as root
+	// scope).
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
+		decisionFn = authCtx.CheckerContext.Decision
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -130,14 +136,28 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = contextCA
+	if err := decisionFn(
+		ctx,
+		scopes.Root,
+		func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, readVerb)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Require admin MFA to read secrets.
 	if req.IncludeKey {
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		unscopedCtx, ok := authCtx.UnscopedContext()
+		if !ok {
+			return nil, trace.AccessDenied(
+				"cannot perform admin action %s:%s as scoped identity",
+				types.KindCertAuthority, types.VerbRead,
+			)
+		}
+		if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -149,7 +169,13 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
+	ruleCtx.Resource = ca
+	if err := decisionFn(
+		ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(
+				&ruleCtx, types.KindCertAuthority, readVerb)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

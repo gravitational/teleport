@@ -215,6 +215,9 @@ type Config struct {
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
+	// DatabaseServerWatcher is a database server watcher.
+	DatabaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
+
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
 
@@ -285,6 +288,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.DatabaseServerWatcher == nil {
+		return trace.BadParameter("missing parameter DatabaseServerWatcher")
 	}
 	return nil
 }
@@ -616,7 +622,10 @@ func (s *server) Wait(ctx context.Context) {
 }
 
 func (s *server) Start() error {
-	go s.srv.Serve(s.Listener)
+	if err := s.srv.SetListener(s.Listener); err != nil {
+		return trace.Wrap(err)
+	}
+	go s.srv.Serve()
 	return nil
 }
 
@@ -1254,6 +1263,19 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
+
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(closeContext, services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.databaseServerWatcher = databaseServerWatcher
+
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate

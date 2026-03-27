@@ -33,7 +33,6 @@ import { Danger } from 'design/Alert';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
-
 import { HoverTooltip } from 'design/Tooltip';
 import {
   AvailableResourceMode,

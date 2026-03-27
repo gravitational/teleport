@@ -38,7 +38,6 @@ afterAll(() => {
 });
 
 describe('HealthTab', () => {
-  // eslint-disable-next-line jest/expect-expect
   it('renders', async () => {
     renderComponent();
 
@@ -100,6 +99,7 @@ function expectItem(match: {
   expect(within(item).getByText(match.updatedAt)).toBeInTheDocument();
   expect(within(item).getByText(match.status)).toBeInTheDocument();
   if (match.reason) {
+    // oxlint-disable-next-line jest/no-conditional-expect
     expect(
       within(item).getByText(match.reason, { exact: false })
     ).toBeInTheDocument();

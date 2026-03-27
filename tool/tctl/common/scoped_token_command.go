@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -116,7 +117,6 @@ func (c *ScopedTokensCommand) Initialize(scopedCmd *kingpin.CmdClause, config *s
 	c.tokenAdd.Flag("mode", "Usage mode of a token (default: unlimited, single_use)").StringVar(&c.mode)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ssh-labels", "Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west").StringVar(&c.sshLabels)
-
 	// "tctl scoped tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke a scoped invitation token.").Alias("del")
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.name)
@@ -170,6 +170,14 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	tokenName := c.name
 
+	if tokenName == "" {
+		name, err := uuid.NewV7()
+		if err != nil {
+			return trace.Wrap(err, "generating token name")
+		}
+		tokenName = name.String()
+	}
+
 	var labels map[string]string
 	if c.labels != "" {
 		labels, err = libclient.ParseLabelSpec(c.labels)
@@ -188,6 +196,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 			Ssh: sshLabels,
 		}
 	}
+
 	expires := time.Now().UTC().Add(c.ttl)
 	tok := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
@@ -203,6 +212,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 			AssignedScope:   c.assignedScope,
 			UsageMode:       cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
 			ImmutableLabels: immutableLabels,
+			JoinMethod:      string(types.JoinMethodToken),
 		},
 	}
 

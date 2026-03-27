@@ -20,9 +20,7 @@ import { render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
-
 import '@testing-library/jest-dom';
-
 import { ThemeProvider } from 'styled-components';
 
 import lightTheme from 'design/theme/themes/lightTheme';

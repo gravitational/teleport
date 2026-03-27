@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import Box from 'design/Box';
+import Box, { type BoxProps } from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
@@ -35,7 +35,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
-export const ExternalAuditStorageCta = () => {
+export const ExternalAuditStorageCta = (props: BoxProps) => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
   const featureEnabled = cfg.externalAuditStorage;
@@ -60,10 +60,11 @@ export const ExternalAuditStorageCta = () => {
 
   return (
     <CtaContainer
+      {...props}
       css={`
         grid-column: span 2;
         @media screen and (max-width: ${props =>
-            props.theme.breakpoints.mobile}) {
+          props.theme.breakpoints.mobile}) {
           grid-column: auto;
         }
       `}
@@ -72,7 +73,7 @@ export const ExternalAuditStorageCta = () => {
         justifyContent="space-between"
         css={`
           @media screen and (max-width: ${props =>
-              props.theme.breakpoints.mobile}) {
+            props.theme.breakpoints.mobile}) {
             flex-direction: column;
             gap: ${props => props.theme.space[3]}px;
           }

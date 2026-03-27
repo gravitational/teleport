@@ -19,9 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
-
 import 'jest-canvas-mock';
-
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
 import DocumentSsh from '.';

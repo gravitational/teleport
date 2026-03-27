@@ -95,8 +95,8 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// mechanism should be investigated. Certificate format determination via scoped roles would be problematic.
 			CertificateFormat: constants.CertificateFormatStandard,
 			// MaxSessionTTL must be a global default value until we decide how to handle its effect on pinned certificate
-			// parameters. Likely we will need to decouple session TTL from certificate lifetime. See getScopedSessionTTL.
-			MaxSessionTTL: types.NewDuration(getScopedSessionTTL()),
+			// parameters. Likely we will need to decouple session TTL from certificate lifetime. See UnstableGetScopedSessionTTL.
+			MaxSessionTTL: types.NewDuration(UnstableGetScopedSessionTTL()),
 			// RequireMFAType is off until we decide how to handle its effect on pinned certificate parameters. This field
 			// is the underlying driver of the RequiredKeyPolicy checker method/cert attr. It is enforced at cert
 			// generation time, and also re-enforced during access. Due to the fact that descendant scopes must not be
@@ -123,7 +123,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			SSHPortForwarding: getScopedPortForwardingConfig(),
 			// ForwardAgent must be a global default value until we decide how to handle its effects on pinned certificate
 			// parameters. Likely will follow the same behavior as SSHPortForwarding.
-			ForwardAgent: types.NewBool(getScopedForwardAgent()),
+			ForwardAgent: types.NewBool(UnstableGetScopedForwardAgent()),
 			// PermitX11Forwarding is off until we decide how to handle its effect on pinned certificate parameters. Likely
 			// will follow the same behavior as SSHPortForwarding.
 			PermitX11Forwarding: types.NewBool(false),
@@ -163,14 +163,19 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 	return role, nil
 }
 
-// getScopedSessionTTL returns the session TTL for scoped access sessions. This is currently hard-coded to be 8 hours unless
-// overridden by an unstable env var. We would eventually like to make this configurable, but the existing mechanics of
-// session TTLs violate scope isolation principals.  We will need to do a deeper rework of the handling of session ttls and
-// decouple them from certificate lifetimes before it will be sane for scoped roles to define custom session ttls. As a
-// holdover, the unstable var will allow administrators some rudimentary control in the event the default is unacceptable.
-// XXX: We *must not* introduce configurable session TTLs without reevaluating the behavior of the
-// ScopedAccessChecker.CheckLoginDuration and ScopedAccessChecker.AdjustSessionTTL methods.
-func getScopedSessionTTL() time.Duration {
+// UnstableGetScopedSessionTTL returns the session TTL for scoped access sessions. This is currently hard-coded to be 8 hours
+// unless overridden by the TELEPORT_UNSTABLE_SCOPES_SESSION_TTL env var. We would eventually like to make this configurable
+// via scope-bound configuration, but the existing mechanics of session TTLs violate scope isolation principals. We will need
+// to do a deeper rework of the handling of session ttls and decouple them from certificate lifetimes before it will be sane
+// for scoped roles to define custom session ttls. As a holdover, the unstable var allows administrators some rudimentary
+// control in the event the default is unacceptable.
+//
+// This function is used both when converting scoped roles to classic roles (for evaluation) and when determining certificate
+// parameters for scoped identities.
+//
+// XXX: We *must not* introduce configurable session TTLs without reevaluating the behavior of certificate parameter
+// resolution for scoped identities.
+func UnstableGetScopedSessionTTL() time.Duration {
 	if s := os.Getenv("TELEPORT_UNSTABLE_SCOPES_SESSION_TTL"); s != "" {
 		if ttl, err := time.ParseDuration(s); err == nil {
 			return ttl
@@ -180,24 +185,37 @@ func getScopedSessionTTL() time.Duration {
 	return time.Hour * 8
 }
 
-// getScopedPortForwardingConfig returns the port forwarding configuration for scoped access. This is currently hard-coded to
-// be disabled unless overridden by an unstable env var. We would eventually like to make this configurable, but
-// certificate-based port forwarding permissions violate scope isolation principals. We will need to rework port forwarding
-// to decouple it from certificate parameters before it will be sane for scoped roles to define custom port forwarding behavior.
-// As a holdover, the unstable var will allow administrators some rudimentary control in the event the default is unacceptable.
+// UnstableGetScopedPortForwarding returns whether port forwarding should be permitted for scoped access. This is currently
+// hard-coded to be disabled unless overridden by the TELEPORT_UNSTABLE_SCOPES_PORT_FORWARDING env var. We would eventually
+// like to make this configurable via scope-bound configuration, but certificate-based port forwarding permissions violate
+// scope isolation principals. We will need to rework port forwarding to decouple it from certificate parameters before it
+// will be sane for scoped roles to define custom port forwarding behavior. As a holdover, the unstable var allows
+// administrators some rudimentary control in the event the default is unacceptable.
+//
+// This function is used both when converting scoped roles to classic roles (for evaluation) and when determining certificate
+// parameters for scoped identities.
+func UnstableGetScopedPortForwarding() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_SCOPES_PORT_FORWARDING") == "yes"
+}
+
+// UnstableGetScopedForwardAgent returns whether agent forwarding should be permitted for scoped access. This is currently
+// hard-coded to be disabled unless overridden by the TELEPORT_UNSTABLE_SCOPES_FORWARD_AGENT env var. We would eventually like
+// to make this configurable via scope-bound configuration, but certificate-based agent forwarding permissions violate scope
+// isolation principals. We will need to rework agent forwarding to decouple it from certificate parameters before it will be
+// sane for scoped roles to define custom agent forwarding behavior. As a holdover, the unstable var allows administrators some
+// rudimentary control in the event the default is unacceptable.
+//
+// This function is used both when converting scoped roles to classic roles (for evaluation) and when determining certificate
+// parameters for scoped identities.
+func UnstableGetScopedForwardAgent() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_SCOPES_FORWARD_AGENT") == "yes"
+}
+
+// getScopedPortForwardingConfig returns the port forwarding configuration for use in role conversion.
 func getScopedPortForwardingConfig() *types.SSHPortForwarding {
-	value := os.Getenv("TELEPORT_UNSTABLE_SCOPES_PORT_FORWARDING") == "yes"
+	value := UnstableGetScopedPortForwarding()
 	return &types.SSHPortForwarding{
 		Remote: &types.SSHRemotePortForwarding{Enabled: types.NewBoolOption(value)},
 		Local:  &types.SSHLocalPortForwarding{Enabled: types.NewBoolOption(value)},
 	}
-}
-
-// getScopedForwardAgent returns whether agent forwarding is enabled for scoped access. This is currently hard-coded to be
-// disabled unless overridden by an unstable env var. We would eventually like to make this configurable, but certificate-based
-// agent forwarding permissions violate scope isolation principals. We will need to rework agent forwarding to decouple it
-// from certificate parameters before it will be sane for scoped roles to define custom agent forwarding behavior. As a
-// holdover, the unstable var will allow administrators some rudimentary control in the event the default is unacceptable.
-func getScopedForwardAgent() bool {
-	return os.Getenv("TELEPORT_UNSTABLE_SCOPES_FORWARD_AGENT") == "yes"
 }

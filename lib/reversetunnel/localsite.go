@@ -191,6 +191,11 @@ func (s *localSite) GitServerWatcher() (*services.GenericWatcher[types.Server, r
 	return s.srv.GitServerWatcher, nil
 }
 
+// DatabaseServerWatcher returns a Database server watcher for this cluster.
+func (s *localSite) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return s.srv.DatabaseServerWatcher, nil
+}
+
 // GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil

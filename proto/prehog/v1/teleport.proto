@@ -341,6 +341,9 @@ message SessionSummariesGeneratedRecord {
 
   // total_output_tokens is number of total output tokens generated during the summary.
   uint64 total_output_tokens = 5;
+
+  // number of summaries generated for this session type and resource combination.
+  uint64 summaries_generated = 6;
 }
 
 message SubmitUsageReportsRequest {

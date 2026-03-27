@@ -11,6 +11,7 @@ on:
       - build.assets/Makefile
       - build.assets/images.mk
       - build.assets/versions.mk
+      - rust-toolchain.toml
     branches:
       - master
       - branch/**

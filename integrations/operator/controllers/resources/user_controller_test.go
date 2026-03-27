@@ -145,17 +145,22 @@ func (g *userTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestTeleportUserCreation(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewUserReconciler, test)
+}
+
+func TestTeleportUserDeletion(t *testing.T) {
+	test := &userTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserDeletionDrift(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewUserReconciler, test)
 }
 
 func TestTeleportUserUpdate(t *testing.T) {
 	test := &userTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.User, *v2.TeleportUser](t, resources.NewUserReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewUserReconciler, test)
 }
 
 func TestUserCreationFromYAML(t *testing.T) {

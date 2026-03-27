@@ -54,15 +54,15 @@ describe('getServerUri', () => {
     },
   ];
 
-  /* eslint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output, wantErr }) => {
+    /* oxlint-disable jest/no-conditional-expect */
     if (wantErr) {
       expect(() => routing.getServerUri(input)).toThrow(wantErr);
     } else {
       expect(routing.getServerUri(input)).toEqual(output);
     }
+    /* oxlint-enable jest/no-conditional-expect */
   });
-  /* eslint-enable jest/no-conditional-expect */
 });
 
 describe('getKubeResourceNamespaceUri', () => {

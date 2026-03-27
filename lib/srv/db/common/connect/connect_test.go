@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -36,44 +37,57 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
+
 func TestGetDatabaseServers(t *testing.T) {
+	const clusterName = "root"
+
 	for name, tc := range map[string]struct {
 		identity           tlsca.Identity
-		getter             *databaseServersMock
+		watcher            *mockDatabaseServerWatcher
 		expectErrorFunc    require.ErrorAssertionFunc
 		expectedServersLen int
 	}{
 		"match": {
 			identity:           identityWithDatabase("matched-db", "root", "alice", nil),
-			getter:             newDatabaseServersWithServers("no-match", "matched-db", "another-db"),
+			watcher:            newMockWatcherWithServers("matched-db", "other-db"),
 			expectErrorFunc:    require.NoError,
 			expectedServersLen: 1,
 		},
+		"multiple agents for same database": {
+			identity:           identityWithDatabase("matched-db", "root", "alice", nil),
+			watcher:            newMockWatcherWithServers("matched-db", "matched-db", "other-db"),
+			expectErrorFunc:    require.NoError,
+			expectedServersLen: 2,
+		},
 		"no match": {
 			identity: identityWithDatabase("no-match", "root", "alice", nil),
-			getter:   newDatabaseServersWithServers("first", "second", "third"),
-			expectErrorFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			watcher:  newMockWatcherWithServers("matched-db", "other-db"),
+			expectErrorFunc: func(tt require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err), "expected trace.NotFound error but got %T", err)
 			},
 		},
-		"get server error": {
-			identity:        identityWithDatabase("no-match", "root", "alice", nil),
-			getter:          newDatabaseServersWithErr(trace.Errorf("failure")),
+		"watcher error": {
+			identity:        identityWithDatabase("matched-db", "root", "alice", nil),
+			watcher:         newMockWatcherWithErr(trace.Errorf("failure")),
 			expectErrorFunc: require.Error,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			servers, err := GetDatabaseServers(context.Background(), GetDatabaseServersParams{
-				Logger:                logtest.NewLogger(),
-				ClusterName:           "root",
-				DatabaseServersGetter: tc.getter,
-				Identity:              tc.identity,
+				Logger:      logtest.NewLogger(),
+				ClusterName: clusterName,
+				Watcher:     tc.watcher,
+				Identity:    tc.identity,
 			})
 			tc.expectErrorFunc(t, err)
 			require.Len(t, servers, tc.expectedServersLen)
@@ -226,9 +240,24 @@ func identityWithDatabase(name, clusterName, user string, roles []string) tlsca.
 	}
 }
 
-type databaseServersMock struct {
+// mockDatabaseServerWatcher implements DatabaseServerWatcher for tests.
+type mockDatabaseServerWatcher struct {
 	servers []types.DatabaseServer
 	err     error
+}
+
+func (m *mockDatabaseServerWatcher) CurrentResourcesWithFilter(_ context.Context, filter func(readonly.DatabaseServer) bool) ([]types.DatabaseServer, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+
+	var out []types.DatabaseServer
+	for _, s := range m.servers {
+		if filter(readonly.NewDatabaseServer(s)) {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 func databaseServerWithName(name, hostId string) types.DatabaseServer {
@@ -245,21 +274,17 @@ func databaseServerWithName(name, hostId string) types.DatabaseServer {
 	}
 }
 
-func newDatabaseServersWithServers(dbNames ...string) *databaseServersMock {
+func newMockWatcherWithServers(dbNames ...string) *mockDatabaseServerWatcher {
 	var servers []types.DatabaseServer
 	for _, name := range dbNames {
 		servers = append(servers, databaseServerWithName(name, uuid.New().String()))
 	}
 
-	return &databaseServersMock{servers: servers}
+	return &mockDatabaseServerWatcher{servers: servers}
 }
 
-func newDatabaseServersWithErr(err error) *databaseServersMock {
-	return &databaseServersMock{err: err}
-}
-
-func (d *databaseServersMock) GetDatabaseServers(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	return d.servers, d.err
+func newMockWatcherWithErr(err error) *mockDatabaseServerWatcher {
+	return &mockDatabaseServerWatcher{err: err}
 }
 
 func newDialerMock(t *testing.T, authServer *auth.Server, dbName string, availableServers []string, unavailableServers []string) *dialerMock {

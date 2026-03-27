@@ -33,6 +33,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1619,6 +1620,11 @@ func TestPriority(t *testing.T) {
 		return conn
 	}
 
+	_, webProxyPortString, err := net.SplitHostPort(clientApp.dialOpts.GetWebProxyAddr())
+	require.NoError(t, err)
+	webProxyPort, err := strconv.Atoi(webProxyPortString)
+	require.NoError(t, err)
+
 	lookupShouldFailFast := func(t *testing.T, host string) {
 		t.Helper()
 		lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
@@ -1688,6 +1694,38 @@ func TestPriority(t *testing.T) {
 		defer sshConn.Close()
 
 		testConnectionToSshEchoServer(t, sshConn, chans, reqs)
+	})
+
+	t.Run("cluster match on proxy port is reachable", func(t *testing.T) {
+		t.Parallel()
+		// Regression test for #63980: this hostname only matches a cluster
+		// subdomain and not any app that is visible to VNet. Historically VNet
+		// could assign it to an undecided handler and then reject proxy-port
+		// traffic, breaking browser/web UI access when an access request
+		// assumed only in the web UI granted access to the web app. We now
+		// expect proxy-port traffic to be forwarded to the proxy.
+
+		conn := dialAndAssertCIDR(t, "invisible-webapp.example.com", webProxyPort, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+		roots := x509.NewCertPool()
+		require.True(t, roots.AppendCertsFromPEM(clientApp.dialOpts.GetRootClusterCaCertPool()))
+		tlsConn := tls.Client(conn, &tls.Config{
+			RootCAs:    roots,
+			ServerName: clientApp.dialOpts.GetSni(),
+		})
+		buf, err := io.ReadAll(tlsConn)
+		require.NoError(t, err)
+		require.Equal(t, `you dialed the proxy with alpn=""`, string(buf))
+	})
+
+	t.Run("cluster match still rejects non-SSH non-proxy port", func(t *testing.T) {
+		t.Parallel()
+		// Guard case for the same cluster-subdomain behavior: non-SSH and
+		// non-proxy ports should still be rejected.
+
+		_, err := p.dialHost(ctx, "invisible-webapp.example.com", 12345)
+		require.Error(t, err)
 	})
 
 	t.Run("root app beats leaf app when both match", func(t *testing.T) {
@@ -1915,7 +1953,7 @@ func mustStartFakeWebProxy(
 
 	proxyTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{proxyCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		ClientCAs:    roots,
 		NextProtos: []string{
 			string(alpncommon.ProtocolProxySSH),
@@ -1999,6 +2037,12 @@ func mustStartFakeWebProxy(
 						t.Log("error completing tls handshake")
 						return
 					}
+					protocol := tlsConn.ConnectionState().NegotiatedProtocol
+					handler, ok := protocolHandlers[alpncommon.Protocol(protocol)]
+					if !ok {
+						_, _ = io.WriteString(tlsConn, fmt.Sprintf("you dialed the proxy with alpn=%q", protocol))
+						return
+					}
 					clientCerts := tlsConn.ConnectionState().PeerCertificates
 					if len(clientCerts) == 0 {
 						t.Log("client has no certs")
@@ -2011,13 +2055,6 @@ func mustStartFakeWebProxy(
 					// satisfied.
 					if cfg.clock.Now().After(clientCerts[0].NotAfter) {
 						t.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
-						return
-					}
-
-					protocol := tlsConn.ConnectionState().NegotiatedProtocol
-					handler, ok := protocolHandlers[alpncommon.Protocol(protocol)]
-					if !ok {
-						t.Logf("unhandled proxy protocol %s", protocol)
 						return
 					}
 					if err := handler(conn); err != nil {

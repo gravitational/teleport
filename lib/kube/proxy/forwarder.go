@@ -43,6 +43,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpguts"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -477,7 +478,7 @@ func (c *authContext) key() string {
 func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
 	var kubeUsers, kubeGroups []string
 
-	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, c.User.GetName(), req.Header); err == nil {
+	if impersonateUser, impersonateGroups, err := computeAndValidateImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, c.User.GetName(), req.Header); err == nil {
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
@@ -1167,7 +1168,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if !actx.metaResource.isList {
-			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceAccessIDs()) > 0 {
 				// GetKubeResources returns the allowed and denied Kubernetes resources
 				// for the user. Since we have active access requests, the allowed
 				// resources will be the list of pods that the user requested access to if he
@@ -1995,7 +1996,7 @@ func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.User.GetName(), headers)
+	impersonateUser, impersonateGroups, err := computeAndValidateImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.User.GetName(), headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2030,11 +2031,13 @@ func copyImpersonationHeaders(dst, src http.Header) {
 	}
 }
 
-// computeImpersonatedPrincipals computes the intersection between the information
+// computeAndValidateImpersonatedPrincipals computes the intersection between the information
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, username string, headers http.Header) (string, []string, error) {
+// This function also validates the impersonateUser and impersonateGroups against
+// HTTP header field value requirements to prevent header injection attacks.
+func computeAndValidateImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, username string, headers http.Header) (string, []string, error) {
 	_, hasUserWildcard := kubeUsers[types.Wildcard]
 
 	var impersonateUser string
@@ -2119,6 +2122,17 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, us
 	if len(impersonateGroups) == 0 {
 		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
+		}
+	}
+	// Validate impersonateUser and impersonateGroups against HTTP header field value
+	// requirements to prevent header injection attacks.
+	// requirements in http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+	if !httpguts.ValidHeaderFieldValue(impersonateUser) {
+		return "", nil, trace.BadParameter("invalid impersonated user header value: %q", impersonateUser)
+	}
+	for _, group := range impersonateGroups {
+		if !httpguts.ValidHeaderFieldValue(group) {
+			return "", nil, trace.BadParameter("invalid impersonated group header value: %q", group)
 		}
 	}
 

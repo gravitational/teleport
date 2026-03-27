@@ -82,6 +82,7 @@ test('keyboard handling', async () => {
   render(<TestFieldMultiInput onChange={onChange} />);
 
   await user.click(screen.getByRole('textbox'));
+  // oxlint-disable-next-line testing-library/no-unnecessary-act
   await act(async () => {
     await user.keyboard('apples{Enter}oranges');
   });

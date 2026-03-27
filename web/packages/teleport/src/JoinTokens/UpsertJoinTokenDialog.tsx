@@ -30,6 +30,7 @@ import {
   Indicator,
   Text,
 } from 'design';
+import { Info } from 'design/Alert/Alert';
 import { Cross } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
@@ -38,8 +39,11 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
+import { collectKeys } from 'shared/utils/collectKeys';
 
+import 'teleport/services/resources';
 import { useTeleport } from 'teleport';
+import auth from 'teleport/services/auth';
 import {
   AWSRules,
   CreateJoinTokenRequest,
@@ -47,13 +51,6 @@ import {
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
-
-import 'teleport/services/resources';
-
-import { Info } from 'design/Alert/Alert';
-import { collectKeys } from 'shared/utils/collectKeys';
-
-import auth from 'teleport/services/auth';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {

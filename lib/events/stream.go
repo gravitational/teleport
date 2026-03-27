@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -64,9 +65,6 @@ const (
 	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
 	// per stream
 	ConcurrentUploadsPerStream = 1
-
-	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
-	MaxProtoMessageSizeBytes = 64 * 1024
 
 	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
 	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
@@ -166,7 +164,7 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool: utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
 	}, nil
 }
 
@@ -467,10 +465,10 @@ func (s *ProtoStream) Done() <-chan struct{} {
 func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
 	messageSize := event.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		event = event.TrimToMaxSize(MaxProtoMessageSizeBytes)
-		if event.Size() > MaxProtoMessageSizeBytes {
-			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+	if messageSize > constants.MaxProtoMessageSizeBytes {
+		event = event.TrimToMaxSize(constants.MaxProtoMessageSizeBytes)
+		if event.Size() > constants.MaxProtoMessageSizeBytes {
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, constants.MaxProtoMessageSizeBytes)
 		}
 	}
 
@@ -935,7 +933,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			log.WarnContext(w.proto.cancelCtx, "failed to upload part", "error", err)
 
 			// upload is not found is not a transient error, so abort the operation
-			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
+			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
 				log.InfoContext(w.proto.cancelCtx, "aborting part upload")
 				activeUpload.setError(err)
 				return
@@ -1140,11 +1138,13 @@ const (
 
 // ProtoReader reads protobuf encoding from reader
 type ProtoReader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
-	messageBytes [MaxProtoMessageSizeBytes]byte
+	gzipReader *gzipReader
+	padding    int64
+	reader     io.Reader
+	sizeBytes  [Int64Size]byte
+	// Extra metadata added after trimming can slightly increase message size,
+	// so include a little wiggle room.
+	messageBytes [constants.MaxProtoMessageSizeBytes + 4*1024]byte
 	state        int
 	error        error
 	lastIndex    int64

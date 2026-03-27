@@ -60,6 +60,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	libproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -79,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -2757,6 +2759,14 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	process.Supervisor.RegisterProcessStateCallback(func(healthy bool) {
+		if !healthy {
+			tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+			return
+		}
+		tlsServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	})
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)
 
@@ -2916,13 +2926,29 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
 	})
 
+	samlCertExpiryMonitor, err := auth.NewSAMLCertExpiryMonitor(auth.SAMLCertExpiryMonitorConfig{
+		Connectors: authServer.Services,
+		Alerts:     authServer.Services,
+		Events:     process.GetAuthServer().Services,
+		Clock:      process.Clock,
+		Backend:    process.backend,
+		Logger: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "saml-cert-expiry-monitor"),
+		),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.saml.cert-expiry-monitor", func() error {
+		return trace.Wrap(samlCertExpiryMonitor.Run(process.GracefulExitContext()))
+	})
+
 	expiry, err := expiry.New(&expiry.Config{
 		Log: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
 		),
 		Emitter:     authServer,
 		AccessPoint: authServer.Services,
-		Clock:       process.Clock,
 		HostID:      connector.HostUUID(),
 	})
 	if err != nil {
@@ -3093,6 +3119,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()
@@ -3850,7 +3877,7 @@ func (process *TeleportProcess) initUploaderService() error {
 
 		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
 		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
-		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default gRPC max msg recv size.
+		encryptedRecordingMaxUploadSize = grpcutils.MaxClientRecvMsgSize()
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -4925,6 +4952,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	databaseServerWatcher, err := services.NewDatabaseServerWatcher(process.ExitContext(), services.DatabaseServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+		DatabaseServersGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5173,35 +5212,35 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			reversetunnel.Config{
 				ClientTLSCipherSuites:   process.Config.CipherSuites,
 				GetClientTLSCertificate: conn.ClientGetCertificate,
-
-				Context:               process.ExitContext(),
-				Component:             teleport.Component(teleport.ComponentProxy, process.id),
-				ID:                    conn.HostUUID(),
-				ClusterName:           clusterName,
-				Listener:              rtListener,
-				GetHostSigners:        conn.ServerGetHostSigners,
-				LocalAuthClient:       conn.Client,
-				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
-				Limiter:               reverseTunnelLimiter,
-				KeyGen:                cfg.Keygen,
-				Ciphers:               cfg.Ciphers,
-				KEXAlgorithms:         cfg.KEXAlgorithms,
-				MACAlgorithms:         cfg.MACAlgorithms,
-				DataDir:               process.Config.DataDir,
-				PollingPeriod:         process.Config.PollingPeriod,
-				FIPS:                  cfg.FIPS,
-				Emitter:               streamEmitter,
-				Logger:                process.logger,
-				LockWatcher:           lockWatcher,
-				PeerClient:            peerClient,
-				NodeWatcher:           nodeWatcher,
-				GitServerWatcher:      gitServerWatcher,
-				CertAuthorityWatcher:  caWatcher,
-				CircuitBreakerConfig:  process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:    utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-				IngressReporter:       ingressReporter,
-				PROXYSigner:           proxySigner,
+				Context:                 process.ExitContext(),
+				Component:               teleport.Component(teleport.ComponentProxy, process.id),
+				ID:                      conn.HostUUID(),
+				ClusterName:             clusterName,
+				Listener:                rtListener,
+				GetHostSigners:          conn.ServerGetHostSigners,
+				LocalAuthClient:         conn.Client,
+				LocalAccessPoint:        accessPoint,
+				NewCachingAccessPoint:   process.newLocalCacheForRemoteProxy,
+				Limiter:                 reverseTunnelLimiter,
+				KeyGen:                  cfg.Keygen,
+				Ciphers:                 cfg.Ciphers,
+				KEXAlgorithms:           cfg.KEXAlgorithms,
+				MACAlgorithms:           cfg.MACAlgorithms,
+				DataDir:                 process.Config.DataDir,
+				PollingPeriod:           process.Config.PollingPeriod,
+				FIPS:                    cfg.FIPS,
+				Emitter:                 streamEmitter,
+				Logger:                  process.logger,
+				LockWatcher:             lockWatcher,
+				PeerClient:              peerClient,
+				NodeWatcher:             nodeWatcher,
+				GitServerWatcher:        gitServerWatcher,
+				DatabaseServerWatcher:   databaseServerWatcher,
+				CertAuthorityWatcher:    caWatcher,
+				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+				IngressReporter:         ingressReporter,
+				PROXYSigner:             proxySigner,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6106,7 +6145,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
-				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy server exited with error.", "error", err)
+				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy server exited with error.", "error", err)
 			}
 			return nil
 		})
@@ -6127,7 +6166,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy.reverseTunnel", func() error {
 				logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI reverse tunnel proxy server.", "listen_address", listeners.reverseTunnelALPN.Addr())
 				if err := reverseTunnelALPNServer.Serve(process.ExitContext()); err != nil {
-					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy on reverse tunnel server exited with error.", "error", err)
+					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy on reverse tunnel server exited with error.", "error", err)
 				}
 				return nil
 			})

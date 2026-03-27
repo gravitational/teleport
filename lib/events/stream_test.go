@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -184,12 +185,12 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	}{
 		{
 			name:         "large trimmable event is trimmed",
-			event:        makeQueryEvent("1", strings.Repeat("A", events.MaxProtoMessageSizeBytes)),
+			event:        makeQueryEvent("1", strings.Repeat("A", constants.MaxProtoMessageSizeBytes)),
 			errAssertion: require.NoError,
 		},
 		{
 			name:         "large untrimmable event returns error",
-			event:        makeAccessRequestEvent("1", strings.Repeat("A", events.MaxProtoMessageSizeBytes)),
+			event:        makeAccessRequestEvent("1", strings.Repeat("A", constants.MaxProtoMessageSizeBytes)),
 			errAssertion: require.Error,
 		},
 	}

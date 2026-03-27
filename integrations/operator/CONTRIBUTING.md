@@ -16,10 +16,22 @@ other .proto files used to generate the CRDs have changed).
 #### Generate the new CRD
 
 1. Add the type name to the `resources` list in `crdgen/handlerequest.go`.
+
 2. Add the proto file to the `PROTOS` list in `Makefile` if it is not
    already present.
-4. Run `make crd-manifests-diff`. This will should output the new CRD file or the diff, and fail.
-3. Run `make crd` to generate the CRD and its documentation.
+
+3. Run `make crd-manifests-diff`. This will should output the new CRD file or
+   the diff and exit with a 1 return code, indicating there are differences.
+
+   Inspect the output to make sure it's only generating CRDs for the new
+   resource(s) you added. If other CRDs are generated or changed, figure out why
+   and plan to test any other resources modified. Alternativly, revert the
+   changes you didn't make causing the CRDs to be modified.
+
+4. Run `make crd` to generate the CRD and its documentation.
+
+5. Run `make crd-manifests-diff` again. After running `make crd`, it should
+   always show no differences and exit without error.
 
 #### Create a "scheme" defining Go types to match the CRD
 

@@ -90,6 +90,7 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   tcpPorts: [],
   permissionSets: [],
   subKind: '',
+  supportedFeatureIds: [],
   ...props,
 });
 
@@ -374,7 +375,7 @@ export const makeAuthSettings = (
 ): AuthSettings => ({
   localAuthEnabled: true,
   authProviders: [],
-  hasMessageOfTheDay: false,
+  messageOfTheDay: '',
   authType: 'local',
   allowPasswordless: false,
   localConnectorName: '',

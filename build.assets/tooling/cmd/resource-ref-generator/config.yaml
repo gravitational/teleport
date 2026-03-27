@@ -41,9 +41,18 @@ resources:
         There can be multiple instances of an `app_server` for a single
         application, each corresponding to a different Teleport Application
         Service instance that proxies the application. Read more about [High
-        Availability](../../../enroll-resources/application-access/configuration/ha.mdx)
+        Availability](../../../enroll-resources/agents/high-availability.mdx)
         for the Teleport Application Service. Read the [reference
         guide](./app-v3.mdx) for the `app` resource.
+  - type: BotInstance
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
+    yaml_kind: bot_instance
+    yaml_version: v1
+    introduction: |
+      The `bot_instance` resource tracks the internal state of a Machine ID Bot
+      registered with your Teleport cluster. It is possible to read and list
+      `bot_instance` resources with `tctl` but not to create, modify, or delete
+      them.
   - type: DatabaseServerV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db_server
@@ -82,6 +91,7 @@ camel_case_exceptions:
   - ElastiCache
   - GCP
   - GitHub
+  - GitLab
   - HTTP
   - IAM
   - ID
@@ -96,3 +106,4 @@ camel_case_exceptions:
   - SQL
   - SSO
   - TLS
+  - TPM

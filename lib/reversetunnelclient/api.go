@@ -124,6 +124,8 @@ type Cluster interface {
 	NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
 	// GitServerWatcher returns the Git server watcher for the cluster
 	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
+	// DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster
+	DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

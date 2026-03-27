@@ -45,7 +45,7 @@ Teleport processes joining the cluster.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="self-hosted Teleport"!)
 
-- (!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/iac-clients.mdx!)
 - An AWS EC2 instance to host a Teleport process, with the Teleport binary
   installed. The host should not have an existing data dir (`/var/lib/teleport`
   by default). Remove the data directory if this instance has previously joined
@@ -101,12 +101,36 @@ Under the hood, services will prove that they are running in your AWS account by
 sending a signed EC2 Instance Identity Document which matches an allow rule
 configured in your AWS joining token.
 
+You can create the token with `tctl` as well as the Teleport Terraform provider
+or Kubernetes operator:
+
+<Tabs>
+<TabItem label="tctl">
+
 Create the following `token.yaml` with an `allow` rule specifying your AWS
 account and the AWS regions in which your EC2 instances will run.
 
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
 Run `tctl create token.yaml` to create the token.
+
+</TabItem>
+<TabItem label="Terraform">
+
+Add the following resource to your Terraform configuration, replacing values as
+indicated:
+
+(!docs/pages/includes/provision-token/ec2-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Add the following Kubernetes resource manifest, replacing values as indicated:
+
+(!docs/pages/includes/provision-token/ec2-spec-kube.mdx!)
+
+</TabItem>
+</Tabs>
 
 ## Step 3/5 Install Teleport
 

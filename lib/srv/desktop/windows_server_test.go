@@ -28,6 +28,7 @@ import (
 	"encoding/base32"
 	"io"
 	"log/slog"
+	"math/big"
 	"os"
 	"sync"
 	"testing"
@@ -37,10 +38,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
@@ -337,7 +340,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message, which is way too big to be legitimate
-	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
+	maliciousPNG := make([]byte, constants.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
 	maliciousPNG[0] = byte(tdp.TypePNGFrame)
 
@@ -477,6 +480,7 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 	})
 
 	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+
 		return &WindowsService{
 			cfg: WindowsServiceConfig{
 				Clock:      clock,
@@ -486,11 +490,23 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 					Domain:   "test.example.com",
 					Username: "test-user",
 					Addr:     "ldap.example.com:389",
+					CAs:      []*x509.Certificate{newSelfSignedCA(t), newSelfSignedCA(t)},
 				},
 			},
 			closeCtx: context.Background(),
 		}
 	}
+
+	t.Run("issued cert supports multiple CAs", func(t *testing.T) {
+		s := newWindowsService(clockwork.NewFakeClock(), client)
+
+		config, err := s.issueNewTLSConfigForLDAP()
+		require.NoError(t, err)
+		// Validate that both configured CAs made it into
+		// the TLS config's cert pool.
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[0])
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[1])
+	})
 
 	t.Run("returns cached config when not expired", func(t *testing.T) {
 		clock := clockwork.NewFakeClock()
@@ -589,11 +605,12 @@ func TestCRLUpdateSchedule(t *testing.T) {
 
 	// Create a "fake" WindowsService instance. This only needs enough setup to do
 	// runCRLUpdateLoop().
+	accessPoint := newWatcherAwareAccessPoint(t, testAuth.AuthServer)
 	winService := &WindowsService{
 		cfg: WindowsServiceConfig{
 			Logger:             logtest.NewLogger(),
 			Clock:              clock,
-			AccessPoint:        testAuth.AuthServer,
+			AccessPoint:        accessPoint,
 			PublishCRLInterval: publishInterval,
 		},
 		// Mock the actual CRL publishing.
@@ -613,8 +630,16 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		winService.runCRLUpdateLoop()
 	}()
 
+	select {
+	case <-accessPoint.InitReceived():
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for watcher initialization")
+	}
+
 	var wantUpdates int
 	waitForNextCRLUpdate := func(t *testing.T) {
+		t.Helper()
+
 		wantUpdates++
 		caClient.WaitForUpdate(t, wantUpdates)
 	}
@@ -666,6 +691,108 @@ func TestCRLUpdateSchedule(t *testing.T) {
 	})
 }
 
+// watcherAwareAccessPoint is a WindowsDesktopAccessPoint wrapper that
+// intercepts the creation of watchers, so we can know with certainty that the
+// expected watchers are ready.
+//
+// See [watcherAwareAccessPoint.InitReceived].
+type watcherAwareAccessPoint struct {
+	authclient.WindowsDesktopAccessPoint
+
+	initReceived      chan struct{}
+	initReceivedClose func()
+
+	done <-chan struct{} // signals end of test
+	wg   sync.WaitGroup
+}
+
+func newWatcherAwareAccessPoint(t *testing.T, ap authclient.WindowsDesktopAccessPoint) *watcherAwareAccessPoint {
+	ctx, cancel := context.WithCancel(t.Context())
+
+	watcherAP := &watcherAwareAccessPoint{
+		WindowsDesktopAccessPoint: ap,
+		initReceived:              make(chan struct{}),
+		done:                      ctx.Done(),
+	}
+	watcherAP.initReceivedClose = sync.OnceFunc(func() { close(watcherAP.initReceived) })
+	t.Cleanup(func() {
+		cancel()
+		t.Log("Waiting for watcherAwareAccessPoint sync.WaitGroup")
+		watcherAP.wg.Wait()
+	})
+
+	return watcherAP
+}
+
+func (a *watcherAwareAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	w, err := a.WindowsDesktopAccessPoint.NewWatcher(ctx, watch)
+	if err != nil {
+		return nil, err
+	}
+
+	ww := &watcherInitWrapper{
+		Watcher:          w,
+		markInitReceived: a.initReceivedClose,
+		done:             a.done,
+		events:           make(chan types.Event),
+	}
+	a.wg.Go(func() { ww.forwardEvents(ctx, w) })
+
+	return ww, nil
+}
+
+// InitReceived returns a channel that is closed once any watcher created by the
+// watcherAwareAccessPoint receives its first init event.
+//
+// Used as proxy to know that the underlying watcher is ready.
+func (a *watcherAwareAccessPoint) InitReceived() <-chan struct{} {
+	return a.initReceived
+}
+
+// watcherInitWrapper wraps a types.Watcher so it can wait for its first init
+// event.
+//
+// See watcherAwareAccessPoint.
+type watcherInitWrapper struct {
+	types.Watcher
+
+	markInitReceived func()
+
+	done   <-chan struct{} // signals end of test
+	events chan types.Event
+}
+
+func (w *watcherInitWrapper) Events() <-chan types.Event {
+	return w.events
+}
+
+func (w *watcherInitWrapper) forwardEvents(ctx context.Context, other types.Watcher) {
+	for {
+		select {
+		case <-w.done:
+			return
+		case <-ctx.Done():
+			return
+		case <-other.Done():
+			return
+		case e := <-other.Events():
+			if e.Type == types.OpInit {
+				w.markInitReceived()
+			}
+			// Forward event.
+			select {
+			case <-w.done:
+				return
+			case <-ctx.Done():
+				return
+			case <-other.Done():
+				return
+			case w.events <- e:
+			}
+		}
+	}
+}
+
 type mockCertificateStoreClient struct {
 	logf func(string, ...any)
 
@@ -692,24 +819,59 @@ func (c *mockCertificateStoreClient) Update(ctx context.Context, tc *tls.Config)
 }
 
 func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) {
-	// Arbitrary. 1s should be plenty of time for a mocked update.
-	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+	t.Helper()
+
+	const timeout = 5 * time.Second // arbitrary
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
 
 	for {
 		c.mu.Lock()
-		if c.numCalls == wantCalls {
-			c.mu.Unlock()
-			return
-		}
+		num := c.numCalls
 		ch := c.wait
 		c.mu.Unlock()
+		if num == wantCalls {
+			return
+		}
 
 		select {
 		case <-ctx.Done():
-			t.Fatal("Timed out before update")
+			t.Fatalf("Timed out before update: numCalls=%d, wantCalls=%d", c.numCalls, wantCalls)
 		case <-ch:
 			continue
 		}
 	}
+}
+
+func assertCertInPool(t *testing.T, pool *x509.CertPool, cert x509.Certificate) {
+	t.Helper()
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
+		t.Fatalf("cert not found/trusted in pool: %v", err)
+	}
+}
+
+func newSelfSignedCA(t *testing.T) *x509.Certificate {
+	t.Helper()
+
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test-ca",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	certBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, signer.Public(), signer)
+	require.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(certBytes)
+	require.NoError(t, err)
+	return cert
 }
