@@ -41,9 +41,14 @@ func TestScanFile(t *testing.T) {
 			wantNames: []string{"ssh-node", "connect"},
 		},
 		{
-			name:      "extend-style with nested brackets",
-			content:   `  fixtures: [['connect'], { option: true }],`,
+			name:      "test.use with nested brackets",
+			content:   `test.use({ fixtures: [['connect'], { option: true }] });`,
 			wantNames: []string{"connect"},
+		},
+		{
+			name:      "bare fixtures array without test.use is ignored",
+			content:   `  fixtures: [['connect'], { option: true }],`,
+			wantNames: nil,
 		},
 		{
 			name:      "commented out line is skipped",
@@ -58,6 +63,26 @@ func TestScanFile(t *testing.T) {
 		{
 			name:      "mixed with other options",
 			content:   `test.use({ autoLogin: true, fixtures: ['connect'] });`,
+			wantNames: []string{"connect"},
+		},
+		{
+			name: "multiline fixture array",
+			content: `test.use({
+  fixtures: [
+    'ssh-node',
+    'connect',
+  ],
+});`,
+			wantNames: []string{"ssh-node", "connect"},
+		},
+		{
+			name: "multiline with comments between",
+			content: `test.use({
+  fixtures: [
+    // 'ssh-node',
+    'connect',
+  ],
+});`,
 			wantNames: []string{"connect"},
 		},
 	}

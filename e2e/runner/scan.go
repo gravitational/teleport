@@ -29,10 +29,10 @@ import (
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
-// fixtureArrayRe matches fixture declarations in both test.use() and extend() calls:
+// fixtureArrayRe matches fixture arrays inside test.use() calls, including multiline declarations.
 //   - test.use({ fixtures: ['ssh-node'] })
-//   - fixtures: [['connect'], { option: true }]
-var fixtureArrayRe = regexp.MustCompile(`fixtures:\s*\[+([^\]]*)\]`)
+//   - test.use({ fixtures: [['connect'], { option: true }] })
+var fixtureArrayRe = regexp.MustCompile(`test\.use\([^)]*fixtures:\s*\[+([^]]*)]`)
 
 // fixtureRefRe extracts individual quoted fixture names from the matched array contents.
 var fixtureRefRe = regexp.MustCompile(`'([^']+)'`)
@@ -157,21 +157,24 @@ func scanFile(path string) []*fixtures.Fixture {
 		return nil
 	}
 
-	var result []*fixtures.Fixture
+	// Strip single-line comment lines before matching so that commented-out fixture declarations are not detected.
+	var filtered []string
 	for _, line := range strings.Split(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "//") {
+		if strings.HasPrefix(strings.TrimSpace(line), "//") {
 			continue
 		}
 
-		arrayMatches := fixtureArrayRe.FindAllStringSubmatch(line, -1)
-		for _, m := range arrayMatches {
-			refs := fixtureRefRe.FindAllStringSubmatch(m[1], -1)
+		filtered = append(filtered, line)
+	}
 
-			for _, ref := range refs {
-				if f := fixtures.FindByName(ref[1]); f != nil {
-					result = append(result, f)
-				}
+	// Match against the joined content so that fixture arrays spanning multiple lines are detected correctly.
+	content := strings.Join(filtered, "\n")
+
+	var result []*fixtures.Fixture
+	for _, m := range fixtureArrayRe.FindAllStringSubmatch(content, -1) {
+		for _, ref := range fixtureRefRe.FindAllStringSubmatch(m[1], -1) {
+			if f := fixtures.FindByName(ref[1]); f != nil {
+				result = append(result, f)
 			}
 		}
 	}
