@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
-import { Check, Copy, Notification, Spinner } from 'design/Icon';
+import { Alert, Box, ButtonText, Flex, Text } from 'design';
+import { Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
@@ -29,31 +28,7 @@ import { useValidation } from 'shared/components/Validation';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber } from './EnrollAws';
-
-export function CopyTerraformButton({
-  onClick,
-}: {
-  onClick: (e: React.SyntheticEvent) => void;
-}) {
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleClick = (e: React.SyntheticEvent) => {
-    onClick(e);
-
-    if (!e.defaultPrevented) {
-      setConfigCopied(true);
-      setTimeout(() => setConfigCopied(false), 1000);
-    }
-  };
-
-  return (
-    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
-      {configCopied ? <Check size="small" /> : <Copy size="small" />}
-      Copy Terraform Module
-    </Button>
-  );
-}
+import { CircleNumber, CopyTerraformButton } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
