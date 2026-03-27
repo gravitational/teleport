@@ -20,7 +20,7 @@
 
 package pam
 
-import "github.com/gravitational/teleport/lib/service/servicecfg"
+import "github.com/gravitational/teleport/session/pam/pamcfg"
 
 var buildHasPAM, systemHasPAM bool
 
@@ -31,7 +31,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	return &PAM{}, nil
 }
 

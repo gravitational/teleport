@@ -59,8 +59,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/logutils"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 func init() {
@@ -305,7 +305,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}

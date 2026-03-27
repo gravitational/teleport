@@ -49,13 +49,13 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // teleportFakeUser is a user that doesn't exist, used for tests.
@@ -338,7 +338,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{

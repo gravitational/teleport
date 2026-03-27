@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const (
@@ -130,7 +131,7 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}
@@ -676,7 +677,7 @@ func TestBPFMonitoringWithPAM(t *testing.T) {
 	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}

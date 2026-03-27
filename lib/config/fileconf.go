@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -1846,13 +1847,13 @@ type PAM struct {
 }
 
 // Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+func (p *PAM) Parse() *pamcfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pamcfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
