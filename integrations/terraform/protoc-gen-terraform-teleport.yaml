@@ -368,8 +368,6 @@ required_fields:
 
     # Provision token
     - "ProvisionTokenV2.Spec"
-    # TODO: This attribute does not exist
-    # - "ProvisionTokenV2.Spec.Options"
     - "ProvisionTokenV2.Spec.Roles"
     - "ProvisionTokenV2.Version"
 

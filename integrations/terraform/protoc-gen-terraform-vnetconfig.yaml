@@ -6,7 +6,7 @@ use_state_for_unknown_by_default: true
 
 # Top-level type names to export
 types:
-  - "VnetConfig"
+  - 'VnetConfig'
 
 # These import paths were not being automatically picked up by
 # protoc-gen-terraform without these overrides
@@ -32,8 +32,6 @@ injected_fields:
 # These fields will be excluded
 exclude_fields:
   # Metadata (we id resources by name on our side)
-  # This attribute does not exist?
-  - 'VnetConfig.id'
   - 'VnetConfig.metadata.name'
   # Revision must be excluded to avoid a permanent drift in state.
   - 'VnetConfig.metadata.revision'
@@ -42,8 +40,8 @@ exclude_fields:
 computed_fields:
   # Metadata
   - 'VnetConfig.metadata.namespace'
-  - "VnetConfig.kind"
-  - "VnetConfig.version"
+  - 'VnetConfig.kind'
+  - 'VnetConfig.version'
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the
