@@ -39,6 +39,8 @@ package uacc
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -190,4 +192,25 @@ func (uacc *UserAccountHandler) FailedLogin(username string, remote net.Addr) er
 	}
 	// wtmpdb doesn't log failed logins.
 	return nil
+}
+
+// fileExists is an inlining of lib/utils.FileExists, to avoid importing
+// lib/utils
+func fileExists(fp string) bool {
+	_, err := os.Stat(fp)
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
+// hostFromAddr is an inlining of lib/utils.FromAddr(a).Host(), to avoid
+// importing lib/utils
+func hostFromAddr(a net.Addr) string {
+	s := a.String()
+	host, _, err := net.SplitHostPort(s)
+	if err == nil {
+		return host
+	}
+	if ip := net.ParseIP(strings.Trim(s, "[]")); len(ip) != 0 {
+		return ip.String()
+	}
+	return s
 }
