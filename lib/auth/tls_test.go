@@ -51,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -78,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -1464,6 +1467,66 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
+func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClt.Close()
+
+	want, err := srv.AuthServer.AuthServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	got, err := scopedClt.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	if err == nil {
+		require.Empty(t, cmp.Diff(want, got))
+	}
+}
+
 func TestTunnelConnectionsCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -2479,6 +2542,71 @@ func TestGetCertAuthority(t *testing.T) {
 
 	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClt.Close()
+
+	hostCAID := types.CertAuthID{
+		DomainName: srv.ClusterName(),
+		Type:       types.HostCA,
+	}
+
+	// scoped identity is authorized to fetch CA without secrets
+	_, err = scopedClt.GetCertAuthority(ctx, hostCAID, false)
+	require.NoError(t, err)
+
+	// scoped identity is not authorized to fetch CA with secrets
+	_, err = scopedClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 }
 

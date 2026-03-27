@@ -2866,6 +2866,7 @@ type GenerateUserTestCertsRequest struct {
 	ActiveRequests          []string
 	KubernetesCluster       string
 	Usage                   []string
+	Scope                   string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2881,12 +2882,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	checkerContext, err := a.accessCheckerForScope(ctx, req.Scope, userState)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2898,7 +2894,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		SSHPublicKey:                     req.SSHPubKey,
 		TLSPublicKey:                     req.TLSPubKey,
 		RouteToCluster:                   req.RouteToCluster,
-		CheckerContext:                   services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext:                   checkerContext,
 		Traits:                           userState.GetTraits(),
 		LoginIP:                          req.PinnedIP,
 		PinIP:                            req.PinnedIP != "",
