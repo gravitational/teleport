@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -56,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/session/host"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uds"
 )
