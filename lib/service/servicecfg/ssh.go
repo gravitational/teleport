@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // SSHConfig configures Teleport's SSH service.
@@ -36,7 +37,7 @@ type SSHConfig struct {
 	PermitUserEnvironment bool
 
 	// PAM holds PAM configuration for Teleport.
-	PAM *PAMConfig
+	PAM *pamcfg.PAMConfig
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr

@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -229,8 +229,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
