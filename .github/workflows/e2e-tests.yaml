@@ -182,7 +182,6 @@ jobs:
 
     permissions:
       contents: read
-      pull-requests: write
 
     env:
       HOME: /root
@@ -263,41 +262,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: e2e/runner/e2e --github-report
 
-      - name: Update PR comment
+      - name: Upload PR comment
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          comment_file="e2e/test-results/pr-comment.md"
-          marker="<!-- e2e-test-results -->"
-          pr_number="${{ github.event.pull_request.number }}"
-
-          # Find existing comment ID with the marker.
-          comment_id=$(gh api "repos/${{ github.repository }}/issues/${pr_number}/comments" \
-            --paginate --jq ".[] | select(.user.type == \"Bot\") | select(.body | contains(\"${marker}\")) | .id" \
-            | head -n1)
-
-          if [ ! -f "$comment_file" ]; then
-            echo "::warning::PR comment file not found: $comment_file"
-            exit 0
-          fi
-
-          if [ ! -s "$comment_file" ]; then
-            # Empty file means all tests passed — delete existing comment if any.
-            if [ -n "$comment_id" ]; then
-              gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}"
-              echo "Deleted existing E2E results PR comment"
-            fi
-          elif [ -n "$comment_id" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${comment_id}" \
-              -F body=@"$comment_file"
-            echo "Updated E2E results PR comment"
-          else
-            gh api -X POST "repos/${{ github.repository }}/issues/${pr_number}/comments" \
-              -F body=@"$comment_file"
-            echo "Created E2E results PR comment"
-          fi
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-comment
+          path: e2e/test-results/pr-comment.md
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
@@ -330,3 +302,57 @@ jobs:
           name: docker-node-logs
           path: e2e/docker-node-*.log
           retention-days: 7
+
+  update-pr-comment:
+    name: Update PR comment
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download PR comment artifact
+        id: download
+        uses: actions/download-artifact@v8
+        with:
+          name: pr-comment
+          path: pr-comment
+        continue-on-error: true
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          comment_file="pr-comment/pr-comment.md"
+          marker="<!-- e2e-test-results -->"
+          pr_number="${{ github.event.pull_request.number }}"
+
+          # Find existing comment ID with the marker.
+          comment_id=$(gh api "repos/${{ github.repository }}/issues/${pr_number}/comments" \
+            --paginate --jq ".[] | select(.user.type == \"Bot\") | select(.body | contains(\"${marker}\")) | .id" \
+            | head -n1)
+
+          if [ "${{ steps.download.outcome }}" != "success" ] || [ ! -f "$comment_file" ]; then
+            echo "No PR comment file found"
+            exit 0
+          fi
+
+          if [ ! -s "$comment_file" ]; then
+            # Empty file means all tests passed — delete existing comment if any.
+            if [ -n "$comment_id" ]; then
+              gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}"
+              echo "Deleted existing E2E results PR comment"
+            fi
+          elif [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${comment_id}" \
+              -F body=@"$comment_file"
+            echo "Updated E2E results PR comment"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${pr_number}/comments" \
+              -F body=@"$comment_file"
+            echo "Created E2E results PR comment"
+          fi
