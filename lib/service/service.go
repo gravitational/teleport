@@ -1136,7 +1136,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
 			"that Enterprise FIPS release was downloaded from " +
 			"a Teleport account https://teleport.sh")
-
 	}
 
 	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
@@ -2514,6 +2513,16 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// setLocalAuth must be called before InitUsageReporting so that enterprise
+	// auth extensions can access the UsageReporter via GetAuthServer.
+	process.setLocalAuth(authServer)
+	if process.Config.PluginRegistry != nil {
+		if err := process.Config.PluginRegistry.InitUsageReporting(process); err != nil {
+			return trace.Wrap(err, "initializing usage reporting")
+		}
+	}
+
 	authServer.EncryptedIO = encryptedIO
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -2591,8 +2600,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	recordingMetadataProvider.SetService(recordingMetadataService)
-
-	process.setLocalAuth(authServer)
 
 	// The auth server runs its own upload completer, which is necessary in sync recording modes where
 	// a node can abandon an upload before it is competed.
@@ -3132,6 +3139,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()

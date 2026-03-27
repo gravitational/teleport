@@ -9225,7 +9225,6 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.Empty(t, next)
 	require.Len(t, page2, 1)
 	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
-
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -10076,7 +10075,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
-
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -11227,7 +11225,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.Len(t, retrievedAcks, 1)
 				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
 
-				//cluster alert is filtered out since it's acknowledged
+				// cluster alert is filtered out since it's acknowledged
 				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -11242,7 +11240,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, retrievedAcks)
 
-				//cluster alert is back since its acknowledgement is cleared
+				// cluster alert is back since its acknowledgement is cleared
 				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,

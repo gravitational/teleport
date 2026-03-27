@@ -1297,6 +1297,128 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 	require.Nil(t, resp)
 }
 
+func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
+	t.Parallel()
+
+	authServer, service, _, user := setupAuthServer(t, nil)
+
+	requestID := "test-request-id"
+	authServer.requestIDs.Store(requestID, struct{}{})
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	resp, err := service.CompleteBrowserMFAChallenge(
+		ctx,
+		&mfav1.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+				RequestId: requestID,
+				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
+					Type: "public-key",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotEmpty(t, resp.TshRedirectUrl)
+	require.Contains(t, resp.TshRedirectUrl, "127.0.0.1")
+}
+
+func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, _ := setupAuthServer(t, nil)
+
+	// Use a context with a non-user role (proxy).
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
+
+	resp, err := service.CompleteBrowserMFAChallenge(
+		ctx,
+		&mfav1.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+				RequestId: "test-request-id",
+				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
+					Type: "public-key",
+				},
+			},
+		},
+	)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorContains(t, err, "only local or remote users can complete a browser MFA challenge")
+	require.Nil(t, resp)
+}
+
+func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	authServer, service, _, user := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	for _, testCase := range []struct {
+		name          string
+		req           *mfav1.CompleteBrowserMFAChallengeRequest
+		expectedError string
+	}{
+		{
+			name: "missing BrowserMfaResponse",
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: nil,
+			},
+			expectedError: "missing browser_mfa_response in request",
+		},
+		{
+			name: "missing RequestId",
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+					RequestId: "",
+					WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
+						Type: "public-key",
+					},
+				},
+			},
+			expectedError: "missing request_id in browser_mfa_response",
+		},
+		{
+			name: "missing WebauthnResponse",
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+					RequestId:        "test-request-id",
+					WebauthnResponse: nil,
+				},
+			},
+			expectedError: "missing webauthn_response in browser_mfa_response",
+		},
+		{
+			name: "non-existent RequestId",
+			req: func() *mfav1.CompleteBrowserMFAChallengeRequest {
+				return &mfav1.CompleteBrowserMFAChallengeRequest{
+					BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+						RequestId: "non-existent-request-id",
+						WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
+							Type: "public-key",
+						},
+					},
+				}
+			}(),
+			expectedError: "invalid browser MFA challenge request ID",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			// For the "invalid RequestId" test, ensure we have at least one valid ID stored.
+			if testCase.name == "invalid RequestId" {
+				authServer.requestIDs.Store("valid-id", struct{}{})
+			}
+
+			resp, err := service.CompleteBrowserMFAChallenge(ctx, testCase.req)
+			require.Error(t, err)
+			require.ErrorContains(t, err, testCase.expectedError)
+			require.Nil(t, resp)
+		})
+	}
+}
+
 func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav1impl.Service, *eventstest.MockRecorderEmitter, types.User) {
 	t.Helper()
 

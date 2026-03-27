@@ -1943,7 +1943,7 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
-func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+func (s *IdentityService) UpsertMFASessionData(ctx context.Context, sd *services.MFASessionData) error {
 	switch {
 	case sd == nil:
 		return trace.BadParameter("missing parameter sd")
@@ -1969,7 +1969,7 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *servi
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
 	if sessionID == "" {
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
@@ -1978,7 +1978,7 @@ func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &services.SSOMFASessionData{}
+	sd := &services.MFASessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 

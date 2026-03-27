@@ -30,6 +30,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -114,10 +115,20 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
 
+type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
+
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
+func MatchersToAzureInstanceFetchers(
+	ctx context.Context,
+	logger *slog.Logger,
+	matchers []types.AzureMatcher,
+	getClient azureClientGetter,
+	discoveryConfigName string,
+	listSubs listSubscriptionsFunc,
+) []Fetcher[*AzureInstances] {
 	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
+		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
@@ -133,6 +144,35 @@ func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.Azure
 		}
 	}
 	return ret
+}
+
+// expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
+// subscriptions and replaces the wildcard with the subscriptions list.
+func expandAzureMatcherSubscriptions(
+	ctx context.Context,
+	logger *slog.Logger,
+	subscriptions []string,
+	integration string,
+	listSubs listSubscriptionsFunc,
+) []string {
+	var out []string
+	for _, sub := range subscriptions {
+		if sub != types.Wildcard {
+			out = append(out, sub)
+			continue
+		}
+		subs, err := listSubs(ctx, integration)
+		if err != nil {
+			// TODO(gavin): make a user task
+			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
+				"integration", integration,
+				"error", err,
+			)
+			continue
+		}
+		out = append(out, subs...)
+	}
+	return utils.Deduplicate(out)
 }
 
 type azureFetcherConfig struct {

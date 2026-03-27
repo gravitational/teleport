@@ -7,12 +7,7 @@ runner/e2e
 runner/runner
 certs/
 data/
-config/teleport.yaml
-config/*-teleport.yaml
-config/state.yaml
-node/node.yaml
-node/*-node.yaml
-teleport.log
-teleport-*.log
-docker-node-*.log
+config/*.yaml
+node/*.yaml
+*.log
 .auth/

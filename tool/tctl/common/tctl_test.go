@@ -232,6 +232,9 @@ func TestConnect(t *testing.T) {
 			// set tsh home to a fake path so that the existence of a real
 			// ~/.tsh does not interfere with the test result.
 			cfg.TeleportHome = t.TempDir()
+			// set data dir to a fake path so that the existence of a real
+			// /var/lib/teleport does not interfere with the test result.
+			cfg.DataDir = t.TempDir()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)
 			}
