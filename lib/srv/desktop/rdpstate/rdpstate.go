@@ -21,12 +21,12 @@ package rdpstate
 import (
 	"bytes"
 	"image"
-	"math"
 	"sync"
 
 	"github.com/gravitational/trace"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -157,8 +157,9 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 	}
 
 	sw, sh := spec.GetScreenWidth(), spec.GetScreenHeight()
-	if sw > math.MaxUint16 || sh > math.MaxUint16 {
-		return trace.BadParameter("screen dimensions (%d x %d) exceed uint16 max", sw, sh)
+	if sw > types.MaxRDPScreenWidth || sh > types.MaxRDPScreenHeight {
+		return trace.BadParameter("screen dimensions (%d x %d) exceed maximum (%d x %d)",
+			sw, sh, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 
 	w := uint16(sw)
