@@ -70,7 +70,7 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		discoveryConfigStatus := discoveryconfig.Status{
 			State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
 			LastSyncTime:                   s.clock.Now(),
-			IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+			IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 		}
 
 		// Merge AWS or Azure Sync (TAG) status
@@ -294,7 +294,7 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
-			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			existingIntegrationResources = &discoveryconfig.IntegrationDiscoveredSummary{}
 		}
 
 		var syncEnd *timestamppb.Timestamp
@@ -425,8 +425,6 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			Name:            result.InstanceName,
 		},
 	)
-
-	s.updateDiscoveryConfigStatus(result.DiscoveryConfigName)
 
 	return nil
 }
@@ -1145,14 +1143,12 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
-			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary)
+			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfig.IntegrationDiscoveredSummary)
 		}
 
-		// Update counters specific to resources discovered.
-		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
-		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
+		summary := existingStatus.IntegrationDiscoveredResources[key.integration]
 		if summary == nil {
-			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			summary = &discoveryconfig.IntegrationDiscoveredSummary{}
 		}
 
 		var syncStart *timestamppb.Timestamp
@@ -1193,7 +1189,11 @@ func (s *resourceStatusMap) discoveryConfigs() []string {
 	return slices.Collect(maps.Keys(names))
 }
 
-func integrationDiscoveredSummaryUpdate(summary *discoveryconfigv1.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+func integrationDiscoveredSummaryUpdate(summary *discoveryconfig.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if summary.IntegrationDiscoveredSummary == nil {
+		summary.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+	}
+
 	switch resourceType {
 	case types.AWSMatcherEC2:
 		summary.AwsEc2 = resourcesSummary

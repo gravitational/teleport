@@ -682,12 +682,14 @@ func TestDiscoveryServer(t *testing.T) {
 				ErrorMessage:        nil,
 				DiscoveredResources: 1,
 				LastSyncTime:        fakeClock.Now().UTC(),
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					"my-integration": {
-						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
-							Found:    1,
-							Enrolled: 0,
-							Failed:   0,
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+								Found:    1,
+								Enrolled: 0,
+								Failed:   0,
+							},
 						},
 					},
 				},
@@ -707,12 +709,14 @@ func TestDiscoveryServer(t *testing.T) {
 				ErrorMessage:        nil,
 				DiscoveredResources: 0,
 				LastSyncTime:        fakeClock.Now().UTC(),
-				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
 					"my-integration": {
-						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
-							Found:    0,
-							Enrolled: 0,
-							Failed:   0,
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+								Found:    0,
+								Enrolled: 0,
+								Failed:   0,
+							},
 						},
 					},
 				},
