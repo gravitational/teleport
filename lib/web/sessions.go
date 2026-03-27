@@ -1009,34 +1009,7 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	i, err, _ := s.sessionGroup.Do(key, func() (any, error) {
 		sessionCtx, ok := s.getContext(key)
 		if ok {
-			if sessionCtx.cfg.ClientIP == "" {
-				return sessionCtx, nil
-			}
-
-			clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			clientIP, _, err := net.SplitHostPort(clientAddr.String())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if clientIP == sessionCtx.cfg.ClientIP {
-				return sessionCtx, nil
-			}
-
-			// The client IP has changed. We need to open a new connection with a new proxy header.
-			// If IP Pinning is enforced and the client IP changed, the session will fail to reconnect.
-			slog.DebugContext(ctx, "Discarding session context due to IP mismatch", "client_ip", clientIP, "original_client_ip", sessionCtx.cfg.ClientIP)
-
-			s.mu.Lock()
-			if err = s.removeSessionContextLocked(ctx, user, sessionID); err != nil {
-				s.mu.Unlock()
-				return nil, trace.Wrap(err)
-			}
-			s.mu.Unlock()
+			return sessionCtx, nil
 		}
 
 		return s.newSessionContext(ctx, user, sessionID)
@@ -1049,6 +1022,16 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	sctx, ok := i.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sctx, nil

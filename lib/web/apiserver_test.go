@@ -12041,12 +12041,20 @@ func TestIPPinning(t *testing.T) {
 	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	// Requests with a different IP should fail.
-	*clientAddr = *utils.MustParseAddr("5.6.7.8:5678")
-	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
-	require.ErrorIs(t, err, authz.ErrIPPinningMismatch)
+	// Requests with a different IP should fail. Use a different client to simulate a cookie hijacking.
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
 
-	// Requests with the correct IP should succeed again after intermittent failure.
+	clt := s.client(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), pack.cookies)
+
+	*clientAddr = *utils.MustParseAddr("5.6.7.8:5678")
+	_, err = clt.Get(t.Context(), endpoint, url.Values{})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %q", err)
+	require.Len(t, jar.Cookies(s.url()), 1)
+	require.Empty(t, jar.Cookies(s.url())[0].Value, "expected hijacked client cookie to be cleared")
+
+	// Requests from the correct IP should succeed.
 	*clientAddr = *utils.MustParseAddr("1.2.3.4:1234")
 	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
 	require.NoError(t, err)
