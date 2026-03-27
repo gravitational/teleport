@@ -482,7 +482,7 @@ linters:
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
 
-      # Only the api/observability/tracing/ssh packages is allowed to call x/crypto/ssh new client functions directly.
+      # Only the api/observability/tracing/ssh package is allowed to call x/crypto/ssh new client functions directly.
       - linters:
           - forbidigo
         path: ^api/observability/tracing/ssh/
