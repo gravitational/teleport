@@ -528,6 +528,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		}
 
 		s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.UserGroup]{
+			CompareResources:    func(ug1, ug2 types.UserGroup) int { return services.EqualFromBool(ug1.IsEqual(ug2)) },
 			Matcher:             s.groupMatcher,
 			GetCurrentResources: s.groups.Clone,
 			GetNewResources:     s.newGroups.Clone,

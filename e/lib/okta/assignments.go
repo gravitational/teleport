@@ -94,6 +94,7 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 		Matcher: func(assignment types.OktaAssignment) bool {
 			return a.matcher(ctx, assignment)
 		},
+		CompareResources:    func(oa1, oa2 types.OktaAssignment) int { return services.EqualFromBool(oa1.IsEqual(oa2)) },
 		GetCurrentResources: toResourcesLabelMap(a.getAssignments),
 		GetNewResources:     toResourcesLabelMap(a.getNewAssignments),
 		OnCreate:            a.onCreate,

@@ -256,6 +256,7 @@ func newUserReconciler(cfg userReconcilerConfig) (*userReconciler, error) {
 	userReconciler.backend, err = services.NewReconciler(
 		services.ReconcilerConfig[types.User]{
 			Matcher:             func(r types.User) bool { return true },
+			CompareResources:    func(u1, u2 types.User) int { return services.EqualFromBool(u1.IsEqual(u2)) },
 			GetCurrentResources: userReconciler.getTeleportUsers,
 			GetNewResources:     userReconciler.getOktaUsers,
 			OnCreate:            userReconciler.createTeleportUser,

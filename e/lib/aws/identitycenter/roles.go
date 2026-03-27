@@ -249,6 +249,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 			Matcher:             func(*types.RoleV6) bool { return true },
 			GetCurrentResources: passThrough(oldRoles),
 			GetNewResources:     passThrough(newRoles),
+			CompareResources:    func(rv1, rv2 *types.RoleV6) int { return services.EqualFromBool(rv1.IsEqual(rv2)) },
 			OnCreate:            createRole,
 			OnUpdate:            updateRole,
 			OnDelete:            deleteRole,

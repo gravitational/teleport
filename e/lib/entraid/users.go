@@ -74,6 +74,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	var conflictingUsers []string
 	backend, err := services.NewReconciler(services.ReconcilerConfig[types.User]{
 		Matcher:             matchByLabel[types.User],
+		CompareResources:    func(u1, u2 types.User) int { return services.EqualFromBool(u1.IsEqual(u2)) },
 		GetCurrentResources: func() map[string]types.User { return teleportUsers },
 		GetNewResources:     func() map[string]types.User { return entraUsers },
 		OnCreate: func(ctx context.Context, u types.User) error {

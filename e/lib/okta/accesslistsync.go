@@ -302,6 +302,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 
 	a.roleReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Role]{
 		Matcher:             MatchByLabels[types.Role](a.orgURL),
+		CompareResources:    func(r1, r2 types.Role) int { return services.EqualFromBool(r1.IsEqual(r2)) },
 		GetCurrentResources: a.importRoles.Clone,
 		GetNewResources:     a.newImportRoles.Clone,
 		OnCreate:            a.onUpsertRole,
