@@ -278,6 +278,11 @@ jobs:
             --paginate --jq ".[] | select(.user.type == \"Bot\") | select(.body | contains(\"${marker}\")) | .id" \
             | head -n1)
 
+          if [ ! -f "$comment_file" ]; then
+            echo "::warning::PR comment file not found: $comment_file"
+            exit 0
+          fi
+
           if [ ! -s "$comment_file" ]; then
             # Empty file means all tests passed — delete existing comment if any.
             if [ -n "$comment_id" ]; then
