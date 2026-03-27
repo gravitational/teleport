@@ -100,6 +100,11 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 	}, err
 }
 
+// ReissueDBCerts issues new certificates for specific DB access.
+func (c *Cluster) ReissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
+	return c.reissueDBCerts(ctx, clusterClient, routeToDatabase)
+}
+
 // reissueDBCerts issues new certificates for specific DB access and saves them to disk.
 func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.ClusterClient, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
 	if dbrole.RequireDatabaseUserMatcher(routeToDatabase.Protocol) && routeToDatabase.Username == "" {
