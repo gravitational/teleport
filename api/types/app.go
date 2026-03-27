@@ -318,12 +318,12 @@ func IsAppMCP(uri string) bool {
 // GetProtocol returns the application protocol.
 func (a *AppV3) GetProtocol() string {
 	if a.IsTCP() {
-		return "TCP"
+		return ApplicationProtocolTCP
 	}
 	if a.IsMCP() {
-		return "MCP"
+		return ApplicationProtocolMCP
 	}
-	return "HTTP"
+	return ApplicationProtocolHTTP
 }
 
 // GetAWSAccountID returns value of label containing AWS account ID on this app.

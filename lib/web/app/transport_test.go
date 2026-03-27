@@ -93,7 +93,7 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName, "testapp"),
 			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
@@ -296,7 +296,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -349,7 +349,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 			Resource: "root",
 		}
 
-		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 		b, _ := pem.Decode(clientCertPEM)
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
@@ -472,7 +472,7 @@ func Test_transport_with_integration(t *testing.T) {
 
 	integrationAppHandler := &mockIntegrationAppHandler{}
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,

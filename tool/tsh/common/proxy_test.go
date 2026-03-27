@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -1791,6 +1792,84 @@ func Test_checkProxyMCPCompatibility(t *testing.T) {
 			})
 			require.NoError(t, err)
 			tt.checkResult(t, checkProxyMCPCompatibility(tt.command, app))
+		})
+	}
+}
+
+func Test_alpnProtocolForApp(t *testing.T) {
+	newApp := func(t *testing.T, uri string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: t.Name(),
+		}, types.AppSpecV3{
+			URI: uri,
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	tests := []struct {
+		name         string
+		appURI       string
+		appHTTPS     bool
+		wantProtocol alpncommon.Protocol
+		wantErr      bool
+	}{
+		{
+			name:         "HTTP app",
+			appURI:       "http://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "HTTPS app",
+			appURI:       "https://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "TCP app",
+			appURI:       "tcp://example.com",
+			wantProtocol: alpncommon.ProtocolTCP,
+		},
+		{
+			name:         "MCP app",
+			appURI:       "mcp+http://example.com",
+			wantProtocol: alpncommon.ProtocolHTTP,
+		},
+		{
+			name:         "HTTP app with --https flag",
+			appURI:       "http://example.com",
+			appHTTPS:     true,
+			wantProtocol: alpncommon.ProtocolAppHTTPS,
+		},
+		{
+			name:         "HTTPS app with --https flag",
+			appURI:       "https://example.com",
+			appHTTPS:     true,
+			wantProtocol: alpncommon.ProtocolAppHTTPS,
+		},
+		{
+			name:     "TCP app with --https flag",
+			appURI:   "tcp://example.com",
+			appHTTPS: true,
+			wantErr:  true,
+		},
+		{
+			name:     "MCP app with --https flag",
+			appURI:   "mcp+http://example.com",
+			appHTTPS: true,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newApp(t, tt.appURI)
+			got, err := alpnProtocolForApp(app, tt.appHTTPS)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantProtocol, got)
 		})
 	}
 }
