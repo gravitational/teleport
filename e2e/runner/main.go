@@ -49,6 +49,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+
 	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
@@ -56,7 +58,7 @@ func main() {
 	}
 
 	if mode == modeGitHubReport {
-		if err := writeGitHubReport(e2eDir); err != nil {
+		if err := writeGitHubReport(resultsPath); err != nil {
 			slog.Error("failed to write GitHub report", "error", err)
 			os.Exit(1)
 		}
@@ -90,7 +92,7 @@ func main() {
 		return
 	}
 
-	_ = os.Remove(filepath.Join(e2eDir, "test-results", "results.json"))
+	_ = os.Remove(resultsPath)
 
 	isCI := os.Getenv("CI") != ""
 	runErr := run(flags, mode, e2eDir, isCI)
@@ -106,7 +108,7 @@ func main() {
 	}
 
 	if !flags.quiet {
-		printTestSummary(e2eDir)
+		printTestSummary(e2eDir, resultsPath)
 	}
 
 	if runErr != nil {

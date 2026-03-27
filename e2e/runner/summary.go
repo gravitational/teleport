@@ -30,8 +30,7 @@ import (
 
 // printTestSummary reads the Playwright test results and prints them the same way that Playwright does, so
 // we can show the overall test summary at the end after everything has exited and stopped logging.
-func printTestSummary(e2eDir string) {
-	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+func printTestSummary(e2eDir, resultsPath string) {
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
 		slog.Warn("could not read test results", "path", resultsPath, "error", err)

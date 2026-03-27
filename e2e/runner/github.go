@@ -25,7 +25,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -35,8 +34,7 @@ import (
 
 const commentMarker = "<!-- e2e-test-results -->"
 
-func writeGitHubReport(e2eDir string) error {
-	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+func writeGitHubReport(resultsPath string) error {
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
 		return fmt.Errorf("could not read test results: %w", err)
