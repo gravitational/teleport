@@ -201,6 +201,19 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		return trace.AccessDenied("access denied")
 	}
 
+	// Double-check inner web session match
+	if IsHTTPSTunnelConn(r) {
+		outerIdentity, err := getIdentityFromHTTPsTunnelRequest(r)
+		if err != nil {
+			h.logger.WarnContext(r.Context(), "Failed to get identity from HTTPS tunnel conn", "error", err)
+			return trace.AccessDenied("access denied")
+		}
+		if err := h.checkForDualCredentialMismatch(outerIdentity, ws); err != nil {
+			h.emitAuthAttempt(connectionMetadataFromRequest(r), outerIdentity, ws.GetUser(), err)
+			return trace.AccessDenied("access denied")
+		}
+	}
+
 	// Set the "Set-Cookie" header on the response.
 	// Set Same-Site policy for the session cookies to None in order to
 	// support redirects that identity providers do during SSO auth.

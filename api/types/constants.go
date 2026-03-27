@@ -1783,6 +1783,8 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the MCP (Model Context Protocol) apps protocol.
+	ApplicationProtocolMCP = "MCP"
 )
 
 const (

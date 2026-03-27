@@ -455,11 +455,18 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
-func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
-	if app.IsTCP() {
-		return alpncommon.ProtocolTCP
+func alpnProtocolForApp(app types.Application, appHTTPS bool) (alpncommon.Protocol, error) {
+	if appHTTPS {
+		if app.GetProtocol() == types.ApplicationProtocolHTTP {
+			return alpncommon.ProtocolAppHTTPS, nil
+		}
+		return "", trace.BadParameter("--http not supported for %s applications", app.GetProtocol())
 	}
-	return alpncommon.ProtocolHTTP
+
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP, nil
+	}
+	return alpncommon.ProtocolHTTP, nil
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
@@ -509,7 +516,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
+
+	alpnProtocol, err := alpnProtocolForApp(app, cf.AppHTTPS)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -521,6 +533,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 	// If target port is not equal to zero, the user must know about the port flag.
 	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
 		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+
+	if cf.AppHTTPS {
+		fmt.Printf("\nExample curl command:\ncurl --connect-to %s:443:%s https://%s\n", app.GetPublicAddr(), proxyApp.GetAddr(), app.GetPublicAddr())
 	}
 
 	defer func() {
