@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Event Handler plugin.
 
 ## Installation
 
-See the [Export Events with FluentD Guide](https://goteleport.com/docs/management/export-audit-events/fluentd/).
+See the [Export Events with FluentD Guide](https://goteleport.com/docs/zero-trust-access/export-audit-events/fluentd/).
 
 ## Values
 

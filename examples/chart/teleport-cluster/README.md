@@ -8,7 +8,7 @@ provide high-availability.
 
 - The chart version follows the Teleport version. e.g. chart v10.x can run Teleport v10.x and v11.x, but is not compatible with Teleport 9.x
 - Teleport does mutual TLS to authenticate clients. Establishing mTLS through a L7
-  LoadBalancer, like a Kubernetes `Ingress` [requires ALPN support](https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies).
+  LoadBalancer, like a Kubernetes `Ingress` [requires ALPN support](https://goteleport.com/docs/reference/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies).
   Exposing Teleport through a `Service` with type `LoadBalancer` is still recommended
   because its the most flexible and least complex setup.
 
@@ -37,10 +37,10 @@ or by installing [cert-manager](https://cert-manager.io/docs/) and setting the `
 
 ### Replicated setup guides
 
-- [Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/aws/)
-- [Running an HA Teleport cluster in Kubernetes using an Google Cloud GKE cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/gcp/)
-- [Running an HA Teleport cluster in Kubernetes using an Azure AKS cluster](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/azure/)
-- [Running a Teleport cluster in Kubernetes with a custom Teleport config](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/custom/)
+- [Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/helm-deployments/aws/)
+- [Running an HA Teleport cluster in Kubernetes using an Google Cloud GKE cluster](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/helm-deployments/gcp/)
+- [Running an HA Teleport cluster in Kubernetes using an Azure AKS cluster](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/helm-deployments/azure/)
+- [Running a Teleport cluster in Kubernetes with a custom Teleport config](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/helm-deployments/custom/)
 
 ### Creating first user
 
@@ -60,7 +60,7 @@ helm uninstall --namespace teleport-cluster teleport-cluster
 
 ## Documentation
 
-See https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/ for guides on setting up HA Teleport clusters
+See https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/helm-deployments/ for guides on setting up HA Teleport clusters
 in EKS or GKE, plus a comprehensive chart reference.
 
 ## Contributing to the chart
