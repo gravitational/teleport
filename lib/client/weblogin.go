@@ -136,6 +136,12 @@ type SSOResponse struct {
 	Token     string `json:"token,omitempty"`
 }
 
+// BrowserMFAResponse is a json compatible [proto.BrowserMFAResponse].
+type BrowserMFAResponse struct {
+	RequestID        string                                `json:"requestId,omitempty"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnResponse,omitempty"`
+}
+
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
 // if there were any responses set. Otherwise returns nil.
 func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
@@ -261,6 +267,9 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
+	// BrowserMFAResponse is a response from a Browser MFA flow containing a
+	// webauthn response.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response,omitempty"`
 	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
 	// should be used as the subject of issued certificates, and optional
 	// hardware key attestation statements for each key.
@@ -467,6 +476,13 @@ type BrowserMFAChallenge struct {
 func BrowserChallengeToProto(browserChal *BrowserMFAChallenge) *proto.BrowserMFAChallenge {
 	return &proto.BrowserMFAChallenge{
 		RequestId: browserChal.RequestID,
+	}
+}
+
+// BrowserChallengeFromProto converts a BrowserChallenge to json compatible format
+func BrowserChallengeFromProto(browserChal *proto.BrowserMFAChallenge) *BrowserMFAChallenge {
+	return &BrowserMFAChallenge{
+		RequestID: browserChal.RequestId,
 	}
 }
 
@@ -685,6 +701,11 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILo
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+	case *proto.MFAAuthenticateResponse_Browser:
+		challengeResp.BrowserMFAResponse = &BrowserMFAResponse{
+			RequestID:        r.Browser.RequestId,
+			WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(r.Browser.WebauthnResponse),
+		}
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -725,6 +746,9 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			}
 			if challenge.WebauthnChallenge != nil {
 				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+			}
+			if challenge.BrowserMFAChallenge != nil {
+				chal.BrowserMFAChallenge = BrowserChallengeToProto(challenge.BrowserMFAChallenge)
 			}
 			return chal, nil
 		},

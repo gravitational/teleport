@@ -4332,7 +4332,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.BadParameter("challenge extensions must not be set when a browser MFA request ID is provided")
 		}
 
-		browserMFAReq, err := a.GetSSOMFASession(ctx, req.BrowserMFARequestID)
+		browserMFAReq, err := a.GetMFASession(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")

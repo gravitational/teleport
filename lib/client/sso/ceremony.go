@@ -25,7 +25,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // Ceremony is a customizable SSO login ceremony.
@@ -107,6 +109,7 @@ type MFACeremony struct {
 	ProxyAddress        string
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackMFAToken func(ctx context.Context) (string, error)
+	GetCallbackWebauthn func(ctx context.Context) (*wantypes.CredentialAssertionResponse, error)
 }
 
 // GetClientCallbackURL returns the client callback URL.
@@ -119,30 +122,60 @@ func (m *MFACeremony) GetProxyAddress() string {
 	return m.ProxyAddress
 }
 
-// Run the SSO MFA ceremony.
+// Run the SSO/Browser MFA ceremony.
 func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	// TODO(danielashare): Remove when Browser MFA challenge handling is implemented
-	if chal.SSOChallenge == nil {
-		return nil, trace.BadParameter("no SSO challenge provided")
-	}
+	// The proxy will only ever return one of SSO or Browser challenge. However,
+	// check for SSO challenge first as it takes priority over browser MFA.
+	switch {
+	case chal.SSOChallenge != nil:
+		if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
-		return nil, trace.Wrap(err)
-	}
+		mfaToken, err := m.GetCallbackMFAToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	mfaToken, err := m.GetCallbackMFAToken(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_SSO{
-			SSO: &proto.SSOResponse{
-				RequestId: chal.SSOChallenge.RequestId,
-				Token:     mfaToken,
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_SSO{
+				SSO: &proto.SSOResponse{
+					RequestId: chal.SSOChallenge.RequestId,
+					Token:     mfaToken,
+				},
 			},
-		},
-	}, nil
+		}, nil
+	case chal.BrowserMFAChallenge != nil:
+		redirectURL, err := apiutils.ParseURL(m.ProxyAddress)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if redirectURL == nil {
+			return nil, trace.BadParameter("proxy address is required for browser MFA")
+		}
+		redirectURL.Scheme = "https"
+		redirectURL.Path = WebBrowserMFAPath + chal.BrowserMFAChallenge.RequestId
+
+		if err := m.HandleRedirect(ctx, redirectURL.String()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		webauthnResp, err := m.GetCallbackWebauthn(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Browser{
+				Browser: &proto.BrowserMFAResponse{
+					RequestId:        chal.BrowserMFAChallenge.RequestId,
+					WebauthnResponse: wantypes.CredentialAssertionResponseToProto(webauthnResp),
+				},
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("no SSO or Browser challenge provided")
+	}
 }
 
 // Close closes resources associated with the SSO MFA ceremony.
@@ -172,6 +205,18 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 
 			return loginResp.MFAToken, nil
 		},
+		GetCallbackWebauthn: func(ctx context.Context) (*wantypes.CredentialAssertionResponse, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if loginResp.BrowserMFAWebauthnResponse == nil {
+				return nil, trace.BadParameter("login response for Browser MFA flow missing WebAuthn response")
+			}
+
+			return loginResp.BrowserMFAWebauthnResponse, nil
+		},
 	}
 }
 
@@ -196,6 +241,18 @@ func NewConnectMFACeremony(rd *Redirector) mfa.CallbackCeremony {
 			}
 
 			return loginResp.MFAToken, nil
+		},
+		GetCallbackWebauthn: func(ctx context.Context) (*wantypes.CredentialAssertionResponse, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if loginResp.BrowserMFAWebauthnResponse == nil {
+				return nil, trace.BadParameter("login response for Browser MFA flow missing WebAuthn response")
+			}
+
+			return loginResp.BrowserMFAWebauthnResponse, nil
 		},
 	}
 }

@@ -38,7 +38,7 @@ import (
 func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID string, webauthnResponse *webauthnpb.CredentialAssertionResponse) (string, error) {
 	const notFoundErrMsg = "mfa session data not found"
 	// Retrieve the MFA session
-	mfaSession, err := a.GetSSOMFASession(ctx, requestID)
+	mfaSession, err := a.GetMFASession(ctx, requestID)
 	if trace.IsNotFound(err) {
 		return "", trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
@@ -88,8 +88,9 @@ func (a *Server) BeginBrowserMFAChallenge(ctx context.Context, params mfatypes.B
 		ConnectorType:  constants.BrowserMFA,
 		TSHRedirectURL: params.BrowserMFATSHRedirectURL,
 		ChallengeExtensions: &mfatypes.ChallengeExtensions{
-			Scope:      params.Ext.Scope,
-			AllowReuse: params.Ext.AllowReuse,
+			Scope:                       params.Ext.Scope,
+			AllowReuse:                  params.Ext.AllowReuse,
+			UserVerificationRequirement: params.Ext.UserVerificationRequirement,
 		},
 	}
 

@@ -240,12 +240,12 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		slog.DebugContext(ctx, "Disabling SSO MFA: SSO MFA ceremony not available (this is likely a bug)")
 	}
 
-	if state.promptBrowser && (!c.cfg.WebauthnSupported || c.cfg.MFACeremony == nil) {
+	if state.promptBrowser && (chal.WebauthnChallenge == nil || c.cfg.MFACeremony == nil) {
 		state.promptBrowser = false
 		slog.DebugContext(
 			ctx,
-			"Disabling Browser MFA: cluster needs to support Webauthn and client needs to support SSO MFA Ceremony",
-			"webauthn_supported", c.cfg.WebauthnSupported,
+			"Disabling Browser MFA: user needs at least one webauthn device and client needs to support SSO MFA Ceremony",
+			"webauthn_available", chal.WebauthnChallenge != nil,
 			"mfa_ceremony_available (if false, this is a bug)", c.cfg.MFACeremony != nil,
 		)
 	}
