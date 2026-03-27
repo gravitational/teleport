@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -483,15 +482,10 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		}
 	}()
 	go func() {
-		c, nc, r, err := tracessh.NewClientConnWithTimeout(
-			t.Context(),
-			c2,
-			"",
-			&ssh.ClientConfig{
-				User:            "a",
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			},
-		)
+		c, nc, r, err := ssh.NewClientConn(c2, "", &ssh.ClientConfig{
+			User:            "a",
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
 		assert.NoError(t, err)
 		retC <- sshConn{
 			conn:   c,

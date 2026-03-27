@@ -248,8 +248,7 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := tracessh.NewClientConnWithTimeout(
-				t.Context(),
+			conn, chCh, reqCh, err := ssh.NewClientConn(
 				clientDialConn,
 				"127.0.0.1:222",
 				&ssh.ClientConfig{
@@ -267,9 +266,7 @@ func TestForwardServer(t *testing.T) {
 			}
 			require.NoError(t, err)
 			client := tracessh.NewClient(conn, chCh, reqCh)
-			t.Cleanup(func() {
-				client.Close()
-			})
+			defer client.Close()
 
 			test.verifyWithClient(t, ctx, client, mockGitService)
 			if test.verifyEvent != nil {

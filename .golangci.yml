@@ -5,21 +5,21 @@ run:
 linters:
   default: none
   enable:
-    # - bodyclose
-    # - depguard
-    # - errorlint
+    - bodyclose
+    - depguard
+    - errorlint
     - forbidigo
-    # - govet
-    # - ineffassign
-    # - misspell
-    # - nolintlint
-    # - revive
-    # - sloglint
-    # - staticcheck
-    # - testifylint
-    # - unconvert
-    # - unused
-    # - usetesting
+    - govet
+    - ineffassign
+    - misspell
+    - nolintlint
+    - revive
+    - sloglint
+    - staticcheck
+    - testifylint
+    - unconvert
+    - unused
+    - usetesting
   settings:
     depguard:
       rules:

@@ -27,7 +27,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 type server struct {
@@ -74,15 +73,10 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := tracessh.NewClientConnWithTimeout(
-		t.Context(),
-		conn,
-		"",
-		&ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
-			HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
-		},
-	)
+	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
+		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
+	})
 	require.NoError(t, err)
 
 	return sconn, nc, r

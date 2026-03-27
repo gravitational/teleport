@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1185,18 +1184,18 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			})
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
-			sshConn, sshChan, sshReq, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, "server01.root:22", sshConfig)
+			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
-			sshClient := tracessh.NewClient(sshConn, sshChan, sshReq)
+			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})
-			sshSess, err := sshClient.NewSession(t.Context())
+			sshSess, err := sshClient.NewSession()
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshSess.Close()
 			})
-			out, err := sshSess.CombinedOutput(t.Context(), "echo hello")
+			out, err := sshSess.CombinedOutput("echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
 

@@ -383,7 +383,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		"remote_addr", conn.RemoteAddr(),
 		"user", conn.User(),
 		"fingerprint", fingerprint,
-		"client_version", conn.ClientVersion(),
 	)
 
 	cert, ok := key.(*ssh.Certificate)

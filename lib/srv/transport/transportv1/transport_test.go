@@ -41,7 +41,6 @@ import (
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
@@ -660,20 +659,19 @@ func TestService_ProxySSH(t *testing.T) {
 
 	// create a new ssh client connection over a stream conn
 	addr := &utils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
-	sshconn, chans, reqs, err := tracessh.NewClientConnWithTimeout(
-		t.Context(),
+	sshconn, chans, reqs, err := ssh.NewClientConn(
 		streamutils.NewConn(sshRW, addr, sshSrv.listener.Addr()),
 		addr.String(),
 		sshSrv.clientConfig())
 	require.NoError(t, err)
 
 	// create the ssh client
-	client := tracessh.NewClient(sshconn, chans, reqs)
+	client := ssh.NewClient(sshconn, chans, reqs)
 
 	// send an ssh request to our server which will echo the payload
 	// back in the response.
 	msg := []byte("hello")
-	ok, response, err := client.SendRequest(t.Context(), "echo", true, msg)
+	ok, response, err := client.SendRequest("echo", true, msg)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, msg, response)

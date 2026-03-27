@@ -30,7 +30,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/test/bufconn"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -102,7 +101,7 @@ func testSSHConnection(t *testing.T, dial dialer) {
 	defer tcpConn.Close()
 
 	clientConfig := sshClientConfig(t)
-	sshConn, chans, reqs, err := tracessh.NewClientConnWithTimeout(t.Context(), tcpConn, "localhost", clientConfig)
+	sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
 	require.NoError(t, err)
 	defer sshConn.Close()
 
@@ -300,7 +299,7 @@ func runTestSSHProxyInstance(
 		return trace.Wrap(err)
 	}
 	defer incomingSSHConn.Close()
-	outgoingSSHConn, outgoingChans, outgoingReqs, err := tracessh.NewClientConnWithTimeout(ctx, outgoingConn, "localhost", clientCfg)
+	outgoingSSHConn, outgoingChans, outgoingReqs, err := ssh.NewClientConn(outgoingConn, "localhost", clientCfg)
 	if err != nil {
 		return trace.Wrap(err, "proxying SSH conn in test")
 	}

@@ -1745,6 +1745,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 
 	// using this connection as regular SSH
 	client2 := tracessh.NewClient(conn, chans, reqs)
+	require.NoError(t, err)
 	defer client2.Close()
 
 	se2, err := client2.NewSession(ctx)
@@ -2993,6 +2994,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	// Run commands over this connection like regular SSH
 	client2 := tracessh.NewClient(conn, chans, reqs)
+	require.NoError(t, err)
 	defer client2.Close()
 
 	se2, err := client2.NewSession(ctx)

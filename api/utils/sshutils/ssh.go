@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
@@ -283,13 +282,13 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshClient, err := tracessh.NewClientWithTimeout(ctx, conn, addr, cfg)
+	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
 	defer sshClient.Close()
-
-	session, err := sshClient.NewSession(ctx)
+	session, err := sshClient.NewSession()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -300,7 +299,7 @@ func RunSSH(ctx context.Context, addr, command string, cfg *ssh.ClientConfig, op
 	session.Stdout = &stdout
 	var stderr bytes.Buffer
 	session.Stderr = &stderr
-	err = session.Run(ctx, command)
+	err = session.Run(command)
 	return stdout.Bytes(), stderr.Bytes(), trace.Wrap(err)
 }
 
