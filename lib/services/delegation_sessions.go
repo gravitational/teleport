@@ -42,6 +42,8 @@ type DelegationSessions interface {
 // ValidateDelegationSession validates a DelegationSession object.
 func ValidateDelegationSession(p *delegationv1.DelegationSession) error {
 	switch {
+	case p == nil:
+		return trace.BadParameter("must not be nil")
 	case p.GetKind() != types.KindDelegationSession:
 		return trace.BadParameter("kind: must be %s", types.KindDelegationSession)
 	case p.GetVersion() != types.V1:

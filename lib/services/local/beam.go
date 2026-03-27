@@ -137,6 +137,11 @@ func (s *BeamService) CreateBeam(ctx context.Context, p services.CreateBeamParam
 		return nil, trace.Wrap(err)
 	}
 
+	delegationSessionItem, err := itemFromDelegationSession(p.DelegationSession)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	actions := []backend.ConditionalAction{
 		{
 			Key:       aliasItem.Key,
@@ -162,6 +167,11 @@ func (s *BeamService) CreateBeam(ctx context.Context, p services.CreateBeamParam
 			Key:       workloadIdentityItem.Key,
 			Condition: backend.Whatever(),
 			Action:    backend.Put(*workloadIdentityItem),
+		},
+		{
+			Key:       delegationSessionItem.Key,
+			Condition: backend.Whatever(),
+			Action:    backend.Put(*delegationSessionItem),
 		},
 	}
 
@@ -265,7 +275,6 @@ func (s *BeamService) DeleteBeam(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(boxofrad): Clean up DelegationSession once #64772 is merged.
 	actions := []backend.ConditionalAction{
 		{
 			Key:       beamAliasKey(beam.GetStatus().GetAlias()),
@@ -294,6 +303,11 @@ func (s *BeamService) DeleteBeam(ctx context.Context, name string) error {
 		},
 		{
 			Key:       backend.NewKey(workloadIdentityPrefix, beam.GetStatus().GetWorkloadIdentityName()),
+			Condition: backend.Whatever(),
+			Action:    backend.Delete(),
+		},
+		{
+			Key:       delegationSessionKey(beam.GetStatus().GetDelegationSessionId()),
 			Condition: backend.Whatever(),
 			Action:    backend.Delete(),
 		},

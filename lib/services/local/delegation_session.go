@@ -80,3 +80,28 @@ func (s *DelegationSessionService) GetDelegationSession(
 func (s *DelegationSessionService) DeleteDelegationSession(ctx context.Context, id string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, id))
 }
+
+func delegationSessionKey(name string) backend.Key {
+	return backend.NewKey(delegationSessionPrefix, name)
+}
+
+func itemFromDelegationSession(session *delegationv1.DelegationSession) (*backend.Item, error) {
+	meta := session.GetMetadata()
+
+	value, err := services.MarshalProtoResource(session)
+	if err != nil {
+		return nil, err
+	}
+
+	expiry, err := types.GetExpiry(session)
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend.Item{
+		Key:      delegationSessionKey(meta.GetName()),
+		Value:    value,
+		Expires:  expiry,
+		Revision: meta.GetRevision(),
+	}, nil
+}

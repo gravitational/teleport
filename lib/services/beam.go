@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -78,14 +79,13 @@ type BeamWriter interface {
 
 // CreateBeamParams contains the parameters to CreateBeam, including the
 // resources that must exist before the VM is provisioned.
-//
-// TODO(boxofrad): Add DelegationSession once #64772 is merged.
 type CreateBeamParams struct {
-	Beam             *beamsv1.Beam
-	Token            types.ProvisionToken
-	BotUser          types.User
-	BotRole          types.Role
-	WorkloadIdentity *workloadidentityv1.WorkloadIdentity
+	Beam              *beamsv1.Beam
+	Token             types.ProvisionToken
+	BotUser           types.User
+	BotRole           types.Role
+	WorkloadIdentity  *workloadidentityv1.WorkloadIdentity
+	DelegationSession *delegationv1.DelegationSession
 }
 
 func (p *CreateBeamParams) Validate() error {
@@ -113,6 +113,10 @@ func (p *CreateBeamParams) Validate() error {
 
 	if err := ValidateWorkloadIdentity(p.WorkloadIdentity); err != nil {
 		return trace.Wrap(err, "validating workload identity")
+	}
+
+	if err := ValidateDelegationSession(p.DelegationSession); err != nil {
+		return trace.Wrap(err, "validating delegation session")
 	}
 	return nil
 }
