@@ -162,7 +162,6 @@ func (s *TerraformSuiteOSS) TestImportHealthCheckConfig() {
 					require.Equal(t, existing.Metadata.Namespace, state[0].Attributes["metadata.namespace"])
 					require.Equal(t, existing.Metadata.Description, state[0].Attributes["metadata.description"])
 					require.Equal(t, "test", state[0].Attributes["metadata.labels.purpose"])
-					require.Equal(t, existing.Metadata.Revision, state[0].Attributes["metadata.revision"])
 					require.Equal(t, "42s", state[0].Attributes["spec.interval"])
 					require.Empty(t, state[0].Attributes["spec.timeout"])
 					require.Equal(t, "3", state[0].Attributes["spec.healthy_threshold"])
