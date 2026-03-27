@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -205,4 +206,37 @@ func (c *CertificateParameterContext) LockingMode(defaultMode constants.LockingM
 	// TODO(fspmarshall/scopes): determine how to handle locking mode for scoped certificates given that
 	// role-affected locking behavior during certificate creation doesn't map well to pinned certificates.
 	return defaultMode
+}
+
+// CheckKubeGroupsAndUsers verifies that the requested session TTL is valid and returns a list of allowed kube
+// groups and users for the certificate.
+//   - Unscoped: Returns groups and users from roles, restricted by role TTL rules
+//   - Scoped: Returns all possible groups and users across all roles in the pin. This behavior is necessary
+//     because we cannot determine the effective role without knowing the target resources. Subsequent access
+//     checks will enforce impersonation restrictions based on the effective role once the target resource is known.
+func (c *CertificateParameterContext) CheckKubeGroupsAndUsers(ctx context.Context, ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
+	if !c.ctx.isScoped() {
+		return c.ctx.unscopedChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
+	}
+
+	groupSet := make(map[string]struct{})
+	userSet := make(map[string]struct{})
+
+	for checker, err := range c.ctx.riskyEnumerateScopedCheckers(ctx) {
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		groups, users, err := checker.Kube().CheckGroupsAndUsers(ttl, overrideTTL, matchers...)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		for _, group := range groups {
+			groupSet[group] = struct{}{}
+		}
+		for _, user := range users {
+			userSet[user] = struct{}{}
+		}
+	}
+	return slices.Collect(maps.Keys(groupSet)), slices.Collect(maps.Keys(groupSet)), nil
 }

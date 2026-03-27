@@ -3753,14 +3753,14 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		gcpAccounts           []string
 	)
 
-	// only unscoped identities currently support kube groups/users.
+	// TODO (eriktate): do we actually need these on the cert?
+	kubeGroups, kubeUsers, err = certParams.CheckKubeGroupsAndUsers(ctx, sessionTTL, req.OverrideRoleTTL)
+	// NotFound errors are acceptable - this user may have no k8s access
+	// granted and that shouldn't prevent us from issuing a TLS cert.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
-		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
-		// NotFound errors are acceptable - this user may have no k8s access
-		// granted and that shouldn't prevent us from issuing a TLS cert.
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
 
 		// See which database names and users this user is allowed to use.
 		dbNames, dbUsers, err = unscoped.CheckDatabaseNamesAndUsers(sessionTTL, req.OverrideRoleTTL)
