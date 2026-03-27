@@ -60,14 +60,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/time/rate"
-	googleproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -2077,7 +2077,7 @@ func (a *Server) tallyRoles(ctx context.Context) {
 		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
 	}()
 
-	req := &proto.ListRolesRequest{Limit: 20}
+	req := &authproto.ListRolesRequest{Limit: 20}
 
 	readLimiter := time.NewTicker(20 * time.Millisecond)
 	defer readLimiter.Stop()
@@ -2630,7 +2630,7 @@ func (a *Server) GetDomainName() (string, error) {
 
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
-func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
+func (a *Server) GetClusterCACert(ctx context.Context) (*authproto.GetClusterCACertResponse, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2649,7 +2649,7 @@ func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertR
 	}
 	allCerts := bytes.Join(certs, []byte("\n"))
 
-	return &proto.GetClusterCACertResponse{
+	return &authproto.GetClusterCACertResponse{
 		TLSCA: allCerts,
 	}, nil
 }
@@ -2757,7 +2757,7 @@ func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (serv
 	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
-func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
 	if req.User == nil {
 		return nil, trace.BadParameter("user is empty")
 	}
@@ -2769,7 +2769,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		if err != nil {
 			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
 		}
-		req.TTL = proto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
+		req.TTL = authproto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2786,7 +2786,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	var checkerContext *services.SplitAccessCheckerContext
 	if len(req.ScopePin) > 0 {
 		var scopePin scopesv1.Pin
-		if err := googleproto.Unmarshal(req.ScopePin, &scopePin); err != nil {
+		if err := proto.Unmarshal(req.ScopePin, &scopePin); err != nil {
 			return nil, trace.Wrap(err, "unmarshaling scope pin")
 		}
 
@@ -2846,7 +2846,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.OpenSSHCert{
+	return &authproto.OpenSSHCert{
 		Cert: certs.SSH,
 	}, nil
 }
@@ -3107,7 +3107,7 @@ func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
 	authCtx *authz.Context,
 	opts *AugmentUserCertificateOpts,
-) (*proto.Certs, error) {
+) (*authproto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")
@@ -3245,7 +3245,7 @@ type augmentUserCertificatesOpts struct {
 func (a *Server) augmentUserCertificates(
 	ctx context.Context,
 	opts augmentUserCertificatesOpts,
-) (*proto.Certs, error) {
+) (*authproto.Certs, error) {
 	// Is at least one extension present?
 	// Are the extensions valid?
 	dev := opts.deviceExtensions
@@ -3443,7 +3443,7 @@ func (a *Server) augmentUserCertificates(
 	// Issue audit event on success, same as [Server.generateCert].
 	a.emitCertCreateEvent(ctx, tlsCA, newIdentity, notAfter)
 
-	return &proto.Certs{
+	return &authproto.Certs{
 		SSH: newAuthorizedKey,
 		TLS: newTLSCert,
 	}, nil
@@ -3500,16 +3500,16 @@ func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPoli
 }
 
 // generateUserCert generates certificates signed with User CA
-func (a *Server) generateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+func (a *Server) generateUserCert(ctx context.Context, req cert.Request) (*authproto.Certs, error) {
 	return generateCert(ctx, a, req, types.UserCA)
 }
 
 // generateOpenSSHCert generates certificates signed with OpenSSH CA
-func (a *Server) generateOpenSSHCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+func (a *Server) generateOpenSSHCert(ctx context.Context, req cert.Request) (*authproto.Certs, error) {
 	return generateCert(ctx, a, req, types.OpenSSHCA)
 }
 
-func generateCert(ctx context.Context, a *Server, req cert.Request, caType types.CertAuthType) (*proto.Certs, error) {
+func generateCert(ctx context.Context, a *Server, req cert.Request, caType types.CertAuthType) (*authproto.Certs, error) {
 	err := req.Check()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3865,7 +3865,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
-		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+		if req.RequesterName == authproto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
 			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
 		}
 
@@ -3970,7 +3970,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	a.emitCertCreateEvent(ctx, tlsIssuer, &identity, notAfter)
 
 	// create certs struct to return to user
-	certs := &proto.Certs{
+	certs := &authproto.Certs{
 		SSH: signedSSHCert,
 		TLS: signedTLSCert,
 	}
@@ -4270,7 +4270,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 
 // CreateAuthPreference creates a new auth preference if one does not exist. This
 // is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer] or
-// [proto.AuthServiceServer]. It is only meant to be called directly from within auth
+// [authproto.AuthServiceServer]. It is only meant to be called directly from within auth
 // initialization to seed the [types.AuthPreference] for brand new clusters.
 func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
 	if err := services.ValidateAuthPreference(p); err != nil {
@@ -4308,7 +4308,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 }
 
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
-func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error) {
 	var username string
 
 	challengeExtensions := &mfav1.ChallengeExtensions{}
@@ -4358,7 +4358,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	}
 
 	switch req.GetRequest().(type) {
-	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
+	case *authproto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
 
 		if err := a.WithUserLock(ctx, username, func() error {
@@ -4380,7 +4380,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.Wrap(ErrDone)
 		}
 
-	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
+	case *authproto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
 		token, err := a.GetUserToken(ctx, req.GetRecoveryStartTokenID())
 		if err != nil {
 			a.logger.ErrorContext(ctx, "failed to get user token", "error", err)
@@ -4397,7 +4397,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.Wrap(ErrDone)
 		}
 
-	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
+	case *authproto.CreateAuthenticateChallengeRequest_Passwordless:
 		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
 			return nil, trace.Wrap(ErrDone)
 		}
@@ -4439,7 +4439,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 }
 
 // CreateRegisterChallenge implements AuthService.CreateRegisterChallenge.
-func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+func (a *Server) CreateRegisterChallenge(ctx context.Context, req *authproto.CreateRegisterChallengeRequest) (*authproto.MFARegisterChallenge, error) {
 	var token types.UserToken
 	var username string
 	switch {
@@ -4478,7 +4478,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		// Create a special token for OTP registrations. The token doubles as
 		// temporary storage for the OTP secret, like in the branch above.
 		// This is OK because the user just did an MFA check.
-		if req.GetDeviceType() != proto.DeviceType_DEVICE_TYPE_TOTP {
+		if req.GetDeviceType() != authproto.DeviceType_DEVICE_TYPE_TOTP {
 			break // break from switch
 		}
 
@@ -4517,8 +4517,8 @@ func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) 
 
 type newRegisterChallengeRequest struct {
 	username    string
-	deviceType  proto.DeviceType
-	deviceUsage proto.DeviceUsage
+	deviceType  authproto.DeviceType
+	deviceUsage authproto.DeviceUsage
 
 	// token is a user token resource.
 	// It is used as following:
@@ -4538,9 +4538,9 @@ type newRegisterChallengeRequest struct {
 	webIdentityOverride wanlib.RegistrationIdentity
 }
 
-func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*authproto.MFARegisterChallenge, error) {
 	switch req.deviceType {
-	case proto.DeviceType_DEVICE_TYPE_TOTP:
+	case authproto.DeviceType_DEVICE_TYPE_TOTP:
 		if req.token == nil {
 			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
 		}
@@ -4556,9 +4556,9 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.Wrap(err)
 		}
 
-		return &proto.MFARegisterChallenge{
-			Request: &proto.MFARegisterChallenge_TOTP{
-				TOTP: &proto.TOTPRegisterChallenge{
+		return &authproto.MFARegisterChallenge{
+			Request: &authproto.MFARegisterChallenge_TOTP{
+				TOTP: &authproto.TOTPRegisterChallenge{
 					Secret:        otpKey.Secret(),
 					Issuer:        otpKey.Issuer(),
 					PeriodSeconds: uint32(otpOpts.Period),
@@ -4571,7 +4571,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			},
 		}, nil
 
-	case proto.DeviceType_DEVICE_TYPE_WEBAUTHN:
+	case authproto.DeviceType_DEVICE_TYPE_WEBAUTHN:
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4592,13 +4592,13 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			Identity: identity,
 		}
 
-		passwordless := req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+		passwordless := req.deviceUsage == authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		credentialCreation, err := webRegistration.Begin(ctx, req.username, passwordless)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
+		return &authproto.MFARegisterChallenge{Request: &authproto.MFARegisterChallenge_Webauthn{
 			Webauthn: wantypes.CredentialCreationToProto(credentialCreation),
 		}}, nil
 
@@ -4608,7 +4608,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 }
 
 // GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
-func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+func (a *Server) GetMFADevices(ctx context.Context, req *authproto.GetMFADevicesRequest) (*authproto.GetMFADevicesResponse, error) {
 	var username string
 
 	if req.GetTokenID() != "" {
@@ -4638,13 +4638,13 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.GetMFADevicesResponse{
+	return &authproto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
 }
 
 // DeleteMFADeviceSync implements AuthService.DeleteMFADeviceSync.
-func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADeviceSyncRequest) error {
+func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *authproto.DeleteMFADeviceSyncRequest) error {
 	var user string
 	switch {
 	case req.TokenID != "":
@@ -4794,7 +4794,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 }
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.
-func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
+func (a *Server) AddMFADeviceSync(ctx context.Context, req *authproto.AddMFADeviceSyncRequest) (*authproto.AddMFADeviceSyncResponse, error) {
 	// Use either the explicitly provided token or the TOTP token created by
 	// CreateRegisterChallenge.
 	token := req.GetTokenID()
@@ -4840,7 +4840,7 @@ func (a *Server) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSy
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &proto.AddMFADeviceSyncResponse{Device: dev}, nil
+	return &authproto.AddMFADeviceSyncResponse{Device: dev}, nil
 }
 
 type newMFADeviceFields struct {
@@ -4856,9 +4856,9 @@ type newMFADeviceFields struct {
 	// Defaults to the Server's IdentityService.
 	webIdentityOverride wanlib.RegistrationIdentity
 	// deviceResp is the register response from the new device.
-	deviceResp *proto.MFARegisterResponse
+	deviceResp *authproto.MFARegisterResponse
 	// deviceUsage describes the intended usage of the new device.
-	deviceUsage proto.DeviceUsage
+	deviceUsage authproto.DeviceUsage
 }
 
 // verifyMFARespAndAddDevice validates MFA register response and on success adds the new MFA device.
@@ -4878,12 +4878,12 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 
 	var dev *types.MFADevice
 	switch req.deviceResp.GetResponse().(type) {
-	case *proto.MFARegisterResponse_TOTP:
+	case *authproto.MFARegisterResponse_TOTP:
 		dev, err = a.registerTOTPDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *proto.MFARegisterResponse_Webauthn:
+	case *authproto.MFARegisterResponse_Webauthn:
 		dev, err = a.registerWebauthnDevice(ctx, req.deviceResp, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4912,7 +4912,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 	return dev, nil
 }
 
-func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+func (a *Server) registerTOTPDevice(ctx context.Context, regResp *authproto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4944,7 +4944,7 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 	return dev, nil
 }
 
-func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
+func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *authproto.MFARegisterResponse, req *newMFADeviceFields) (*types.MFADevice, error) {
 	cap, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4970,7 +4970,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 		User:             req.username,
 		DeviceName:       req.newDeviceName,
 		CreationResponse: wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
-		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		Passwordless:     req.deviceUsage == authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
 }
@@ -5257,11 +5257,11 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 	return strings.TrimSuffix(hostName, suffix), nil
 }
 
-// HostCertsParams attaches additional parameters to a [proto.HostCertsRequest] that should not be
+// HostCertsParams attaches additional parameters to a [authproto.HostCertsRequest] that should not be
 // exposed by the request itself.
 type HostCertsParams struct {
 	// Req is the original request to generate host certificates.
-	Req *proto.HostCertsRequest
+	Req *authproto.HostCertsRequest
 	// The AgentScope that should be encoded into the resulting certificates.
 	AgentScope string
 	// The ImmutableLabelHash that should be encoded into the resulting certificates.
@@ -5270,7 +5270,7 @@ type HostCertsParams struct {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) (*authproto.Certs, error) {
 	req := params.Req
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -5463,7 +5463,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.Certs{
+	return &authproto.Certs{
 		SSH:        hostSSHCert,
 		TLS:        hostTLSCert,
 		TLSCACerts: services.GetTLSCerts(ca),
@@ -5475,27 +5475,27 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 // originate from multiple separate join tokens so that they can be issued an instance certificate that
 // encompasses all of their capabilities. This method will be deprecated once we have a more comprehensive
 // model for join token joining/replacement.
-func (a *Server) AssertSystemRole(ctx context.Context, req proto.SystemRoleAssertion) error {
+func (a *Server) AssertSystemRole(ctx context.Context, req authproto.SystemRoleAssertion) error {
 	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
 }
 
 // GetSystemRoleAssertions is used in validated claims made by older instances to prove that they hold a given
 // system role. This method will be deprecated once we have a more comprehensive model for join token
 // joining/replacement.
-func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.SystemRoleAssertionSet, error) {
+func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (authproto.SystemRoleAssertionSet, error) {
 	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) error {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello *authproto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
 	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
 	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
-	downstreamHello := &proto.DownstreamInventoryHello{
+	downstreamHello := &authproto.DownstreamInventoryHello{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
-		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+		Capabilities: &authproto.DownstreamInventoryHello_SupportedCapabilities{
 			NodeHeartbeats:                true,
 			AppHeartbeats:                 true,
 			AppCleanup:                    true,
@@ -5521,7 +5521,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
-			hello, ok := msg.(*proto.UpstreamInventoryHello)
+			hello, ok := msg.(*authproto.UpstreamInventoryHello)
 			if !ok {
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
 				return
@@ -5538,8 +5538,8 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	return downstream
 }
 
-func (a *Server) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
-	rsp := new(proto.InventoryStatusSummary)
+func (a *Server) GetInventoryStatus(ctx context.Context, req *authproto.InventoryStatusRequest) (*authproto.InventoryStatusSummary, error) {
+	rsp := new(authproto.InventoryStatusSummary)
 	if req.Connected {
 		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
@@ -5576,8 +5576,8 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req *proto.InventorySta
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
-func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedServiceCounts {
-	return proto.InventoryConnectedServiceCounts{
+func (a *Server) GetInventoryConnectedServiceCounts() authproto.InventoryConnectedServiceCounts {
+	return authproto.InventoryConnectedServiceCounts{
 		ServiceCounts: a.inventory.ConnectedServiceCounts(),
 	}
 }
@@ -5587,31 +5587,31 @@ func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uin
 	return a.inventory.ConnectedServiceCount(service)
 }
 
-func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
+func (a *Server) PingInventory(ctx context.Context, req authproto.InventoryPingRequest) (authproto.InventoryPingResponse, error) {
 	stream, ok := a.inventory.GetControlStream(req.ServerID)
 	if !ok {
-		return proto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
+		return authproto.InventoryPingResponse{}, trace.NotFound("no control stream found for server %q", req.ServerID)
 	}
 
 	id := mathrand.Uint64()
 
 	if req.ControlLog { //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		return proto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
+		return authproto.InventoryPingResponse{}, trace.BadParameter("ControlLog pings are not supported")
 	}
 
 	d, err := stream.Ping(ctx, id)
 	if err != nil {
-		return proto.InventoryPingResponse{}, trace.Wrap(err)
+		return authproto.InventoryPingResponse{}, trace.Wrap(err)
 	}
 
-	return proto.InventoryPingResponse{
+	return authproto.InventoryPingResponse{
 		Duration: d,
 	}, nil
 }
 
 // UpdateLabels updates the labels on an instance over the inventory control
 // stream.
-func (a *Server) UpdateLabels(ctx context.Context, req *proto.InventoryUpdateLabelsRequest) error {
+func (a *Server) UpdateLabels(ctx context.Context, req *authproto.InventoryUpdateLabelsRequest) error {
 	stream, ok := a.inventory.GetControlStream(req.GetServerID())
 	if !ok {
 		return trace.NotFound("no control stream found for server %q", req.GetServerID())
@@ -5761,7 +5761,7 @@ func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 
 // IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
 // per-resource read permissions.
-func (a *Server) IterateRoles(ctx context.Context, req *proto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
+func (a *Server) IterateRoles(ctx context.Context, req *authproto.ListRolesRequest, match func(*types.RoleV6) (bool, error)) ([]*types.RoleV6, string, error) {
 	const maxIterations = 100_000
 
 	if req.Limit == 0 {
@@ -5822,7 +5822,7 @@ Outer:
 }
 
 // ListAccessRequests is an access request getter with pagination and sorting options.
-func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+func (a *Server) ListAccessRequests(ctx context.Context, req *authproto.ListAccessRequestsRequest) (*authproto.ListAccessRequestsResponse, error) {
 	// most access request methods target the backend directly since access requests are frequently read
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
@@ -5832,7 +5832,7 @@ func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRe
 
 // ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
 // should be preferred when using custom filtering (e.g. access-controls), since the paginations keys used by the access request cache are non-standard.
-func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *authproto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*authproto.ListAccessRequestsResponse, error) {
 	// most access request methods target the backend directly since access requests are frequently read
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
@@ -7283,7 +7283,7 @@ var ErrDone = errors.New("done iterating")
 // callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
 // a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
 // and the error to be returned.
-func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
+func (a *Server) IterateResources(ctx context.Context, req authproto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
 	for {
 		resp, err := a.ListResources(ctx, req)
 		if err != nil {
@@ -7474,7 +7474,7 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 }
 
 // ListResources returns paginated resources depending on the resource type..
-func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (a *Server) ListResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Because WindowsDesktopService does not contain the desktop resources,
 	// this is not implemented at the cache level and requires the workaround
 	// here in order to support KindWindowsDesktop for ListResources.
@@ -7589,7 +7589,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 }
 
 // SubmitUsageEvent submits an external usage event.
-func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+func (a *Server) SubmitUsageEvent(ctx context.Context, req *authproto.SubmitUsageEventRequest) error {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -7618,21 +7618,21 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 // Ping gets basic info about the auth server.
 // Please note that Ping is publicly accessible (not protected by any RBAC) by design,
 // and thus PingResponse must never contain any sensitive information.
-func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+func (a *Server) Ping(ctx context.Context) (authproto.PingResponse, error) {
 	cn, err := a.GetClusterName(ctx)
 	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
+		return authproto.PingResponse{}, trace.Wrap(err)
 	}
 	features := modules.GetModules().Features().ToProto()
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
-		return proto.PingResponse{}, nil
+		return authproto.PingResponse{}, nil
 	}
 
 	licenseExpiry := modules.GetModules().LicenseExpiry()
 
-	return proto.PingResponse{
+	return authproto.PingResponse{
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
@@ -7645,11 +7645,11 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
-func scopesStatusFromFeatureFlag() proto.ScopesStatus {
+func scopesStatusFromFeatureFlag() authproto.ScopesStatus {
 	if scopes.FeatureEnabled() {
-		return proto.ScopesStatus_SCOPES_STATUS_ENABLED
+		return authproto.ScopesStatus_SCOPES_STATUS_ENABLED
 	}
-	return proto.ScopesStatus_SCOPES_STATUS_DISABLED
+	return authproto.ScopesStatus_SCOPES_STATUS_DISABLED
 }
 
 type maintenanceWindowCacheKey struct {
@@ -7666,9 +7666,9 @@ const agentWindowLookahead = 3
 // exportUpgradeWindowsCached generates the export value of all upgrade window schedule types. Since schedules
 // are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
 // the encoded schedule values for a few seconds.
-func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
-	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
-		var rsp proto.ExportUpgradeWindowsResponse
+func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (authproto.ExportUpgradeWindowsResponse, error) {
+	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (authproto.ExportUpgradeWindowsResponse, error) {
+		var rsp authproto.ExportUpgradeWindowsResponse
 		cmc, err := a.GetClusterMaintenanceConfig(ctx)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -7702,8 +7702,8 @@ func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUp
 	})
 }
 
-func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
-	var rsp proto.ExportUpgradeWindowsResponse
+func (a *Server) ExportUpgradeWindows(ctx context.Context, req authproto.ExportUpgradeWindowsRequest) (authproto.ExportUpgradeWindowsResponse, error) {
+	var rsp authproto.ExportUpgradeWindowsResponse
 
 	// get the cached collection of all export values
 	cached, err := a.exportUpgradeWindowsCached(ctx)
@@ -7733,18 +7733,18 @@ func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgra
 	return rsp, nil
 }
 
-// MFARequiredToBool translates a [proto.MFARequired] value to a simple
+// MFARequiredToBool translates a [authproto.MFARequired] value to a simple
 // "required bool".
-func MFARequiredToBool(m proto.MFARequired) (required bool) {
+func MFARequiredToBool(m authproto.MFARequired) (required bool) {
 	switch m {
-	case proto.MFARequired_MFA_REQUIRED_NO:
+	case authproto.MFARequired_MFA_REQUIRED_NO:
 		return false
 	default: // _UNSPECIFIED or _YES are both treated as required.
 		return true
 	}
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *authproto.IsMFARequiredRequest) (resp *authproto.IsMFARequiredResponse, err error) {
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -7759,18 +7759,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
-		return &proto.IsMFARequiredResponse{
-			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		return &authproto.IsMFARequiredResponse{
+			MFARequired: authproto.MFARequired_MFA_REQUIRED_YES,
 		}, nil
 	case services.MFARequiredNever:
-		return &proto.IsMFARequiredResponse{
-			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		return &authproto.IsMFARequiredResponse{
+			MFARequired: authproto.MFARequired_MFA_REQUIRED_NO,
 		}, nil
 	}
 
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
-	case *proto.IsMFARequiredRequest_Node:
+	case *authproto.IsMFARequiredRequest_Node:
 		if t.Node.Node == "" {
 			return nil, trace.BadParameter("empty Node field")
 		}
@@ -7788,13 +7788,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// We need this info to be able to selectively skip MFA in
 		// this case.
 		if t.Node.Login == teleport.SSHSessionJoinPrincipal {
-			return &proto.IsMFARequiredResponse{
-				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			return &authproto.IsMFARequiredResponse{
+				MFARequired: authproto.MFARequired_MFA_REQUIRED_YES,
 			}, nil
 		}
 
 		// Find the target node and check whether MFA is required.
-		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
+		matches, err := client.GetResourcesWithFilters(ctx, a, authproto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
 			Namespace:      apidefaults.Namespace,
 			SearchKeywords: []string{t.Node.Node},
@@ -7813,8 +7813,8 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			// private network IP), and MFA check was actually required, the
 			// Node itself will check the cert extensions and reject the
 			// connection.
-			return &proto.IsMFARequiredResponse{
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			return &authproto.IsMFARequiredResponse{
+				MFARequired: authproto.MFARequired_MFA_REQUIRED_NO,
 			}, nil
 		}
 
@@ -7845,7 +7845,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 
-	case *proto.IsMFARequiredRequest_KubernetesCluster:
+	case *authproto.IsMFARequiredRequest_KubernetesCluster:
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
@@ -7868,7 +7868,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
-	case *proto.IsMFARequiredRequest_Database:
+	case *authproto.IsMFARequiredRequest_Database:
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
@@ -7893,7 +7893,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Those will be enforced at protocol level on the database service.
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
-	case *proto.IsMFARequiredRequest_WindowsDesktop:
+	case *authproto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -7906,7 +7906,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
-	case *proto.IsMFARequiredRequest_App:
+	case *authproto.IsMFARequiredRequest_App:
 		if t.App.Name == "" {
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
@@ -7932,8 +7932,8 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	// No error means that MFA is not required for this resource by
 	// AccessChecker.
 	if noMFAAccessErr == nil {
-		return &proto.IsMFARequiredResponse{
-			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		return &authproto.IsMFARequiredResponse{
+			MFARequired: authproto.MFARequired_MFA_REQUIRED_NO,
 		}, nil
 	}
 	// Errors other than ErrSessionMFARequired mean something else is wrong,
@@ -7946,21 +7946,21 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Mask the access denied errors by returning false to prevent resource
 		// name oracles. Auth will be denied (and generate an audit log entry)
 		// when the client attempts to connect.
-		return &proto.IsMFARequiredResponse{
-			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		return &authproto.IsMFARequiredResponse{
+			MFARequired: authproto.MFARequired_MFA_REQUIRED_NO,
 		}, nil
 	}
 	// If we reach here, the error from AccessChecker was
 	// ErrSessionMFARequired.
 
-	return &proto.IsMFARequiredResponse{
-		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+	return &authproto.IsMFARequiredResponse{
+		MFARequired: authproto.MFARequired_MFA_REQUIRED_YES,
 	}, nil
 }
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*authproto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -8029,7 +8029,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
 
-		return &proto.MFAAuthenticateChallenge{
+		return &authproto.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
 	}
@@ -8044,11 +8044,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 		return nil, trace.Wrap(err)
 	}
 	groupedDevs := groupByDeviceType(devs)
-	challenge := &proto.MFAAuthenticateChallenge{}
+	challenge := &authproto.MFAAuthenticateChallenge{}
 
 	// TOTP challenge.
 	if enableTOTP && groupedDevs.TOTP {
-		challenge.TOTP = &proto.TOTPChallenge{}
+		challenge.TOTP = &authproto.TOTPChallenge{}
 	}
 
 	// WebAuthn challenge.
@@ -8165,7 +8165,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // The hasDevices response value can only be trusted in the absence of errors.
 //
 // Use only for registration purposes.
-func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
+func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *authproto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
 	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
@@ -8211,7 +8211,7 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 // challenge.
 func (a *Server) ValidateMFAAuthResponse(
 	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse,
+	resp *authproto.MFAAuthenticateResponse,
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
@@ -8269,7 +8269,7 @@ func (a *Server) ValidateMFAAuthResponse(
 
 func (a *Server) validateMFAAuthResponseInternal(
 	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse,
+	resp *authproto.MFAAuthenticateResponse,
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
@@ -8286,7 +8286,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	switch res := resp.Response.(type) {
 	// cases in order of preference
-	case *proto.MFAAuthenticateResponse_Webauthn:
+	case *authproto.MFAAuthenticateResponse_Webauthn:
 		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
@@ -8352,7 +8352,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: loginData.AllowReuse,
 		}, nil
 
-	case *proto.MFAAuthenticateResponse_TOTP:
+	case *authproto.MFAAuthenticateResponse_TOTP:
 		dev, err := a.checkOTP(ctx, user, res.TOTP.Code)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -8365,7 +8365,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
-	case *proto.MFAAuthenticateResponse_SSO:
+	case *authproto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
@@ -8677,7 +8677,7 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		if done {
 			return nil, io.EOF
 		}
-		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := a.ListResources(ctx, authproto.ListResourcesRequest{
 			ResourceType: types.KindNode,
 			Namespace:    namespace,
 			Limit:        apidefaults.DefaultChunkSize,
