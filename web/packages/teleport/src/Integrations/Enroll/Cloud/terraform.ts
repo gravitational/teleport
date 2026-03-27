@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-interface TFObject {
-  readonly [key: string]: TFValue;
+export interface TFObject {
+  [key: string]: TFValue;
 }
 
 type TFValue = string | number | boolean | TFValue[] | TFObject | null;

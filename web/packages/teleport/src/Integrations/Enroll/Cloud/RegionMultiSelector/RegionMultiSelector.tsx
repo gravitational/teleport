@@ -58,6 +58,13 @@ function MultiRegionValueContainer(
 function OptionWithCheckbox(
   props: OptionProps<RegionOption, true, RegionOptionGroup>
 ) {
+  if (props.data.value === ALL_REGIONS_VALUE) {
+    return (
+      <components.Option {...props}>
+        <Text fontWeight="bold">{props.children}</Text>
+      </components.Option>
+    );
+  }
   return (
     <components.Option {...props}>
       <Flex gap={2}>
@@ -72,6 +79,8 @@ function defaultRule(): Rule<RegionId[]> {
   return () => () => ({ valid: true });
 }
 
+const ALL_REGIONS_VALUE = '*' as RegionId;
+
 export interface RegionMultiSelectorProps {
   regionGroups: readonly RegionGroup[];
   selectedRegions: RegionId[];
@@ -81,6 +90,8 @@ export interface RegionMultiSelectorProps {
   disabled?: boolean;
   required?: boolean;
   rule?: Rule<RegionId[]>;
+  // Adds an "All regions" option that emits ['*']
+  allowAllRegions?: boolean;
 }
 
 export function RegionMultiSelector({
@@ -92,7 +103,10 @@ export function RegionMultiSelector({
   disabled = false,
   required = false,
   rule = defaultRule(),
+  allowAllRegions = false,
 }: RegionMultiSelectorProps) {
+  const isAllSelected = selectedRegions.includes(ALL_REGIONS_VALUE);
+
   const { valid, message } = useRule(rule(selectedRegions));
 
   const groups: RegionOptionGroup[] = regionGroups.map(regionGroup => ({
@@ -108,12 +122,26 @@ export function RegionMultiSelector({
     })),
   }));
 
-  const selectedOptions: RegionOption[] = groups
-    .flatMap(group => group.options)
-    .filter(option => selectedRegions.includes(option.value));
+  const options: (RegionOption | RegionOptionGroup)[] = allowAllRegions
+    ? [{ value: ALL_REGIONS_VALUE, label: 'All regions' }, ...groups]
+    : groups;
 
-  const handleChange = (options: RegionOption[]) => {
-    const regions = options ? options.map(option => option.value) : [];
+  const selectedOptions: RegionOption[] = isAllSelected
+    ? []
+    : groups
+        .flatMap(group => group.options)
+        .filter(option => selectedRegions.includes(option.value));
+
+  const handleChange = (selected: RegionOption[]) => {
+    if (!selected || selected.length === 0) {
+      onChange(allowAllRegions ? [ALL_REGIONS_VALUE] : []);
+      return;
+    }
+    const regions = selected.map(o => o.value);
+    if (regions.includes(ALL_REGIONS_VALUE)) {
+      onChange([ALL_REGIONS_VALUE]);
+      return;
+    }
     onChange(regions);
   };
 
@@ -127,10 +155,10 @@ export function RegionMultiSelector({
         </LabelContent>
         <StyledSelect
           isMulti
-          options={groups}
+          options={options}
           value={selectedOptions}
           onChange={handleChange}
-          placeholder={placeholder}
+          placeholder={isAllSelected ? 'All regions' : placeholder}
           isDisabled={disabled}
           isSearchable={false}
           closeMenuOnSelect={false}

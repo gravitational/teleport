@@ -17,7 +17,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
 import { Info as InfoAlert } from 'design/Alert';
@@ -25,15 +25,15 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
-import {
-  ConfigurationScopeSection,
-  IntegrationSection,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
+import { IntegrationSection } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
 import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Aws/RegionsSection';
 import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
 import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
-import { Ec2Config } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
+import {
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+} from 'teleport/Integrations/Enroll/Cloud/Aws/types';
 import {
   Divider,
   WildcardRegion,
@@ -67,12 +67,22 @@ export function SettingsTab({
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
 
-  const { data: ec2Rules, isLoading } = useQuery({
+  const { data: ec2Rules, isLoading: isLoadingEc2 } = useQuery({
     queryKey: ['integrationRules', stats.name, AwsResource.ec2],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
         AwsResource.ec2
+      ),
+    enabled: true,
+  });
+
+  const { data: eksRules, isLoading: isLoadingEks } = useQuery({
+    queryKey: ['integrationRules', stats.name, AwsResource.eks],
+    queryFn: () =>
+      integrationService.fetchIntegrationRules(
+        integrationName,
+        AwsResource.eks
       ),
     enabled: true,
   });
@@ -94,10 +104,11 @@ export function SettingsTab({
       : (regions as Regions[]);
   };
 
-  const getEc2ConfigFromRules = (
+  const getConfigFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): Ec2Config => ({
+  ): ServiceConfig => ({
     enabled: rules !== undefined && rules.length > 0,
+    regions: getRegionsFromRules(rules),
     tags:
       rules && rules.length > 0
         ? rules[0].labelMatcher.map(l => ({
@@ -107,26 +118,26 @@ export function SettingsTab({
         : [],
   });
 
-  const [updatedRegions, setRegions] = useState<
-    WildcardRegion | Regions[] | null
-  >(null);
-  const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
-
-  const regions = updatedRegions ?? getRegionsFromRules(ec2Rules?.rules);
-  const ec2Config = updatedEc2Config ?? getEc2ConfigFromRules(ec2Rules?.rules);
-
-  const terraformConfig = useMemo(
-    () =>
-      buildTerraformConfig({
-        integrationName,
-        regions: regions,
-        ec2Config: ec2Config,
-        version: clusterVersion,
-      }),
-    [integrationName, regions, ec2Config, clusterVersion]
+  const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
+    {}
   );
 
-  if (isLoading) {
+  const configs: ServiceConfigs = {
+    ec2: updatedConfigs.ec2 ?? getConfigFromRules(ec2Rules?.rules),
+    eks: updatedConfigs.eks ?? getConfigFromRules(eksRules?.rules),
+  };
+
+  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
+    setUpdatedConfigs(prev => ({ ...prev, [type]: config }));
+  };
+
+  const terraformConfig = buildTerraformConfig({
+    integrationName,
+    configs,
+    version: clusterVersion,
+  });
+
+  if (isLoadingEc2 || isLoadingEks) {
     return (
       <Flex justifyContent="center" mt={6}>
         <Indicator />
@@ -158,16 +169,10 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
-              <Box>
-                <ConfigurationScopeSection />
-              </Box>
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}

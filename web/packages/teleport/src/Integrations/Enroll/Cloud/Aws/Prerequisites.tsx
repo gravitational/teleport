@@ -25,7 +25,7 @@ import { ArrowSquareOut, ChevronRight } from 'design/Icon';
 import { Divider } from '../Shared';
 
 export function Prerequisites() {
-  const [showPrerequisites, togglePrerequisites] = useToggle(true);
+  const [showPrerequisites, togglePrerequisites] = useToggle(false);
 
   return (
     <>
