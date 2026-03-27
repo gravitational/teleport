@@ -66,6 +66,7 @@ impl RdpDecoder {
 
     pub fn resize(&mut self, width: u16, height: u16) {
         self.image = DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height);
+        self.cursor_state = Default::default();
     }
 
     pub fn image_data(&self) -> &[u8] {
