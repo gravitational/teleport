@@ -4077,6 +4077,17 @@ message RoleConditions {
   // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
   // access to Linux desktops.
   string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
+
+  // BeamLabels are used in the RBAC system to allow/deny access to beams.
+  wrappers.LabelValues BeamLabels = 50 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "beam_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // BeamLabelsExpression is a predicate expression used to allow/deny access
+  // to beams.
+  string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

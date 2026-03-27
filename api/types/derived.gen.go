@@ -953,7 +953,9 @@ func deriveTeleportEqual_48(this, that *RoleConditions) bool {
 			deriveTeleportEqual_88(this.MCP, that.MCP) &&
 			deriveTeleportEqual_29(this.LinuxDesktopLogins, that.LinuxDesktopLogins) &&
 			deriveTeleportEqual_76(this.LinuxDesktopLabels, that.LinuxDesktopLabels) &&
-			this.LinuxDesktopLabelsExpression == that.LinuxDesktopLabelsExpression
+			this.LinuxDesktopLabelsExpression == that.LinuxDesktopLabelsExpression &&
+			deriveTeleportEqual_76(this.BeamLabels, that.BeamLabels) &&
+			this.BeamLabelsExpression == that.BeamLabelsExpression
 }
 
 // deriveTeleportEqual_49 returns whether this and that are equal.

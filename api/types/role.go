@@ -1468,6 +1468,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
+		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2258,6 +2259,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindBeam:
+		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2314,6 +2317,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindBeam:
+		cond.BeamLabels = labelMatchers.Labels
+		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)

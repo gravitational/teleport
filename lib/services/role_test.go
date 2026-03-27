@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -9642,6 +9644,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
+		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Labels: map[string]string{},
+			},
+		}),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
