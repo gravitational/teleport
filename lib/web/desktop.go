@@ -80,7 +80,7 @@ func (h *Handler) linuxDesktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToLinuxService); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToLinuxService, true); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -111,7 +111,7 @@ func (h *Handler) desktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToWindowsService); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToWindowsService, false); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -385,7 +385,7 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
 
-func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, clusterName string, log *slog.Logger, sctx *SessionContext, cluster reversetunnelclient.Cluster, ws *websocket.Conn, connectFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)) error {
+func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, clusterName string, log *slog.Logger, sctx *SessionContext, cluster reversetunnelclient.Cluster, ws *websocket.Conn, connectFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error), linuxDesktop bool) error {
 	defer ws.Close()
 	ctx := r.Context()
 
@@ -425,7 +425,7 @@ func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, c
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username, linuxDesktop)
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
 	}
@@ -517,13 +517,7 @@ const (
 	SNISuffix = ".desktop." + constants.APIDomain
 )
 
-func createUserCertsRequest(
-	sctx *SessionContext,
-	publicKey crypto.PublicKey,
-	desktopName,
-	username,
-	siteName string,
-) (*proto.UserCertsRequest, error) {
+func createUserCertsRequest(sctx *SessionContext, publicKey crypto.PublicKey, desktopName, username, siteName string, linuxDesktop bool) (*proto.UserCertsRequest, error) {
 	tlsCert, err := sctx.GetX509Certificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -539,11 +533,20 @@ func createUserCertsRequest(
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
-		Usage:          proto.UserCertsRequest_WindowsDesktop,
-		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+	}
+
+	if linuxDesktop {
+		certsReq.Usage = proto.UserCertsRequest_LinuxDesktop
+		certsReq.RouteToLinuxDesktop = proto.RouteToLinuxDesktop{
+			LinuxDesktop: desktopName,
+			Login:        username,
+		}
+	} else {
+		certsReq.Usage = proto.UserCertsRequest_WindowsDesktop
+		certsReq.RouteToWindowsDesktop = proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,
-		},
+		}
 	}
 
 	return &certsReq, nil
@@ -557,19 +560,31 @@ func (h *Handler) prepareForCertIssuance(
 	cluster reversetunnelclient.Cluster,
 	publicKey crypto.PublicKey,
 	desktopName, username string,
+	linuxDesktop bool,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
-	mfaRequired, err = h.checkMFARequired(ctx, &IsMFARequiredRequest{
-		WindowsDesktop: &isMFARequiredWindowsDesktop{
-			DesktopName: desktopName,
-			Login:       username,
-		},
-	}, sctx, cluster)
+	var mfaRequest *IsMFARequiredRequest
+	if linuxDesktop {
+		mfaRequest = &IsMFARequiredRequest{
+			LinuxDesktop: &isMFARequiredLinuxDesktop{
+				DesktopName: desktopName,
+				Login:       username,
+			},
+		}
+	} else {
+		mfaRequest = &IsMFARequiredRequest{
+			WindowsDesktop: &isMFARequiredWindowsDesktop{
+				DesktopName: desktopName,
+				Login:       username,
+			},
+		}
+	}
+	mfaRequired, err = h.checkMFARequired(ctx, mfaRequest, sctx, cluster)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, cluster.GetName(), linuxDesktop)
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -810,7 +825,7 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	}()
 
 	var err error
-	latencySupported := p.serverProtocol == protocolTDPB
+	latencySupported := p.serverProtocol == tdpb.ProtocolName
 	if !latencySupported {
 		latencySupported, err = utils.MinVerWithoutPreRelease(p.version, "17.5.0")
 		if err != nil {

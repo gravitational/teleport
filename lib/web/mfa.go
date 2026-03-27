@@ -354,6 +354,13 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
+type isMFARequiredLinuxDesktop struct {
+	// DesktopName is the Linux Desktop server name.
+	DesktopName string `json:"desktop_name"`
+	// Login is the Linux desktop user login.
+	Login string `json:"login"`
+}
+
 type IsMFARequiredApp struct {
 	// ResolveAppParams contains info used to resolve an application
 	ResolveAppParams
@@ -371,6 +378,9 @@ type IsMFARequiredRequest struct {
 	// WindowsDesktop contains fields required to check if target
 	// windows desktop requires MFA check.
 	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	// LinuxDesktop contains fields required to check if target
+	// linux desktop requires MFA check.
+	LinuxDesktop *isMFARequiredLinuxDesktop `json:"linux_desktop,omitempty"`
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
@@ -433,6 +443,25 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
+				},
+			},
+		}
+	}
+
+	if r.LinuxDesktop != nil {
+		numRequests++
+		if r.LinuxDesktop.DesktopName == "" {
+			return nil, trace.BadParameter("missing desktop_name for checking linux desktop target")
+		}
+		if r.LinuxDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking linux desktop target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_LinuxDesktop{
+				LinuxDesktop: &proto.RouteToLinuxDesktop{
+					LinuxDesktop: r.LinuxDesktop.DesktopName,
+					Login:        r.LinuxDesktop.Login,
 				},
 			},
 		}

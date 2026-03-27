@@ -184,6 +184,9 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // LinuxDesktop means a request for a TLS certificate for access to a specific
+    // linux desktop.
+    LinuxDesktop = 6;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -300,6 +303,13 @@ message UserCertsRequest {
   // re-issuable. This flag is only applicable when UseRoleRequests is set to
   // true.
   bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
+
+  // RouteToLinuxDesktop specifies the target linux desktop name to encode into
+  // certificate so linux desktop client requests are routed appropriately.
+  RouteToLinuxDesktop RouteToLinuxDesktop = 28 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "route_to_linux_desktop,omitempty"
+  ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -321,6 +331,14 @@ message RouteToWindowsDesktop {
   // WindowsDesktop is the Windows Desktop server name to embed.
   string WindowsDesktop = 1 [(gogoproto.jsontag) = "windows_desktop"];
   // Login is the Windows desktop user login to embed.
+  string Login = 2 [(gogoproto.jsontag) = "login"];
+}
+
+// RouteToLinuxDesktop combines parameters for Linux desktop routing information.
+message RouteToLinuxDesktop {
+  // LinuxDesktop is the Linux Desktop server name to embed.
+  string LinuxDesktop = 1 [(gogoproto.jsontag) = "Linux_desktop"];
+  // Login is the Linux desktop user login to embed.
   string Login = 2 [(gogoproto.jsontag) = "login"];
 }
 
@@ -1512,6 +1530,8 @@ message IsMFARequiredRequest {
     AdminAction AdminAction = 5;
     // App specifies the target App.
     RouteToApp App = 6;
+    // LinuxDesktop specifies the target Linux Desktop.
+    RouteToLinuxDesktop LinuxDesktop = 7;
   }
 }
 

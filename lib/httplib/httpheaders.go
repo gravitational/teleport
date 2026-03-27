@@ -183,9 +183,9 @@ func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
 // which is a route to a desktop session that uses WASM.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
-// desktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username/:xsessionname
+// linuxDesktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username
 // which is a route to a Linux desktop session that uses WASM.
-var linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+/[^/]+$`)
+var linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+$`)
 
 // regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
 // which is a route to a desktop recording that uses WASM.

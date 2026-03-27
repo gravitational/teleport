@@ -162,7 +162,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 const LinuxDesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   const { clusterId } = useStickyClusterId();
   const startRemoteDesktopSession = (username: string, desktopName: string) => {
-    const url = cfg.getLinuxDesktopSelectorRoute({
+    const url = cfg.getLinuxDesktopRoute({
       clusterId,
       desktopName,
       username,

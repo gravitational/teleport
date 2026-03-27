@@ -92,7 +92,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 			return trace.Wrap(err)
 		}
 	}
-	
+
 	// create an adapter, from reversetunnel.ServerHandler to net.Listener.
 	listener := reversetunnel.NewServerHandlerToListener(reversetunnelclient.LocalLinuxDesktop)
 	agentPool, err := reversetunnel.NewAgentPool(
@@ -262,7 +262,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 func getChildLogConfig(cfg *servicecfg.Config) *srv.ChildLogConfig {
 	return &srv.ChildLogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
-			Level:        cfg.LoggerLevel,
+			Level:        cfg.LoggerLevel.Level(),
 			Format:       strings.ToLower(cfg.LogConfig.Format),
 			ExtraFields:  cfg.LogConfig.ExtraFields,
 			EnableColors: cfg.LogConfig.EnableColors,

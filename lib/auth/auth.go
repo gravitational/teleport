@@ -7818,6 +7818,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
+	case *proto.IsMFARequiredRequest_LinuxDesktop:
+		desktop, err := a.GetLinuxDesktop(ctx, t.LinuxDesktop.GetLinuxDesktop())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(types.ProtoResource153ToLegacy(desktop),
+			services.AccessState{},
+			services.NewLinuxDesktopLoginMatcher(t.LinuxDesktop.GetLogin()))
+
 	case *proto.IsMFARequiredRequest_App:
 		if t.App.Name == "" {
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
