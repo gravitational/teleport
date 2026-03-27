@@ -111,11 +111,12 @@ jobs:
           restore-keys: go-mod-${{ runner.os }}-
 
       - name: Check generated files are up to date
+        working-directory: e2e/runner
         run: |
-          go generate ./e2e/runner/...
-          if ! git diff --quiet -- e2e/helpers/fixtures.ts; then
-            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./e2e/runner/...' and commit the result."
-            git diff -- e2e/helpers/fixtures.ts
+          go generate ./...
+          if ! git diff --quiet -- ../helpers/fixtures.ts; then
+            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./...' from e2e/runner and commit the result."
+            git diff -- ../helpers/fixtures.ts
             exit 1
           fi
 
