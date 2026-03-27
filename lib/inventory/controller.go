@@ -1228,6 +1228,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	now := time.Now()
 
 	kubernetesServer.SetExpiry(now.Add(c.serverTTL).UTC())
+	kubernetesServer.GetCluster().SetScope(kubernetesServer.Scope)
 
 	lease, err := c.auth.UpsertKubernetesServer(c.closeContext, kubernetesServer)
 	if err == nil {

@@ -121,6 +121,7 @@ type TLSServerConfig struct {
 	InventoryHandle inventory.DownstreamHandle
 	// HealthCheckManager manages checking the health of Kubernetes clusters.
 	HealthCheckManager healthcheck.Manager
+	Scope              string
 }
 
 type awsClientsGetter struct{}
@@ -221,6 +222,7 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *slog.Logger
+	scope       string
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -237,6 +239,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	cfg.ForwarderConfig.log = log
+	cfg.ForwarderConfig.scope = cfg.scope
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -540,6 +543,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 			RelayIds:   relayIDs,
 		},
 	)
+	srv.Scope = t.scope
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
