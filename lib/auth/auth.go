@@ -60,7 +60,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/time/rate"
-	goproto "google.golang.org/protobuf/proto"
+	googleproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -2785,8 +2785,8 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 	var checkerContext *services.SplitAccessCheckerContext
 	if len(req.ScopePin) > 0 {
-		scopePin := &scopesv1.Pin{}
-		if err := goproto.Unmarshal(req.ScopePin, scopePin); err != nil {
+		var scopePin scopesv1.Pin
+		if err := googleproto.Unmarshal(req.ScopePin, &scopePin); err != nil {
 			return nil, trace.Wrap(err, "unmarshaling scope pin")
 		}
 

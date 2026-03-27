@@ -295,7 +295,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	signer, err := s.cfg.SignerFn(ctx, authzContext, req.DialTarget.Cluster)
 	if err != nil {
-		return trace.Wrap(err, "creating agentless signer")
+		return trace.Wrap(err, "setup SSH credentials for cluster %q", req.DialTarget.Cluster)
 	}
 
 	checkAccessToRemoteCluster := func(types.RemoteCluster) error {

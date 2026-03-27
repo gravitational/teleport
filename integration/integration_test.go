@@ -2241,7 +2241,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(t.Context(), cmd)
-	require.ErrorContains(t, err, "failed connecting to host localhost: creating agentless signer")
+	require.ErrorContains(t, err, "failed connecting to host localhost: setup SSH credentials for cluster")
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a

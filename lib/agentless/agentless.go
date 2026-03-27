@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	goproto "google.golang.org/protobuf/proto"
+	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -82,7 +82,7 @@ func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, certG
 
 		var scopePinBytes []byte
 		if ident.ScopePin != nil {
-			scopePinBytes, err = goproto.Marshal(ident.ScopePin)
+			scopePinBytes, err = googleproto.Marshal(ident.ScopePin)
 			if err != nil {
 				return nil, trace.Wrap(err, "marshaling scope pin")
 			}
@@ -158,7 +158,7 @@ func signerFromIdentity(user types.User, identityGetter authz.IdentityGetter, au
 		// be propagated to the auth server for building the scoped access checker.
 		var scopePinBytes []byte
 		if identity.ScopePin != nil {
-			scopePinBytes, err = goproto.Marshal(identity.ScopePin)
+			scopePinBytes, err = googleproto.Marshal(identity.ScopePin)
 			if err != nil {
 				return nil, trace.Wrap(err, "marshaling scope pin")
 			}
