@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils/once"
 )
@@ -308,4 +309,28 @@ func (c *ScopedAccessCheckerContext) Traits() wrappers.Traits {
 // This should not be used outside of certificate generation logic.
 func (c *ScopedAccessCheckerContext) CertParams() *CertificateParameterContext {
 	return &CertificateParameterContext{ctx: c}
+}
+
+// UnscopedCheckAccess is equivalent to calling [AccessChecker].CheckAccess when [ScopedAccessCheckerContext] is
+// unscoped. It results in a [trace.AccessDeniedError] for scoped identities. This function should only be used
+// in situations where we need to maintain backwards compatibility for codepaths that deal with both scoped and
+// unscoped resources. Otherwise, more explicit access checking functions should always be preferred.
+func (c *ScopedAccessCheckerContext) UnscopedCheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccess(r, state, matchers...)
+	}
+
+	return trace.AccessDenied("unscoped access check is not allowed for scoped identities")
+}
+
+// UnscopedCheckAccessToSAMLIdP is equivalent to [AccessChecker].CheckAccessToSAMLIdP when [ScopedAccessCheckerContext]
+// is unscoped. It results in a [trace.AccessDeniedError] for scoped identities. This function should only be used
+// in situations where we need to maintain backwards compatibility for codepaths that deal with both scoped and unscoped
+// resources. Otherwise, more explicit access checking functions should always be preferred.
+func (c *ScopedAccessCheckerContext) UnscopedCheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccessToSAMLIdP(r, authPref, state, matchers...)
+	}
+
+	return trace.AccessDenied("unscoped access check is not allowed for scoped identities")
 }
