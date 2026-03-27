@@ -55,7 +55,7 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/cgroup
               desc: '"lib/cgroup" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/config
-              desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
+              desc: '"lib/config" requires CGO via "session/pam" and "lib/backend/lite"'
             - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
               desc: '"lib/desktop/rdp/rdpclient" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
@@ -66,8 +66,8 @@ linters:
               desc: '"lib/devicetrust/native" requires CGO on darwin'
             - pkg: github.com/gravitational/teleport/lib/inventory/metadata
               desc: '"lib/inventory/metadata" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/pam
-              desc: '"lib/pam" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/pam$
+              desc: '"session/pam" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/srv/uacc
               desc: '"lib/srv/uacc" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/system/signal
