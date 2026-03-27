@@ -84,9 +84,56 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
 		}
 	case types.JoinMethodBoundKeypair:
-		// TODO: Bound keypair tokens are always valid (?)
+		// Bound keypair tokens are always valid
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	}
+
+	return nil
+}
+
+// validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
+// returned true).
+func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
+	if token.GetSpec().GetBotName() == "" {
+		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	}
+
+	if token.GetSpec().GetBotScope() == "" {
+		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	}
+
+	if token.GetSpec().GetUsageMode() != TokenUsageModeBot {
+		return trace.BadParameter("usage_mode must be '%s' for a scoped bot token", TokenUsageModeBot)
+	}
+
+	if len(roles) != 1 || !roles.Include(types.RoleBot) {
+		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
+	}
+
+	if !scopes.ResourceScope(token.GetSpec().GetBotScope()).IsSubjectToPolicyScope(token.GetScope()) {
+		return trace.BadParameter("scoped token bot scope must be descendant of its resource scope")
+	}
+
+	// TODO: verify AssignedScope is empty for bots (currently required for all)
+	// TODO: verify BotScope is the same as the bot resource's scope (or user label value)
+
+	return nil
+}
+
+// validateNonBot performs checks for scoped tokens that explicitly should not
+// exist for non-bot tokens.
+func validateNonBotToken(token *joiningv1.ScopedToken) error {
+	if token.GetSpec().GetBotName() != "" {
+		return trace.BadParameter("bot_name cannot be set for a non-bot token")
+	}
+
+	if token.GetSpec().GetBotScope() != "" {
+		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	}
+
+	if token.GetSpec().GetUsageMode() == TokenUsageModeBot {
+		return trace.BadParameter("usage_mode cannot be 'bot' for a non-bot token")
 	}
 
 	return nil
@@ -158,6 +205,16 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	for _, role := range roles {
 		if !rolesSupportingScopes.Include(role) {
 			return trace.BadParameter("role %q does not support scoping", role)
+		}
+	}
+
+	if roles.Include(types.RoleBot) {
+		if err := validateBotToken(token, roles); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateNonBotToken(token); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
