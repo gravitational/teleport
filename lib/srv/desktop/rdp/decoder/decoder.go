@@ -40,6 +40,8 @@ package decoder
 #cgo noescape rdp_decoder_process
 #cgo nocallback rdp_decoder_image_data
 #cgo noescape rdp_decoder_image_data
+#cgo nocallback rdp_decoder_cursor_state
+#cgo noescape rdp_decoder_cursor_state
 
 #include <stdint.h>
 
@@ -51,6 +53,7 @@ void rdp_decoder_free(RdpDecoder* ptr);
 void rdp_decoder_resize(RdpDecoder* ptr, uint16_t width, uint16_t height);
 void rdp_decoder_process(RdpDecoder* ptr, const uint8_t* data, size_t len);
 const uint8_t* rdp_decoder_image_data(RdpDecoder* ptr, uint16_t* width, uint16_t* height);
+void rdp_decoder_cursor_state(RdpDecoder* ptr, uint8_t* out_visible, uint16_t* out_x, uint16_t* out_y);
 */
 import "C"
 
@@ -65,6 +68,11 @@ import (
 
 type Decoder struct {
 	ptr *C.RdpDecoder
+}
+
+type CursorState struct {
+	Visible bool
+	X, Y    uint16
 }
 
 func New(width, height uint16) (*Decoder, error) {
@@ -162,4 +170,23 @@ func (d *Decoder) Thumbnail(width, height int) *image.RGBA {
 	draw.NearestNeighbor.Scale(thumbnail, dstRect, fullSize, srcBounds, draw.Over, nil)
 
 	return thumbnail
+}
+
+// CursorState returns the cursor position and visibility as tracked by the
+// Rust decoder.
+func (d *Decoder) CursorState() CursorState {
+	if d == nil || d.ptr == nil {
+		return CursorState{}
+	}
+
+	var outVisible C.uint8_t
+	var outX, outY C.uint16_t
+
+	C.rdp_decoder_cursor_state(d.ptr, &outVisible, &outX, &outY)
+
+	return CursorState{
+		Visible: outVisible != 0,
+		X:       uint16(outX),
+		Y:       uint16(outY),
+	}
 }
