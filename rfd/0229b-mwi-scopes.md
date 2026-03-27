@@ -127,11 +127,11 @@ allow the Scope Admin to escape the confines of their scope.
 There are a number of rules that govern the assignment of privileges to a Scoped
 Bot. Some of these rules are inherited from the Scopes RFD (marked RFD229) and
 some of these rules are introduced by this RFD and specific to Scoped Bots
-(marked RFD299B).
+(marked RFD229B).
 
 These rules are as follows:
 
-- RFD299-1: A Scoped Role is only assignable at the scope of the Scoped Role or
+- RFD229-1: A Scoped Role is only assignable at the scope of the Scoped Role or
   a descendent scope.
   - nb: A Scoped Role may include an `assignable_scopes` field that further
     constrains where it may be assigned.
@@ -298,7 +298,7 @@ Creating, reading, updating and deleting scoped Bots will occur via the normal
 Bot RPCs (and hence `tctl` commands and IaC resources). However, there are a 
 number of differences in behavior when a Bot is scoped vs unscoped.
 
-Firstly, access control for CRUD of the Bot resource will instead by governed
+Firstly, access control for CRUD of the Bot resource will instead be governed
 by scoped access checks. For creates and deletes, the implementation is fairly
 trivial.
 
@@ -311,7 +311,7 @@ from the results. Additionally, support will be added for filtering by exact
 scope or descendent scope. This will enable by-scope UI and `tctl` CLI commands.
 
 We must pay particular attention to the Update and Upsert RPCs since these
-allow a Bot to be transitioned from unscoped to scope, scoped to unscoped, or
+allow a Bot to be transitioned from unscoped to scoped, scoped to unscoped, or
 between scopes. This introduces a significant risk of privilege escalation
 or compromise of scope isolation if not handled correctly.
 
