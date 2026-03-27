@@ -3791,6 +3791,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				Traits:         accessInfo.Traits,
 				Roles:          accessInfo.Roles,
 				AccessRequests: req.AccessRequests,
+				// Propagate AllowedResourceAccessIDs so the app session cert
+				// carries resource-level restrictions from the caller's identity.
+				// Without this, checkAllowedResources() at the app service sees an
+				// empty list and falls back to role-based checks alone.
+				RequestedResourceAccessIDs: accessInfo.AllowedResourceAccessIDs,
 				// App sessions created through generateUserCerts are securely contained
 				// to the Proxy and Auth roles, and thus should pass hardware key requirements
 				// through the "web_session" attestation. User's will be required to provide
