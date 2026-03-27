@@ -6316,7 +6316,7 @@ message LockTarget {
   // WindowsDesktop specifies the name of a Windows desktop.
   string WindowsDesktop = 6 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
 
-  // AccessRequest specifies the UUID of an access request.
+  // AccessRequest specifies the UUID of an Access Request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
 
   // Device is the device ID of a trusted device.
