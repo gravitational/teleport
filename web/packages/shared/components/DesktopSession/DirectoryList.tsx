@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 import { Flex, H2, Text, Toggle, Stack } from 'design';
 import { ButtonWarningBorder , ButtonBorder, ButtonPrimary, ButtonSecondary} from 'design/Button/Button';
-import { FolderShared, Trash, Plus } from 'design/Icon';
+import { FolderShared, Eject, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
@@ -69,7 +69,7 @@ export function SharedDirectoryList({
                 title={'Unshare Directory'}                
                 onClick={() => onRemoveSharedDirectory(dir.DirectoryId)}
               >
-            <Trash size="small" />
+            <Eject size="small" />
           </ButtonSecondary>          
             </Flex>
           ))}

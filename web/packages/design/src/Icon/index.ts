@@ -109,6 +109,7 @@ export { Devices } from './Icons/Devices';
 export { Download } from './Icons/Download';
 export { Earth } from './Icons/Earth';
 export { Edit } from './Icons/Edit';
+export { Eject } from './Icons/Eject';
 export { Ellipsis } from './Icons/Ellipsis';
 export { EmailSolid } from './Icons/EmailSolid';
 export { EnvelopeOpen } from './Icons/EnvelopeOpen';
