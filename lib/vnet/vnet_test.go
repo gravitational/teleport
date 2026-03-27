@@ -166,6 +166,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
+		dbProvider:               newDBProvider(clt),
 		sshProvider:              sshProvider,
 		clock:                    cfg.clock,
 		alwaysTrustRootClusterCA: true,
@@ -591,6 +592,22 @@ func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) 
 
 func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo, _ uint16) {
 	p.onInvalidLocalPortCallCount.Add(1)
+}
+
+func (p *fakeClientApp) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	// Return a test certificate for database access.
+	return p.ReissueAppCert(ctx, &vnetv1.AppInfo{
+		AppKey: &vnetv1.AppKey{
+			Profile:     dbInfo.GetDatabaseKey().GetProfile(),
+			LeafCluster: dbInfo.GetDatabaseKey().GetLeafCluster(),
+			Name:        dbInfo.GetDatabaseKey().GetName(),
+		},
+		DialOptions: dbInfo.GetDialOptions(),
+	}, 0)
+}
+
+func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey) error {
+	return nil
 }
 
 func (p *fakeClientApp) dialSSHNode(

@@ -231,6 +231,34 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 	return userPublicKey, nil
 }
 
+// ReissueDBCert issues a new certificate for the requested database.
+func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) ([]byte, error) {
+	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{
+		DatabaseInfo: dbInfo,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ReissueDBCert rpc")
+	}
+	return resp.GetCert(), nil
+}
+
+// SignForDB returns a cryptographic signature with the key associated with the database.
+func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, req *vnetv1.SignForDBRequest) ([]byte, error) {
+	resp, err := c.clt.SignForDB(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForDB rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+// OnNewDBConnection reports a new database connection for observability.
+func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+	_, err := c.clt.OnNewDBConnection(ctx, &vnetv1.OnNewDBConnectionRequest{
+		DatabaseKey: dbKey,
+	})
+	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the
 // client application over gRPC.
 type rpcSigner struct {
