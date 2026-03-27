@@ -876,6 +876,14 @@ func registerServer(a *servicecfg.Config, ctx context.Context, conn *Connector, 
 	}
 	server.SetSubKind(types.SubKindOpenSSHNode)
 
+	if conn.Scope() != "" {
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			return trace.BadParameter("expected *types.ServerV2, got %T", server)
+		}
+		serverV2.Scope = conn.Scope()
+	}
+
 	if _, err := conn.Client.UpsertNode(ctx, server); err != nil {
 		return trace.Wrap(err)
 	}

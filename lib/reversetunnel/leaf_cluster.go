@@ -919,7 +919,7 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 		LocalAuthClient:          s.localClient,
 		TargetClusterAccessPoint: s.leafCache,
 		UserAgent:                userAgent,
-		AgentlessSigner:          params.AgentlessSigner,
+		AgentlessSignerCreator:   params.AgentlessSignerCreator,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
 		DstAddr:                  params.To,

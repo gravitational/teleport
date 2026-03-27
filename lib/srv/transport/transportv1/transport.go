@@ -69,7 +69,7 @@ type ServerConfig struct {
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
-	SignerFn func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator
+	SignerFn func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error)
 	// ConnectionMonitor is used to monitor the connection for activity and terminate it
 	// when conditions are met.
 	ConnectionMonitor ConnectionMonitor
@@ -293,7 +293,10 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
+	signer, err := s.cfg.SignerFn(ctx, authzContext, req.DialTarget.Cluster)
+	if err != nil {
+		return trace.Wrap(err, "setting up SSH credentials for cluster %q", req.DialTarget.Cluster)
+	}
 
 	checkAccessToRemoteCluster := func(types.RemoteCluster) error {
 		return trace.AccessDenied("scoped identities do not support cross-cluster access")

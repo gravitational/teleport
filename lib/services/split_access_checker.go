@@ -80,7 +80,7 @@ type UnscopedAccessCheckerSubset interface {
 // SplitAccessChecker is used in logic that needs to branch based on whether it is operating on a scoped or unscoped access checker. It
 // provides a Common interface that is always present, and one of either a Scoped or Unscoped interface that is present depending on
 // which underlying access checker is being used. If a method that previously existed on one of the Subset interfaces is implemented
-// by the second checker and moved to the Common interface, then the it should be removed from the Subset interface in order to ensure
+// by the second checker and moved to the Common interface, then it should be removed from the Subset interface in order to ensure
 // that we don't continue to accidentally call it on the old location.
 type SplitAccessChecker struct {
 	common   CommonAccessChecker
@@ -423,7 +423,7 @@ func (n *CertificateParameterContext) GetSSHLoginsForTTL(ctx context.Context, tt
 	// grant access without knowing the target resource.
 	loginSet := make(map[string]struct{})
 
-	// Use of RisyEnumerateCheckers is acceptable here because we are deliberately attempting to aggregate
+	// Use of RiskyEnumerateCheckers is acceptable here because we are deliberately attempting to aggregate
 	// information across all roles, rather than making a specific access-control decision.
 	for checker, err := range n.ctx.scopedContext.RiskyEnumerateCheckers(ctx) {
 		if err != nil {

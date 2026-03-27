@@ -243,10 +243,10 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}
 }
 
-func fakeSigner(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
-	return func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
+func fakeSigner(_ context.Context, _ *authz.ScopedContext, _ string) (agentless.SignerCreator, error) {
+	return func(_ context.Context, _ agentless.LocalAccessPoint, _ string) (ssh.Signer, error) {
 		return nil, nil
-	}
+	}, nil
 }
 
 type fakeMonitor struct{}

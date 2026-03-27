@@ -46,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/metadata"
+	goproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -54,8 +55,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	scopedaccessv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2710,6 +2714,112 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	// verify that user's logins are present in cert
 	logins = append(logins, teleport.SSHSessionJoinPrincipal)
 	require.Equal(t, logins, signedCert.ValidPrincipals)
+}
+
+func TestGenerateOpenSSHCertScoped(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+	p := newAuthSuite(t)
+
+	normalRoleLogins := []string{"login1", "login2"}
+	u, r, err := authtest.CreateUserAndRole(p.a, "scoped-user", normalRoleLogins, nil)
+	require.NoError(t, err)
+
+	user, ok := u.(*types.UserV2)
+	require.True(t, ok)
+	role, ok := r.(*types.RoleV6)
+	require.True(t, ok)
+
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+
+	// Create a scoped role at /staging that grants "scoped-login".
+	scopedService := local.NewScopedAccessService(p.bk)
+
+	crsp, err := scopedService.CreateScopedRole(ctx, &scopedaccessv1pb.CreateScopedRoleRequest{
+		Role: &scopedaccessv1pb.ScopedRole{
+			Kind: "scoped_role",
+			Metadata: &headerv1.Metadata{
+				Name: "staging-ssh",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1pb.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Allow: &scopedaccessv1pb.ScopedRoleConditions{
+					Logins: []string{"scoped-login"},
+					NodeLabels: []*labelv1.Label{
+						{Name: "*", Values: []string{"*"}},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = scopedService.CreateScopedRoleAssignment(ctx, &scopedaccessv1pb.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1pb.ScopedRoleAssignment{
+			Kind: "scoped_role_assignment",
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1pb.ScopedRoleAssignmentSpec{
+				User: "scoped-user",
+				Assignments: []*scopedaccessv1pb.Assignment{
+					{
+						Role:  "staging-ssh",
+						Scope: "/staging",
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		RoleRevisions: map[string]string{"staging-ssh": crsp.GetRole().GetMetadata().GetRevision()},
+	})
+	require.NoError(t, err)
+	pin := &scopesv1pb.Pin{Scope: "/staging"}
+
+	// Wait for scoped access cache to see the assignment.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, "scoped-user", pin)
+		assert.NoError(ct, err)
+		assert.NotNil(ct, pin.GetAssignmentTree())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	pinBytes, err := goproto.Marshal(pin)
+	require.NoError(t, err)
+
+	t.Run("valid login in principals", func(t *testing.T) {
+		reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+			ScopePin:  pinBytes,
+			Login:     "scoped-login",
+		})
+		require.NoError(t, err)
+
+		signedCert, err := sshutils.ParseCertificate(reply.Cert)
+		require.NoError(t, err)
+		require.Contains(t, signedCert.ValidPrincipals, "scoped-login")
+	})
+
+	t.Run("errors when login is not provided", func(t *testing.T) {
+		_, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+			ScopePin:  pinBytes,
+			Login:     "",
+		})
+		require.ErrorContains(t, err, "login required for scoped ssh access")
+	})
 }
 
 func TestGenerateUserCertWithLocks(t *testing.T) {
