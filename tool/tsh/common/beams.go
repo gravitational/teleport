@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/lib/client/beamsmount"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -158,32 +158,65 @@ func onBeamsList(cf *CLIConf) error {
 		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
 	})
 
+	// Load local mount state for this cluster.
+	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
+	mountsByBeam := make(map[string][]beamsmount.MountEntry)
+	if err := beamsmount.WithStateLock(stateFile, func(state *beamsmount.MountState) error {
+		for _, w := range beamsmount.PruneStale(state) {
+			fmt.Fprintln(os.Stderr, "WARNING:", w)
+		}
+		for _, m := range state.Mounts {
+			mountsByBeam[m.BeamID] = append(mountsByBeam[m.BeamID], m)
+		}
+		return nil
+	}); err != nil {
+		// Non-fatal: list beams even if mount state can't be read.
+		logger.DebugContext(cf.Context, "Failed to load mount state", "error", err)
+	}
+
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeBeams(beams, format)
+		out, err := serializeBeams(beams, format, mountsByBeam)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Fprintln(cf.Stdout(), out)
 	default:
-		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
+		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost(), mountsByBeam))
 	}
 	return nil
 }
 
-func serializeBeams(beams []*beamsv1.Beam, format string) (string, error) {
-	if beams == nil {
-		beams = []*beamsv1.Beam{}
+// beamWithMounts wraps a protobuf Beam with local mount info for JSON/YAML
+// serialization. The local_mounts field is always present (empty array if
+// no mounts) so consumers don't need nil checks.
+type beamWithMounts struct {
+	*beamsv1.Beam
+	LocalMounts []beamsmount.MountEntry `json:"local_mounts"`
+}
+
+func serializeBeams(beams []*beamsv1.Beam, format string, mountsByBeam map[string][]beamsmount.MountEntry) (string, error) {
+	enriched := make([]beamWithMounts, 0, len(beams))
+	for _, beam := range beams {
+		mounts := mountsByBeam[beam.GetMetadata().GetName()]
+		if mounts == nil {
+			mounts = []beamsmount.MountEntry{}
+		}
+		enriched = append(enriched, beamWithMounts{
+			Beam:        beam,
+			LocalMounts: mounts,
+		})
 	}
+
 	var (
 		out []byte
 		err error
 	)
 	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(beams, "", "  ")
+		out, err = utils.FastMarshalIndent(enriched, "", "  ")
 	} else {
-		out, err = yaml.Marshal(beams)
+		out, err = yaml.Marshal(enriched)
 	}
 	return string(out), trace.Wrap(err)
 }
@@ -549,13 +582,20 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 	return trace.Wrap(lastErr)
 }
 
-func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
-	table := asciitable.MakeTable([]string{"Alias", "Name", "Expires"})
+func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string, mountsByBeam map[string][]beamsmount.MountEntry) string {
+	table := asciitable.MakeTable([]string{"Alias", "Name", "Expires", "Mount"})
 	for _, beam := range beams {
+		beamID := beam.GetMetadata().GetName()
+		mounts := mountsByBeam[beamID]
+		mountPaths := make([]string, 0, len(mounts))
+		for _, m := range mounts {
+			mountPaths = append(mountPaths, m.MountPoint)
+		}
 		table.AddRow([]string{
 			beam.GetStatus().GetAlias(),
-			beam.GetMetadata().GetName(),
+			beamID,
 			beamExpiry(beam),
+			strings.Join(mountPaths, ", "),
 		})
 	}
 	return table.AsBuffer().String()
@@ -605,15 +645,25 @@ func startBeamSpinner(w io.Writer, msg string) func(finalLine string) {
 }
 
 func onBeamsMount(cf *CLIConf) error {
+	if cf.BeamMountCleanup {
+		return onBeamsMountCleanup(cf)
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tc.AllowHeadless = true
-	nodeID, err := getBeamNodeID(cf.Context, tc, cf.BeamID)
+
+	beam, err := getBeam(cf.Context, tc, cf.BeamID)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	nodeID := beam.GetStatus().GetNodeId()
+	if nodeID == "" {
+		return trace.NotFound("beam %q has no node", cf.BeamID)
 	}
 
 	tshPath, err := os.Executable()
@@ -624,27 +674,63 @@ func onBeamsMount(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sshfsTarget := fmt.Sprintf("beams@%s:%s", nodeID, cf.BeamRemotePath)
-	sshCmd := tshPath + " ssh"
-	if cf.Debug {
-		sshCmd = tshPath + " --debug ssh"
-	}
-	args := []string{
-		"-o", fmt.Sprintf("ssh_command=%s", sshCmd),
-		"-o", "idmap=user",
-		"-o", "no_check_root",
-	}
-	if cf.BeamMountDebug {
-		args = append(args, "-o", "sshfs_debug", "-d")
-	}
-	args = append(args, sshfsTarget, cf.BeamMountPoint)
-	cmd := exec.CommandContext(cf.Context, "sshfs", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = cf.Stdout()
-	cmd.Stderr = os.Stderr
+	return trace.Wrap(beamsmount.Mount(beamsmount.MountOptions{
+		BeamID:     beam.GetMetadata().GetName(),
+		BeamAlias:  beam.GetStatus().GetAlias(),
+		NodeID:     nodeID,
+		MountPoint: cf.BeamMountPoint,
+		RemotePath: cf.BeamRemotePath,
+		TshPath:    tshPath,
+		Debug:      cf.Debug,
+		SshfsDebug: cf.BeamMountDebug,
+		NodeLogin:  cf.NodeLogin,
+		StateFile:  beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost()),
+		ProxyHost:  tc.WebProxyHost(),
+		Stdout:     cf.Stdout(),
+		Stderr:     os.Stderr,
+	}))
+}
 
-	fmt.Fprintf(cf.Stdout(), "Mounting beam %q at %s\n", cf.BeamID, cf.BeamMountPoint)
-	return trace.Wrap(cmd.Run())
+func onBeamsMountCleanup(cf *CLIConf) error {
+	pid, err := beamsmount.ParseWatcherPID(cf.BeamMountCleanupPID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(beamsmount.RunWatcher(
+		cf.BeamMountCleanupMountPoint,
+		pid,
+		cf.BeamMountCleanupStateFile,
+	))
+}
+
+func onBeamsUmount(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AllowHeadless = true
+	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
+
+	opts := beamsmount.UmountOptions{
+		Target:    cf.BeamID,
+		Force:     cf.BeamUmountForce,
+		Mode:      beamsmount.UmountMode(cf.BeamUmountMode),
+		All:       cf.BeamUmountAll,
+		StateFile: stateFile,
+		Stdout:    cf.Stdout(),
+		Stderr:    os.Stderr,
+	}
+
+	if opts.All {
+		return trace.Wrap(beamsmount.UmountAll(opts))
+	}
+
+	if opts.Target == "" {
+		return trace.BadParameter("target mount point or beam ID is required (or use --all)")
+	}
+
+	return trace.Wrap(beamsmount.UmountTarget(opts))
 }
 
 func beamNodeTarget(nodeID string) *client.TargetNode {
