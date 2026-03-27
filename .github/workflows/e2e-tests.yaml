@@ -59,6 +59,7 @@ jobs:
               - 'build.assets/versions.mk'
               - 'build.assets/Dockerfile*'
               - 'build.assets/build-webassets-if-changed.sh'
+              - 'build.assets/build-e2e-binaries.sh'
               - 'Makefile'
 
   build:
