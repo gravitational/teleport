@@ -378,10 +378,8 @@ As per [Behaviour: Assigning the Scoped Bot privileges](#assigning-the-scoped-bo
 new validation rules will be added to the Create/Update/Upsert RPCs for the 
 ScopedRoleAssignment to enforce the following when `spec.bot_name` is set:
 
-- That `spec.bot_name` references a bot that exists.
-- That `spec.bot_name` references a bot with a scope.
-- That `spec.bot_scope` is set and that this matches the scope of the referenced
-  bot.
+- That `spec.bot_name` provides a valid bot name. 
+- That `spec.bot_scope` is set to a valid scope. 
 - That scope of effect (`spec.assignments.*.scope`) of the role assignment are 
   the same or descendent scopes of the bot's scope.
 
@@ -389,6 +387,14 @@ This validation must only be performed on creation or update, and should not
 be enforced on read of existing role assignments - this avoids the risk of
 breaking reads/cache initialization if the condition of the referenced bot
 changes.
+
+When generating identities for scoped Bots based on role assignments, we must
+perform additional validation:
+
+- That `spec.bot_scope` matches the `scope` of the Bot referenced by 
+  `spec.bot_name`.
+- That scope of effect (`spec.assignments.*.scope`) of the role assignment are
+  the same or descendent scopes of the bot's scope.
 
 Instead, the privilege calculation mechanisms defined under
 [Bot Identity Representation and Certificate Issuance](#bot-identity-representation-and-certificate-issuance)
@@ -435,7 +441,7 @@ The following new validation will be enforced for the ScopedToken resource:
   - `spec.roles` must have a length of 1. That is, other roles cannot co-exist
     with the `Bot` role.
   - `spec.bot_name` must be set.
-  - `spec.bot_scope` must be set to the scope of the scoped Bot.
+  - `spec.bot_scope` must be set to a valid scope. 
   - `spec.bot_scope` must be the same or a descendent scope of the `scope` field
     of the token.
   - `spec.assigned_scope` must not be set.
