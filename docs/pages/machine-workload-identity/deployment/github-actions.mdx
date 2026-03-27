@@ -198,7 +198,7 @@ spec:
       '*': '*'
 ```
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -331,7 +331,7 @@ in `kubernetes_resources`. Otherwise the example `kubectl get pods -A` execution
 will be denied.
 </Admonition>
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -385,7 +385,7 @@ Replace:
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
-Kubernetes (e.g `kubectl` and `helm`) can use your cluster with no additional
+Kubernetes (e.g. `kubectl` and `helm`) can use your cluster with no additional
 configuration.
 
 Add, commit, and push this new workflow file to the default branch of your
@@ -733,7 +733,7 @@ services: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service.
-- `example-bot` with the name of the token you created in the first step.
+- `example-bot` with the name of the token you created in the second step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
 configuration.

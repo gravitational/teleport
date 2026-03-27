@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -73,8 +74,8 @@ type NewWebSessionRequest struct {
 	LoginTime time.Time
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
-	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []types.ResourceID
+	// RequestedResourceAccessIDs optionally lists requested resources
+	RequestedResourceAccessIDs []types.ResourceAccessID
 	// AttestWebSession optionally attests the web session to meet private key policy requirements.
 	// This should only be set to true for web sessions that are purely in the purview of the Proxy
 	// and Auth services. Users should never have direct access to attested web sessions.
@@ -232,9 +233,9 @@ func (a *Server) newWebSession(
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
+		Roles:                    req.Roles,
+		Traits:                   req.Traits,
+		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -296,20 +297,20 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := certRequest{
-		user:           userState,
-		loginIP:        req.LoginIP,
-		ttl:            sessionTTL,
-		sshPublicKey:   sshAuthorizedKey,
-		tlsPublicKey:   tlsPublicKeyPEM,
-		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certReq := cert.Request{
+		User:           userState,
+		LoginIP:        req.LoginIP,
+		TTL:            sessionTTL,
+		SSHPublicKey:   sshAuthorizedKey,
+		TLSPublicKey:   tlsPublicKeyPEM,
+		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 	}
 	var hasDeviceExtensions bool
 	if opts != nil && opts.deviceExtensions != nil {
 		// Apply extensions to request.
-		certReq.deviceExtensions = DeviceExtensions(*opts.deviceExtensions)
+		certReq.DeviceExtensions = *opts.deviceExtensions
 		hasDeviceExtensions = true
 	}
 
@@ -538,10 +539,10 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:           req.User,
-		Roles:              req.Roles,
-		Traits:             req.Traits,
-		AllowedResourceIDs: req.RequestedResourceIDs,
+		Username:                 req.User,
+		Roles:                    req.Roles,
+		Traits:                   req.Traits,
+		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -580,30 +581,30 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:           user,
-		loginIP:        req.LoginIP,
-		tlsPublicKey:   tlsPublicKey,
-		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
-		ttl:            req.SessionTTL,
-		traits:         req.Traits,
-		activeRequests: req.AccessRequests,
+	certs, err := a.generateUserCert(ctx, cert.Request{
+		User:           user,
+		LoginIP:        req.LoginIP,
+		TLSPublicKey:   tlsPublicKey,
+		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		TTL:            req.SessionTTL,
+		Traits:         req.Traits,
+		ActiveRequests: req.AccessRequests,
 		// Set the app session ID in the certificate - used in auditing from the App Service.
-		appSessionID: sessionID,
+		AppSessionID: sessionID,
 		// Only allow this certificate to be used for applications.
-		usage:             []string{teleport.UsageAppsOnly},
-		appPublicAddr:     req.PublicAddr,
-		appClusterName:    req.ClusterName,
-		appTargetPort:     req.AppTargetPort,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
+		Usage:             []string{teleport.UsageAppsOnly},
+		AppPublicAddr:     req.PublicAddr,
+		AppClusterName:    req.ClusterName,
+		AppTargetPort:     req.AppTargetPort,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
 		// Pass along device extensions from the user.
-		deviceExtensions: req.DeviceExtensions,
-		mfaVerified:      req.MFAVerified,
+		DeviceExtensions: tlsca.DeviceExtensions(req.DeviceExtensions),
+		MFAVerified:      req.MFAVerified,
 		// Pass along bot details to ensure audit logs are correct.
-		botName:       req.BotName,
-		botInstanceID: req.BotInstanceID,
+		BotName:       req.BotName,
+		BotInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -783,19 +784,19 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                             req.UserState,
-		ttl:                              req.SessionTTL,
-		sshPublicKey:                     req.SSHPubKey,
-		tlsPublicKey:                     req.TLSPubKey,
-		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
-		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
-		compatibility:                    req.Compatibility,
-		checkerContext:                   checker,
-		traits:                           req.UserState.GetTraits(),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		loginIP:                          req.LoginIP,
+	certs, err := a.generateUserCert(ctx, cert.Request{
+		User:                             req.UserState,
+		TTL:                              req.SessionTTL,
+		SSHPublicKey:                     req.SSHPubKey,
+		TLSPublicKey:                     req.TLSPubKey,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		Compatibility:                    req.Compatibility,
+		CheckerContext:                   checker,
+		Traits:                           req.UserState.GetTraits(),
+		RouteToCluster:                   req.RouteToCluster,
+		KubernetesCluster:                req.KubernetesCluster,
+		LoginIP:                          req.LoginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

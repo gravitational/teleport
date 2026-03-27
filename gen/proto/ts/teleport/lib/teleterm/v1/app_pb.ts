@@ -23,10 +23,10 @@
 //
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
-import { WireType } from "@protobuf-ts/runtime";
 import type { BinaryReadOptions } from "@protobuf-ts/runtime";
 import type { IBinaryReader } from "@protobuf-ts/runtime";
 import { UnknownFieldHandler } from "@protobuf-ts/runtime";
+import { WireType } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
@@ -158,6 +158,14 @@ export interface App {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets = 14;
      */
     permissionSets: IdentityCenterPermissionSet[];
+    /**
+     * supported_feature_ids contains component feature IDs supported by this app and all
+     * other involved components (Auth, Proxy). Used to determine if features like resource
+     * constraints are available.
+     *
+     * @generated from protobuf field: repeated int32 supported_feature_ids = 15;
+     */
+    supportedFeatureIds: number[];
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -189,6 +197,12 @@ export interface AWSRole {
      * @generated from protobuf field: string account_id = 4;
      */
     accountId: string;
+    /**
+     * RequiresRequest indicates whether this role requires an access request to be used.
+     *
+     * @generated from protobuf field: bool requires_request = 5;
+     */
+    requiresRequest: boolean;
 }
 /**
  * PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
@@ -299,7 +313,8 @@ class App$Type extends MessageType<App> {
             { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole },
             { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange },
             { no: 13, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 14, name: "permission_sets", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentityCenterPermissionSet }
+            { no: 14, name: "permission_sets", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentityCenterPermissionSet },
+            { no: 15, name: "supported_feature_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -318,6 +333,7 @@ class App$Type extends MessageType<App> {
         message.tcpPorts = [];
         message.subKind = "";
         message.permissionSets = [];
+        message.supportedFeatureIds = [];
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -368,6 +384,13 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets */ 14:
                     message.permissionSets.push(IdentityCenterPermissionSet.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* repeated int32 supported_feature_ids */ 15:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.supportedFeatureIds.push(reader.int32());
+                    else
+                        message.supportedFeatureIds.push(reader.int32());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -423,6 +446,13 @@ class App$Type extends MessageType<App> {
         /* repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets = 14; */
         for (let i = 0; i < message.permissionSets.length; i++)
             IdentityCenterPermissionSet.internalBinaryWrite(message.permissionSets[i], writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* repeated int32 supported_feature_ids = 15; */
+        if (message.supportedFeatureIds.length) {
+            writer.tag(15, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.supportedFeatureIds.length; i++)
+                writer.int32(message.supportedFeatureIds[i]);
+            writer.join();
+        }
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -440,7 +470,8 @@ class AWSRole$Type extends MessageType<AWSRole> {
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "display", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "account_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "account_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<AWSRole>): AWSRole {
@@ -449,6 +480,7 @@ class AWSRole$Type extends MessageType<AWSRole> {
         message.display = "";
         message.arn = "";
         message.accountId = "";
+        message.requiresRequest = false;
         if (value !== undefined)
             reflectionMergePartial<AWSRole>(this, message, value);
         return message;
@@ -469,6 +501,9 @@ class AWSRole$Type extends MessageType<AWSRole> {
                     break;
                 case /* string account_id */ 4:
                     message.accountId = reader.string();
+                    break;
+                case /* bool requires_request */ 5:
+                    message.requiresRequest = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -494,6 +529,9 @@ class AWSRole$Type extends MessageType<AWSRole> {
         /* string account_id = 4; */
         if (message.accountId !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.accountId);
+        /* bool requires_request = 5; */
+        if (message.requiresRequest !== false)
+            writer.tag(5, WireType.Varint).bool(message.requiresRequest);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
