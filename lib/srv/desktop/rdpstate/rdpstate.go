@@ -21,6 +21,7 @@ package rdpstate
 import (
 	"bytes"
 	"image"
+	"math"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -155,8 +156,13 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 		return nil
 	}
 
-	w := uint16(spec.GetScreenWidth())
-	h := uint16(spec.GetScreenHeight())
+	sw, sh := spec.GetScreenWidth(), spec.GetScreenHeight()
+	if sw > math.MaxUint16 || sh > math.MaxUint16 {
+		return trace.BadParameter("screen dimensions (%d x %d) exceed uint16 max", sw, sh)
+	}
+
+	w := uint16(sw)
+	h := uint16(sh)
 
 	if w == 0 || h == 0 {
 		return nil
