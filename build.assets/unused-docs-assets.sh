@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eo pipefail
+set -euo pipefail
 
 USED_IMG=$(mktemp /tmp/docs-img-used.XXXX);
 ALL_IMG=$(mktemp /tmp/docs-img-all.XXXX);
