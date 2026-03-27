@@ -453,21 +453,6 @@ func mutateStatusClearRegistrationSecret(oldValue string) boundKeypairStatusMuta
 	}
 }
 
-func applyMutator(mutator boundKeypairStatusMutatorV2, token provision.Token) error {
-	switch t := token.(type) {
-	case *types.ProvisionTokenV2:
-		return mutator.mutateStandardToken(t.GetBoundKeypair(), t.GetBoundKeypairStatus())
-	case *joining.Token:
-		scoped := t.GetScoped()
-		return mutator.mutateScopedToken(
-			scoped.GetSpec().GetBoundKeypair(),
-			t.GetScoped().GetStatus().GetUsage().GetBoundKeypair(),
-		)
-	default:
-		return trace.NotImplemented("unsupported token type %T", token)
-	}
-}
-
 func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypairStatusMutatorV2) (provision.Token, error) {
 	token := params.ProvisionToken
 
@@ -477,7 +462,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 			// Apply all mutators. Individual mutators may make additional
 			// assertions to ensure invariants haven't changed.
 			for _, mutator := range mutators {
-				if err := applyMutator(mutator, params.ProvisionToken); err != nil {
+				if err := mutator.mutateStandardToken(t.GetBoundKeypair(), t.GetBoundKeypairStatus()); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
 			}
@@ -492,7 +477,10 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 	case *joining.Token:
 		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			for _, mutator := range mutators {
-				if err := applyMutator(mutator, params.ProvisionToken); err != nil {
+				if err := mutator.mutateScopedToken(
+					st.GetSpec().GetBoundKeypair(),
+					t.GetScoped().GetStatus().GetUsage().GetBoundKeypair(),
+				); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
 			}
@@ -1151,6 +1139,9 @@ func HandleBoundKeypairJoin(
 
 	if len(mutators) > 0 {
 		finalToken, err = patchToken(ctx, params, mutators...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	signer, err := params.AuthService.GetKeyStore().GetJWTSigner(ctx, ca)
