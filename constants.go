@@ -215,9 +215,6 @@ const (
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
-	// Component pluggable authentication module (PAM)
-	ComponentPAM = "pam"
-
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
 

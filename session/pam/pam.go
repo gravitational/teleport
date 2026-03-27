@@ -49,6 +49,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -58,9 +59,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/logutils"
 )
 
 func init() {
@@ -101,7 +101,13 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentPAM)
+// logComponent is the value for the component attribute in logs for this
+// package; it should be paired with [logutils.ComponentKey]. Using a
+// package-level logger with this attribute created with [slog.With] would not
+// synchronize correctly with [slog.SetDefault] and copying the packagelogger
+// construction from lib/utils/log doesn't seem to be worth it when we have
+// literally four log lines to deal with.
+const logComponent = "pam"
 
 const (
 	// maxMessageSize is the maximum size of a message to accept from PAM. In
@@ -146,7 +152,11 @@ var handlers map[int]handler = make(map[int]handler)
 func writeCallback(index C.int, stream C.int, s *C.char) {
 	handle, err := lookupHandler(int(index))
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to write to output stream", "error", err)
+		slog.ErrorContext(context.Background(),
+			"Unable to write to output stream",
+			logutils.ComponentKey, logComponent,
+			"error", err,
+		)
 		return
 	}
 
@@ -162,7 +172,11 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 func readCallback(index C.int, e C.int) *C.char {
 	handle, err := lookupHandler(int(index))
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to read from input stream", "error", err)
+		slog.ErrorContext(context.Background(),
+			"Unable to read from input stream",
+			logutils.ComponentKey, logComponent,
+			"error", err,
+		)
 		return nil
 	}
 
@@ -174,7 +188,11 @@ func readCallback(index C.int, e C.int) *C.char {
 	// Read from the stream (typically stdin or equivalent).
 	s, err := handle.readStream(echo)
 	if err != nil {
-		logger.ErrorContext(context.Background(), "Unable to read from input stream", "error", err)
+		slog.ErrorContext(context.Background(),
+			"Unable to read from input stream",
+			logutils.ComponentKey, logComponent,
+			"error", err,
+		)
 		return nil
 	}
 
@@ -436,7 +454,11 @@ func (p *PAM) free() {
 		// Terminate the PAM transaction.
 		retval := C._pam_end(pamHandle, p.pamh, p.retval)
 		if retval != C.PAM_SUCCESS {
-			logger.WarnContext(context.Background(), "Failed to end PAM transaction", "error", p.codeToError(retval))
+			slog.WarnContext(context.Background(),
+				"Failed to end PAM transaction",
+				logutils.ComponentKey, logComponent,
+				"error", p.codeToError(retval),
+			)
 		}
 
 		// Release the memory allocated for the conversation function.

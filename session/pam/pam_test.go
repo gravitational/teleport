@@ -20,7 +20,9 @@ package pam
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,11 +32,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	if !testing.Verbose() {
+		slog.SetDefault(slog.New(slog.DiscardHandler))
+	} else {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
 
 	// Skip this test if the binary was not built with PAM support.
 	if !BuildHasPAM() || !SystemHasPAM() {
