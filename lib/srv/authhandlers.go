@@ -752,16 +752,20 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
-	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions. Assume
-	// that it is required until we can verify that it is not.
-	requiresKeyboardInteractive := true
+	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions.
+	requiresKeyboardInteractive := false
 
 	for _, precond := range preconds {
 		switch precond.GetKind() {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			if requiresKeyboardInteractive, err = requiresInBandMFA(id, conn); err != nil {
+			required, err := requiresInBandMFA(id, conn)
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			requiresKeyboardInteractive = requiresKeyboardInteractive || required
+
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP:
+			// No interactive auth needed.
 
 		default:
 			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
@@ -1162,7 +1166,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.Wrap(err)
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          checker.SSH().CheckAgentForward(osUser) == nil,
 		X11Forwarding:         checker.SSH().PermitX11Forwarding(),
 		MaxConnections:        checker.SSH().MaxConnections(),
@@ -1183,7 +1187,15 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
 			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
 		},
-	}, nil
+	}
+
+	if checker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // evaluateSSHAccess checks the given certificate (supplied by a connected
@@ -1273,6 +1285,12 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	hostUsersDecision, err := accessChecker.HostUsers(target)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if accessChecker.PinSourceIP() {
+		preconds = append(preconds, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
 	}
 
 	return &decisionpb.SSHAccessPermit{
