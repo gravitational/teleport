@@ -24,6 +24,7 @@ import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
+// oxlint-disable-next-line no-restricted-imports
 import { ResourceFilter } from 'teleport/services/agents';
 
 export function SearchPanel({

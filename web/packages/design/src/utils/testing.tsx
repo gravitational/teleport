@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -32,12 +33,9 @@ import { ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 
 import { darkTheme } from 'design/theme';
-import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
-
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {

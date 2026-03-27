@@ -116,6 +116,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -192,6 +193,13 @@ type GRPCServer struct {
 	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
+
+	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
+	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
+	// context and thus warrant additional rate limiting since they are
+	// unauthenticated (either through direct API connections or coming from the
+	// proxy on behalf of a remote unauthenticated user).
+	createAuthenticateChallengeLimiter *limiter.RateLimiter
 }
 
 // Export forwards OTLP traces to the upstream collector configured in the tracing service. This allows for
@@ -4483,6 +4491,22 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetContextUser() == nil && req.GetRequest() != nil {
+		// requests with a user context (or with an empty request, which is
+		// considered to be the same) will be checked for legitimacy by
+		// ServerWithRoles later, so we only need to care about adding an
+		// additional rate limit for the non-user-context requests here
+
+		peerInfo, ok := peer.FromContext(ctx)
+		if !ok {
+			return nil, trace.BadParameter("unable to find peer")
+		}
+
+		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+	}
+
 	res, err := actx.ServerWithRoles.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5724,12 +5748,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		stableUNIXUsersServiceServer,
 	)
 
+	createAuthenticateChallengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  defaults.LimiterPeriod,
+			Average: defaults.LimiterAverage,
+			Burst:   defaults.LimiterBurst,
+		}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
 		server: server,
+
+		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {

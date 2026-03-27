@@ -21,6 +21,7 @@ package limiter
 import (
 	"cmp"
 	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -131,6 +132,17 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 		return trace.LimitExceeded("rate limit exceeded, try again in %v", delay)
 	}
 	return nil
+}
+
+// RegisterRequestFromAddr increases the number of requests coming for the given
+// remote address, returning an error if the address is invalid or if there have
+// been too many requests from that address recently.
+func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr, customRate *ratelimit.RateSet) error {
+	token, err := clientIPFromAddr(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return l.RegisterRequest(token, customRate)
 }
 
 // Add rate limiter to the handle

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/option"
@@ -267,13 +268,9 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download downloads recorded session from GCS bucket and writes the results into writer
 // return trace.NotFound error is object is not found
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	path := h.path(sessionID)
 	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
-	}
 	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return convertGCSError(err)
@@ -337,9 +334,12 @@ func convertGCSError(err error) error {
 		return nil
 	}
 
+	var ae *apierror.APIError
 	switch {
 	case errors.Is(err, storage.ErrBucketNotExist), errors.Is(err, storage.ErrObjectNotExist):
 		return trace.NotFound("%s", err)
+	case errors.As(err, &ae):
+		return trace.ReadError(ae.HTTPCode(), []byte(ae.Error()))
 	default:
 		return trace.Wrap(err)
 	}

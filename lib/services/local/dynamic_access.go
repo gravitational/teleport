@@ -279,8 +279,6 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 
 // ListAccessRequests is an access request getter with pagination and sorting options.
 func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
-	const maxPageSize = 16_000
-
 	if req.Filter == nil {
 		req.Filter = &types.AccessRequestFilter{}
 	}
@@ -310,16 +308,6 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return &rsp, nil
 	}
 
-	limit := int(req.Limit)
-
-	if limit < 1 {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	if limit > maxPageSize {
-		return nil, trace.BadParameter("page size of %d is too large", limit)
-	}
-
 	if req.Sort != proto.AccessRequestSort_DEFAULT {
 		return nil, trace.BadParameter("access request sort indexes other than DEFAULT cannot be used to load directly from the backend (expected %v, got %v)", proto.AccessRequestSort_DEFAULT, req.Sort)
 	}
@@ -328,15 +316,48 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return nil, trace.BadParameter("access requests cannot be loaded directly from the backend with descending sort order")
 	}
 
+	// req.Filter.Match takes the AccessRequest interface type so convert to use the
+	// AccessRequestV3 concrete type.
+	filter := func(r *types.AccessRequestV3) bool {
+		return req.Filter.Match(r)
+	}
+
+	var err error
+	rsp.AccessRequests, rsp.NextKey, err = s.collectPage(ctx, int(req.Limit), req.StartKey, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &rsp, nil
+}
+
+// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+// the expiry service. Access requests expiration handling is done outside the backend
+// because we need to emit audit events on the access requests expiry.
+func (s *DynamicAccessService) ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
+	now := time.Now()
+	return s.collectPage(ctx, limit, pageToken, func(r *types.AccessRequestV3) bool {
+		return now.After(r.Expiry())
+	})
+}
+
+func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start string, filter func(*types.AccessRequestV3) bool) ([]*types.AccessRequestV3, string, error) {
+	if limit < 1 {
+		limit = apidefaults.DefaultChunkSize
+	}
+	if limit > 16_000 {
+		return nil, "", trace.BadParameter("page size of %d is too large", limit)
+	}
+
 	startKey := backend.ExactKey(accessRequestsPrefix)
-	if req.StartKey != "" {
-		startKey = backend.NewKey(accessRequestsPrefix, req.StartKey)
+	if start != "" {
+		startKey = backend.NewKey(accessRequestsPrefix, start)
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
+	var res []*types.AccessRequestV3
 	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
 		for _, item := range items {
-			if len(rsp.AccessRequests) > limit {
+			if len(res) > limit {
 				return true, nil
 			}
 
@@ -352,24 +373,25 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 				continue
 			}
 
-			if !req.Filter.Match(accessRequest) {
+			if !filter(accessRequest) {
 				continue
 			}
 
-			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+			res = append(res, accessRequest)
 		}
 
-		return len(rsp.AccessRequests) > limit, nil
+		return len(res) > limit, nil
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	if len(rsp.AccessRequests) > limit {
-		rsp.NextKey = rsp.AccessRequests[limit].GetName()
-		rsp.AccessRequests = rsp.AccessRequests[:limit]
+	var nextToken string
+	if len(res) > limit {
+		nextToken = res[limit].GetName()
+		res = res[:limit]
 	}
 
-	return &rsp, nil
+	return res, nextToken, nil
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -440,7 +462,6 @@ func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Con
 }
 
 func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
-	rev := req.GetRevision()
 	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -448,7 +469,7 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
-		Revision: rev,
+		Revision: req.GetRevision(),
 	}, nil
 }
 

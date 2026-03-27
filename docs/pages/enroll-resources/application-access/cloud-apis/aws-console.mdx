@@ -167,34 +167,6 @@ AWS APIs.
    --assume-role-policy-document file://app-service-tp.json
    ```
 
-1. Get the ARN of the `ExampleReadOnlyAccess` role:
-
-   ```code
-   $ ROLE_ARN=$(aws iam get-role --role-name ExampleReadOnlyAccess --query "Role.Arn" --output text)
-   ```
-
-1. Define an IAM policy to allow the Teleport Application Service to assume the
-   `ExampleReadOnlyAccess` role:
-
-   ```code
-   $ cat<<EOF > teleport-assume-role.json
-   { "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": "sts:AssumeRole",
-         "Resource": "${ROLE_ARN}"
-       }
-     ]
-   }
-   EOF
-
-   $ POLICY_ARN=$(aws iam create-policy --policy-name=AssumeExampleReadOnlyRole \
-   --policy-document file://teleport-assume-role.json | jq -r '.Policy.Arn')
-   $ aws iam attach-role-policy --role-name TeleportAWSAccess \
-   --policy-arn ${POLICY_ARN}
-   ```
-
 ### Configure a role for Teleport users to request
 
 In this section, you will create a role that Teleport users can request access
@@ -281,6 +253,34 @@ this role when proxying requests:
 
    ```code
    $ aws iam attach-role-policy --role-name ExampleReadOnlyAccess --policy-arn $ARN
+   ```
+
+1. Get the ARN of the `ExampleReadOnlyAccess` role:
+
+   ```code
+   $ ROLE_ARN=$(aws iam get-role --role-name ExampleReadOnlyAccess --query "Role.Arn" --output text)
+   ```
+
+1. Define an IAM policy to allow the Teleport Application Service to assume the
+   `ExampleReadOnlyAccess` role:
+
+   ```code
+   $ cat<<EOF > teleport-assume-role.json
+   { "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "sts:AssumeRole",
+         "Resource": "${ROLE_ARN}"
+       }
+     ]
+   }
+   EOF
+
+   $ POLICY_ARN=$(aws iam create-policy --policy-name=AssumeExampleReadOnlyRole \
+   --policy-document file://teleport-assume-role.json | jq -r '.Policy.Arn')
+   $ aws iam attach-role-policy --role-name TeleportAWSAccess \
+   --policy-arn ${POLICY_ARN}
    ```
 
 ### Associate a role with the Teleport Application Service

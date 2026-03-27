@@ -616,7 +616,10 @@ func (s *server) Wait(ctx context.Context) {
 }
 
 func (s *server) Start() error {
-	go s.srv.Serve(s.Listener)
+	if err := s.srv.SetListener(s.Listener); err != nil {
+		return trace.Wrap(err)
+	}
+	go s.srv.Serve()
 	return nil
 }
 

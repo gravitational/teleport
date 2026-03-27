@@ -1,3 +1,4 @@
+/* oxlint-disable constructor-super */
 import { TextDecoder, TextEncoder } from 'node:util';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';

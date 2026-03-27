@@ -18,10 +18,8 @@
 
 import { screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
-
 import '@testing-library/jest-dom';
 import 'jest-canvas-mock';
-
 import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
@@ -37,6 +35,7 @@ import { DocumentDb } from './DocumentDb';
 
 // Mock Terminal component to avoid WebGL errors in jsdom
 jest.mock('teleport/Console/DocumentSsh/Terminal', () => {
+  // oxlint-disable-next-line typescript/no-require-imports
   const React = require('react');
   return {
     Terminal: React.forwardRef((_props: any, ref: any) => {

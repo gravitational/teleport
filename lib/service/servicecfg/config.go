@@ -295,6 +295,10 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
+	// user related changes and updating user_state accordingly.
+	UserMonitor UserMonitorConfig
 }
 
 type ConfigTesting struct {
@@ -322,6 +326,17 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
+}
+
+// UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
+// user related changes and updating user_state accordingly.
+type UserMonitorConfig struct {
+	// ReconcileInterval overrides the default user monitor reconcile interval.
+	// Used in tests to speed up reconciliation. Zero value uses the default.
+	ReconcileInterval time.Duration
+	// LockTTL overrides the default user monitor lock TTL.
+	// Used in tests to speed up lock acquisition. Zero value uses the default.
+	LockTTL time.Duration
 }
 
 // AccessGraphConfig represents TAG server config

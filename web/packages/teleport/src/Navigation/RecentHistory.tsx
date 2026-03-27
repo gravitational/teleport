@@ -177,7 +177,7 @@ function AnimatedHistoryItem({
       const height = item.category ? 60 : 40;
       itemRef.current.style.height = `${height}px`;
       itemRef.current.style.opacity = '1';
-      itemRef.current.offsetHeight; // Force reflow
+      void itemRef.current.offsetHeight; // Force reflow
       requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = '0px';
@@ -190,7 +190,7 @@ function AnimatedHistoryItem({
       const height = item.category ? 60 : 40;
       itemRef.current.style.height = `0px`;
       itemRef.current.style.opacity = '0';
-      itemRef.current.offsetHeight; // Force reflow
+      void itemRef.current.offsetHeight; // Force reflow
       requestAnimationFrame(() => {
         if (itemRef.current) {
           itemRef.current.style.height = `${height}px`;

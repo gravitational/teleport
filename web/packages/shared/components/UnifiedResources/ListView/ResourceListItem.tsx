@@ -25,6 +25,7 @@ import { Tags } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
+// oxlint-disable-next-line no-restricted-imports
 import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../shared/CopyButton';

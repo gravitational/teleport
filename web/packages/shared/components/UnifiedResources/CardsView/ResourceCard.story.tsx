@@ -23,6 +23,7 @@ import styled from 'styled-components';
 import { ButtonBorder } from 'design';
 import { gap, GapProps } from 'design/system';
 
+/* oxlint-disable no-restricted-imports */
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
@@ -31,6 +32,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
 import makeApp from 'teleport/services/apps/makeApps';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
+/* oxlint-enable no-restricted-imports */
 
 import {
   makeUnifiedResourceViewItemApp,

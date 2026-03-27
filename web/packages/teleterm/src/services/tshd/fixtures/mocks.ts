@@ -71,7 +71,7 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({
       localAuthEnabled: true,
       authProviders: [],
-      hasMessageOfTheDay: false,
+      messageOfTheDay: '',
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',

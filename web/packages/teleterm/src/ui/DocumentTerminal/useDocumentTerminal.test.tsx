@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable jest/no-conditional-expect */
+
 import { renderHook, waitFor } from '@testing-library/react';
-
 import 'jest-canvas-mock';
-
 import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 import {
@@ -89,7 +89,6 @@ const getDocPtySession: () => DocumentPtySession = () => ({
 });
 
 const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { serverId, serverUri, login, ...rest } = getDocTshNodeWithServerId();
   return {
     ...rest,
@@ -532,7 +531,6 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
       );
 
       const { attempt } = result.current;
-      /* eslint-disable jest/no-conditional-expect */
       if (expectedError) {
         expect(attempt.statusText).toBe(expectedError);
         expect(attempt.status).toBe('error');
@@ -544,7 +542,6 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
           expectedPtyCommand
         );
       }
-      /* eslint-enable jest/no-conditional-expect */
 
       expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
         ...expectedArgsOfGetServerByHostname

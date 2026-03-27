@@ -149,6 +149,7 @@ export type CloneableRpcOptions = Omit<RpcOptions, 'abort'> & {
  */
 export type CloneableClient<Client> = {
   [Method in keyof Client]: Client[Method] extends (
+    // oxlint-disable-next-line no-unused-vars
     ...args: infer Args
   ) => infer ReturnType
     ? CloneableCallTypes<ReturnType>

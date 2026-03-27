@@ -158,7 +158,6 @@ export function CreateEc2IceDialog({
         return endpoints;
       }
     } catch {
-      // eslint-disable-next-line no-empty
       // Ignore any errors, as the poller will keep re-trying.
     }
   }

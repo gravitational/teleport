@@ -8,7 +8,7 @@ Teleport](https://goteleport.com/blog/gravitational-is-teleport/).
 ### APT, YUM, & Zypper Signing Keys
 
 We sign our [APT, YUM and Zypper
-repositories](https://goteleport.com/docs/installation/#package-repositories)
+repositories](../installation/linux.mdx#package-repositories)
 with the following PGP key:
 
 * ID `C87ED53A6282C411`

@@ -604,6 +604,7 @@ func TestListResources(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -680,6 +681,7 @@ func TestGetResources(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	t.Run("DatabaseServer", func(t *testing.T) {
 		t.Parallel()
@@ -725,6 +727,7 @@ func TestGetResourcesWithFilters(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	testCases := map[string]struct {
 		resourceType string

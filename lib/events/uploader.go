@@ -33,10 +33,11 @@ type UploadHandler interface {
 	// in case of success.
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// Download downloads session tarball and writes it to writer
-	Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error
+	Download(ctx context.Context, sessionID session.ID, writer io.Writer) error
 }
 
-// MultipartHandler handles both multipart uploads and downloads
+// MultipartHandler handles both multipart and standalone uploads and
+// downloads.
 type MultipartHandler interface {
 	UploadHandler
 	MultipartUploader

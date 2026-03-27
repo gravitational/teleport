@@ -32,6 +32,8 @@ import {
   ResourcesService,
 } from './resourcesService';
 
+/* oxlint-disable jest/no-conditional-expect */
+
 describe('getServerByHostname', () => {
   const server: tsh.Server = makeServer();
   const getServerByHostnameTests: Array<
@@ -82,10 +84,8 @@ describe('getServerByHostname', () => {
       const promise = service.getServerByHostname('/clusters/bar', 'foo');
 
       if (expectedErr) {
-        // eslint-disable-next-line jest/no-conditional-expect
         await expect(promise).rejects.toThrow(expectedErr);
       } else {
-        // eslint-disable-next-line jest/no-conditional-expect
         await expect(promise).resolves.toStrictEqual(expectedServer);
       }
 

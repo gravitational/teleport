@@ -265,7 +265,7 @@ func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODia
 		errResult = trace.Errorf("SSO flow failed.")
 
 		if infoErr != nil {
-			fmt.Printf("No diagnostic info found. Most likely cause: the request timed out or callback configuration is incorrect. Ensure that user logs within alloted time and IdP configuration is correct.\n Error details: %v\n", trace.UserMessage(infoErr))
+			fmt.Printf("No diagnostic info found. Most likely cause: the request timed out or callback configuration is incorrect. Ensure that user logs within allotted time and IdP configuration is correct.\n Error details: %v\n", trace.UserMessage(infoErr))
 			errResult = trace.Wrap(infoErr, "SSO flow failed.")
 		}
 

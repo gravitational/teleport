@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { app } from 'electron';
 
@@ -60,33 +60,35 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
-  const {
-    tsh: tshAddress,
-    shared: sharedAddress,
-    tshdEvents: tshdEventsAddress,
-  } = await requestGrpcServerAddresses();
+  const [grpcAddresses, kubeConfigsDir, certsDir, availableShells, tshHomeDir] =
+    await Promise.all([
+      requestGrpcServerAddresses(),
+      getKubeConfigsDir(userDataDir),
+      getCertsDir(userDataDir),
+      getAvailableShells(),
+      getTshHomeDir(),
+    ]);
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
-  const kubeConfigsDir = getKubeConfigsDir();
   // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   const logsDir = path.join(userDataDir, 'logs');
   const installationId = loadInstallationId(
-    path.resolve(app.getPath('userData'), 'installation_id')
+    path.resolve(userDataDir, 'installation_id')
   );
 
   const tshd = {
     binaryPath: tshBinPath,
-    homeDir: getTshHomeDir(),
-    requestedNetworkAddress: tshAddress,
+    homeDir: tshHomeDir,
+    requestedNetworkAddress: grpcAddresses.tsh,
   };
   const sharedProcess = {
-    requestedNetworkAddress: sharedAddress,
+    requestedNetworkAddress: grpcAddresses.shared,
   };
   const tshdEvents = {
-    requestedNetworkAddress: tshdEventsAddress,
+    requestedNetworkAddress: grpcAddresses.tshdEvents,
   };
 
   // To start the app in dev mode, we run `electron path_to_main.js`. It means
@@ -97,7 +99,6 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   //
   // A workaround is to read the version from `process.env.npm_package_version`.
   const appVersion = dev ? process.env.npm_package_version : app.getVersion();
-  const availableShells = await getAvailableShells();
 
   return {
     dev,
@@ -111,7 +112,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tempDataDir,
     binDir,
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
-    certsDir: getCertsDir(),
+    certsDir,
     availableShells,
     defaultOsShellId: getDefaultShell(availableShells),
     kubeConfigsDir,
@@ -127,31 +128,22 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
   };
 }
 
-function getCertsDir() {
-  const certsPath = path.resolve(app.getPath('userData'), 'certs');
-  if (!fs.existsSync(certsPath)) {
-    fs.mkdirSync(certsPath);
-  }
-  if (fs.readdirSync(certsPath)) {
-    fs.rmSync(certsPath, { force: true, recursive: true });
-    fs.mkdirSync(certsPath);
-  }
+async function getCertsDir(userDataDir: string): Promise<string> {
+  const certsPath = path.resolve(userDataDir, 'certs');
+  await fs.promises.rm(certsPath, { recursive: true, force: true });
+  await fs.promises.mkdir(certsPath, { recursive: true });
   return certsPath;
 }
 
-function getKubeConfigsDir(): string {
-  const kubeConfigsPath = path.resolve(app.getPath('userData'), 'kube');
-  if (!fs.existsSync(kubeConfigsPath)) {
-    fs.mkdirSync(kubeConfigsPath);
-  }
+async function getKubeConfigsDir(userDataDir: string): Promise<string> {
+  const kubeConfigsPath = path.resolve(userDataDir, 'kube');
+  await fs.promises.mkdir(kubeConfigsPath, { recursive: true });
   return kubeConfigsPath;
 }
 
-function getTshHomeDir() {
+async function getTshHomeDir(): Promise<string> {
   const tshPath = path.resolve(app.getPath('userData'), 'tsh');
-  if (!fs.existsSync(tshPath)) {
-    fs.mkdirSync(tshPath);
-  }
+  await fs.promises.mkdir(tshPath, { recursive: true });
   return tshPath;
 }
 

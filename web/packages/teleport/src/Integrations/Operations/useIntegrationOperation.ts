@@ -66,7 +66,7 @@ export function useIntegrationOperation() {
           },
         });
       } catch (err) {
-        throw new Error(`Health check failed: ${err}`);
+        throw new Error(`Health check failed: ${err}`, { cause: err });
       }
     }
   }

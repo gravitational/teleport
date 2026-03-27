@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.7.19
+VERSION=17.7.20
 
 DOCKER_IMAGE ?= teleport
 
@@ -863,6 +863,10 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
+BENCHFIND := $(TOOLINGDIR)/bin/benchfind
+$(BENCHFIND): $(wildcard $(TOOLINGDIR)/cmd/benchfind/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/benchfind
+
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
@@ -877,7 +881,7 @@ tooling: $(DIFF_TEST)
 test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: helmunit/installed
 helmunit/installed:
@@ -968,25 +972,40 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
 endif
 
-# Runs benchmarks once to make sure they pass.
+# By default, the parameters run each benchmark only once.
 # This is intended to run in CI during unit testing to make sure benchmarks don't break.
 # To limit noise and improve speed this will only run on packages that have benchmarks.
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
 test-go-bench: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
-test-go-bench: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench: BENCH_ARGS ?=
+test-go-bench: BENCH_TIME ?= "1x"
+test-go-bench: BENCH_COUNT ?= 1
+test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -count $(BENCH_COUNT) -benchtime $(BENCH_TIME) $(BENCH_ARGS) $$PKGS \
 		| tee $(BENCH_OUTPUT)
 
-test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+.PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
 test-go-bench-root: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
-test-go-bench-root: | $(TEST_LOG_DIR)
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+test-go-bench-root: BENCH_ARGS ?=
+test-go-bench-root: BENCH_TIME ?= "1x"
+test-go-bench-root: BENCH_COUNT ?= 1
+test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
+	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
+	if [ -z "$$PKGS" ]; then \
+		echo "No benchmark packages found"; \
+		exit 1; \
+	fi ; \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -count $(BENCH_COUNT) -benchtime $(BENCH_TIME) $(BENCH_ARGS) $$PKGS \
 		| tee $(BENCH_OUTPUT)
 
 # Make sure untagged vnetdaemon code build/tests.
@@ -1394,7 +1413,7 @@ $(VERSRC) &: Makefile version.mk
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
+	cd build.assets/tooling && GOWORK=off CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
@@ -1825,7 +1844,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1839,19 +1858,18 @@ print-wasm-bindgen-version:
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
-ifneq ($(CI)$(FORCE),)
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
 		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
-else
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
-		echo "Run 'make $@ FORCE=true' to force installation." \
-	)
 endif
-endif
+
+RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
+
+.PHONY: print-rust-toolchain-version
+print-rust-toolchain-version:
+	@echo $(RUST_TOOLCHAIN_VERSION)
 
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
@@ -1870,22 +1888,18 @@ build-ui-e: ensure-js-deps ensure-wasm-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+# TODO(rhammonds): Remove this target once all references to it have
+# been removed from e submodule and e ref is updated.
 .PHONY: rustup-set-version
-rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-set-version:
-	rustup override set $(RUST_VERSION)
+rustup-set-version: ; # obsoleted by toolchain file
 
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: rustup-set-version
+rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
-
-.PHONY: rustup-install-wasm-toolchain
-rustup-install-wasm-toolchain: rustup-set-version
-	rustup target add $(CARGO_WASM_TARGET)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.

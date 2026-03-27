@@ -41,7 +41,7 @@ jobs:
               - '**.rs'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'build.assets/versions.mk'
+              - 'rust-toolchain.toml'
               - 'Makefile'
             has_proto:
               # workflow changes
@@ -175,8 +175,7 @@ jobs:
       - name: Set up Rust
         run: |
           echo "Setting up Rust version ${RUST_VERSION}"
-          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
-          rustup override set ${RUST_VERSION}
+          rustup component add rustfmt clippy
           rustc --version
           cargo --version
           rustfmt --version
@@ -270,8 +269,11 @@ jobs:
       - name: Run Type Check
         run: pnpm type-check
 
-      - name: Run lint
-        run: pnpm lint
+      - name: Run oxlint
+        run: pnpm oxlint --format github
+
+      - name: Check formatting
+        run: pnpm format-check
 
       - name: Run Storybook smoke test
         run: pnpm storybook-smoke-test

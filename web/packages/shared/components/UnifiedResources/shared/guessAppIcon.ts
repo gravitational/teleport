@@ -22,6 +22,7 @@ import {
   resourceIconSpecs,
 } from 'design/ResourceIcon';
 
+// oxlint-disable-next-line no-restricted-imports
 import { AppSubKind } from 'teleport/services/apps';
 
 import { UnifiedResourceApp } from '../types';

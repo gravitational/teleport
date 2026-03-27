@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// oxlint-disable-next-line no-restricted-imports
 import { ResourceIdKind } from 'teleport/services/agents';
+// oxlint-disable-next-line no-restricted-imports
 import { KubeResourceKind } from 'teleport/services/kube';
 
 /** Available request kinds for resource-based and role-based access requests. */

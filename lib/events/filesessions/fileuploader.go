@@ -95,14 +95,14 @@ func (l *Handler) Close() error {
 
 // Download downloads session recording from storage, in case of file handler reads the
 // file from local directory
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	path := l.path(sessionID)
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	_, err = io.Copy(writer.(io.Writer), f)
+	_, err = io.Copy(writer, f)
 	if err != nil {
 		return trace.Wrap(err)
 	}

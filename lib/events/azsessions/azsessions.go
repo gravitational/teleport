@@ -278,7 +278,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 }
 
 // Download implements [events.UploadHandler].
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	resp, err := cErr(h.sessionBlob(sessionID).DownloadStream(ctx, nil))
 	if err != nil {
 		return trace.Wrap(err)
@@ -289,11 +289,6 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt i
 			h.log.WarnContext(ctx, "Error closing downloaded session blob.", "error", err, fieldSessionID, sessionID)
 		}
 	}()
-
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		writer = io.NewOffsetWriter(writerAt, 0)
-	}
 
 	if _, err := io.Copy(writer, resp.Body); err != nil {
 		return trace.ConvertSystemError(cErr0(err))

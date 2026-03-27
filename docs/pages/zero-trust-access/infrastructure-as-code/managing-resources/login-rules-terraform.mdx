@@ -16,7 +16,7 @@ This guide will explain how to:
 Login Rules are registered with the Teleport Auth Service as resources stored on
 the Auth Service backend. The Teleport Auth Service exposes a gRPC API that
 enables clients to create, delete, or modify backend resources, including Login
-Rules. The Teleport Terraform Provider can manage agentless SSH services by
+Rules. The Teleport Terraform Provider can manage Login Rules by
 authenticating to the Teleport Auth Service and interacting with its gRPC API.
 
 ## Prerequisites
@@ -165,5 +165,5 @@ logins:
 
 - Read the [Terraform Guide](../terraform-provider/terraform-provider.mdx) to
   learn more about configuring the Terraform provider.
-- Read the [Login Rules reference](../../../reference/access-controls/login-rules.mdx) to learn mode about the
+- Read the [Login Rules reference](../../../reference/access-controls/login-rules.mdx) to learn more about the
   Login Rule expression syntax.

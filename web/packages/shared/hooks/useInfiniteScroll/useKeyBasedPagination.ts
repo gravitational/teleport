@@ -27,7 +27,9 @@ import {
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 
+// oxlint-disable-next-line no-restricted-imports
 import { ResourcesResponse } from 'teleport/services/agents';
+// oxlint-disable-next-line no-restricted-imports
 import { ApiError } from 'teleport/services/api/parseError';
 
 /**

@@ -32,7 +32,6 @@ import { Danger } from 'design/Alert';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
-
 import { HoverTooltip } from 'design/Tooltip';
 import {
   AvailableResourceMode,
@@ -55,6 +54,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// oxlint-disable-next-line no-restricted-imports
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { CardsView } from './CardsView/CardsView';

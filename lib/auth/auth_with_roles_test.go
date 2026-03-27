@@ -1995,6 +1995,10 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/auth      11.679s
 func BenchmarkListNodes(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	const nodeCount = 50_000
 	const roleCount = 32
 
@@ -4400,7 +4404,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 // and get them with login information.
 func TestListResources_WithLogins(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t, withCacheEnabled(true))
 
 	require.Eventually(t, func() bool {
@@ -4478,12 +4482,27 @@ func TestListResources_WithLogins(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 	require.NoError(t, err)
 
+	resourceTypes := []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer}
+
+	// Wait for all resources to show up in the cache.
+	for _, resourceType := range resourceTypes {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+				Limit:        100,
+				ResourceType: resourceType,
+			})
+			if assert.NoError(t, err) {
+				assert.Len(t, resp.Resources, 5)
+			}
+		}, 15*time.Second, 200*time.Millisecond)
+	}
+
 	t.Run("with fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
+		for _, resourceType := range resourceTypes {
 			var results []*types.EnrichedResource
 			var start string
 
-			for len(results) != 5 {
+			for len(results) < 5 {
 				resp, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 					ResourceType:  resourceType,
 					Limit:         2,
@@ -4495,6 +4514,9 @@ func TestListResources_WithLogins(t *testing.T) {
 
 				results = append(results, resp.Resources...)
 				start = resp.NextKey
+				if start == "" {
+					break
+				}
 			}
 
 			// Check that only server, desktop, and app server resources contain the expected logins
@@ -4516,7 +4538,7 @@ func TestListResources_WithLogins(t *testing.T) {
 			var results []*types.EnrichedResource
 			var start string
 
-			for len(results) != 5 {
+			for len(results) < 5 {
 				resp, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 					ResourceType:  resourceType,
 					Limit:         2,
@@ -4527,6 +4549,9 @@ func TestListResources_WithLogins(t *testing.T) {
 
 				results = append(results, resp.Resources...)
 				start = resp.NextKey
+				if start == "" {
+					break
+				}
 			}
 
 			// Check that only server, desktop, and app server resources contain the expected logins
@@ -6728,6 +6753,9 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const nodeCount = 150_000
 	const roleCount = 32
 
@@ -6863,6 +6891,10 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 // PASS
 // ok      github.com/gravitational/teleport/lib/auth      2.878s
 func BenchmarkListUnifiedResources(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	const nodeCount = 150_000
 	const roleCount = 32
 

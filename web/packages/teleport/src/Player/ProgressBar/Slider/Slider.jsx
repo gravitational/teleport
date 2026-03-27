@@ -254,6 +254,7 @@ const ReactSlider = createReactClass({
       this.state.value[i] = this._trimAlignValue(value[i], newProps);
     }
     if (this.state.value.length > value.length)
+      // oxlint-disable-next-line react/no-direct-mutation-state
       this.state.value.length = value.length;
 
     // If an upperBound has not yet been determined (due to the component being hidden

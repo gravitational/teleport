@@ -1064,7 +1064,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
-	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\"").Short('p').StringVar(&cf.LocalProxyPortMapping)
+	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\"").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -1351,7 +1351,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -2222,6 +2222,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Reload the profile status to show updated active access requests and roles.
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
@@ -5113,7 +5120,7 @@ func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock
 }
 
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	clock := clockwork.NewRealClock()
 	var prefix string
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -5125,74 +5132,74 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		prefix = "  "
 	}
 
-	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
-	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
+	fmt.Fprintf(w, "  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
-		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
+		fmt.Fprintf(w, "  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
 	}
 
 	if cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", cluster)
+		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+	fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	if debug {
 		var count int
 		for k, v := range p.Traits {
 			if count == 0 {
-				fmt.Printf("  Traits:             %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Traits:             %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			count = count + 1
 		}
 	}
 	if len(p.Logins) > 0 {
-		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	}
 	if p.KubernetesEnabled {
-		fmt.Printf("  Kubernetes:         enabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
+			fmt.Fprintf(w, "  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubernetesUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
+			fmt.Fprintf(w, "  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
 		}
 		if len(p.KubernetesGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
+			fmt.Fprintf(w, "  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
 		}
 	} else {
-		fmt.Printf("  Kubernetes:         disabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         disabled\n")
 	}
 	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
+		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
 	if len(p.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
 		if err != nil {
 			log.Warnf("failed to marshal allowed resource IDs to string: %v", err)
 		} else {
-			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+			fmt.Fprintf(w, "  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
 	if p.GitHubIdentity != nil {
-		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+		fmt.Fprintf(w, "  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
-	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
+	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
 			if first {
-				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Critical options:   %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			first = false
 		}
 	}
 
-	fmt.Printf("\n")
+	fmt.Fprintf(w, "\n")
 }
 
 func isOktaRole(role string) bool {
@@ -5244,12 +5251,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 		// Print the active profile.
 		if profile != nil {
-			printStatus(cf.Debug, active, env, true)
+			printStatus(cf.Stdout(), cf.Debug, active, env, true)
 		}
 
 		// Print all other profiles.
 		for _, p := range others {
-			printStatus(cf.Debug, p, env, false)
+			printStatus(cf.Stdout(), cf.Debug, p, env, false)
 		}
 
 		// Print relevant active env vars, if they are set.

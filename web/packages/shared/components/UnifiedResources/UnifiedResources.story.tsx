@@ -28,6 +28,7 @@ import {
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
+/* oxlint-disable no-restricted-imports */
 import { apps, moreApps } from 'teleport/Apps/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
 import { databases, moreDatabases } from 'teleport/Databases/fixtures';
@@ -36,6 +37,7 @@ import { gitServers } from 'teleport/GitServers/fixtures';
 import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
 import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
 import { ResourcesResponse } from 'teleport/services/agents';
+/* oxlint-enable no-restricted-imports */
 
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
 import {

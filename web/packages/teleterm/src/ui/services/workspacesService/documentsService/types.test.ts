@@ -35,7 +35,6 @@ const docWithServerId: DocumentTshNodeWithServerId = {
   login: 'user',
   origin: 'resource_table',
 };
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const { serverId, serverUri, login, ...rest } = docWithServerId;
 const docWithLoginHost: DocumentTshNodeWithLoginHost = {
   ...rest,

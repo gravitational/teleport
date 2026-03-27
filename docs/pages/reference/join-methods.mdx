@@ -420,7 +420,7 @@ The Kubernetes join methods exists in three variants:
 #### Kubernetes In-cluster
 
 Kubernetes in-cluster joining is available for any Teleport process running
-in the same Kubernetes cluster than the Auth Service. It uses the Kubernetes
+in the same Kubernetes cluster as the Auth Service. It uses the Kubernetes
 ServiceAccount tokens to validate the pod identity. The method relies on the
 [Kubernetes TokenReview API](https://kubernetes.io/docs/reference/kubernetes-api/authentication-resources/token-review-v1/)
 which is typically only reachable from within the Kubernetes cluster. Because of
