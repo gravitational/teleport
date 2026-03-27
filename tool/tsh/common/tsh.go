@@ -290,6 +290,21 @@ type CLIConf struct {
 	BeamMountPoint string
 	// BeamMountDebug enables sshfs debug output for `tsh beams mount`.
 	BeamMountDebug bool
+	// BeamMountCleanup triggers the hidden watcher subprocess mode for
+	// `tsh beams mount --cleanup`.
+	BeamMountCleanup bool
+	// BeamMountCleanupMountPoint is the mount point to watch (watcher mode).
+	BeamMountCleanupMountPoint string
+	// BeamMountCleanupPID is the sshfs PID to monitor (watcher mode).
+	BeamMountCleanupPID string
+	// BeamMountCleanupStateFile is the path to the state file (watcher mode).
+	BeamMountCleanupStateFile string
+	// BeamUmountForce enables force unmount for `tsh beams umount`.
+	BeamUmountForce bool
+	// BeamUmountMode controls target resolution for `tsh beams umount`.
+	BeamUmountMode string
+	// BeamUmountAll unmounts all tracked mounts for the current cluster.
+	BeamUmountAll bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1105,6 +1120,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsMount.Arg("mount-point", "Local directory to mount the beam at.").Required().StringVar(&cf.BeamMountPoint)
 	beamsMount.Arg("remote-path", "Remote path to mount.").Default("/").StringVar(&cf.BeamRemotePath)
 	beamsMount.Flag("sshfs-debug", "Enable sshfs debug output (implies foreground).").BoolVar(&cf.BeamMountDebug)
+	beamsMount.Flag("cleanup", "").Hidden().BoolVar(&cf.BeamMountCleanup)
+	beamsMount.Flag("cleanup-mount-point", "").Hidden().StringVar(&cf.BeamMountCleanupMountPoint)
+	beamsMount.Flag("cleanup-pid", "").Hidden().StringVar(&cf.BeamMountCleanupPID)
+	beamsMount.Flag("cleanup-state-file", "").Hidden().StringVar(&cf.BeamMountCleanupStateFile)
+	beamsUmount := beams.Command("umount", "Unmount a beam filesystem.").Alias("unmount")
+	beamsUmount.Arg("target", "Mount point path or beam ID/alias to unmount.").StringVar(&cf.BeamID)
+	beamsUmount.Flag("force", "Force unmount even if the mount is busy.").BoolVar(&cf.BeamUmountForce)
+	beamsUmount.Flag("mode", "Target resolution: auto (default), path, or beam.").Default("auto").EnumVar(&cf.BeamUmountMode, "auto", "path", "beam")
+	beamsUmount.Flag("all", "Unmount all tracked mounts for the current cluster.").BoolVar(&cf.BeamUmountAll)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1884,6 +1908,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsPull(&cf)
 	case beamsMount.FullCommand():
 		err = onBeamsMount(&cf)
+	case beamsUmount.FullCommand():
+		err = onBeamsUmount(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():
