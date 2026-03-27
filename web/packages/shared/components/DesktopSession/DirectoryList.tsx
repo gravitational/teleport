@@ -19,7 +19,7 @@
 import styled from 'styled-components';
 
 import { Flex, H2, Text, Toggle, Stack } from 'design';
-import { ButtonWarningBorder , ButtonBorder} from 'design/Button/Button';
+import { ButtonWarningBorder , ButtonBorder, ButtonPrimary, ButtonSecondary} from 'design/Button/Button';
 import { FolderShared, Trash, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
@@ -43,7 +43,7 @@ export function SharedDirectoryList({
         
         <Flex justifyContent="space-between" alignItems="center">
           <Text typography="h4">Shared Directories</Text>
-          <ButtonBorder
+          <ButtonPrimary
             size="small"
             p={1}
             minWidth={0}
@@ -53,15 +53,15 @@ export function SharedDirectoryList({
             $inputAlignment={false}
           >
             <Plus size="small" />
-          </ButtonBorder>
+          </ButtonPrimary>
         </Flex>
 
         {/* Directory list */}
         <Stack gap={1} fullWidth>
           {sharedDirectories.map(dir => (
-            <Flex key={dir.DirectoryId} justifyContent="space-between" alignItems="center">
+            <Flex key={dir.DirectoryId} justifyContent="space-between" alignItems="center">              
               <Text>{dir.Name}</Text>
-              <ButtonWarningBorder
+              <ButtonSecondary
                 size="small"
                 p={1}
                 minWidth={0}
@@ -70,7 +70,7 @@ export function SharedDirectoryList({
                 onClick={() => onRemoveSharedDirectory(dir.DirectoryId)}
               >
             <Trash size="small" />
-          </ButtonWarningBorder>          
+          </ButtonSecondary>          
             </Flex>
           ))}
         </Stack>
