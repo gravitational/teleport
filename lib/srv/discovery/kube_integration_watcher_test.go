@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -449,7 +448,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				k1 := types.KubeServers(kubeServers).ToMap()
 				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
 				for k := range k1 {
-					require.Equal(t, services.Equal, services.CompareResources(k1[k], k2[k]), "kube server in auth server does not match expected")
+					require.True(t, k1[k].IsEqual(k2[k]), "kube server in auth server does not match expected")
 				}
 			})
 		})
