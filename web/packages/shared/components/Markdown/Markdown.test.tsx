@@ -737,7 +737,12 @@ This is **bold <script>alert('xss')</script>** text.
 - List with <script>alert('xss')</script>
 - [Link](javascript:alert('xss'))
 
-\`code <script>alert('xss')</script>\``;
+\`code <script>alert('xss')</script>\`
+
+<details open>
+<summary>summary <script>alert('xss')</script></summary>
+details <script>alert('xss')</script>
+</details>`;
 
       renderMarkdown(text, { enableLinks: true });
 
@@ -749,6 +754,12 @@ This is **bold <script>alert('xss')</script>** text.
       ).toBeInTheDocument();
       expect(
         screen.getByText("code <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("summary <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("details <script>alert('xss')</script>")
       ).toBeInTheDocument();
     });
   });

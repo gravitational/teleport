@@ -16,11 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createElement, useMemo, type ReactNode } from 'react';
+import {
+  createElement,
+  PropsWithChildren,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import styled from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button/Button';
-import { Copy } from 'design/Icon';
+import Flex from 'design/Flex';
+import { ChevronDown, ChevronRight, Copy } from 'design/Icon';
+import { P2 } from 'design/Text';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 
 export interface MarkdownOptions {
@@ -248,6 +256,43 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       continue;
     }
 
+    if (line.trim().startsWith('<details')) {
+      const expanded = line.includes('open');
+      let summary = '';
+      const content: string[] = [];
+      const startI = i;
+      i += 1; // skip the opening tag
+
+      if (lines[i].trim().startsWith('<summary>')) {
+        summary = lines[i].replaceAll(/<\/?summary>/g, '');
+        i += 1;
+      }
+
+      while (true) {
+        if (i - startI > MAX_ITERATIONS) {
+          break;
+        }
+
+        if (lines[i]?.trim() == '</details>') {
+          i += 1;
+          break;
+        }
+
+        content.push(lines[i]);
+        i += 1;
+      }
+
+      items.push(
+        <Section
+          key={`section-${i}`}
+          title={summary ?? 'Expand'}
+          expanded={expanded}
+        >
+          <Markdown text={content.join('\n')} />
+        </Section>
+      );
+    }
+
     const paragraphLines: string[] = [];
     const startI = i;
 
@@ -341,4 +386,43 @@ const CodeButton = styled(ButtonSecondary)`
   position: absolute;
   right: 0;
   top: 0;
+`;
+
+function Section(
+  props: { title: string; expanded: boolean } & PropsWithChildren
+) {
+  const { children, title, expanded: preExpanded } = props;
+  const [expanded, setExpanded] = useState(preExpanded);
+  return (
+    <SectionContainer>
+      <SectionHeadingContainer onClick={() => setExpanded(prev => !prev)}>
+        {expanded ? (
+          <ChevronDown size="medium" />
+        ) : (
+          <ChevronRight size="medium" />
+        )}
+        <P2>
+          <strong>{title}</strong>
+        </P2>
+      </SectionHeadingContainer>
+      {expanded ? (
+        <SectionContentContainer>{children}</SectionContentContainer>
+      ) : undefined}
+    </SectionContainer>
+  );
+}
+
+const SectionContainer = styled.div`
+  padding: ${({ theme }) => theme.space[2]}px 0;
+`;
+
+const SectionHeadingContainer = styled(Flex)`
+  cursor: pointer;
+  gap: ${({ theme }) => theme.space[2]}px;
+`;
+
+const SectionContentContainer = styled.div`
+  padding-left: ${({ theme }) => theme.space[3]}px;
+  border-left: 4px solid
+    ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
 `;

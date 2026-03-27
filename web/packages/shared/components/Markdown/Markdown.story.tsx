@@ -143,7 +143,26 @@ This creates a line break without a paragraph break.
 
 \\# This won't be a header
 
-Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] \\( \\) \\# \\+ \\- \\. \\!`;
+Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] \\( \\) \\# \\+ \\- \\. \\!
+
+## Collapsable Sections
+
+<details>
+<summary>What's in here?</summary>
+# Heading 1
+
+This is a paragraph.
+
+\`\`\`
+Here's a code block
+\`\`\`
+</details>
+
+<details open>
+<summary>Already open</summary>
+This section is open by default.
+</details>
+`;
 
 export const Basic: Story = {
   args: {
