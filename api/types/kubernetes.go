@@ -87,6 +87,8 @@ type KubeCluster interface {
 	SetStatus(*KubernetesClusterStatus)
 	// GetScope gets the scope of the kube cluster.
 	GetScope() string
+	// SetScope sets the scope of the kube cluster.
+	SetScope(string)
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -370,6 +372,15 @@ func (k *KubernetesClusterV3) GetScope() string {
 	}
 
 	return k.Scope
+}
+
+// SetScope sets the scope of the kube cluster.
+func (k *KubernetesClusterV3) SetScope(scope string) {
+	if k == nil {
+		return
+	}
+
+	k.Scope = scope
 }
 
 // MatchSearch goes through select field values and tries to

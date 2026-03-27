@@ -295,6 +295,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
 		HealthCheckManager:   healthCheckManager,
+		Scope:                conn.Scope(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
