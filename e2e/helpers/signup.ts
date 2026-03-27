@@ -21,14 +21,14 @@ import type { Page } from '@playwright/test';
 import { generateInviteURL } from './tctl';
 import { mockWebAuthn } from './webauthn';
 
-export async function signup(page: Page, username: string) {
+export async function signup(page: Page, username: string, roles?: string) {
   await page.addInitScript(() =>
     localStorage.setItem('grv_teleport_license_acknowledged', 'true')
   );
 
   await mockWebAuthn(page);
 
-  const inviteURL = generateInviteURL(username);
+  const inviteURL = generateInviteURL(username, roles);
   await page.goto(inviteURL);
 
   await page.getByRole('button', { name: 'Get started' }).click();
