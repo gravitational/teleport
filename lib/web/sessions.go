@@ -116,13 +116,6 @@ type SessionContextConfig struct {
 
 	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake clusters
 	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error)
-
-	// ClientIP is the real client IP associated with this client session. Since the web server
-	// opens and caches the client connection on behalf of the user, it sends a signed PROXY header
-	// with the client's IP address. If the client reconnects to the same session with a different
-	// IP address, the session context and open client connection is discarded to ensure the real
-	// Client IP remains accurate throughout the session.
-	ClientIP string
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -1163,12 +1156,19 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
-	var clientIP string
-	if clientAddr, _ := authz.ClientAddrsFromContext(ctx); clientAddr != nil {
-		clientIP, _, err = net.SplitHostPort(clientAddr.String())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	userClient, err := authclient.NewClient(apiclient.Config{
@@ -1193,7 +1193,6 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		Resources:              s.upsertSessionContext(session.GetUser()),
 		Session:                session,
 		RootClusterName:        s.clusterName,
-		ClientIP:               clientIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
