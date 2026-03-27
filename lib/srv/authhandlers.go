@@ -1021,7 +1021,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		hostUsersInfo = nil
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          checker.Common().CheckAgentForward(osUser) == nil,
 		X11Forwarding:         checker.Common().PermitX11Forwarding(),
 		MaxConnections:        checker.Common().MaxConnections(),
@@ -1038,7 +1038,15 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
-	}, nil
+	}
+
+	if checker.Common().PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // evaluateSSHAccess checks the given certificate (supplied by a connected
@@ -1129,7 +1137,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		hostUsersInfo = nil
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
@@ -1146,7 +1154,15 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
-	}, nil
+	}
+
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
