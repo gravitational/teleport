@@ -2874,12 +2874,12 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			if tc.discoveryConfigStatusCheck != nil {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					fakeClock.Advance(srv.PollInterval * 2)
 					dc, err := tlsServer.Auth().GetDiscoveryConfig(ctx, discoveryConfigName)
 					require.NoError(t, err)
 					require.Equal(t, tc.discoveryConfigStatusExpectedResources, int(dc.Status.DiscoveredResources))
 
 					tc.discoveryConfigStatusCheck(t, dc.Status)
+					fakeClock.Advance(srv.PollInterval * 2)
 				}, 10*time.Second, 100*time.Millisecond)
 
 			}

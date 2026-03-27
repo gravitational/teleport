@@ -91,9 +91,9 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 	return discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
 		ErrorMessage:                   msg.ErrorMessage,
-		DiscoveredResources:            msg.DiscoveredResources,
+		DiscoveredResources:            msg.GetDiscoveredResources(),
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: msg.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: msg.GetIntegrationDiscoveredResources(),
 	}
 }
 

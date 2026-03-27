@@ -115,6 +115,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		for {
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
+			iterationDiscoveryConfigs := make(map[string]struct{})
 
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -164,6 +165,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				mu.Unlock()
 
 				for group, count := range resourcesFoundByGroup {
+					iterationDiscoveryConfigs[group.discoveryConfigName] = struct{}{}
 					s.awsEKSResourcesStatus.incrementFound(group, count)
 				}
 
@@ -200,6 +202,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
+
+			s.updateDiscoveryConfigStatus(slices.Collect(maps.Keys(iterationDiscoveryConfigs))...)
 		}
 	}()
 	return nil
