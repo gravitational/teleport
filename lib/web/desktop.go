@@ -624,7 +624,7 @@ func (h *Handler) performSessionMFACeremony(
 
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
+		MFACeremonyConstructor: func(_ context.Context) (mfa.CallbackCeremony, error) {
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
 				return nil, trace.Wrap(err)

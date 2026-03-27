@@ -51,6 +51,8 @@ const (
 	TokenUsageModeUnlimited = "unlimited"
 )
 
+// validates the given Kubernetes configuration. Also implemented by
+// lib/services/provisioning.go:strongValidateProvisionTokenWithDefaults() for unscoped tokens
 func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	if kube == nil || len(kube.GetAllow()) == 0 {
 		return trace.BadParameter("at least one allow rule must be set")
@@ -61,11 +63,10 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 			return trace.BadParameter("allow[%d].service_account must be set", i)
 		}
 
-		namespace, name, found := strings.Cut(rule.ServiceAccount, ":")
-		if !found || namespace == "" || name == "" {
+		parts := strings.Split(rule.ServiceAccount, ":")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return trace.BadParameter("allow[%d].service_account should be in format \"namespace:service_account\", got %q instead", i, rule.ServiceAccount)
 		}
-
 	}
 
 	switch types.KubernetesJoinType(kube.GetType()) {

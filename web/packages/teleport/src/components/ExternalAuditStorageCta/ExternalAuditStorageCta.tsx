@@ -38,7 +38,7 @@ import { ButtonLockedFeature } from '../ButtonLockedFeature';
 export const ExternalAuditStorageCta = (props: BoxProps) => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = cfg.externalAuditStorage;
+  const featureEnabled = cfg.entitlements.ExternalAuditStorage.enabled;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
