@@ -699,9 +699,7 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
-// to ignore ephemeral fields that are managed by reconcilers or the backend. This function
-// mimics the behavior of services.CompareResources for AccessList types when used with
-// WithIgnoreEphemeralFields().
+// to ignore ephemeral fields that are managed by reconcilers or the backend.
 //
 // By default, this function clones the input access lists before comparison to avoid
 // modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be

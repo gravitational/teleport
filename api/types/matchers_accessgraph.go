@@ -54,3 +54,7 @@ func (a *AccessGraphAWSSync) CheckAndSetDefaults() error {
 
 	return nil
 }
+
+func (a *AccessGraphAWSSync) IsEqual(other *AccessGraphAWSSync) bool {
+	return deriveTeleportEqualAccessGraphAWSSync(a, other)
+}
