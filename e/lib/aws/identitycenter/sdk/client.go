@@ -115,7 +115,7 @@ func (c *client) ListAccounts(ctx context.Context) ([]*Account, error) {
 			NextToken: nextToken,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(traceError(err))
 		}
 		for _, v := range resp.Accounts {
 			out = append(out, &Account{
@@ -349,7 +349,7 @@ func (c *client) ListAssignments(ctx context.Context, principalID string, princi
 			PrincipalId:   aws.String(principalID),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(traceError(err))
 		}
 		for _, v := range resp.AccountAssignments {
 			out = append(out, &Assignment{

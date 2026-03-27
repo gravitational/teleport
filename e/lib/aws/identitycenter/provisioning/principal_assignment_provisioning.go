@@ -2,6 +2,8 @@ package provisioning
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
@@ -21,6 +23,34 @@ import (
 // a hard limit of 15 concurrent operations in flight, which cannot be changed.
 // See: https://docs.aws.amazon.com/singlesignon/latest/userguide/limits.html#ssothrottlelimits
 const concurrentCreateAccountAssignmentLimit = 15
+
+// MissingPrincipalError is returned when a principal (user or group) is not found
+// in AWS Identity Center, indicating it has been deleted externally.
+type MissingPrincipalError struct {
+	// Principal is the Assignment Record for the principal that is missing from
+	// the downstream Identity Center instance
+	Principal *pb.PrincipalAssignment
+}
+
+func (e *MissingPrincipalError) Error() string {
+	spec := e.Principal.GetSpec()
+	return fmt.Sprintf("%v principal %q with external ID %q is missing from AWS Identity Center",
+		spec.GetPrincipalType(), spec.GetPrincipalId(), spec.GetExternalId())
+}
+
+// AsMissingPrincipalError checks if an error is a missingPrincipalError,
+// indicating that a principal is not found in AWS Identity Center.
+func AsMissingPrincipalError(err error) (*MissingPrincipalError, bool) {
+	if err == nil {
+		return nil, false
+	}
+
+	var mpe *MissingPrincipalError
+	if errors.As(err, &mpe) {
+		return mpe, true
+	}
+	return nil, false
+}
 
 // NewAssignmentProvisioner creates a new AssignmentProvisioner.
 func NewAssignmentProvisioner(cfg ProvisionerConfig) (*AssignmentProvisioner, error) {
@@ -83,8 +113,17 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 		"principal_assignment", principal.GetMetadata().GetName(),
 	)
 
+	log.DebugContext(ctx, "Fetching existing Account Assignments")
+
 	awsAssignments, err := a.fetchAWSAssignments(ctx, externalID, principalType)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			log.WarnContext(ctx, "Downstream principal not found")
+
+			// Use a missingPrincipalError to indicate to the caller that the
+			// AWS principal is missing and needs re-provisioning
+			return nil, &MissingPrincipalError{Principal: principal}
+		}
 		return nil, trace.Wrap(err)
 	}
 	teleportAssignments := convertToICSDKAssignments(principal.GetStatus().GetAssignments(), principalType)

@@ -126,7 +126,7 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 			// bound them to their corresponding Teleport users
 			for _, icUser := range expectedUsers {
 				assertSCIMProvisioningState(ctx, t, auth, provisioning.GetIDForUserName(icUser.UserName),
-					hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE),
+					hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 					hasSCIMExternalID(icUser.ID))
 				assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
 					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
@@ -214,7 +214,7 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 	require.EventuallyWithT(t,
 		func(c *assert.CollectT) {
 			assertSCIMProvisioningState(ctx, c, auth, provisioning.GetIDForUserName("zelda"),
-				hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE),
+				hasSCIMProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 				hasSCIMExternalID("uid_zelda"))
 		},
 		time.Second*3, time.Millisecond*30,

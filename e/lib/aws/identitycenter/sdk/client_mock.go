@@ -305,6 +305,17 @@ func (s *MockedAWSStateType) AddUserToState(userID, username string, options ...
 	return user
 }
 
+// AddGroupToState adds a new [Group] to the mocked Identity Center state
+func (s *MockedAWSStateType) AddGroupToState(groupID, displayName string) *Group {
+	group := &Group{
+		IdentityStoreID: string(s.Info.IdentityStoreID),
+		ID:              groupID,
+		DisplayName:     displayName,
+	}
+	s.Groups = append(s.Groups, group)
+	return group
+}
+
 // DescribeInstance returns a mocked InstanceInfo
 func (c *ClientMock) DescribeInstance(ctx context.Context) (*InstanceInfo, error) {
 	c.Mu.Lock()
@@ -367,6 +378,10 @@ func (c *ClientMock) ListUsers(context.Context) ([]*User, error) {
 func (c *ClientMock) ListUserAssignments(_ context.Context, userID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if u := c.getUserByID(userID); u == nil {
+		return nil, trace.NotFound("No such user %s", userID)
+	}
 	return clonePtrSlice(c.UserAssignments[userID]), nil
 }
 
@@ -374,6 +389,10 @@ func (c *ClientMock) ListUserAssignments(_ context.Context, userID string) ([]*A
 func (c *ClientMock) ListGroupsAssignments(_ context.Context, groupID string) ([]*Assignment, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if g := c.getGroupByID(groupID); g == nil {
+		return nil, trace.NotFound("No such group %s", groupID)
+	}
 	return clonePtrSlice(c.GroupAssignments[groupID]), nil
 }
 
@@ -476,6 +495,10 @@ func (c *ClientMock) ListAssignments(_ context.Context, principalID string, prin
 
 	switch principalType {
 	case ssoadmintypes.PrincipalTypeUser:
+		if u := c.getUserByID(principalID); u == nil {
+			return nil, trace.NotFound("No such user %s", principalID)
+		}
+
 		var userAssignments []*Assignment
 		for _, v := range c.UserAssignments[principalID] {
 			assignment := *v
@@ -495,10 +518,16 @@ func (c *ClientMock) ListAssignments(_ context.Context, principalID string, prin
 		}
 		return userAssignments, nil
 	case ssoadmintypes.PrincipalTypeGroup:
-		for _, v := range c.GroupAssignments[principalID] {
-			v.PrincipalType = ssoadmintypes.PrincipalTypeGroup
+		if g := c.getGroupByID(principalID); g == nil {
+			return nil, trace.NotFound("no such group %q", principalID)
 		}
-		return c.GroupAssignments[principalID], nil
+		var groupAssignments []*Assignment
+		for _, v := range c.GroupAssignments[principalID] {
+			assignment := *v
+			assignment.PrincipalType = ssoadmintypes.PrincipalTypeGroup
+			groupAssignments = append(groupAssignments, &assignment)
+		}
+		return groupAssignments, nil
 	default:
 		return nil, trace.BadParameter("unsupported principal type %q", principalType)
 	}
@@ -514,5 +543,58 @@ func (c *ClientMock) ValidateResourceSyncCredential(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// DeleteMockGroup removes a group and its account assignments from the mocked
+// data set.
+func (c *ClientMock) DeleteMockGroup(id string) {
+	c.Mu.Lock()
+	c.Groups = slices.DeleteFunc(c.Groups, func(g *Group) bool {
+		return g.ID == id
+	})
+	delete(c.GroupMemberships, id)
+	delete(c.GroupAssignments, id)
+	c.Mu.Unlock()
+}
+
+// DeleteMockUser removes a user and their account assignments from the mocked
+// data set.
+func (c *ClientMock) DeleteMockUser(id string) {
+	c.Mu.Lock()
+	// Find and remove the user from the mock
+	userIndex := slices.IndexFunc(c.Users, func(u *MockUser) bool {
+		return aws.ToString(u.UserId) == id
+	})
+	if userIndex >= 0 {
+		c.Users = slices.Delete(c.Users, userIndex, userIndex+1)
+	}
+	delete(c.UserAssignments, id)
+	c.Mu.Unlock()
+}
+
+func (c *ClientMock) userIndex(id string) int {
+	return slices.IndexFunc(c.Users, func(u *MockUser) bool {
+		return aws.ToString(u.UserId) == id
+	})
+}
+
+func (c *ClientMock) getUserByID(id string) *MockUser {
+	if i := c.userIndex(id); i != -1 {
+		return c.Users[i]
+	}
+	return nil
+}
+
+func (c *ClientMock) groupIndex(id string) int {
+	return slices.IndexFunc(c.Groups, func(g *Group) bool {
+		return g.ID == id
+	})
+}
+
+func (c *ClientMock) getGroupByID(id string) *Group {
+	if i := c.groupIndex(id); i != -1 {
+		return c.Groups[i]
+	}
 	return nil
 }

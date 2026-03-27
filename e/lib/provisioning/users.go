@@ -216,17 +216,26 @@ func (p *provisioner) updateDownstreamUser(
 ) (*provisioningv1.PrincipalState, error) {
 	log := p.log.With(principalStateAttr(state))
 
+	activeState, locks, err := p.validateUser(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating user")
+	}
+
+	// If we're running in hybrid mode and are not allowed to touch downstream
+	// users, than just Mark the user PROVISIONED as if we'd actually updated the
+	// downstream user and return.
 	if p.userProvisioningMode != UserProvisioningModeInternal {
-		return state, nil
+		log.DebugContext(ctx, "In hybrid mode, suppressing downstream update")
+
+		updatedState, err := markStateAsProvisioned(ctx, p.stateSvc, state, p.clock.Now(), locks, user.GetRevision())
+		if err != nil {
+			return nil, trace.Wrap(err, "marking principal as provisioned")
+		}
+		return updatedState, nil
 	}
 
 	if state.GetStatus().GetExternalId() == "" {
 		return nil, trace.BadParameter("principal state must have an ExternalId")
-	}
-
-	activeState, locks, err := p.validateUser(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err, "validating user")
 	}
 
 	updatedUser, err := p.scimClient.UpdateUser(ctx, scimsdk.ToUser(user,

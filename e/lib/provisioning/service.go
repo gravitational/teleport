@@ -920,3 +920,18 @@ func (svc *Service) markProvisioningStateAsDeleted(
 	)
 	return updated, trace.Wrap(err, "marking provisioning state as deleted")
 }
+
+// ResetPrincipalExternalID fetches the supplied principal's provisioning state record and
+// funnels it to the missing-principal handler. The effect of this is to erase
+// the principal's External ID and trigger re-provisioning.
+func (svc *Service) ResetPrincipalExternalID(ctx context.Context, principalType provisioningv1.PrincipalType, principalName string) error {
+	id, err := getIDForPrincipal(principalName, principalType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	state, err := svc.stateSvc.GetProvisioningState(ctx, svc.downstreamID, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(svc.provisioner.handleMissingPrincipal(ctx, state))
+}

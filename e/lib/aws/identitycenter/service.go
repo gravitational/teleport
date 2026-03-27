@@ -248,18 +248,18 @@ func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.P
 // when it has detected a change in the principal's ExternalID
 func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioningv1.PrincipalState) {
 	log := svc.log.With("principal_id", state.GetMetadata().GetName())
+	log.DebugContext(ctx, "Updating ExternalID")
 
 	principalAssignmentID, err := assignmentIDForProvisioningState(state)
 	if err != nil {
-		log.ErrorContext(ctx, "Malformed provisioning state",
-			"error", err)
+		log.ErrorContext(ctx, "Malformed provisioning state", "error", err)
 		return
 	}
 
 	principalAssignment, err := svc.icSvc.GetPrincipalAssignment(ctx, principalAssignmentID)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			log.WarnContext(ctx, "No such Principal Assignment record.", "error", err)
+			log.WarnContext(ctx, "No such Principal Assignment record. May not have been created yet.")
 			return
 		}
 		log.ErrorContext(ctx, "Unable to load Principal Assignment record", "error", err)
@@ -267,14 +267,25 @@ func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioning
 	}
 
 	log = log.With(principalAssignmentAttr(principalAssignment))
+	log.DebugContext(ctx, "Resetting ExternalID and Account Assignments")
 
 	externalID := state.GetStatus().GetExternalId()
 	_, err = principal.Update(ctx, svc.icSvc, principalAssignment,
 		func(asmt *identitycenterv1.PrincipalAssignment) error {
+			// Abort the update if the new external ID has written to the record.
 			if asmt.Spec.ExternalId == externalID {
 				return principal.ErrNoUpdateRequired
 			}
+			// Set the new ExternalID and reset the principal's assignment set.
+			// This will force a difference between the principal's computed
+			// account assignment set and their existing assignments when their
+			// assignment list is next recalculated.
+			//
+			// Without this difference the provisioner would see no change in
+			// the principal's assignment set and not provision the assignments
+			// to the principal's new ID.
 			asmt.GetSpec().ExternalId = externalID
+			asmt.GetStatus().Assignments = nil
 			return nil
 		})
 	if err != nil {
@@ -298,6 +309,17 @@ func assignmentIDForProvisioningState(state *provisioningv1.PrincipalState) (ser
 	}
 
 	return "", trace.BadParameter("unsupported principal type %v", spec.GetPrincipalType())
+}
+
+func provisioningPrincipalType(state *identitycenterv1.PrincipalAssignment) (provisioningv1.PrincipalType, error) {
+	switch state.GetSpec().GetPrincipalType() {
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		return provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER, nil
+
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		return provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST, nil
+	}
+	return 0, trace.BadParameter("unsupported principal type %v", state.GetSpec().GetPrincipalType())
 }
 
 // onPrincipalProvisioned is invoked by the user & group provisioning subsystem

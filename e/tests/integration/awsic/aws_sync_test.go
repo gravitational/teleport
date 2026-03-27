@@ -23,7 +23,7 @@ import (
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
-func requireTestClusterWithIdentityCenter(t *testing.T) (*common.SUT, *ictest.UnifiedClientMock) {
+func requireTestClusterWithIdentityCenter(t *testing.T, opts ...common.Option) (*common.SUT, *ictest.UnifiedClientMock) {
 	ctx := t.Context()
 
 	slog.SetLogLoggerLevel(slog.LevelDebug)
@@ -39,11 +39,12 @@ func requireTestClusterWithIdentityCenter(t *testing.T) (*common.SUT, *ictest.Un
 	mockSCIM := client.ViaSCIM()
 	setupMockAWSICEnvironment(t, mockIC, mockSCIM)
 
-	sut := common.InitSUT(t,
+	opts = append(opts,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
-		common.WithUser(t, "alice", "editor"),
-	)
+		common.WithUser(t, "alice", "editor"))
+
+	sut := common.InitSUT(t, opts...)
 
 	auth := sut.Teleport.Process.GetAuthServer()
 	mustCreateAWSICPlugin(t, sut.GetClusterClientForUser(t, "alice").AuthClient)

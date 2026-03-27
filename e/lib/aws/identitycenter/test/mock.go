@@ -292,14 +292,19 @@ func (s *scimClientMock) ListUsers(_ context.Context, queryOptions ...scimsdk.Qu
 
 // CreateGroup creates a new group.
 func (s *scimClientMock) CreateGroup(_ context.Context, scimGroup *scimsdk.Group) (*scimsdk.Group, error) {
-	g := s.toICGroup(scimGroup)
-	g.ID = uuid.NewString()
+	icGroup := s.toICGroup(scimGroup)
+	if icGroup.ID == "" {
+		icGroup.ID = uuid.NewString()
+	}
 
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
-	s.Groups = append(s.Groups, g)
 
-	return s.toSCIMGroup(g), nil
+	if s.getGroupByID(icGroup.ID) != nil {
+		return nil, trace.BadParameter("group with ID %q already exists", icGroup.ID)
+	}
+	s.Groups = append(s.Groups, icGroup)
+	return s.toSCIMGroup(icGroup), nil
 }
 
 // DeleteGroup deletes a group.

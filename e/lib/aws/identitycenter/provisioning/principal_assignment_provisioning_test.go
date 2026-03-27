@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	identitystoretypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/stretchr/testify/require"
 
@@ -120,10 +122,32 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			setMockAccountAssignments := func(pType ssoadmintypes.PrincipalType, id string, assignments []*icsdk.Assignment) {
 				sdkMockClient.Mu.Lock()
 				defer sdkMockClient.Mu.Unlock()
-				dst := sdkMockClient.GroupAssignments
-				if pType == ssoadmintypes.PrincipalTypeUser {
+
+				var dst map[string][]*icsdk.Assignment
+
+				switch pType {
+				case ssoadmintypes.PrincipalTypeUser:
 					dst = sdkMockClient.UserAssignments
+					sdkMockClient.Users = append(sdkMockClient.Users,
+						&icsdk.MockUser{
+							User: identitystoretypes.User{
+								UserId:   aws.String(id),
+								UserName: aws.String("test-user-" + test.name),
+							},
+						})
+				case ssoadmintypes.PrincipalTypeGroup:
+					dst = sdkMockClient.GroupAssignments
+					sdkMockClient.Groups = append(sdkMockClient.Groups,
+						&icsdk.Group{
+							DisplayName: "test-group-" + test.name,
+							ID:          id,
+						})
+
+				default:
+					require.FailNowf(t, "Test configuration error",
+						"Unexpected Principal type: %v", pType)
 				}
+
 				dst[id] = assignments
 			}
 
@@ -265,6 +289,12 @@ func TestFetchAWSAssignments_UserType(t *testing.T) {
 	mockClient := &icsdk.ClientMock{
 		MockedAWSStateType: icsdk.NewMockedAWSState(),
 	}
+	mockClient.Users = append(mockClient.Users, &icsdk.MockUser{
+		User: identitystoretypes.User{
+			UserId:   aws.String("user2"),
+			UserName: aws.String("test-user-" + t.Name()),
+		},
+	})
 
 	assignmentService := &mockAssignmentService{
 		UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {

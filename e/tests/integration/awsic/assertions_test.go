@@ -203,6 +203,10 @@ func hasProvisioningState(s identitycenterv1.ProvisioningState) principalAssignm
 	}
 }
 
+func hasAnyExternalID(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
+	return assert.NotEmpty(t, pa.GetSpec().GetExternalId(), "Expected a non-empty ExternalID")
+}
+
 // hasExternalID returns a [principalAssignmentAssertion] that asserts the value of a
 // Principal Assignment record's external ID
 func hasExternalID(expectedID string) principalAssignmentAssertion {
@@ -225,10 +229,11 @@ func hasAccountAssignment(ps, accountID string) principalAssignmentAssertion {
 	}
 }
 
-// hasNoAccountAssignments asssert that the target principal has no account
-// assignments listed in their Principal Assignment record
+// hasNoAccountAssignments asserts that the target principal has no Account
+// Assignments recorded against them
 func hasNoAccountAssignments(t assert.TestingT, pa *identitycenterv1.PrincipalAssignment) bool {
-	return assert.Empty(t, pa.GetStatus().GetAssignments())
+	return assert.Empty(t, pa.GetStatus().GetAssignments(),
+		"Principal must have no account assignments")
 }
 
 // assertPrincipalAssignment asserts that an Identity Center Principal Assignment
@@ -236,19 +241,25 @@ func hasNoAccountAssignments(t assert.TestingT, pa *identitycenterv1.PrincipalAs
 // on it. Returns after the first failed assertion. Takes an [assert.TestingT]
 // rather than a [require.TestingT] in order to be usable inside a
 // [require.EventuallyWithT] callback.
-func assertPrincipalAssignment(ctx context.Context, t assert.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID, assertions ...principalAssignmentAssertion) bool {
+func assertPrincipalAssignment(
+	ctx context.Context,
+	t assert.TestingT,
+	getter services.IdentityCenterPrincipalAssignments,
+	id services.PrincipalAssignmentID,
+	assertions ...principalAssignmentAssertion,
+) (bool, *identitycenterv1.PrincipalAssignment) {
 	state, err := getter.GetPrincipalAssignment(ctx, id)
 	if !assert.NoError(t, err) {
-		return false
+		return false, nil
 	}
 
 	for _, assertion := range assertions {
 		if !assertion(t, state) {
-			return false
+			return false, nil
 		}
 	}
 
-	return true
+	return true, state
 }
 
 func assertNoPrincipalAssignment(ctx context.Context, t assert.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID) bool {
@@ -259,14 +270,21 @@ func assertNoPrincipalAssignment(ctx context.Context, t assert.TestingT, getter 
 // requirePrincipalAssignment asserts that an Identity Center Principal Assignment
 // record exists for the supplied principal ID, and runs the supplied assertions
 // on it.
-func requirePrincipalAssignment(ctx context.Context, t require.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID, assertions ...principalAssignmentAssertion) {
+func requirePrincipalAssignment(
+	ctx context.Context,
+	t require.TestingT,
+	getter services.IdentityCenterPrincipalAssignments,
+	id services.PrincipalAssignmentID,
+	assertions ...principalAssignmentAssertion,
+) *identitycenterv1.PrincipalAssignment {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
-	if assertPrincipalAssignment(ctx, t, getter, id, assertions...) {
-		return
+	if passed, state := assertPrincipalAssignment(ctx, t, getter, id, assertions...); passed {
+		return state
 	}
 	t.FailNow()
+	return nil // This should never be hit due to above call to `FailNow`
 }
 
 type scimProvisioningStateAssertion func(assert.TestingT, *provisioningv1.PrincipalState) bool
@@ -380,6 +398,14 @@ func hasAccountAssignments(expected ...*icsdk.Assignment) icUserAssertion {
 	}
 }
 
+func icUserAccountAssignment(ps, account string) *icsdk.Assignment {
+	return &icsdk.Assignment{
+		AccountID:        account,
+		PermissionSetARN: ps,
+		PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+	}
+}
+
 // assertICUser asserts that a user with the given name exists in the Identity Center
 // instance, and runs the supplied assertions on it. The function will return on
 // the first failed assertion.
@@ -416,6 +442,24 @@ func requireICUser(ctx context.Context, t require.TestingT, client icsdk.Client,
 
 type icGroupAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.Group) bool
 
+func hasGroupAccountAssignments(expected ...*icsdk.Assignment) icGroupAssertion {
+	return func(ctx context.Context, t assert.TestingT, client icsdk.Client, group *icsdk.Group) bool {
+		assignments, err := client.ListAssignments(ctx, group.ID, ssoadmintypes.PrincipalTypeGroup)
+		if !assert.NoError(t, err) {
+			return false
+		}
+		return assert.ElementsMatch(t, expected, assignments)
+	}
+}
+
+func icGroupAccountAssignment(ps, account string) *icsdk.Assignment {
+	return &icsdk.Assignment{
+		AccountID:        account,
+		PermissionSetARN: ps,
+		PrincipalType:    ssoadmintypes.PrincipalTypeGroup,
+	}
+}
+
 func withMembers(expectedMembers ...string) icGroupAssertion {
 	return func(ctx context.Context, t assert.TestingT, client icsdk.Client, group *icsdk.Group) bool {
 		groupMembers, err := client.ListGroupMemberships(ctx, group.ID)
@@ -446,6 +490,9 @@ func withMembers(expectedMembers ...string) icGroupAssertion {
 	}
 }
 
+// assertICGroup asserts that a group with the given displayName exists in the
+// Identity Center instance, and runs the supplied assertions on it. The function
+// will return on the first failed assertion.
 func assertICGroup(ctx context.Context, t assert.TestingT, client icsdk.Client, displayName string, assertions ...icGroupAssertion) bool {
 	groups, err := client.ListGroups(ctx)
 	if !assert.NoError(t, err) {
@@ -464,6 +511,9 @@ func assertICGroup(ctx context.Context, t assert.TestingT, client icsdk.Client, 
 	return true
 }
 
+// requireICGroup asserts that a group with the given display title exists in the
+// Identity Center instance and runs the supplied assertions on it, immediately
+// failing the test if any assertion fails.
 func requireICGroup(ctx context.Context, t require.TestingT, client icsdk.Client, displayName string, assertions ...icGroupAssertion) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()

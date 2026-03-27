@@ -167,6 +167,8 @@ func (calc *AssignmentCalculator) CalcAssignments(ctx context.Context, principal
 // PrincipalAssignment record, the record will be updated with the new assignment
 // set, marked as stale, and written to the backend.
 func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user *types.UserV2, principalAssignment *identitycenterv1.PrincipalAssignment) (*identitycenterv1.PrincipalAssignment, error) {
+	log := calc.Logger.With("principal_id", principalAssignment.GetMetadata().GetName())
+	log.DebugContext(ctx, "Recalculating user account assignments")
 
 	extID := principal.GetExternalID(principalAssignment)
 	if extID == "" {
@@ -180,7 +182,7 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 			return nil, trace.BadParameter("user %s has no known external id", user.GetName())
 		}
 	}
-	log := calc.Logger.With("user", user.GetName())
+	log = calc.Logger.With("user", user.GetName())
 
 	allRoles := set.New(user.GetRoles()...)
 	allowedByRequest := set.New[assignment]()
@@ -226,10 +228,16 @@ func (calc *AssignmentCalculator) calcUserAssignments(ctx context.Context, user 
 	allow.Union(allowedByRequest)
 	allow.Subtract(deny)
 
+	log.DebugContext(ctx, "Writing user account assignments to record")
+
 	updatedPrincipal, err := updatePrincipalAccountAssignments(ctx, allow, extID, principalAssignment, calc.PrincipalAssignmentsSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to write account assignment")
 	}
+
+	log.DebugContext(ctx, "Wrote user account assignments to record",
+		"state", updatedPrincipal.GetStatus().GetProvisioningState())
+
 	return updatedPrincipal, nil
 }
 

@@ -14,6 +14,7 @@ import (
 	icIter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
+	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -362,8 +363,49 @@ func (svc *Service) refreshPrincipalAssignment(
 		return nil
 	}
 
+	log := svc.log.With(
+		"principal_id", pa.GetMetadata().GetName(),
+		"external_id", pa.GetSpec().GetExternalId())
+	log.DebugContext(ctx, "Provisioning updated account assignments")
+
 	_, err = svc.assignmentProvisioner.Provision(ctx, pa)
 	if err != nil {
+		if mpe, ok := icprov.AsMissingPrincipalError(err); ok {
+			log.WarnContext(ctx, "Downstream principal missing")
+			return trace.Wrap(svc.handleMissingAWSPrincipal(ctx, mpe.Principal))
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// handleMissingAWSPrincipal handles the case when a principal (user or group) has been
+// deleted from AWS Identity Center outside of Teleport's control. It clears the
+// external ID from the PrincipalAssignment, which will trigger SCIM reprovisioning
+// to recreate or re-acquire the principal and obtain a new external ID.
+func (svc *Service) handleMissingAWSPrincipal(ctx context.Context, pa *identitycenterv1.PrincipalAssignment) error {
+	svc.log.InfoContext(ctx,
+		"Principal missing from Identity Center. Resetting ExternalID to reprovision or reacquire.",
+		"external_id", pa.GetSpec().GetExternalId(),
+		"principal_type", pa.GetSpec().GetPrincipalType(),
+		"principal_assignment", pa.GetMetadata().GetName(),
+	)
+
+	principalType, err := provisioningPrincipalType(pa)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Clear the SCIM Provisioner's External ID for this principal to trigger
+	// the provisioner to reacquire them.
+	//
+	// We also want to clear the Principal Assignment record's External ID in
+	// order to suppress Account Assignment provisioning attempts while we don't
+	// know how to address the downstream principal. The `onExternalIDUpdated`
+	// event handler (triggered by this call to ResetPrincipal) will do that for
+	// us, so we don't need to repeat ourselves here.
+	if err := svc.provisioner.ResetPrincipalExternalID(ctx, principalType, pa.GetSpec().GetPrincipalId()); err != nil {
 		return trace.Wrap(err)
 	}
 

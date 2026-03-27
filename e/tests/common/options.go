@@ -24,7 +24,7 @@ type sutOptions struct {
 	insecureMode  bool
 }
 
-type option func(*sutOptions)
+type Option func(*sutOptions)
 
 func WithInsecure() func(*sutOptions) {
 	return func(o *sutOptions) {

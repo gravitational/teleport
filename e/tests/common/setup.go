@@ -41,7 +41,7 @@ type SUT struct {
 	AuthListenerAddr string
 }
 
-func InitSUT(t *testing.T, opts ...option) *SUT {
+func InitSUT(t *testing.T, opts ...Option) *SUT {
 	options := &sutOptions{
 		license: "../../fixtures/license-eub.pem",
 		clock:   clockwork.NewRealClock(),
