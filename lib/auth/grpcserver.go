@@ -4899,50 +4899,22 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 
 // ListUnifiedResources retrieves a paginated list of unified resources.
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			// TODO(fspmarshall/scopes): Do away with this bifurcated implementation in favor of making ListUnifiedResources
-			// able to support scoped callers directly.
-			return g.scopedListUnifiedResources(ctx, req)
-		}
 		return nil, trace.Wrap(err)
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
 }
 
-// scopedListUnifiedResources handles ListUnifiedResources requests for scoped identities. eventually we want to do away with
-// this in favor of fully porting over the ListUnifiedResources API to support scopes natively. for the time being, we use
-// this method to specifically make it possible to use 'tsh ls' with scoped credentials. usecases other than that are not
-// guaranteed to work properly at this time.
-func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+// ListResources retrieves a paginated list of resources.
+func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.scopedListUnifiedResources(ctx, req)
-}
-
-// ListResources retrieves a paginated list of resources.
-func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-	var swr *ServerWithRoles
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			scopedAuth, err := g.scopedAuthenticate(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			swr = scopedAuth.ServerWithRoles
-		}
-		return nil, trace.Wrap(err)
-	} else {
-		swr = auth.ServerWithRoles
-	}
-
-	resp, err := swr.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
