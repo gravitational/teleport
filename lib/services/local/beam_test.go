@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -82,6 +83,16 @@ func TestCreateBeam(t *testing.T) {
 	require.Empty(t, cmp.Diff(
 		params.WorkloadIdentity,
 		storedWorkloadIdentity,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+	))
+
+	// Delegation session should be stored.
+	storedDelegationSession, err := services.delegationSession.GetDelegationSession(t.Context(), params.DelegationSession.GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(
+		params.DelegationSession,
+		storedDelegationSession,
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 	))
@@ -214,6 +225,9 @@ func TestDeleteBeam(t *testing.T) {
 	_, err = services.workloadIdentity.GetWorkloadIdentity(t.Context(), params.WorkloadIdentity.GetMetadata().GetName())
 	require.True(t, trace.IsNotFound(err))
 
+	_, err = services.delegationSession.GetDelegationSession(t.Context(), params.DelegationSession.GetMetadata().GetName())
+	require.True(t, trace.IsNotFound(err))
+
 	_, err = services.presence.GetNode(t.Context(), node.GetNamespace(), node.GetName())
 	require.True(t, trace.IsNotFound(err))
 
@@ -241,13 +255,14 @@ func TestBeamServiceGetBeamByAlias(t *testing.T) {
 }
 
 type beamsTestPack struct {
-	beam             *BeamService
-	token            *ProvisioningService
-	user             *IdentityService
-	role             *AccessService
-	workloadIdentity *WorkloadIdentityService
-	presence         *PresenceService
-	app              *AppService
+	beam              *BeamService
+	token             *ProvisioningService
+	user              *IdentityService
+	role              *AccessService
+	workloadIdentity  *WorkloadIdentityService
+	delegationSession *DelegationSessionService
+	presence          *PresenceService
+	app               *AppService
 }
 
 func newBeamsTestPack(t *testing.T) beamsTestPack {
@@ -265,14 +280,18 @@ func newBeamsTestPack(t *testing.T) beamsTestPack {
 	workloadIdentityService, err := NewWorkloadIdentityService(backend)
 	require.NoError(t, err)
 
+	delegationSessionService, err := NewDelegationSessionService(backend)
+	require.NoError(t, err)
+
 	return beamsTestPack{
-		beam:             beamService,
-		token:            NewProvisioningService(backend),
-		user:             userService,
-		role:             NewAccessService(backend),
-		workloadIdentity: workloadIdentityService,
-		presence:         NewPresenceService(backend),
-		app:              NewAppService(backend),
+		beam:              beamService,
+		token:             NewProvisioningService(backend),
+		user:              userService,
+		role:              NewAccessService(backend),
+		workloadIdentity:  workloadIdentityService,
+		delegationSession: delegationSessionService,
+		presence:          NewPresenceService(backend),
+		app:               NewAppService(backend),
 	}
 }
 
@@ -298,6 +317,7 @@ func testBeam(alias string) *beamsv1.Beam {
 			Alias:                alias,
 			BotName:              uuid.NewString(),
 			JoinTokenName:        uuid.NewString(),
+			DelegationSessionId:  uuid.NewString(),
 			WorkloadIdentityName: uuid.NewString(),
 			ComputeStatus:        beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
 		},
@@ -320,12 +340,38 @@ func testWorkloadIdentity(name string, expires *timestamppb.Timestamp) *workload
 	}
 }
 
+func testDelegationSession(name string, expires *timestamppb.Timestamp, botName, user string) *delegationv1.DelegationSession {
+	return &delegationv1.DelegationSession{
+		Kind:    types.KindDelegationSession,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    name,
+			Expires: expires,
+		},
+		Spec: &delegationv1.DelegationSessionSpec{
+			User: user,
+			Resources: []*delegationv1.DelegationResourceSpec{
+				{
+					Kind: types.KindApp,
+					Name: "test-app",
+				},
+			},
+			AuthorizedUsers: []*delegationv1.DelegationUserSpec{
+				{
+					Kind:    types.KindBot,
+					Matcher: &delegationv1.DelegationUserSpec_BotName{BotName: botName},
+				},
+			},
+		},
+	}
+}
+
 func testCreateBeamParams(t *testing.T, beam *beamsv1.Beam) services.CreateBeamParams {
 	t.Helper()
 
 	token, err := types.NewProvisionTokenFromSpec(
 		beam.GetStatus().GetJoinTokenName(),
-		beam.GetMetadata().GetExpires().AsTime(),
+		beam.GetSpec().GetExpires().AsTime(),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
 			BotName: beam.GetStatus().GetBotName(),
@@ -340,11 +386,20 @@ func testCreateBeamParams(t *testing.T, beam *beamsv1.Beam) services.CreateBeamP
 	require.NoError(t, err)
 
 	return services.CreateBeamParams{
-		Beam:             beam,
-		Token:            token,
-		BotUser:          botUser,
-		BotRole:          botRole,
-		WorkloadIdentity: testWorkloadIdentity(beam.GetStatus().GetWorkloadIdentityName(), beam.GetMetadata().GetExpires()),
+		Beam:    beam,
+		Token:   token,
+		BotUser: botUser,
+		BotRole: botRole,
+		WorkloadIdentity: testWorkloadIdentity(
+			beam.GetStatus().GetWorkloadIdentityName(),
+			beam.GetSpec().GetExpires(),
+		),
+		DelegationSession: testDelegationSession(
+			beam.GetStatus().GetDelegationSessionId(),
+			beam.GetSpec().GetExpires(),
+			beam.GetStatus().GetBotName(),
+			beam.GetStatus().GetUser(),
+		),
 	}
 }
 

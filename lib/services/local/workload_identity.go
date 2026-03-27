@@ -180,19 +180,3 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
-
-func itemFromWorkloadIdentity(wid *workloadidentityv1pb.WorkloadIdentity) (*backend.Item, error) {
-	meta := wid.GetMetadata()
-
-	value, err := services.MarshalWorkloadIdentity(wid)
-	if err != nil {
-		return nil, err
-	}
-
-	return &backend.Item{
-		Key:      backend.NewKey(workloadIdentityPrefix, meta.GetName()),
-		Value:    value,
-		Expires:  meta.GetExpires().AsTime(),
-		Revision: meta.GetRevision(),
-	}, nil
-}
