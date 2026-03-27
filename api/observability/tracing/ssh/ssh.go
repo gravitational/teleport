@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"net"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 const (
@@ -124,24 +122,15 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	)
 	defer span.End()
 
-	// Ensure we copy the config to avoid mutating the caller's config.
-	config, err := cloneClientConfig(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	dialer := net.Dialer{Timeout: config.Timeout}
-
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
-
 	c, err := NewClientWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
-
 	return c, nil
 }
 
@@ -174,12 +163,6 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 		),
 	)
 	defer span.End()
-
-	// Ensure we copy the config to avoid mutating the caller's config.
-	config, err := cloneClientConfig(config)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
 
 	// ssh.ClientConfig.Timeout is not the total timeout for the connection
 	// establishment, including DNS resolution, TCP connection, but it doesn't
@@ -244,26 +227,6 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	}
 
 	return c, chans, reqs, nil
-}
-
-// cloneClientConfig returns a deep copy of the provided ssh.ClientConfig with proper defaults set. If the provided
-// config is nil, an error is returned.
-func cloneClientConfig(config *ssh.ClientConfig) (*ssh.ClientConfig, error) {
-	if config == nil {
-		return nil, trace.BadParameter("config must not be nil")
-	}
-
-	configCopy := *config
-	configCopy.Auth = slices.Clone(config.Auth)
-	configCopy.HostKeyAlgorithms = slices.Clone(config.HostKeyAlgorithms)
-	configCopy.KeyExchanges = slices.Clone(config.KeyExchanges)
-	configCopy.Ciphers = slices.Clone(config.Ciphers)
-	configCopy.MACs = slices.Clone(config.MACs)
-
-	// If ClientVersion is not set, set it to the default Teleport client version string.
-	configCopy.ClientVersion = cmp.Or(config.ClientVersion, apissh.DefaultClientVersion)
-
-	return &configCopy, nil
 }
 
 // peerAttr returns attributes about the peer address.

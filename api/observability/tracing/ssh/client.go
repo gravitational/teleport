@@ -63,7 +63,7 @@ const (
 func NewClientWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
 	c, chans, reqs, err := NewClientConnWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 
 	return NewClient(c, chans, reqs, opts...), nil

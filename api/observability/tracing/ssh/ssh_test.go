@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
-	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 const testPayload = "test"
@@ -62,7 +61,7 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := NewClientConnWithTimeout(t.Context(), conn, "", &ssh.ClientConfig{
+	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	})
@@ -490,170 +489,3 @@ func TestNewClientConnTimeout(t *testing.T) {
 	})
 
 }
-
-func TestNewClientConnWithTimeoutPreservesClientVersion(t *testing.T) {
-	t.Parallel()
-
-	clientVersionC := make(chan []byte, 1)
-
-	clientVersionOverride := apissh.ClientVersionWithFeatures("foov1")
-
-	// Create server to capture the client version string sent by the client during handshake.
-	srv := newServer(
-		t,
-		tracingSupportedVersion,
-		func(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
-			clientVersionC <- conn.ClientVersion()
-
-			go ssh.DiscardRequests(reqs)
-
-			for ch := range chans {
-				err := ch.Reject(ssh.Prohibited, "no channels allowed")
-				assert.NoError(t, err)
-			}
-		},
-	)
-
-	tcpConn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", srv.listener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		tcpConn.Close()
-	})
-
-	config := &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
-		ClientVersion:   clientVersionOverride,
-		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
-	}
-
-	sshConn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), tcpConn, srv.listener.Addr().String(), config)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sshConn.Close()
-	})
-
-	require.NotNil(t, chans)
-	require.NotNil(t, reqs)
-	require.Equal(t, clientVersionOverride, config.ClientVersion, "original client version should not be modified")
-
-	select {
-	case <-t.Context().Done():
-		require.Fail(t, "test timed out while waiting for client version")
-
-	case version := <-clientVersionC:
-		require.EqualValues(t, version, clientVersionOverride, "version sent at handshake did not match the configured client version")
-	}
-}
-
-func TestCloneClientConfigClonesNonNilConfig(t *testing.T) {
-	t.Parallel()
-
-	type mockAuthMethod struct {
-		ssh.AuthMethod
-	}
-
-	mockError := errors.New("test error")
-
-	config := &ssh.ClientConfig{
-		Config: ssh.Config{
-			Rand:           rand.Reader,
-			RekeyThreshold: 1,
-			KeyExchanges:   []string{"kex1", "kex2"},
-			Ciphers:        []string{"cipher1", "cipher2"},
-			MACs:           []string{"mac1", "mac2"},
-		},
-		User: "alice",
-		Auth: []ssh.AuthMethod{
-			mockAuthMethod{},
-		},
-		HostKeyCallback:   func(hostname string, remote net.Addr, key ssh.PublicKey) error { return mockError },
-		BannerCallback:    func(message string) error { return mockError },
-		ClientVersion:     "test-client-version",
-		HostKeyAlgorithms: []string{"algo1", "algo2"},
-		Timeout:           time.Nanosecond,
-	}
-
-	clonedConfig, err := cloneClientConfig(config)
-	require.NoError(t, err)
-
-	require.NotSame(t, config, clonedConfig)
-	require.Equal(t, config.Rand, clonedConfig.Rand)
-	require.Equal(t, config.RekeyThreshold, clonedConfig.RekeyThreshold)
-	require.Equal(t, config.KeyExchanges, clonedConfig.KeyExchanges)
-	require.Equal(t, config.Ciphers, clonedConfig.Ciphers)
-	require.Equal(t, config.MACs, clonedConfig.MACs)
-	require.Equal(t, config.User, clonedConfig.User)
-	require.NotEmpty(t, clonedConfig.Auth, config.Auth)
-	require.IsType(t, mockAuthMethod{}, clonedConfig.Auth[0])
-	require.NotNil(t, clonedConfig.HostKeyCallback)
-	require.ErrorIs(t, clonedConfig.HostKeyCallback("hostname", nil, nil), mockError)
-	require.NotNil(t, clonedConfig.BannerCallback)
-	require.ErrorIs(t, clonedConfig.BannerCallback("message"), mockError)
-	require.NotNil(t, clonedConfig.HostKeyCallback)
-	require.Equal(t, config.ClientVersion, clonedConfig.ClientVersion)
-	require.Equal(t, config.Timeout, clonedConfig.Timeout)
-	require.Equal(t, config.HostKeyAlgorithms, clonedConfig.HostKeyAlgorithms)
-}
-
-func TestCloneClientConfigSetsDefaultClientVersionIfEmpty(t *testing.T) {
-	t.Parallel()
-
-	config := &ssh.ClientConfig{}
-
-	clonedConfig, err := cloneClientConfig(config)
-	require.NoError(t, err)
-	require.Equal(t, apissh.DefaultClientVersion, clonedConfig.ClientVersion)
-	require.Empty(t, config.ClientVersion)
-}
-
-func TestCloneClientConfigReturnsNewConfigIfNil(t *testing.T) {
-	t.Parallel()
-
-	config, err := cloneClientConfig(nil)
-	require.ErrorIs(t, trace.BadParameter("config must not be nil"), err)
-	require.Nil(t, config)
-}
-
-func TestDialNilConfig(t *testing.T) {
-	t.Parallel()
-
-	cli, err := Dial(t.Context(), "tcp", "127.0.0.1:1", nil)
-	require.ErrorIs(t, err, trace.BadParameter("config must not be nil"))
-	require.Nil(t, cli)
-}
-
-func TestNewClientConnWithTimeoutNilConfig(t *testing.T) {
-	t.Parallel()
-
-	clientConn, serverConn := net.Pipe()
-	t.Cleanup(func() {
-		clientConn.Close()
-		serverConn.Close()
-	})
-
-	conn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), clientConn, "teleport.dev:22", nil)
-	require.ErrorIs(t, err, trace.BadParameter("config must not be nil"))
-	require.Nil(t, conn)
-	require.Nil(t, chans)
-	require.Nil(t, reqs)
-}
-
-// These assertions will fail to compile if the shape of either ssh.ClientConfig or ssh.Config changes. If that happens,
-// we'll need to update our cloneClientConfig function to account for the new field.
-var _ ssh.Config = struct {
-	Rand           io.Reader
-	RekeyThreshold uint64
-	KeyExchanges   []string
-	Ciphers        []string
-	MACs           []string
-}{}
-var _ ssh.ClientConfig = struct {
-	ssh.Config
-	User              string
-	Auth              []ssh.AuthMethod
-	HostKeyCallback   ssh.HostKeyCallback
-	BannerCallback    ssh.BannerCallback
-	ClientVersion     string
-	HostKeyAlgorithms []string
-	Timeout           time.Duration
-}{}
