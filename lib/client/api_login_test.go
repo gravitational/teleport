@@ -151,6 +151,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
+		preferBrowser           bool
 		hasTouchIDCredentials   bool
 		authenticatorAttachment wancli.AuthenticatorAttachment
 		scope                   string
@@ -316,6 +317,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
+			tc.PreferBrowser = test.preferBrowser
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
 			inputReader := test.makeInputReader(password, otpKey, clock)
 			tc.StdinFunc = func() prompt.StdinReader { return inputReader }
@@ -335,6 +337,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+
+			// Only enable BrowserAuthentication for tests that explicitly request it
+			if test.preferBrowser != false {
+				authServer := sa.Auth.GetAuthServer()
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				authPref.SetAllowCLIAuthViaBrowser(true)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err)
+			}
 
 			// Test.
 			clock.Advance(30 * time.Second)
@@ -377,7 +389,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	authPref.SetSecondFactor(constants.SecondFactorOff)
 	authPref.SetAllowPasswordless(false)
 	authPref.SetAllowHeadless(false)
-	authPref.SetAllowBrowserAuthentication(false)
+	authPref.SetAllowCLIAuthViaBrowser(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
@@ -598,6 +610,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		// Disable by default and enable for tests that require it
+		AllowCLIAuthViaBrowser:  types.NewBoolOption(false),
 		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)

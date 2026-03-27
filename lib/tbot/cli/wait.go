@@ -51,7 +51,7 @@ func NewWaitCommand(app KingpinClause, action func(*WaitCommand) error) *WaitCom
 	).StringVar(&c.Service)
 	cmd.Flag(
 		"timeout",
-		"An optional timeout. If set, returns an error if all specified "+
+		"An optional timeout. If set, returns an error if not all specified "+
 			"services have reported healthy by the timeout.",
 	).DurationVar(&c.Timeout)
 

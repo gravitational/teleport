@@ -809,6 +809,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDevice, RW()),
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
 					types.NewRule(types.KindOIDC, RW()),

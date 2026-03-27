@@ -46,7 +46,7 @@ spec:
     # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
     # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
     # 'memorydb' - Amazon MemoryDB databases.
-    # 'opensearch' - Amazon OpenSearch Redis databases.
+    # 'opensearch' - Amazon OpenSearch databases.
     # 'docdb' - Amazon DocumentDB databases.
   - types: ["ec2"]
     # AWS regions to search for resources from
@@ -702,6 +702,8 @@ Example:
 found: 1
 enrolled: 1
 failed: 1
+sync_start: # See description
+sync_end: # See description
 ```
 
 |Field Name|Description|Type|
@@ -709,6 +711,8 @@ failed: 1
 |enrolled|Holds the count of the resources that were successfully enrolled.|number|
 |failed|Holds the count of the resources that failed to enroll.|number|
 |found|Holds the count of resources found. After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.|number|
+|sync_end|Timestamp of when discovering the resources ended.||
+|sync_start|Timestamp of when discovering the resources started.||
 
 ## Spec
 

@@ -63,10 +63,3 @@ func resolveE2EDir() (string, error) {
 	e2eDir := filepath.Dir(filepath.Dir(exePath))
 	return e2eDir, nil
 }
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}

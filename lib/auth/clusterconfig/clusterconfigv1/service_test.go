@@ -1438,9 +1438,9 @@ func TestAuditEventsEmitted(t *testing.T) {
 			require.Empty(t, cmp.Diff(&mfaEnabledEvent, evt))
 
 			p.Spec.SecondFactor = constants.SecondFactorOTP
-			// Set AllowBrowserAuthentication back to nil as it has materialized as true
+			// Set AllowCLIAuthViaBrowser back to nil as it has materialized as true
 			// from the previous authPref setup
-			p.Spec.AllowBrowserAuthentication = nil
+			p.Spec.AllowCLIAuthViaBrowser = nil
 
 			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
 			require.NoError(t, err)
@@ -1675,6 +1675,7 @@ func (f fakeChecker) CheckAccessToRule(context services.RuleContext, namespace s
 
 type envConfig struct {
 	authorizer                 authz.Authorizer
+	scopedAuthorizer           authz.ScopedAuthorizer
 	emitter                    apievents.Emitter
 	defaultAuthPreference      types.AuthPreference
 	defaultNetworkingConfig    types.ClusterNetworkingConfig
@@ -1735,6 +1736,12 @@ func withClusterName(cn types.ClusterName) serviceOpt {
 	}
 }
 
+type scopedAuthorizerFunc func(context.Context) (*authz.ScopedContext, error)
+
+func (f scopedAuthorizerFunc) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	return f(ctx)
+}
+
 type env struct {
 	*clusterconfigv1.Service
 	emitter                    *eventstest.ChannelEmitter
@@ -1767,12 +1774,24 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		opt(&cfg)
 	}
 
+	// Implement a default scoped authorizer
+	if cfg.scopedAuthorizer == nil {
+		cfg.scopedAuthorizer = scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+			unscoped, err := cfg.authorizer.Authorize(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return authz.ScopedContextFromUnscopedContext(unscoped), nil
+		})
+	}
+
 	svc, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:       cfg.service,
-		Backend:     cfg.service,
-		Authorizer:  cfg.authorizer,
-		Emitter:     cfg.emitter,
-		AccessGraph: cfg.accessGraphConfig,
+		Cache:            cfg.service,
+		Backend:          cfg.service,
+		Authorizer:       cfg.authorizer,
+		ScopedAuthorizer: cfg.scopedAuthorizer,
+		Emitter:          cfg.emitter,
+		AccessGraph:      cfg.accessGraphConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating users service")

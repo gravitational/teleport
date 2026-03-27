@@ -26,10 +26,12 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/lmittmann/tint"
+	"golang.org/x/sync/errgroup"
 )
 
 var logLevel = new(slog.LevelVar)
@@ -41,7 +43,49 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	err := run()
+	e2eDir, err := resolveE2EDir()
+	if err != nil {
+		slog.Error("failed to resolve e2e directory", "error", err)
+		os.Exit(1)
+	}
+
+	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
+	if err != nil {
+		slog.Error("failed to parse flags", "error", err)
+		os.Exit(1)
+	}
+
+	if mode == modeReport || mode == modeTestResults {
+		repo := flags.reportRepo
+		if repo == "" {
+			repo = detectRepo(e2eDir)
+		}
+
+		cfg := &reportConfig{
+			prNumber:  flags.reportPR,
+			repo:      repo,
+			e2eDir:    e2eDir,
+			tracePath: flags.tracePath,
+		}
+
+		var runErr error
+		if mode == modeReport {
+			runErr = runReport(cfg)
+		} else {
+			runErr = runTestResults(cfg)
+		}
+
+		if runErr != nil {
+			slog.Error("runner exited with error", "error", runErr)
+			os.Exit(1)
+		}
+		return
+	}
+
+	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+
+	isCI := os.Getenv("CI") != ""
+	runErr := run(flags, mode, e2eDir, isCI)
 
 	// Reset the terminal before exiting to ensure we aren't left with a messed up terminal if interrupted
 	if tty, err := os.Open("/dev/tty"); err == nil {
@@ -53,8 +97,18 @@ func main() {
 		tty.Close()
 	}
 
-	if err != nil {
-		slog.Error("runner exited with error", "error", err)
+	if isCI {
+		if err := writeGitHubReport(e2eDir); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+		}
+	}
+
+	if !flags.quiet {
+		printTestSummary(e2eDir)
+	}
+
+	if runErr != nil {
+		slog.Error("runner exited with error", "error", runErr)
 		os.Exit(1)
 	}
 }
@@ -62,52 +116,66 @@ func main() {
 type e2eConfig struct {
 	e2eFlags
 	isCI     bool
-	dataDir  string
 	repoRoot string
 	e2eDir   string
 	certsDir string
 
-	nodeTeleportVersion    string
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
 	stateTemplate          string
-	teleportConfigPath     string
+
+	// teleportBuildDir is the directory in which to run `make build/teleport`.
+	// Empty when the teleport binary is overridden and no build is needed.
+	teleportBuildDir string
+
+	connectAppDir     string
+	connectTshBinPath string
 
 	creds *credentials
 
-	proxyPort, authPort, sshPort int
+	instances       []*browserInstance
+	connectInstance *browserInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
 // and hands off to the Playwright runner in whatever mode was requested.
-func run() error {
+func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	e2eDir, err := resolveE2EDir()
-	if err != nil {
-		return fmt.Errorf("failed to resolve e2e directory: %w", err)
-	}
-
-	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
-	if err != nil {
-		return fmt.Errorf("failed to parse flags: %w", err)
-	}
-
 	config := &e2eConfig{
 		e2eFlags:               *flags,
-		isCI:                   os.Getenv("CI") != "",
-		dataDir:                filepath.Join(e2eDir, "data"),
+		isCI:                   isCI,
 		repoRoot:               filepath.Dir(e2eDir),
 		e2eDir:                 e2eDir,
 		certsDir:               filepath.Join(e2eDir, "certs"),
 		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
 		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
-		nodeTeleportVersion:    envOrDefault("TELEPORT_NODE_VERSION", "18"),
+		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
+		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
 	}
 
-	slog.Info("running playwright in mode", "mode", mode)
+	switch config.teleportBin {
+	case filepath.Join(config.repoRoot, "build", "teleport"):
+		config.teleportBuildDir = config.repoRoot
+	case filepath.Join(config.repoRoot, "e", "build", "teleport"):
+		config.teleportBuildDir = filepath.Join(config.repoRoot, "e")
+	}
+
+	if flags.browsers == nil {
+		if config.isCI {
+			config.browsers = []string{"chromium", "firefox", "webkit"}
+		} else {
+			config.browsers = []string{"chromium"}
+		}
+	}
+
+	if (mode == modeBrowse || mode == modeCodegen) && len(config.browsers) > 1 {
+		return fmt.Errorf("--%s only supports a single browser, got: %v", mode, config.browsers)
+	}
+
+	slog.Info("running playwright in mode", "mode", mode, "browsers", config.browsers)
 
 	slog.Debug("using teleport binary", "path", flags.teleportBin)
 	slog.Debug("using tctl binary", "path", flags.tctlBin)
@@ -116,21 +184,44 @@ func run() error {
 		slog.Debug("CI environment detected")
 	}
 
-	portTargets := []*int{&config.proxyPort, &config.authPort}
+	for _, browser := range config.browsers {
+		inst := &browserInstance{
+			browser: browser,
+			log:     newBrowserLogger(browser),
+			dataDir: filepath.Join(e2eDir, "data", browser),
+		}
+		config.instances = append(config.instances, inst)
+	}
 
-	if sshNode.enabled {
-		portTargets = append(portTargets, &config.sshPort)
+	if connect.enabled {
+		config.connectInstance = &browserInstance{
+			browser: "connect",
+			log:     newBrowserLogger("connect"),
+			dataDir: filepath.Join(e2eDir, "data", "connect"),
+		}
+	}
+
+	// Allocate all ports at once to minimize race windows.
+	var portTargets []*int
+	for _, inst := range config.instances {
+		portTargets = append(portTargets, &inst.proxyPort, &inst.authPort)
+		if sshNode.enabled {
+			portTargets = append(portTargets, &inst.sshPort)
+		}
+	}
+	if ci := config.connectInstance; ci != nil {
+		portTargets = append(portTargets, &ci.proxyPort, &ci.authPort)
 	}
 
 	if err := allocatePorts(portTargets...); err != nil {
 		return fmt.Errorf("failed to allocate ports: %w", err)
 	}
 
-	slog.Debug("running proxy", "port", config.proxyPort)
-	slog.Debug("running auth server", "port", config.authPort)
-
-	if sshNode.enabled {
-		slog.Debug("running SSH service", "port", config.sshPort)
+	for _, inst := range config.instances {
+		inst.log.Debug("allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
+	}
+	if ci := config.connectInstance; ci != nil {
+		ci.log.Debug("allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
 	}
 
 	if err := build(ctx, config); err != nil {
@@ -150,9 +241,16 @@ func run() error {
 	}
 
 	if config.teleportURL == "" {
-		slog.Debug("cleaning data directory", "path", config.dataDir)
-		if err := os.RemoveAll(config.dataDir); err != nil {
-			return fmt.Errorf("failed to clean data directory: %w", err)
+		allInstances := config.instances
+		if config.connectInstance != nil {
+			allInstances = append(allInstances, config.connectInstance)
+		}
+
+		for _, inst := range allInstances {
+			inst.log.Debug("cleaning data directory", "path", inst.dataDir)
+			if err := os.RemoveAll(inst.dataDir); err != nil {
+				return fmt.Errorf("failed to clean data directory for %s: %w", inst.browser, err)
+			}
 		}
 
 		creds, err := generateUserCredentials()
@@ -161,72 +259,144 @@ func run() error {
 		}
 		config.creds = creds
 
+		// One shared state file used by all instances.
 		stateFile, err := generateStateFile(config.stateTemplate, creds)
 		if err != nil {
 			return fmt.Errorf("failed to generate state file: %w", err)
 		}
-
 		slog.Debug("generated bootstrap state", "path", stateFile)
 
-		teleportConfig, err := generateTeleportConfig(config.teleportConfigTemplate, config)
-		if err != nil {
-			return fmt.Errorf("failed to generate Teleport config: %w", err)
+		for _, inst := range allInstances {
+			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
+			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
+				DataDir:        inst.dataDir,
+				AuthServerPort: inst.authPort,
+				ProxyPort:      inst.proxyPort,
+				KeyFilePath:    filepath.Join(config.certsDir, keyFileName),
+				CertFilePath:   filepath.Join(config.certsDir, certFileName),
+				LicenseFile:    config.licenseFile,
+				LogLevel:       config.teleportLogLevel,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to generate Teleport config for %s: %w", inst.browser, err)
+			}
+			inst.teleportConfigPath = tcfg
+			inst.log.Debug("generated Teleport config", "path", tcfg)
 		}
 
-		config.teleportConfigPath = teleportConfig
-		slog.Debug("generated Teleport config", "path", teleportConfig)
+		g, gctx := errgroup.WithContext(ctx)
+		for _, inst := range allInstances {
+			teleport := &teleportInstance{
+				log:         inst.log,
+				teleportBin: config.teleportBin,
+				proxyPort:   inst.proxyPort,
+				configPath:  inst.teleportConfigPath,
+				stateFile:   stateFile,
+			}
+			if config.isCI || config.quiet {
+				teleport.logFile = filepath.Join(config.e2eDir, "teleport-"+inst.browser+".log")
+				inst.log.Debug("redirecting Teleport logs to file", "path", teleport.logFile)
+			}
+			inst.teleport = teleport
 
-		teleport := &teleportInstance{
-			config:     config,
-			configPath: teleportConfig,
-			stateFile:  stateFile,
+			g.Go(func() error {
+				if err := teleport.start(ctx); err != nil {
+					return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
+				}
+				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
+					return fmt.Errorf("Teleport for %s failed to become ready: %w", inst.browser, err)
+				}
+				return nil
+			})
 		}
-		if config.isCI || config.quiet {
-			teleport.logFile = filepath.Join(config.e2eDir, "teleport.log")
-			slog.Debug("redirecting Teleport logs to file", "path", teleport.logFile)
+		if err := g.Wait(); err != nil {
+			for _, inst := range allInstances {
+				if inst.teleport != nil {
+					inst.teleport.stop()
+				}
+			}
+			return err
 		}
 
-		if err := teleport.start(ctx); err != nil {
-			return fmt.Errorf("failed to start Teleport: %w", err)
-		}
-		defer teleport.stop()
-
-		if err := teleport.waitReady(ctx, 30*time.Second); err != nil {
-			return fmt.Errorf("failed to wait for Teleport to be ready: %w", err)
-		}
+		defer func() {
+			for _, inst := range allInstances {
+				if inst.node != nil {
+					inst.node.stop(context.Background())
+				}
+			}
+			for _, inst := range allInstances {
+				if inst.teleport != nil {
+					inst.teleport.stop()
+				}
+			}
+		}()
 
 		if sshNode.enabled {
-			slog.Info("running with SSH node fixture enabled", "node_version", config.nodeTeleportVersion)
+			slog.Info("running with SSH node fixture enabled")
 
-			nodeConfig, err := generateTeleportNodeConfig(config.nodeConfigTemplate, config)
+			nodeBin := config.teleportBin
+			if runtime.GOOS != "linux" {
+				buildDir := config.teleportBuildDir
+				if buildDir == "" {
+					buildDir = config.repoRoot
+				}
+				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
+			}
+
+			dockerHost, err := resolveDockerHost()
 			if err != nil {
-				return fmt.Errorf("failed to generate Teleport node config: %w", err)
+				return fmt.Errorf("resolving docker host: %w", err)
 			}
 
-			slog.Debug("generated Teleport node config", "path", nodeConfig)
+			for _, inst := range config.instances {
+				outPath := filepath.Join(e2eDir, "node", inst.browser+"-node.yaml")
+				nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
+					AuthServerHost: dockerHost,
+					AuthServerPort: inst.authPort,
+					SSHServerPort:  inst.sshPort,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
+				}
+				inst.log.Debug("generated Teleport node config", "path", nodeConfigPath)
 
-			node := &dockerNode{
-				config:         config,
-				imageName:      "teleport-e2e-node",
-				containerName:  "teleport-e2e-node",
-				configPath:     nodeConfig,
-				dockerfilePath: filepath.Join(config.e2eDir, "node", "Dockerfile"),
-				ctr:            nil,
+				inst.node = &dockerNode{
+					log:                inst.log,
+					sshPort:            inst.sshPort,
+					tctlBin:            config.tctlBin,
+					teleportConfigPath: inst.teleportConfigPath,
+					logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
+					imageName:          nodeImage,
+					containerName:      "teleport-e2e-node-" + inst.browser,
+					configPath:         nodeConfigPath,
+					teleportBin:        nodeBin,
+				}
 			}
 
-			if err := node.start(ctx); err != nil {
-				return fmt.Errorf("failed to start docker node: %w", err)
+			if err := pullImage(ctx, nodeImage); err != nil {
+				return fmt.Errorf("pulling docker image: %w", err)
 			}
-			// using context.Background() here because we want to ensure the node is stopped even if the main context is canceled.
-			defer node.stop(context.Background())
 
-			if err := node.waitJoined(ctx, 30*time.Second); err != nil {
-				return fmt.Errorf("failed to wait for node to join cluster: %w", err)
+			g, gctx := errgroup.WithContext(ctx)
+			for _, inst := range config.instances {
+				g.Go(func() error {
+					if err := inst.node.start(gctx); err != nil {
+						return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
+					}
+					if err := inst.node.waitJoined(gctx, 30*time.Second); err != nil {
+						return fmt.Errorf("docker node for %s failed to join cluster: %w", inst.browser, err)
+					}
+					return nil
+				})
+			}
+			if err := g.Wait(); err != nil {
+				return err
 			}
 		}
 	}
 
 	var extraProjects []string
+	// Project names from playwright.config.ts.
 	if sshNode.enabled {
 		extraProjects = append(extraProjects, "with-ssh-node")
 	}

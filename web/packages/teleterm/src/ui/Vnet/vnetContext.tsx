@@ -175,7 +175,8 @@ export const VnetContextProvider: FC<
     () => mainProcessClient.getRuntimeSettings().platform,
     [mainProcessClient]
   );
-  const isSupported = platform === 'darwin' || platform === 'win32';
+  const isSupported =
+    platform === 'darwin' || platform === 'win32' || platform === 'linux';
 
   const [checkInstallTimeRequirementsAttempt, checkInstallTimeRequirements] =
     useAsync(
@@ -643,6 +644,17 @@ function makeInstallTimeRequirements(
       },
     };
   }
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.VERSION_MISMATCH
+  ) {
+    return {
+      status: 'failed',
+      reason: {
+        kind: 'windows-service-version-mismatch',
+      },
+    };
+  }
 
   return { status: 'success' };
 }
@@ -659,6 +671,9 @@ type InstallTimeRequirementsCheck =
       reason:
         | {
             kind: 'missing-windows-service';
+          }
+        | {
+            kind: 'windows-service-version-mismatch';
           }
         | {
             kind: 'error';

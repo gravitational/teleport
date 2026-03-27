@@ -181,5 +181,5 @@ func newClusterAnonymizer(authClusterID string) (utils.Anonymizer, error) {
 	if err != nil {
 		return nil, trace.BadParameter("Invalid auth cluster ID %s", authClusterID)
 	}
-	return utils.NewHMACAnonymizer(authClusterID)
+	return utils.NewHMACAnonymizer(utils.AnonymizationKeyString(authClusterID))
 }

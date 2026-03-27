@@ -660,7 +660,18 @@ Regular expressions use Google's re2 syntax. For more information, see the re2 [
 
 ### Sharing user traits between trusted clusters
 
-You can share user SSH logins, Kubernetes users and groups, and database users and names between trusted clusters.
+You can share user traits between trusted clusters, configuring the principals a
+user is allowed to assume when they access infrastructure protected by a remote
+cluster.
+
+The traits that a local cluster passes to a remote cluster include:
+- SSH logins
+- Kubernetes users
+- Kubernetes groups
+- Database users
+- Database names
+- AWS role ARNs
+
 For example, assume you have a root cluster with a role named `root` and the following allow rules:
 
 ```yaml
@@ -669,6 +680,7 @@ kubernetes_groups: ["system:masters"]
 kubernetes_users: ["alice"]
 db_users: ["postgres"]
 db_names: ["dev", "metrics"]
+aws_role_arns: ["arn:aws:iam::123456789012:role/example"]
 ```
 
 When setting up the trusted cluster relationship, the leaf cluster can choose
@@ -689,6 +701,7 @@ kubernetes_groups: ["{{internal.kubernetes_groups}}"]
 kubernetes_users: ["{{internal.kubernetes_users}}"]
 db_users: ["{{internal.db_users}}"]
 db_names: ["{{internal.db_names}}"]
+aws_role_arns: ["{{internal.aws_role_arns}}"]
 ```
 
 User traits that come from an identity provider—such as OIDC claims or SAML

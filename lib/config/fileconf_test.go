@@ -493,7 +493,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "true",
+					"allow_cli_auth_via_browser": "true",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -501,7 +501,7 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(true),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled",
@@ -511,7 +511,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
 					},
-					"allow_browser_authentication": "false",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
@@ -519,31 +519,31 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					RPID: "example.com",
 				},
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication disabled without WebAuthn",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "false",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "false",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: types.NewBoolOption(false),
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}, {
 			desc: "Local auth with browser authentication empty string",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":                         "local",
-					"allow_browser_authentication": "",
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "",
 				}
 			},
 			expected: &AuthenticationConfig{
-				Type:                       "local",
-				AllowBrowserAuthentication: &types.BoolOption{},
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: &types.BoolOption{},
 			},
 		},
 	}

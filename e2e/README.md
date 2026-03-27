@@ -4,7 +4,8 @@ This directory contains end-to-end tests that run against a real Teleport instan
 
 ## Setup
 
-The runner will install the E2E dependencies and Playwright browsers for you on each run. You can also set up your environment manually if you prefer:
+The runner will install the E2E dependencies and Playwright browsers for you on each run. You can also set up your
+environment manually if you prefer:
 
 ```bash
 pnpm install
@@ -27,12 +28,13 @@ click through to screenshots and anything else from Playwright's test results.
 
 By default, the runner runs in test mode. Use one of the following flags to change the mode (mutually exclusive):
 
-| Flag        | Description                                       |
-|-------------|---------------------------------------------------|
-| `--ui`      | Open Playwright UI mode                           |
-| `--debug`   | Run tests with Playwright inspector (`PWDEBUG=1`) |
-| `--codegen` | Open Playwright codegen against running Teleport  |
-| `--browse`  | Open a signed-in browser for manual testing       |
+| Flag               | Description                                                                     |
+|--------------------|---------------------------------------------------------------------------------|
+| `--ui`             | Open Playwright UI mode                                                         |
+| `--debug`          | Run tests with Playwright inspector (`PWDEBUG=1`)                               |
+| `--codegen`        | Open Playwright codegen against running Teleport. Available only for web tests. |
+| `--browse`         | Open a signed-in browser for manual web testing                                 |
+| `--browse-connect` | Open a signed-in Teleport Connect app for manual testing                        |
 
 ### Flags
 
@@ -52,9 +54,10 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 
 ### Fixtures
 
-| Flag              | Description                                            |
-|-------------------|--------------------------------------------------------|
-| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker) |
+| Flag              | Description                                                                          |
+|-------------------|--------------------------------------------------------------------------------------|
+| `--with-ssh-node` | Start and connect a Teleport SSH node (runs in Docker)                               |
+| `--with-connect`  | Build Teleport Connect. Enabled by default when running tests in `e2e/tests/connect` |
 
 ### Common Commands
 
@@ -62,15 +65,23 @@ Typically, you'll want to run with `--no-build` during test development to skip 
 run. `--quiet` is also useful to reduce the noise from Teleport logs. The logs are captured in `teleport.log` for
 debugging purposes.
 
+Connect is built automatically when running `tests/connect` paths or when using `--browse-connect`, or `--full`.
+
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
-./e2e/run.sh --no-build e2e/tests/authenticated/roles.spec.ts
+./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Run only Connect tests, skip rebuilding of both Teleport and Connect
+./e2e/run.sh --no-build e2e/tests/connect
 
 # Open a browser with auth already set up for manual testing
 ./e2e/run.sh --browse
 
+# Open Connect with auth already set up for manual testing
+./e2e/run.sh --browse-connect
+
 # Debug a failing test with the Playwright inspector
-./e2e/run.sh --debug e2e/tests/authenticated/roles.spec.ts
+./e2e/run.sh --debug e2e/tests/web/authenticated/roles.spec.ts
 
 # Open Playwright UI mode (pick and run tests interactively)
 ./e2e/run.sh --ui
@@ -79,7 +90,7 @@ debugging purposes.
 ./e2e/run.sh --codegen
 
 # Update snapshot baselines after a visual change
-./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/with-ssh-node/ssh.spec.ts
+./e2e/run.sh --update-snapshots --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
 ```
 
 ### More Examples
@@ -89,7 +100,7 @@ debugging purposes.
 ./e2e/run.sh
 
 # Run SSH node tests with the fixture enabled
-./e2e/run.sh --with-ssh-node e2e/tests/with-ssh-node/ssh.spec.ts
+./e2e/run.sh --with-ssh-node e2e/tests/web/with-ssh-node/ssh.spec.ts
 
 # Run tests with all fixtures enabled, skipping the Teleport build
 ./e2e/run.sh --full --no-build
