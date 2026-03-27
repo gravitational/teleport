@@ -36,32 +36,18 @@ const (
 	Insecure TLSMode = "insecure"
 )
 
-// AllTLSModes keeps all possible database TLS modes for easy access.
-var AllTLSModes = []TLSMode{VerifyFull, VerifyCA, Insecure}
-
-// CheckAndSetDefaults check if TLSMode holds a correct value. If the value is not set
-// VerifyFull is set as a default. BadParameter error is returned if value set is incorrect.
-func (m *TLSMode) CheckAndSetDefaults() error {
-	switch *m {
-	case "": // Use VerifyFull if not set.
-		*m = VerifyFull
-	case VerifyFull, VerifyCA, Insecure:
-		// Correct value, do nothing.
-	default:
-		return trace.BadParameter("provided incorrect TLSMode value. Correct values are: %v", AllTLSModes)
-	}
-
-	return nil
-}
-
 // ToProto returns a matching protobuf type or VerifyFull for empty value.
-func (m TLSMode) ToProto() types.DatabaseTLSMode {
+func (m TLSMode) ToProto() (types.DatabaseTLSMode, error) {
 	switch m {
 	case VerifyCA:
-		return types.DatabaseTLSMode_VERIFY_CA
+		return types.DatabaseTLSMode_VERIFY_CA, nil
 	case Insecure:
-		return types.DatabaseTLSMode_INSECURE
-	default: // VerifyFull
-		return types.DatabaseTLSMode_VERIFY_FULL
+		return types.DatabaseTLSMode_INSECURE, nil
+	case VerifyFull:
+		return types.DatabaseTLSMode_VERIFY_FULL, nil
+	case "": // default to verify-full.
+		return types.DatabaseTLSMode_VERIFY_FULL, nil
+	default:
+		return 0, trace.BadParameter("provided invalid TLS mode %q. Correct values are: %v", string(m), []TLSMode{VerifyFull, VerifyCA, Insecure})
 	}
 }
