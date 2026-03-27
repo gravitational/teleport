@@ -208,10 +208,17 @@ To estimate the resource requirements for the SSH Service:
 1. Determine the maximum number of concurrent sessions.
 1. Determine the maximum number of new sessions per second.
 
-Using `tsh ssh` and `tsh bench ssh`, simulate session activity to measure resource usage under expected conditions.
+Using `tsh bench`, simulate session activity to measure resource usage under expected conditions.
 Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
 
-For example to spawn 32 requests per second for 2 minutes using a custom payload script against a specific agent:
+For example to spawn 32 requests per second for 2 minutes against a specific agent:
 ```sh
-tsh bench ssh --rate=32 --duration=2m user@node-agent -- /tmp/node-work.sh
+tsh bench ssh --rate=32 --duration=2m user@node-agent -- ls
 ```
+
+Similarly to test 64 concurrent sessions against a single agent:
+```sh
+tsh bench web ssh --max=64 --duration=2m user@node-agent ls
+```
+
+The payload can be customized to represent a typical usecase.
