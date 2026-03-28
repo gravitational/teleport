@@ -36,3 +36,5 @@ export const teleportConfig = required('E2E_TELEPORT_CONFIG');
 export const startUrl = required('START_URL');
 export const connectTshBin = required('E2E_CONNECT_TSH_BIN');
 export const connectAppDir = required('E2E_CONNECT_APP_DIR');
+export const leafProxyUrl = process.env.E2E_LEAF_PROXY_URL || '';
+export const leafTeleportConfig = process.env.E2E_LEAF_TELEPORT_CONFIG || '';

@@ -48,3 +48,54 @@ spec:
       - root
     windows_logins: null
 version: v2
+---
+kind: user
+metadata:
+  id: 1689831509413322786
+  name: alice
+spec:
+  created_by:
+    time: "2023-07-20T05:38:29.4127778Z"
+    user:
+      name: a0fc0c8b-adaa-4a58-b604-10388415fa0b.teleport-e2e
+  expires: "0001-01-01T00:00:00Z"
+  local_auth:
+    mfa:
+      - addedAt: "2024-11-26T13:50:42.504120787Z"
+        id: 2b3c4d5e-6f78-90ab-cdef-234567890abc
+        kind: mfa_device
+        lastUsed: "2024-11-26T13:50:42.506405156Z"
+        metadata:
+          Name: webauthn-device
+          Namespace: default
+        webauthn:
+          credentialId: {{ .CredentialIDBase64 }}
+          publicKeyCbor: {{ .PublicKeyCBORBase64 }}
+          attestationType: none
+          aaguid: AAAAAAAAAAAAAAAAAAAAAA==
+          signatureCounter: 0
+          residentKey: false
+          credentialRpId: localhost
+        version: v1
+    password_hash: {{ .PasswordHashBase64 }}
+  roles:
+    - access
+    - editor
+  status:
+    is_locked: false
+    lock_expires: "0001-01-01T00:00:00Z"
+    locked_time: "0001-01-01T00:00:00Z"
+    recovery_attempt_lock_expires: "0001-01-01T00:00:00Z"
+  traits:
+    aws_role_arns: null
+    azure_identities: null
+    db_names: null
+    db_roles: null
+    db_users: null
+    gcp_service_accounts: null
+    kubernetes_groups: null
+    kubernetes_users: null
+    logins:
+      - root
+    windows_logins: null
+version: v2

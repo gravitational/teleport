@@ -65,7 +65,7 @@ export async function launchApp(homeDir: string) {
   }
 }
 
-export async function login(page: Page): Promise<void> {
+export async function login(page: Page, username = 'bob'): Promise<void> {
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   const clusterInput = page.getByPlaceholder('teleport.example.com');
   await expect(clusterInput).toBeVisible();
@@ -74,7 +74,7 @@ export async function login(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 
-  await page.getByPlaceholder('Username').fill('bob');
+  await page.getByPlaceholder('Username').fill(username);
   await page.getByPlaceholder('Password').fill(password);
   await page.getByRole('button', { name: 'Sign In' }).click();
   await expect(page.getByPlaceholder('Search or jump to')).toBeVisible();

@@ -42,6 +42,7 @@ type dockerNode struct {
 	tctlBin            string
 	teleportConfigPath string
 	logFilePath        string
+	nodeName           string
 
 	imageName     string
 	containerName string
@@ -66,7 +67,7 @@ func (d *dockerNode) removeStale(ctx context.Context) {
 }
 
 func (d *dockerNode) runContainer(ctx context.Context) error {
-	d.log.Info("starting docker SSH node")
+	d.log.Info("starting docker SSH node", "name", d.nodeName)
 
 	d.removeStale(ctx)
 
@@ -124,14 +125,14 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 			return false, nil
 		}
 
-		return strings.Contains(string(out), "docker-node"), nil
+		return strings.Contains(string(out), d.nodeName), nil
 	}
 
 	if err := pollUntil(ctx, timeout, 1*time.Second, probe); err != nil {
 		return fmt.Errorf("docker node failed to join cluster: %w", err)
 	}
 
-	d.log.Info("docker SSH node is ready")
+	d.log.Info("docker SSH node is ready", "name", d.nodeName)
 
 	return nil
 }
