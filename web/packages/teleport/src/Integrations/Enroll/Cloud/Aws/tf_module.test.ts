@@ -16,38 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Regions } from 'teleport/services/integrations';
-
 import {
   buildTerraformConfig,
   AwsDiscoverTerraformModuleConfig,
 } from './tf_module';
-import type { ServiceConfigs } from './types';
+import type { AwsMatcher } from './types';
 
 describe('buildTerraformConfig', () => {
-  const disabled = { enabled: false, regions: ['*'] as ['*'], tags: [] };
-
-  const baseConfigs: ServiceConfigs = {
-    ec2: {
-      enabled: true,
-      regions: ['us-east-1'] as Regions[],
-      tags: [{ name: 'env', value: 'prod' }],
-    },
-    eks: disabled,
+  const ec2WithRegionAndTags: AwsMatcher = {
+    type: 'ec2',
+    regions: ['us-east-1'],
+    tags: [{ name: 'env', value: 'prod' }],
   };
 
   const baseConfig: AwsDiscoverTerraformModuleConfig = {
     integrationName: 'my-integration',
-    configs: baseConfigs,
+    matchers: [ec2WithRegionAndTags],
     version: '19.0.0',
   };
-
-  const withConfigs = (
-    overrides: Partial<ServiceConfigs>
-  ): AwsDiscoverTerraformModuleConfig => ({
-    ...baseConfig,
-    configs: { ...baseConfigs, ...overrides },
-  });
 
   test('uses production registry for release versions', () => {
     const result = buildTerraformConfig(baseConfig);
@@ -78,12 +64,11 @@ describe('buildTerraformConfig', () => {
     expect(result).not.toContain('eks');
   });
 
-  test('EC2 with wildcard regions omits regions field', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: { enabled: true, regions: ['*'], tags: [] },
-      })
-    );
+  test('EC2 with no region selection omits regions field', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [{ type: 'ec2', regions: [], tags: [] }],
+    });
 
     expect(result).toContain('types = ["ec2"]');
     expect(result).not.toContain('regions');
@@ -91,16 +76,16 @@ describe('buildTerraformConfig', () => {
   });
 
   test('EKS only with specific regions and tags', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: disabled,
-        eks: {
-          enabled: true,
-          regions: ['us-west-2'] as Regions[],
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'eks',
+          regions: ['us-west-2'],
           tags: [{ name: 'team', value: 'platform' }],
         },
-      })
-    );
+      ],
+    });
 
     expect(result).toContain('types   = ["eks"]');
     expect(result).toContain('regions = ["us-west-2"]');
@@ -109,20 +94,21 @@ describe('buildTerraformConfig', () => {
   });
 
   test('EC2 + EKS with different regions and tags', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: {
-          enabled: true,
-          regions: ['us-east-1'] as Regions[],
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'ec2',
+          regions: ['us-east-1'],
           tags: [{ name: 'env', value: 'prod' }],
         },
-        eks: {
-          enabled: true,
-          regions: ['us-west-2'] as Regions[],
+        {
+          type: 'eks',
+          regions: ['us-west-2'],
           tags: [{ name: 'team', value: 'platform' }],
         },
-      })
-    );
+      ],
+    });
 
     expect(result).toContain('types   = ["ec2"]');
     expect(result).toContain('types   = ["eks"]');
@@ -131,72 +117,68 @@ describe('buildTerraformConfig', () => {
   });
 
   test('omits tags when no tags specified', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: {
-          enabled: true,
-          regions: ['us-east-1'] as Regions[],
-          tags: [],
-        },
-      })
-    );
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [{ type: 'ec2', regions: ['us-east-1'], tags: [] }],
+    });
 
     expect(result).toContain('types   = ["ec2"]');
     expect(result).not.toContain('tags');
   });
 
   test('omits wildcard tags', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: {
-          enabled: true,
-          regions: ['us-east-1'] as Regions[],
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'ec2',
+          regions: ['us-east-1'],
           tags: [{ name: '*', value: '*' }],
         },
-      })
-    );
+      ],
+    });
 
     expect(result).not.toContain('tags');
   });
 
   test('tags with multiple values for same key', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: {
-          enabled: true,
-          regions: ['us-east-1'] as Regions[],
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'ec2',
+          regions: ['us-east-1'],
           tags: [
             { name: 'env', value: 'prod' },
             { name: 'env', value: 'staging' },
           ],
         },
-      })
-    );
+      ],
+    });
 
     expect(result).toContain('env = ["prod", "staging"]');
   });
 
-  test('neither service enabled produces no aws_matchers', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: disabled,
-        eks: disabled,
-      })
-    );
+  test('no matchers produces no aws_matchers', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [],
+    });
 
     expect(result).not.toContain('aws_matchers');
   });
 
   test('regions are sorted alphabetically', () => {
-    const result = buildTerraformConfig(
-      withConfigs({
-        ec2: {
-          enabled: true,
-          regions: ['us-west-2', 'eu-west-1', 'us-east-1'] as Regions[],
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'ec2',
+          regions: ['us-west-2', 'eu-west-1', 'us-east-1'],
           tags: [],
         },
-      })
-    );
+      ],
+    });
 
     expect(result).toContain(
       'regions = ["eu-west-1", "us-east-1", "us-west-2"]'

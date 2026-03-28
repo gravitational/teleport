@@ -21,11 +21,11 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 import cfg from 'teleport/config';
 
 import { hcl, TFObject } from '../terraform';
-import { AwsLabel, ServiceConfig, ServiceConfigs, serviceTypes } from './types';
+import { AwsLabel, AwsMatcher } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;
-  configs: ServiceConfigs;
+  matchers: AwsMatcher[];
   version: string;
 };
 
@@ -37,9 +37,6 @@ const isStaging = (version: string): boolean => {
 
   return parsed.prerelease.length > 0;
 };
-
-const isWildcardRegion = (config: ServiceConfig): boolean =>
-  config.regions.length === 1 && config.regions[0] === '*';
 
 const buildTagMap = (tags: AwsLabel[]): Record<string, string[]> | null => {
   const filtered = tags.filter(o => o.value && o.name);
@@ -58,26 +55,24 @@ const buildTagMap = (tags: AwsLabel[]): Record<string, string[]> | null => {
   return tagMap;
 };
 
-const buildMatcher = (type: string, config: ServiceConfig): TFObject | null => {
-  if (!config.enabled) return null;
+const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
+  const obj: TFObject = { types: [matcher.type] };
 
-  const matcher: TFObject = { types: [type] };
-
-  if (!isWildcardRegion(config)) {
-    matcher.regions = [...config.regions].sort();
+  if (matcher.regions.length > 0) {
+    obj.regions = [...matcher.regions].sort();
   }
 
-  const tags = buildTagMap(config.tags);
+  const tags = buildTagMap(matcher.tags);
   if (tags) {
-    matcher.tags = tags;
+    obj.tags = tags;
   }
 
-  return matcher;
+  return obj;
 };
 
 export const buildTerraformConfig = ({
   integrationName,
-  configs,
+  matchers,
   version,
 }: AwsDiscoverTerraformModuleConfig): string => {
   const tfRegistry = isStaging(version)
@@ -88,11 +83,7 @@ export const buildTerraformConfig = ({
 
   const integrationNameOrNull = integrationName.trim() || null;
 
-  const matchers = serviceTypes
-    .map(type => buildMatcher(type, configs[type]))
-    .filter(Boolean) as TFObject[];
-
-  const awsMatchers = matchers.length > 0 ? matchers : null;
+  const awsMatchers = matchers.length > 0 ? matchers.map(buildTfMatcher) : null;
 
   const tfModule = hcl`# Terraform Module
 module "aws_discovery" {
