@@ -180,8 +180,8 @@ You should see the `roles/iam.serviceAccountTokenCreator` role.
 Provide the following information and then generate a configuration file for the
 Teleport Database Service:
 
-- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport
-Proxy Service or cloud-hosted Teleport Enterprise site
+- <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport Proxy Service
+or cloud-hosted Teleport Enterprise site
 - <Var name="project-id"/> The GCP project ID. You can normally see it in the
 organization view at the top of the GCP dashboard.
 - <Var name="instance-id"/> The name of your Cloud Spanner instance.
@@ -211,6 +211,8 @@ $ sudo teleport db configure create \
   title="Verify database availability"
   description="Confirm that the Spanner database appears in Teleport."
 >
+
+Replace `example.teleport.sh` and `example-user` with the proxy and username in question.
 
 ```code
 $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=<Var name="example-user" />
