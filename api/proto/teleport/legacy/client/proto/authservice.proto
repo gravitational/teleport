@@ -2492,6 +2492,10 @@ message PresenceMFAChallengeRequest {
   string ProxyAddress = 3 [(gogoproto.jsontag) = "proxy_address,omitempty"];
   // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
   string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the SSOMFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string BrowserMFARequestID = 5 [(gogoproto.jsontag) = "browser_mfa_request_id,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.

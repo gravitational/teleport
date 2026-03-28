@@ -43,14 +43,6 @@ func (a *Server) BeginBrowserMFAChallenge(ctx context.Context, params mfatypes.B
 		return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
 	}
 
-	proxyAddr := params.ProxyAddress
-	if proxyAddr == "" {
-		proxyAddr = a.getProxyPublicAddr(ctx)
-	}
-	if proxyAddr == "" {
-		return nil, trace.BadParameter("proxy address not available for browser MFA")
-	}
-
 	requestID := uuid.NewString()
 	browserChal := &proto.BrowserMFAChallenge{
 		RequestId: requestID,

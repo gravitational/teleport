@@ -219,16 +219,24 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 	query.Set("channel_id", channelID)
 	ssoClientRedirectURL.RawQuery = query.Encode()
 
+	// If BrowserMFARequestID is set, don't set the challenge extensions.
+	// They will be gotten from the stored MFASession on the backend and
+	// applied to the challenge.
+	var challengeExtensions *mfav1.ChallengeExtensions
+	if req.BrowserMFARequestID == "" {
+		challengeExtensions = &mfav1.ChallengeExtensions{
+			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse:                  allowReuse,
+			UserVerificationRequirement: req.UserVerificationRequirement,
+		}
+	}
+
 	chal, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: mfaRequiredCheckProto,
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
-			AllowReuse:                  allowReuse,
-			UserVerificationRequirement: req.UserVerificationRequirement,
-		},
+		MFARequiredCheck:     mfaRequiredCheckProto,
+		ChallengeExtensions:  challengeExtensions,
 		SSOClientRedirectURL: ssoClientRedirectURL.String(),
 		ProxyAddress:         req.ProxyAddress,
 		BrowserMFARequestID:  req.BrowserMFARequestID,

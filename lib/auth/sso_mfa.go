@@ -157,8 +157,9 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user, sessionID, conne
 		ConnectorType:     connectorType,
 		ClientRedirectURL: clientRedirectURL,
 		ChallengeExtensions: &mfatypes.ChallengeExtensions{
-			Scope:      ext.Scope,
-			AllowReuse: ext.AllowReuse,
+			Scope:                       ext.Scope,
+			AllowReuse:                  ext.AllowReuse,
+			UserVerificationRequirement: ext.UserVerificationRequirement,
 		},
 		SourceCluster: sourceCluster,
 		TargetCluster: targetCluster,
