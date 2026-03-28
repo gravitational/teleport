@@ -21,9 +21,8 @@ import { useState } from 'react';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
-
 import { awsRegionGroups } from '../Aws/regions';
+import { CloudRegion } from '../Shared/types';
 import { RegionMultiSelector } from './RegionMultiSelector';
 
 export default {
@@ -32,7 +31,7 @@ export default {
 };
 
 export const AWS = () => {
-  const [selectedRegions, setSelectedRegions] = useState<AwsRegion[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<CloudRegion[]>([]);
 
   return (
     <Validation>

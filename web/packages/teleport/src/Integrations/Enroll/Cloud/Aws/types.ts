@@ -16,23 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
-
-import { WildcardRegion } from '../Shared';
+import { Regions } from 'teleport/services/integrations';
 
 export type AwsLabel = {
   name: string;
   value: string;
 };
 
+export type ServiceType = 'ec2' | 'eks';
+
+export const serviceTypes: ServiceType[] = ['ec2', 'eks'];
+
 export type ServiceConfig = {
   enabled: boolean;
-  regions: WildcardRegion | AwsRegion[];
+  regions: Regions[];
   tags: AwsLabel[];
 };
 
-export type ServiceType = 'ec2' | 'eks';
-
 export type ServiceConfigs = Record<ServiceType, ServiceConfig>;
 
-export const serviceTypes: ServiceType[] = ['ec2', 'eks'];
+export type AwsMatcher = {
+  type: ServiceType;
+  regions: Regions[];
+  tags: AwsLabel[];
+};

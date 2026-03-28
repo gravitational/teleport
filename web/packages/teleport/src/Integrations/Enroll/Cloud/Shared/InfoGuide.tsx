@@ -63,7 +63,7 @@ export const ContentWithSidePanel = styled(Box)<{
 
 export function useTerraformInfoGuide(defaultOpen = true) {
   const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    defaultOpen ? 'terraform' : null
+    defaultOpen ? 'info' : null
   );
 
   const isPanelOpen = activeInfoGuideTab !== null;
@@ -213,6 +213,12 @@ type TerraformInfoGuideSidePanelProps = {
   TerraformContent: ReactNode;
 };
 
+const FlexibleSidePanel = styled(SlidingSidePanel)`
+  && {
+    width: ${responsivePanelWidth};
+  }
+`;
+
 export function TerraformInfoGuideSidePanel({
   panelWidth,
   activeTab,
@@ -221,7 +227,7 @@ export function TerraformInfoGuideSidePanel({
   TerraformContent,
 }: TerraformInfoGuideSidePanelProps) {
   return (
-    <SlidingSidePanel
+    <FlexibleSidePanel
       isVisible={activeTab !== null}
       skipAnimation={false}
       panelWidth={panelWidth}
@@ -239,6 +245,6 @@ export function TerraformInfoGuideSidePanel({
       >
         {activeTab === 'terraform' ? TerraformContent : InfoGuideContent}
       </InfoGuideContainer>
-    </SlidingSidePanel>
+    </FlexibleSidePanel>
   );
 }

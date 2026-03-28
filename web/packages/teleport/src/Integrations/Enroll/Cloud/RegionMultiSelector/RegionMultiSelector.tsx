@@ -27,9 +27,9 @@ import Select, { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { RegionGroup, RegionId } from './types';
+import { CloudRegion, RegionGroup } from '../Shared/types';
 
-type RegionOption = Option<RegionId, React.ReactNode>;
+type RegionOption = Option<CloudRegion, React.ReactNode>;
 type RegionOptionGroup = {
   label: string;
   options: RegionOption[];
@@ -58,13 +58,6 @@ function MultiRegionValueContainer(
 function OptionWithCheckbox(
   props: OptionProps<RegionOption, true, RegionOptionGroup>
 ) {
-  if (props.data.value === ALL_REGIONS_VALUE) {
-    return (
-      <components.Option {...props}>
-        <Text fontWeight="bold">{props.children}</Text>
-      </components.Option>
-    );
-  }
   return (
     <components.Option {...props}>
       <Flex gap={2}>
@@ -75,22 +68,19 @@ function OptionWithCheckbox(
   );
 }
 
-function defaultRule(): Rule<RegionId[]> {
+function defaultRule(): Rule<CloudRegion[]> {
   return () => () => ({ valid: true });
 }
 
-const ALL_REGIONS_VALUE = '*' as RegionId;
-
 export interface RegionMultiSelectorProps {
-  regionGroups: readonly RegionGroup[];
-  selectedRegions: RegionId[];
-  onChange(regions: RegionId[]): void;
+  regionGroups: readonly RegionGroup<CloudRegion>[];
+  selectedRegions: CloudRegion[];
+  onChange(regions: CloudRegion[]): void;
   label?: string;
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
-  rule?: Rule<RegionId[]>;
-  // Adds an "All regions" option that emits ['*']
+  rule?: Rule<CloudRegion[]>;
   allowAllRegions?: boolean;
 }
 
@@ -105,7 +95,7 @@ export function RegionMultiSelector({
   rule = defaultRule(),
   allowAllRegions = false,
 }: RegionMultiSelectorProps) {
-  const isAllSelected = selectedRegions.includes(ALL_REGIONS_VALUE);
+  const isAllSelected = allowAllRegions && selectedRegions.length === 0;
 
   const { valid, message } = useRule(rule(selectedRegions));
 
@@ -122,27 +112,16 @@ export function RegionMultiSelector({
     })),
   }));
 
-  const options: (RegionOption | RegionOptionGroup)[] = allowAllRegions
-    ? [{ value: ALL_REGIONS_VALUE, label: 'All regions' }, ...groups]
-    : groups;
-
-  const selectedOptions: RegionOption[] = isAllSelected
-    ? []
-    : groups
-        .flatMap(group => group.options)
-        .filter(option => selectedRegions.includes(option.value));
+  const selectedOptions: RegionOption[] = groups
+    .flatMap(group => group.options)
+    .filter(option => selectedRegions.includes(option.value));
 
   const handleChange = (selected: RegionOption[]) => {
     if (!selected || selected.length === 0) {
-      onChange(allowAllRegions ? [ALL_REGIONS_VALUE] : []);
+      onChange([]);
       return;
     }
-    const regions = selected.map(o => o.value);
-    if (regions.includes(ALL_REGIONS_VALUE)) {
-      onChange([ALL_REGIONS_VALUE]);
-      return;
-    }
-    onChange(regions);
+    onChange(selected.map(o => o.value));
   };
 
   const hasError = !valid;
@@ -155,7 +134,7 @@ export function RegionMultiSelector({
         </LabelContent>
         <StyledSelect
           isMulti
-          options={options}
+          options={groups}
           value={selectedOptions}
           onChange={handleChange}
           placeholder={isAllSelected ? 'All regions' : placeholder}

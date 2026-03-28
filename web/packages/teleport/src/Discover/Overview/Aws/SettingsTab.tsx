@@ -33,16 +33,15 @@ import {
   ServiceConfig,
   ServiceConfigs,
   ServiceType,
+  serviceTypes,
 } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
-import {
-  Divider,
-  WildcardRegion,
-} from 'teleport/Integrations/Enroll/Cloud/Shared';
+import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
+import { CloudRegion } from 'teleport/Integrations/Enroll/Cloud/Shared/types';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   IntegrationDiscoveryRule,
@@ -74,7 +73,6 @@ export function SettingsTab({
         integrationName,
         AwsResource.ec2
       ),
-    enabled: true,
   });
 
   const { data: eksRules, isLoading: isLoadingEks } = useQuery({
@@ -84,24 +82,21 @@ export function SettingsTab({
         integrationName,
         AwsResource.eks
       ),
-    enabled: true,
   });
 
   const getRegionsFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): WildcardRegion | Regions[] => {
+  ): CloudRegion[] => {
     if (!rules || rules.length === 0) {
-      return ['*'] as WildcardRegion;
+      return [];
     }
     const regions = rules.map(rule => rule.region);
 
     if (regions.includes('*') || regions.includes('aws-global')) {
-      return ['*'] as WildcardRegion;
+      return [];
     }
 
-    return regions.length === 0
-      ? (['*'] as WildcardRegion)
-      : (regions as Regions[]);
+    return regions as Regions[];
   };
 
   const getConfigFromRules = (
@@ -131,9 +126,17 @@ export function SettingsTab({
     setUpdatedConfigs(prev => ({ ...prev, [type]: config }));
   };
 
+  const matchers = serviceTypes
+    .filter(t => configs[t].enabled)
+    .map(t => ({
+      type: t,
+      regions: configs[t].regions,
+      tags: configs[t].tags,
+    }));
+
   const terraformConfig = buildTerraformConfig({
     integrationName,
-    configs,
+    matchers,
     version: clusterVersion,
   });
 
