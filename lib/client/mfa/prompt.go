@@ -88,7 +88,7 @@ type MFAGoroutineResponse struct {
 // HandleMFAPromptGoroutines spawns MFA prompt goroutines and returns the first successful response,
 // terminating error, or an aggregated error if they all fail.
 func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context.Context, *sync.WaitGroup, chan<- MFAGoroutineResponse)) (*proto.MFAAuthenticateResponse, error) {
-	respC := make(chan MFAGoroutineResponse, 2)
+	respC := make(chan MFAGoroutineResponse, 3)
 	var wg sync.WaitGroup
 
 	ctx, cancel := context.WithCancel(ctx)
