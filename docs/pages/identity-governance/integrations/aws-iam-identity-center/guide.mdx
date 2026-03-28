@@ -406,6 +406,70 @@ Provider and its role from your AWS IAM console as well.
 
 ## Troubleshooting
 
+### "It's not you, it's us" error during AWS SSO login
+
+When a Teleport user with a large number of roles logs in to AWS IAM Identity
+Center through the Teleport SAML IdP, AWS may display the following error:
+
+> **It's not you, it's us**
+>
+> We couldn't complete your request right now. Please try again later.
+
+This error occurs because AWS IAM Identity Center enforces a
+[50,000-character limit](https://aws.amazon.com/blogs/security/saml-identity-federation-follow-up-questions-materials-guides-and-templates-from-an-aws-reinvent-2016-workshop-sec306/)
+on SAML assertions. By default, Teleport includes all of a user's roles in the
+`eduPersonAffiliation` attribute of the SAML assertion. For users with a large
+number of roles (for example, more than 1,000), the assertion can exceed this
+limit.
+
+<Admonition type="note">
+Overwriting default SAML IdP attributes through attribute mapping is available
+starting from Teleport version 18.7.4. In earlier versions, the only workaround
+is to reduce the number of roles assigned to the user.
+</Admonition>
+
+To resolve this issue, use [SAML IdP attribute mapping](../../../identity-governance/idps/saml-attribute-mapping.mdx)
+to overwrite the default `eduPersonAffiliation` attribute
+(`urn:oid:1.3.6.1.4.1.5923.1.1.1.1`) and reduce the assertion size.
+
+Follow these steps to update the SAML IdP service provider resource:
+
+1. Retrieve the current service provider resource:
+
+   ```code
+   $ tctl get saml_idp_service_provider/aws-identity-center-sso > aws-ic-sp.yaml
+   ```
+
+2. Open `aws-ic-sp.yaml` in a text editor and add an `attribute_mapping` entry
+   to the `spec` section. Use `set()` to omit all roles from the assertion:
+
+   ```yaml
+   spec:
+     attribute_mapping:
+     - name: urn:oid:1.3.6.1.4.1.5923.1.1.1.1
+       value: set()
+       name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:uri
+   ```
+
+3. Apply the updated resource:
+
+   ```code
+   $ tctl create -f aws-ic-sp.yaml
+   ```
+
+You can verify the attribute mapping before applying it by running:
+
+```code
+$ tctl idp saml test-attribute-mapping --user <username> --sp aws-ic-sp.yaml
+```
+
+<Admonition type="note">
+The `test-attribute-mapping` command evaluates attributes against the static
+user object, which does not include roles granted dynamically through Access
+Lists. Roles granted through Access Lists are resolved at login time and
+will appear in the actual SAML assertion, but not in the test output.
+</Admonition>
+
 ### Access forbidden during AWS account login
 
 This may happen if the user does not have access to the SAML IdP service provider 
