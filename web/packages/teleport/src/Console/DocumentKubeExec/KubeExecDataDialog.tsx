@@ -126,7 +126,7 @@ function KubeExecDataDialog({ onClose, onExec }: Props) {
                     <IconTooltip>
                       You can start an interactive shell and have a
                       bidirectional communication with the target pod, or you
-                      can run one-off command and see its output.
+                      can run a one-off command and see its output.
                     </IconTooltip>
                   </Toggle>
                 </Flex>

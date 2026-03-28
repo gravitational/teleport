@@ -180,7 +180,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
             {alreadyExistErr && (
               <Alert>
-                A bot with this name already exist, please use a different name.
+                A bot with this name already exists, please use a different name.
               </Alert>
             )}
 
