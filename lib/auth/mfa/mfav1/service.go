@@ -57,6 +57,19 @@ type AuthServer interface {
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
 
+	BeginBrowserMFAChallenge(
+		ctx context.Context,
+		params mfatypes.BeginBrowserMFAChallengeParams,
+	) (*proto.BrowserMFAChallenge, error)
+
+	VerifyBrowserMFASession(
+		ctx context.Context,
+		username,
+		sessionID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+		requiredExtensions *mfav1.ChallengeExtensions,
+	) (*authz.MFAAuthData, error)
+
 	CompleteBrowserMFAChallenge(
 		ctx context.Context,
 		requestID string,
@@ -201,7 +214,7 @@ func (s *Service) CreateSessionChallenge(
 	}
 
 	// Determine which second factors are allowed.
-	enableWebauthn, enableSSO := pref.IsSecondFactorWebauthnAllowed(), pref.IsSecondFactorSSOAllowed()
+	enableWebauthn, enableSSO, enableBrowserMFA := pref.IsSecondFactorWebauthnAllowed(), pref.IsSecondFactorSSOAllowed(), pref.GetAllowCLIAuthViaBrowser()
 
 	u2fPref, webConfig, err := mfaPreferences(pref)
 	if err != nil {
@@ -219,7 +232,7 @@ func (s *Service) CreateSessionChallenge(
 	}
 
 	supportedMFADevices := s.groupAndFilterSupportedMFADevices(ctx, username, devices)
-	if len(supportedMFADevices.Webauthn) == 0 && supportedMFADevices.SSO == nil {
+	if len(supportedMFADevices.Webauthn) == 0 && supportedMFADevices.SSO == nil && supportedMFADevices.BrowserMFA == nil {
 		return nil, trace.BadParameter("user %q has no registered MFA devices", username)
 	}
 
@@ -229,6 +242,7 @@ func (s *Service) CreateSessionChallenge(
 		"user", username,
 		"num_webauthn_devices", len(supportedMFADevices.Webauthn),
 		"has_sso_device", supportedMFADevices.SSO != nil,
+		"browser_mfa_available", supportedMFADevices.BrowserMFA != nil,
 	)
 
 	// Create the MFA challenge response with a randomly generated UUID for its name. This name is used to track the
@@ -303,6 +317,27 @@ func (s *Service) CreateSessionChallenge(
 		}
 	}
 
+	if enableBrowserMFA && supportedMFADevices.BrowserMFA != nil && req.BrowserMfaTshRedirectUrl != "" {
+		browserChallenge, err := s.authServer.BeginBrowserMFAChallenge(
+			ctx,
+			mfatypes.BeginBrowserMFAChallengeParams{
+				User:                     username,
+				BrowserMFATSHRedirectURL: req.BrowserMfaTshRedirectUrl,
+				Ext:                      &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
+				SIP:                      req.Payload,
+				SourceCluster:            sourceClusterName,
+				TargetCluster:            targetClusterName,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		challenge.MfaChallenge.BrowserChallenge = &mfav1.BrowserMFAChallenge{
+			RequestId: browserChallenge.RequestId,
+		}
+	}
+
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
 		Metadata: apievents.Metadata{
 			Type:        events.CreateMFAAuthChallengeEvent,
@@ -363,6 +398,9 @@ func (s *Service) ValidateSessionChallenge(
 
 	case *mfav1.AuthenticateResponse_Sso:
 		details, err = s.validateSSOResponse(ctx, username, resp)
+
+	case *mfav1.AuthenticateResponse_Browser:
+		details, err = s.validateBrowserMFAResponse(ctx, username, resp)
 
 	default:
 		return nil, trace.BadParameter("unknown MFA response type %T", resp)
@@ -597,14 +635,16 @@ func (s *Service) clusterExists(ctx context.Context, clusterName string) error {
 }
 
 type devicesByType struct {
-	Webauthn []*types.MFADevice
-	SSO      *types.MFADevice
+	Webauthn   []*types.MFADevice
+	SSO        *types.MFADevice
+	BrowserMFA *types.MFADevice
 }
 
 func (s *Service) groupAndFilterSupportedMFADevices(ctx context.Context, username string, devices []*types.MFADevice) devicesByType {
 	var (
-		webauthnDevices []*types.MFADevice
-		ssoDevice       *types.MFADevice
+		webauthnDevices  []*types.MFADevice
+		ssoDevice        *types.MFADevice
+		browserMfaDevice *types.MFADevice
 	)
 
 	// Only include supported device types for session-based MFA challenges. For example, TOTP devices are not supported
@@ -630,9 +670,21 @@ func (s *Service) groupAndFilterSupportedMFADevices(ctx context.Context, usernam
 		}
 	}
 
+	// Create a synthetic Browser device if the user has a WebAuthn device.
+	// This enables browser-based MFA for users who have browser-only WebAuthn/passkey devices.
+	if len(webauthnDevices) > 0 {
+		browserMfaDevice = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Browser{
+				Browser: &types.BrowserMFADevice{},
+			},
+		}
+	}
+
 	return devicesByType{
-		Webauthn: webauthnDevices,
-		SSO:      ssoDevice,
+		Webauthn:   webauthnDevices,
+		SSO:        ssoDevice,
+		BrowserMFA: browserMfaDevice,
 	}
 }
 
@@ -729,6 +781,25 @@ func (s *Service) validateSSOResponse(
 	)
 	if err != nil {
 		return nil, trace.AccessDenied("validate SSO response: %v", err)
+	}
+
+	return authData, nil
+}
+
+func (s *Service) validateBrowserMFAResponse(
+	ctx context.Context,
+	username string,
+	resp *mfav1.AuthenticateResponse_Browser,
+) (*authz.MFAAuthData, error) {
+	authData, err := s.authServer.VerifyBrowserMFASession(
+		ctx,
+		username,
+		resp.Browser.RequestId,
+		resp.Browser.WebauthnResponse,
+		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
+	)
+	if err != nil {
+		return nil, trace.AccessDenied("validate Browser MFA response: %v", err)
 	}
 
 	return authData, nil
