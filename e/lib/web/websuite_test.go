@@ -273,7 +273,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Name: "auth",
 		},
 		Spec: types.ServerSpecV2{
-			Addr:     s.testAuthServer.TLS.Listener.Addr().String(),
+			Addr:     s.testAuthServer.TLS.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
