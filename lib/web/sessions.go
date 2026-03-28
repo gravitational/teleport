@@ -1017,6 +1017,16 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
 	}
 
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return sctx, nil
 }
 
@@ -1139,6 +1149,21 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
