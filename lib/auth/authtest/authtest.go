@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -964,8 +965,11 @@ type TLSServerConfig struct {
 	AuthServer *AuthServer
 	// Limiter is a connection and request limiter
 	Limiter *limiter.Config
-	// Listener is a listener to serve requests on
+	// Listener is an optional listener to use instead of the
+	// default tcp listener when creating the Mux.
 	Listener net.Listener
+	// Mux is a multiplexer to serve requests on
+	Mux *multiplexer.Mux
 	// AuthDialer is a dialer to use when making auth clients.
 	AuthDialer client.ContextDialer
 	// AcceptedUsage is a list of accepted usage restrictions
@@ -1040,15 +1044,35 @@ func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 	tlsCert := tlsConfig.Certificates[0]
 
-	if srv.Listener == nil {
-		srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
+	listener := cfg.Listener
+	if listener == nil {
+		listener, err = net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
+	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return cfg.AuthServer.AuthServer.GetCertAuthority(ctx, id, loadKeys)
+	}
+
+	// use multiplexer to leverage support for proxy protocol.
+	mux, err := multiplexer.New(multiplexer.Config{
+		PROXYProtocolMode:   multiplexer.PROXYProtocolUnspecified,
+		Listener:            listener,
+		ID:                  teleport.Component(cfg.AuthServer.AuthServer.ServerID),
+		CertAuthorityGetter: muxCAGetter,
+		LocalClusterName:    cfg.AuthServer.ClusterName,
+	})
+	if err != nil {
+		listener.Close()
+		return nil, trace.Wrap(err)
+	}
+	go mux.Serve()
+
+	srv.Mux = mux
 	srv.TLSServer, err = auth.NewTLSServer(context.Background(), auth.TLSServerConfig{
-		Listener:             srv.Listener,
+		Listener:             mux.TLS(),
 		AccessPoint:          srv.AuthServer.AuthServer.Cache,
 		TLS:                  tlsConfig,
 		GetClientCertificate: func() (*tls.Certificate, error) { return &tlsCert, nil },
@@ -1057,6 +1081,7 @@ func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		AcceptedUsage:        cfg.AcceptedUsage,
 	})
 	if err != nil {
+		mux.Close()
 		return nil, trace.Wrap(err)
 	}
 	if err := srv.Start(); err != nil {
@@ -1348,7 +1373,7 @@ func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error)
 
 // Addr returns address of TLS server
 func (t *TLSServer) Addr() net.Addr {
-	return t.Listener.Addr()
+	return t.Mux.Listener.Addr()
 }
 
 // Start starts TLS server on loopback address on the first listening socket
@@ -1378,10 +1403,8 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 
-	if t.Listener != nil {
-		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			errs = append(errs, err)
-		}
+	if t.Mux != nil {
+		t.Mux.Close()
 	}
 
 	if err := t.AuthServer.Close(); err != nil {
@@ -1397,12 +1420,9 @@ func (t *TLSServer) Stop() error {
 	if err := t.TLSServer.Close(); err != nil {
 		errs = append(errs, err)
 	}
-	if t.Listener != nil {
-		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			errs = append(errs, err)
-		}
+	if t.Mux != nil {
+		t.Mux.Close()
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
