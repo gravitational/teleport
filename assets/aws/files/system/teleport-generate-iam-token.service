@@ -1,0 +1,10 @@
+[Unit]
+Description=Service creating Teleport IAM join token
+ConditionPathExists=/etc/teleport.d/role.auth
+After=teleport-auth.service
+
+[Service]
+Type=oneshot
+Restart=on-failure
+RestartSec=5
+ExecStart=/usr/local/bin/teleport-generate-iam-token
