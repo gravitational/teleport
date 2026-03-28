@@ -46,6 +46,9 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
+	if len(preconds) == 1 && preconds[0].GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP {
+		return perms, nil
+	}
 	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
 	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
 	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
