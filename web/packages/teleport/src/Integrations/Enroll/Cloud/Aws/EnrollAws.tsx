@@ -37,7 +37,6 @@ import {
   CircleNumber,
   Container,
   Divider,
-  WildcardRegion,
   useEnrollCloudIntegration,
 } from '../Shared';
 import {
@@ -51,10 +50,14 @@ import {
 } from '../Shared/InfoGuide';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
-import { Prerequisites } from './Prerequisites';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { ServiceConfig, ServiceConfigs, ServiceType } from './types';
+import {
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+  serviceTypes,
+} from './types';
 
 export function EnrollAws() {
   useNoMinWidth();
@@ -73,7 +76,7 @@ export function EnrollAws() {
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
   const [configs, setConfigs] = useState<ServiceConfigs>({
-    ec2: { enabled: true, regions: ['*'] as WildcardRegion, tags: [] },
+    ec2: { enabled: true, regions: [], tags: [] },
     eks: { enabled: false, regions: [], tags: [] },
   });
 
@@ -81,15 +84,20 @@ export function EnrollAws() {
     setConfigs(prev => ({ ...prev, [type]: config }));
   };
 
-  const terraformConfig = useMemo(
-    () =>
-      buildTerraformConfig({
-        integrationName,
-        configs,
-        version: clusterVersion,
-      }),
-    [integrationName, configs, clusterVersion]
-  );
+  const terraformConfig = useMemo(() => {
+    const matchers = serviceTypes
+      .filter(t => configs[t].enabled)
+      .map(t => ({
+        type: t,
+        regions: configs[t].regions,
+        tags: configs[t].tags,
+      }));
+    return buildTerraformConfig({
+      integrationName,
+      matchers,
+      version: clusterVersion,
+    });
+  }, [integrationName, configs, clusterVersion]);
 
   const {
     isPanelOpen,
@@ -117,9 +125,6 @@ export function EnrollAws() {
               Connect your AWS account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
-            <Container flexDirection="column" p={4} mb={4}>
-              <Prerequisites />
-            </Container>
             <Container flexDirection="column" p={4} mb={3}>
               <IntegrationSection
                 integrationName={integrationName}

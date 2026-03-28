@@ -31,10 +31,10 @@ import {
   type Label,
   type LabelsRule,
 } from 'teleport/components/LabelsInput/LabelsInput';
-import { Regions as AwsRegion } from 'teleport/services/integrations';
 
 import { RegionMultiSelector } from '../RegionMultiSelector';
 import { CircleNumber } from '../Shared';
+import { CloudRegion } from '../Shared/types';
 import { awsRegionGroups } from './regions';
 import { AwsLabel, ServiceConfig, ServiceConfigs, ServiceType } from './types';
 
@@ -62,21 +62,21 @@ const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
   };
 };
 
-const requiredAtLeastOneRegion = (regions: AwsRegion[]) => () => {
-  if (!regions || regions.length === 0) {
+const requiredRegions =
+  (allowAll: boolean) => (selection: CloudRegion[]) => () => {
+    if (allowAll || selection.length > 0) {
+      return { valid: true };
+    }
     return {
       valid: false,
       message: 'At least one region must be selected',
     };
-  }
-  return { valid: true };
-};
+  };
 
 type ServiceDescriptor = {
   type: ServiceType;
   label: string;
   resourceName: string;
-  description: string;
   allowWildcardRegions: boolean;
 };
 
@@ -85,16 +85,12 @@ const serviceDescriptors: ServiceDescriptor[] = [
     type: 'ec2',
     label: 'EC2 Instances',
     resourceName: 'EC2 instances',
-    description:
-      'Discover EC2 instances and establish SSH access through Teleport.',
     allowWildcardRegions: true,
   },
   {
     type: 'eks',
     label: 'EKS Clusters',
     resourceName: 'EKS clusters',
-    description:
-      'Discover EKS clusters and configure Kubernetes access through Teleport.',
     allowWildcardRegions: false,
   },
 ];
@@ -118,7 +114,8 @@ export function ResourcesSection({
         Resource Types
       </Flex>
       <Text ml={4} mb={3}>
-        Select which AWS resource types to automatically discover and enroll.
+        Select which AWS resource types to automatically discover and enroll in
+        your Teleport cluster.
       </Text>
       {hasError && (
         <Text
@@ -134,8 +131,6 @@ export function ResourcesSection({
         <Box key={desc.type} mt={i > 0 ? 3 : 0}>
           <AwsService
             label={desc.label}
-            helperText={desc.description}
-            resourceName={desc.resourceName}
             tooltipText={`Filter for ${desc.resourceName} by their tags. If no tags are added, Teleport will enroll all ${desc.resourceName}.`}
             config={configs[desc.type]}
             onChange={config => onConfigChange(desc.type, config)}
@@ -149,8 +144,6 @@ export function ResourcesSection({
 
 type AwsServiceProps = {
   label: string;
-  helperText: React.ReactNode;
-  resourceName: string;
   tooltipText: string;
   config: ServiceConfig;
   onChange: (config: ServiceConfig) => void;
@@ -159,8 +152,6 @@ type AwsServiceProps = {
 
 function AwsService({
   label,
-  helperText,
-  resourceName,
   tooltipText,
   config,
   onChange,
@@ -175,7 +166,7 @@ function AwsService({
     });
   };
 
-  const handleRegionsChange = (regions: AwsRegion[]) => {
+  const handleRegionsChange = (regions: CloudRegion[]) => {
     onChange({ ...config, regions });
   };
 
@@ -185,7 +176,6 @@ function AwsService({
         mb={2}
         size="small"
         label={label}
-        helperText={helperText}
         checked={config.enabled}
         onChange={toggle}
       />
@@ -194,11 +184,11 @@ function AwsService({
           <Box mb={3}>
             <RegionMultiSelector
               regionGroups={awsRegionGroups}
-              selectedRegions={config.regions as AwsRegion[]}
+              selectedRegions={config.regions}
               onChange={handleRegionsChange}
               disabled={false}
               required={!allowWildcardRegions}
-              rule={requiredAtLeastOneRegion}
+              rule={requiredRegions(allowWildcardRegions)}
               allowAllRegions={allowWildcardRegions}
             />
           </Box>
@@ -235,18 +225,6 @@ function AwsService({
                 />
               </Box>
             </Box>
-          )}
-          {!config.tags.some(t => t.name && t.value) && (
-            <Flex alignItems="center" gap={1} mt={1}>
-              <Icons.Warning
-                size="small"
-                color="interactive.solid.alert.default"
-              />
-              <Text fontSize="small" color="text.slightlyMuted">
-                If no tags are specified, all {resourceName} in the selected
-                regions will be enrolled.
-              </Text>
-            </Flex>
           )}
         </Box>
       )}
