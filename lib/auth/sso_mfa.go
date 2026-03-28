@@ -95,7 +95,7 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	const notFoundErrMsg = "mfa sso session data not found"
-	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
+	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
 		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
@@ -105,6 +105,17 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	// Verify the user's name and sso device matches.
 	if mfaSess.Username != username {
 		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+	}
+
+	// Verify this is an SSO MFA session and not a Browser MFA session.
+	if mfaSess.TSHRedirectURL != "" || mfaSess.ConnectorType == constants.BrowserMFA {
+		a.logger.WarnContext(ctx,
+			"The SSO MFA flow was used to access a Browser MFA session.",
+			"request_id", mfaSess.RequestID,
+			"connector_type", mfaSess.ConnectorType,
+			"username", username,
+		)
+		return nil, trace.NotFound("%s", notFoundErrMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
@@ -136,7 +147,7 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-		if err := a.DeleteSSOMFASessionData(ctx, sessionID); err != nil {
+		if err := a.DeleteMFASessionData(ctx, sessionID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -193,7 +204,7 @@ func (a *Server) UpsertMFASessionWithToken(ctx context.Context, sd *services.MFA
 
 // GetMFASession returns the MFA session for the given username and sessionID.
 func (a *Server) GetMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
-	sd, err := a.GetSSOMFASessionData(ctx, sessionID)
+	sd, err := a.GetMFASessionData(ctx, sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

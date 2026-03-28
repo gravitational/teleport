@@ -8136,7 +8136,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8155,8 +8155,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowCLIAuthViaBrowser() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8224,6 +8225,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.Code = events.ValidateMFAAuthResponseCode
 		auditEvent.Success = true
 		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		deviceMetadata.MFAViaBrowser = authData.MFAViaBrowser
 		auditEvent.MFADevice = &deviceMetadata
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
@@ -8335,6 +8337,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)

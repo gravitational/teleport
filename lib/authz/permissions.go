@@ -218,6 +218,8 @@ type MFAAuthData struct {
 	// AllowReuse determines whether the MFA challenge response used to authenticate
 	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
 	AllowReuse mfav1.ChallengeAllowReuse
+	// MFAViaBrowser indicates that this MFA device was used as part of the Browser MFA flow.
+	MFAViaBrowser bool
 }
 
 // authorizer creates new local authorizer
