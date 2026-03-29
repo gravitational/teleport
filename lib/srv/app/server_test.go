@@ -139,8 +139,6 @@ func (s *Suite) TearDown(t *testing.T) {
 type suiteConfig struct {
 	// ResourceMatchers are resource watcher matchers.
 	ResourceMatchers []services.ResourceMatcher
-	// OnReconcile sets app resource reconciliation callback.
-	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
 	// ServerStreamer is the auth server session events streamer.
@@ -358,7 +356,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		s.lockWatcher.Close()
 	})
 
-	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
+	apps := []types.Application{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -406,7 +404,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Apps:                 apps,
 		OnHeartbeat:          func(err error) {},
 		ResourceMatchers:     config.ResourceMatchers,
-		OnReconcile:          config.OnReconcile,
 		CloudLabels:          config.CloudImporter,
 		ConnectionsHandler:   connectionsHandler,
 		InventoryHandle:      inventoryHandle,
