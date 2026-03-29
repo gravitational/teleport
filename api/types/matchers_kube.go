@@ -27,12 +27,15 @@ import (
 const (
 	// KubernetesMatchersApp is app matcher type for Kubernetes services
 	KubernetesMatchersApp = "app"
+	// KubernetesMatchersMCP is the MCP matcher type for Kubernetes services
+	KubernetesMatchersMCP = "mcp"
 )
 
 // SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
 // Teleport discovery service
 var SupportedKubernetesMatchers = []string{
 	KubernetesMatchersApp,
+	KubernetesMatchersMCP,
 }
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
@@ -45,7 +48,7 @@ func (m *KubernetesMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Types) == 0 {
-		m.Types = []string{KubernetesMatchersApp}
+		m.Types = []string{KubernetesMatchersApp, KubernetesMatchersMCP}
 	}
 
 	if len(m.Namespaces) == 0 {

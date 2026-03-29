@@ -56,6 +56,8 @@ type KubeAppsFetcherConfig struct {
 	ProtocolChecker ProtocolChecker
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	DiscoveryConfigName string
+	//TODO
+	MatcherTypes []string
 }
 
 // CheckAndSetDefaults validates and sets the defaults values.
@@ -102,7 +104,7 @@ func isInternalKubeService(s v1.Service) bool {
 		s.GetNamespace() == metav1.NamespacePublic
 }
 
-func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) ([]v1.Service, error) {
+func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryTypes []string) ([]v1.Service, error) {
 	var result []v1.Service
 	nextToken := ""
 	namespaceFilter := func(ns string) bool {
@@ -127,7 +129,7 @@ func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) 
 			}
 
 			// Skip service if it has type annotation and it's not the expected type.
-			if v, ok := s.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != discoveryType {
+			if v, ok := s.GetAnnotations()[types.DiscoveryTypeLabel]; ok && !slices.Contains(discoveryTypes, v) {
 				continue
 			}
 
@@ -161,7 +163,7 @@ const (
 
 // Get fetches Kubernetes apps from the cluster
 func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	kubeServices, err := f.getServices(ctx, types.KubernetesMatchersApp)
+	kubeServices, err := f.getServices(ctx, f.MatcherTypes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,6 +186,32 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 			ports, err := getServicePorts(service)
 			if err != nil {
 				f.Logger.ErrorContext(ctx, "could not get ports for the service", "error", err, "service", service.GetName())
+				return nil
+			}
+
+			// TODO(greedy52) refactor
+			if service.GetAnnotations()[types.DiscoveryTypeLabel] == types.KubernetesMatchersMCP {
+				if len(ports) != 1 {
+					f.Logger.WarnContext(ctx, "only expecting one service port", "service", service.GetName(), "found", len(ports))
+					return nil
+				}
+				switch protocolAnnotation {
+				case protoHTTPS, protoHTTP:
+				default:
+					protocolAnnotation = autoProtocolDetection(service, ports[0], f.ProtocolChecker)
+					if protocolAnnotation != protoHTTPS && protocolAnnotation != protoHTTP {
+						f.Logger.WarnContext(ctx, "cannot detect protocol for MCP server", "service", service.GetName())
+						return nil
+					}
+				}
+				newMCPServer, err := services.NewMCPServerFromKubeService(service, f.ClusterName, protocolAnnotation, ports[0])
+				if err != nil {
+					f.Logger.WarnContext(ctx, "Could not get app from a Kubernetes service", "error", err, "service", service.GetName(), "port", ports[0].Port)
+					return nil
+				}
+				appsMu.Lock()
+				apps = append(apps, newMCPServer)
+				appsMu.Unlock()
 				return nil
 			}
 
