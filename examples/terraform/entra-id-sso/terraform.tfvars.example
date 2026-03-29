@@ -1,0 +1,8 @@
+# EntraID SAML Connector Configuration
+
+# Teleport Proxy public address (with or without https:// prefix)
+# Examples: "teleport.example.com:443" or "https://teleport.example.com:443"
+proxy_public_addr = "teleport.example.com:443"
+
+# SAML connector name in Teleport
+auth_connector_name = "entra-id"
