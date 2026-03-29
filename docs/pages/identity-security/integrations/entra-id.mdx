@@ -488,6 +488,286 @@ foreach ($appRole in $appRoles) {
 
 </details>
 
+To display Entra ID applications in Graph Explorer, Identity Security needs a file containing the Federated SSO
+configuration for every Entra ID application that supports SSO. This file includes each application's details,
+such as the Attributes & Claims sent during the SSO process to target applications. These attributes are used to
+determine, for example, which IAM roles a user receives when signing into Amazon AWS through an Entra ID–backed
+SSO integration.
+
+To set up the Federated SSO cache for your Entra ID tenant, run the following script in the same Azure Cloud Shell session
+used above. When the script finishes, download the generated `cache.json` file.
+
+<details>
+<summary>Create Federated SSO cache for Entra ID Applications</summary>
+
+```powershell
+
+# PowerShell script for retrieving and caching Azure SSO settings
+# Equivalent to teleport/lib/integrations/azureoidc/accessgraph.go
+
+az login
+
+# Import required modules
+Import-Module Az.Accounts
+Import-Module Az.Resources
+
+
+# Function to compress data using gzip
+function Compress-GzipBytes {
+    param (
+        [byte[]]$InputBytes
+    )
+    
+    $outputStream = New-Object System.IO.MemoryStream
+    $gzipStream = New-Object System.IO.Compression.GZipStream($outputStream, [System.IO.Compression.CompressionMode]::Compress)
+    $gzipStream.Write($InputBytes, 0, $InputBytes.Length)
+    $gzipStream.Close()
+    
+    return $outputStream.ToArray()
+}
+
+# Function to make private API calls to Azure
+function Invoke-PrivateApiGet {
+    param (
+        [System.String]$Token,
+        [string]$Endpoint
+    )
+
+    $baseUrl = "https://main.iam.ad.ext.azure.com/api/"
+    $fullUrl = $baseUrl + $Endpoint
+    echo $fullUrl
+    
+    # Generate a correlation ID (GUID)
+    $correlationId = [Guid]::NewGuid().ToString()
+    
+    $headers = @{
+        "Accept" = "application/json"
+        "Authorization" = "Bearer $Token"
+        "x-ms-client-request-id" = $correlationId
+        "x-ms-correlation-id" = $correlationId
+    }
+    
+    try {
+        $response = Invoke-RestMethod -Uri $fullUrl -Headers $headers -Method Get
+        return $response
+    }
+    catch {
+        Write-Error "Error calling private API: $_"
+        throw
+    }
+}
+
+# Function to get Azure AD tenant ID
+function Get-TenantId {
+    $context = Get-AzContext
+    if ($null -eq $context) {
+        throw "No Azure context found. Please run Connect-AzAccount first."
+    }
+    return $context.Tenant.Id
+}
+
+# Function to get private API token
+# Get refresh tokens from the Azure CLI token cache
+function Get-RefreshTokens {
+    $homeDir = $env:USERPROFILE
+    if ($IsLinux -or $IsMacOS) {
+        $homeDir = $env:HOME
+    }
+
+    $tokenCachePath = Join-Path -Path $homeDir -ChildPath ".azure/msal_token_cache.json"
+    
+    if (-not (Test-Path $tokenCachePath)) {
+        Write-Error "MSAL token cache not found at $tokenCachePath"
+        return $null
+    }
+    
+    $tokenCacheContent = Get-Content -Path $tokenCachePath -Raw
+    $tokenCache = $tokenCacheContent | ConvertFrom-Json
+    
+    $tokens = @()
+    if ($tokenCache.RefreshToken) {
+        foreach ($key in $tokenCache.RefreshToken.PSObject.Properties.Name) {
+            $token = $tokenCache.RefreshToken.$key
+            $tokens += @{
+                ClientId = $token.client_id
+                Secret = $token.secret
+            }
+        }
+    }
+    
+    if ($tokens.Count -eq 0) {
+        throw "No refresh tokens found in MSAL token cache"
+    }
+    
+    return $tokens
+}
+
+# Exchange a refresh token for an access token for the private API
+function Exchange-Token {
+    param (
+        [string]$TenantId,
+        [hashtable]$Token
+    )
+    
+    $params = @{
+        client_id = $Token.ClientId
+        grant_type = "refresh_token"
+        refresh_token = $Token.Secret
+        scope = "74658136-14ec-4630-ad9b-26e160ff0fc6/.default openid profile offline_access"
+    }
+    
+    $uri = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token"
+    
+    try {
+        $response = Invoke-RestMethod -Uri $uri -Method Post -Body $params -ContentType "application/x-www-form-urlencoded"
+        
+        if ([string]::IsNullOrEmpty($response.access_token)) {
+            throw "Expected non-empty AccessToken in the response"
+        }
+        
+        return $response.access_token
+    }
+    catch {
+        Write-Warning "Failed to exchange token: $_"
+        return $null
+    }
+}
+
+# Get a token for the private Azure API using the Azure CLI token cache
+function Get-PrivateApiToken {
+    param (
+        [string]$TenantId
+    )
+    
+    $tokens = Get-RefreshTokens
+    if ($null -eq $tokens) {
+        throw "Failed to get refresh tokens from MSAL cache"
+    }
+    
+    $lastError = $null
+    foreach ($token in $tokens) {
+        Write-Debug "Trying token with client ID: $($token.ClientId)"
+        
+        $accessToken = Exchange-Token -TenantId $TenantId -Token $token
+        if ($accessToken) {
+            return $accessToken
+        }
+        
+        $lastError = "Failed to exchange token with client ID $($token.ClientId)"
+    }
+    
+    throw "No viable token found: $lastError"
+}
+
+
+# Function to get single sign-on information
+function Get-SingleSignOn {
+    param (
+        [System.String]$Token,
+        [string]$ServicePrincipalId
+    )
+    
+    $endpoint = "ApplicationSso/$ServicePrincipalId/SingleSignOn"
+    $result = Invoke-PrivateApiGet -Token $Token -Endpoint $endpoint
+    
+    return $result
+}
+
+# Function to get federated SSO V2 information
+function Get-FederatedSSOV2Compressed {
+    param (
+        [System.String]$Token,
+        [string]$AppId
+    )
+    
+    # Get the service principal ID from the app ID
+    $sp = Get-AzADServicePrincipal -ApplicationId $AppId
+    if ($null -eq $sp) {
+        throw "Could not retrieve service principal for app ID $AppId"
+    }
+    
+    $spId = $sp.Id
+    
+    # Get SSO information
+    $sso = Get-SingleSignOn -Token $Token -ServicePrincipalId $spId
+    
+    if ($sso.currentSingleSignOnMode -ne "federated") {
+        Write-Debug "App $AppId does not have federated SSO set up"
+        return $null
+    }
+    
+    # Get federated SSO V2 information
+    $endpoint = "ApplicationSso/$spId/FederatedSsoV2"
+    $federatedSSOV2 = Invoke-PrivateApiGet -Token $Token -Endpoint $endpoint
+    
+    # Convert to JSON and then to bytes for compression
+    $federatedSSOV2Bytes = [System.Text.Encoding]::UTF8.GetBytes(($federatedSSOV2 | ConvertTo-Json -Depth 20 -Compress))
+    
+    # Compress the bytes
+    $compressedBytes = Compress-GzipBytes -InputBytes $federatedSSOV2Bytes
+    
+    return $compressedBytes
+}
+
+# Main function to create the TAG cache file
+function New-TAGCacheFile {
+    # Get tenant ID and token
+    $tenantId = Get-TenantId
+    $token = Get-PrivateApiToken -TenantId $tenantId
+    
+    # Initialize cache object
+    $cache = @{
+        app_sso_settings_cache = @()
+    }
+    
+    # Get all applications
+    $applications = Get-AzADApplication
+    
+    foreach ($app in $applications) {
+        $appId = $app.AppId
+        
+        Write-Host "Processing application: $appId"
+        
+        try {
+            $federatedSSOV2Compressed = Get-FederatedSSOV2Compressed -Token $token -AppId $appId
+            
+            if ($null -ne $federatedSSOV2Compressed) {
+                # Convert byte array to base64 for JSON storage
+                $base64Compressed = [Convert]::ToBase64String($federatedSSOV2Compressed)
+                
+                $cacheEntry = @{
+                    app_id = $appId
+                    federated_sso_v2 = $base64Compressed
+                }
+                
+                $cache.app_sso_settings_cache += $cacheEntry
+                Write-Host "Added SSO info for $appId to cache"
+            }
+        }
+        catch {
+            Write-Debug "Failed to retrieve SSO info for app $appId : $_"
+        }
+    }
+    
+    # Write cache to file
+    $cacheJson = $cache | ConvertTo-Json -Depth 20
+    $cacheJson | Out-File -FilePath "cache.json" -Encoding utf8
+    
+    Write-Host "TAG cache file created successfully at $(Get-Location)/cache.json"
+}
+
+# Execute the main function
+try {
+    New-TAGCacheFile
+}
+catch {
+    Write-Error "Failed to create TAG cache file: $_"
+}
+
+```
+
+</details>
+
 ### Set up Teleport resources
 
 The Teleport `tctl` command provides an interactive guide to set up and configure Entra ID integration for air-gapped clusters.
@@ -504,7 +784,7 @@ If you chose to use Teleport as the OIDC provider for Entra ID in the previous s
 flag from the command below.
 
 <Admonition type="note">
-Currently, when using manual mode, it is not possible to operate without the `--no-access-graph` flag.
+If you would like to disable the Identity Security integration, append the --no-access-graph flag to the command shown below.
 </Admonition>
 
 ```code
@@ -514,7 +794,6 @@ $ tctl plugins install entraid \
     --default-owner=someOtherOwner@teleport.sh  \
     --auth-connector-name="<Var name="Auth Connector Name"/>" \
     --use-system-credentials \
-    --no-access-graph \
     --manual-setup \
     --auth-server <Var name="example.teleport.sh:443" />
 
