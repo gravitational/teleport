@@ -25,10 +25,13 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	utils "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
@@ -52,7 +55,9 @@ var (
 	oneoffScript string
 
 	// oneOffBashScript is a template that can generate oneoff scripts using the `oneoff.sh` shell script.
-	oneOffBashScript = template.Must(template.New("oneoff").Parse(oneoffScript))
+	oneOffBashScript = template.Must(template.New("oneoff").Funcs(template.FuncMap{
+		"join": strings.Join,
+	}).Parse(oneoffScript))
 )
 
 // OneOffScriptParams contains the required params to create a script that downloads and executes teleport binary.
@@ -77,6 +82,9 @@ type OneOffScriptParams struct {
 	// BinUname is the binary used to create a temporary directory, used to download the files.
 	// Defaults to `mktemp`.
 	BinMktemp string
+	// BinTR is the POSIX-compliant binary used for translating string.
+	BinTR string
+
 	// CDNBaseURL is the URL used to download the teleport tarball.
 	// Defaults to `https://cdn.teleport.dev`
 	CDNBaseURL string
@@ -85,18 +93,29 @@ type OneOffScriptParams struct {
 	// Eg, v13.1.0
 	TeleportVersion string
 
-	// TeleportFlavor is the teleport flavor to download.
+	// TeleportArtifact is the teleport flavor to download.
 	// Only OSS or Enterprise versions are allowed.
 	// Possible values:
 	// - teleport
 	// - teleport-ent
-	TeleportFlavor string
+	// - teleport-update
+	TeleportArtifact string
+
+	// TeleportDirectory is the teleport package name.
+	// Possible values:
+	// - teleport
+	// - teleport-ent
+	TeleportDirectory string
 
 	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
 	TeleportFIPS bool
 
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
+
+	// SupportedOSes is a list of the supported operating systems.
+	// When nil, defaults to Linux and Darwin for backward compatibility.
+	SupportedOSes []string
 }
 
 // CheckAndSetDefaults checks if the required params ara present.
@@ -121,6 +140,10 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.binSudo = "sudo"
 	}
 
+	if p.BinTR == "" {
+		p.BinTR = "tr"
+	}
+
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + api.Version
 	}
@@ -130,13 +153,37 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
-	if p.TeleportFlavor == "" {
-		p.TeleportFlavor = types.PackageNameOSS
+	if p.SupportedOSes == nil {
+		p.SupportedOSes = []string{constants.LinuxOS, constants.DarwinOS}
+	}
+
+	if p.TeleportDirectory == "" {
+		p.TeleportDirectory = types.PackageNameOSS
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
-			p.TeleportFlavor = types.PackageNameEnt
+			p.TeleportDirectory = types.PackageNameEnt
 		}
 	}
-	if !slices.Contains(types.PackageNameKinds, p.TeleportFlavor) {
+	if p.TeleportArtifact == "" {
+		p.TeleportArtifact = types.PackageNameOSS
+		if modules.GetModules().BuildType() == modules.BuildEnterprise {
+			p.TeleportArtifact = types.PackageNameEnt
+		}
+	}
+	// TODO(vapopov): DELETE IN v20.0.0, `teleport-update` must be already added to all supported
+	// releases and version check must be omitted.
+	version, err := utils.EnsureSemver(p.TeleportVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Versions 17.7.2 and 18.1.5 are when the separate `teleport-update` package was introduced.
+	if version.Major == 17 && version.Compare(semver.Version{Major: 17, Minor: 7, Patch: 2}) >= 0 ||
+		version.Major == 18 && version.Compare(semver.Version{Major: 18, Minor: 1, Patch: 5}) >= 0 ||
+		version.Major > 18 {
+		p.TeleportDirectory = types.PackageNameOSS
+		p.TeleportArtifact = types.PackageNameUpdate
+	}
+
+	if !slices.Contains(types.PackageNameKinds, p.TeleportArtifact) {
 		return trace.BadParameter("invalid teleport flavor, only %v are supported", types.PackageNameKinds)
 	}
 

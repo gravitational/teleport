@@ -30,6 +30,7 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -80,9 +81,9 @@ type InstallScriptOptions struct {
 	// by the updater to fetch the desired version. Teleport Addrs are
 	// 'hostname:port' (no scheme nor path).
 	ProxyAddr string
-	// TeleportFlavor is the name of the Teleport artifact fetched from the CDN.
+	// TeleportArtifact is the name of the Teleport artifact fetched from the CDN.
 	// Common values are "teleport" and "teleport-ent".
-	TeleportFlavor string
+	TeleportArtifact string
 	// FIPS represents if the installed Teleport version should use Teleport
 	// binaries built for FIPS compliance.
 	FIPS bool
@@ -115,8 +116,8 @@ func (o *InstallScriptOptions) Check() error {
 		return trace.BadParameter("Teleport version is required")
 	}
 
-	if o.TeleportFlavor == "" {
-		return trace.BadParameter("Teleport flavor is required")
+	if o.TeleportArtifact == "" {
+		return trace.BadParameter("Teleport artifact is required")
 	}
 
 	if o.CDNBaseURL != "" {
@@ -150,13 +151,14 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	return oneoff.OneOffScriptParams{
-		Entrypoint:      "teleport-update",
-		EntrypointArgs:  strings.Join(args, " "),
-		CDNBaseURL:      o.CDNBaseURL,
-		TeleportVersion: "v" + o.TeleportVersion.String(),
-		TeleportFlavor:  o.TeleportFlavor,
-		SuccessMessage:  successMessage,
-		TeleportFIPS:    o.FIPS,
+		Entrypoint:       "teleport-update",
+		EntrypointArgs:   strings.Join(args, " "),
+		CDNBaseURL:       o.CDNBaseURL,
+		TeleportVersion:  "v" + o.TeleportVersion.String(),
+		TeleportArtifact: o.TeleportArtifact,
+		SuccessMessage:   successMessage,
+		TeleportFIPS:     o.FIPS,
+		SupportedOSes:    []string{constants.LinuxOS},
 	}
 }
 
@@ -189,14 +191,14 @@ var (
 // installation script served by getUpdaterInstallScript.
 func getLegacyInstallScript(ctx context.Context, opts InstallScriptOptions) (string, error) {
 	tunedScript := versionVar.ReplaceAllString(legacyInstallScript, fmt.Sprintf(`TELEPORT_VERSION="%s"`, opts.TeleportVersion))
-	if opts.TeleportFlavor == types.PackageNameEnt {
+	if opts.TeleportArtifact == types.PackageNameEnt {
 		tunedScript = suffixVar.ReplaceAllString(tunedScript, `TELEPORT_SUFFIX="-ent"`)
 	}
 
 	var edition string
 	if opts.AutoupdateStyle == PackageManagerAutoupdate {
 		edition = "cloud"
-	} else if opts.TeleportFlavor == types.PackageNameEnt {
+	} else if opts.TeleportArtifact == types.PackageNameEnt {
 		edition = "enterprise"
 	} else {
 		edition = "oss"
