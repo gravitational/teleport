@@ -272,6 +272,21 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	lock = payload{
+		Name:                   "Lock",
+		TypeName:               "LockV2",
+		VarName:                "lock",
+		GetMethod:              "GetLock",
+		CreateMethod:           "UpsertLock",
+		UpdateMethod:           "UpsertLock",
+		DeleteMethod:           "DeleteLock",
+		ID:                     `lock.Metadata.Name`,
+		Kind:                   "lock",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_lock",
+		HasCheckAndSetDefaults: true,
+	}
+
 	oidcConnector = payload{
 		Name:                   "OIDCConnector",
 		TypeName:               "OIDCConnectorV3",
@@ -882,6 +897,8 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
+	generateResource(lock, pluralResource)
+	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
 	generateDataSource(oidcConnector, pluralDataSource)
 	generateResource(samlConnector, pluralResource)
