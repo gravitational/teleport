@@ -33,9 +33,9 @@ AWS APIs in a few ways:
   Machine & Workload Identity and therefore cannot be used when a machine needs
   to authenticate with AWS.
 
-Whilst this guide is primarily aimed at allowing a machine to access AWS, the
-`tsh svid issue` command can be used in place of `tbot` to allow a client to
-authenticate using AWS Roles Anywhere.
+Whilst this guide is primarily aimed at allowing a machine to access AWS,
+the `tsh svid issue` command can be used in place of `tbot` to allow a human
+user to authenticate using AWS Roles Anywhere.
 
 ## OIDC Federation vs Roles Anywhere
 
@@ -247,8 +247,8 @@ $ tctl create -f role.yaml
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-If you intend this SPIFFE ID to be issued by a `tsh` client, you now need to
-assign this role to their `user` resource:
+If you intend this SPIFFE ID to be issued by a human, you now need to assign
+this role to their user:
 
 ```code
 $ tctl edit user/my-user
@@ -264,10 +264,7 @@ $ tctl bots update my-bot --add-roles example-workload-identity-issuer
 
 ## Step 3/4. Issue Workload Identity certificates
 
-Now that you have configured RBAC in AWS and Teleport, you can configure
-Teleport client tools to issue SPIFFE SVIDs for workloads.
-
-### Using `tbot`
+### For machines using `tbot`
 
 For machines, the `tbot` service can be used to issue and renew SPIFFE SVIDs
 as a background process.
@@ -293,10 +290,10 @@ Replace:
 
 Restart your `tbot` service to apply the new configuration.
 
-### Using `tsh`
+### For humans using `tsh`
 
-Teleport clients can use the `tsh` CLI to issue a SPIFFE SVID
-using their pre-existing authentication session.
+For humans, the `tsh` CLI can be used to issue a SPIFFE SVID using their
+pre-existing authentication session.
 
 The `tsh` command will need to be re-invoked when the SVID expires. By default,
 SVIDs are issued with a TTL of 1 hour, but this can be configured to be up to
