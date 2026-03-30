@@ -279,15 +279,7 @@ func (ns *NodeSession) startStderrCopyLoop(ctx context.Context, sess *tracessh.S
 	go func() {
 		defer close(ns.stderrCopyDone)
 
-		stderrWriter := ns.terminal.Stderr()
-		if ns.terminal.IsAttached() {
-			// Reexec launch errors arrive over SSH extended stderr data, not the PTY
-			// stream. For attached terminals, convert LF line endings to CRLF for
-			// display compatibility.
-			stderrWriter = &terminalCRLFWriter{writer: ns.terminal.Stderr()}
-		}
-
-		if _, err := io.Copy(stderrWriter, stderr); err != nil {
+		if _, err := io.Copy(ns.terminal.Stderr(), stderr); err != nil {
 			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
 		}
 	}()
@@ -557,33 +549,6 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 	}
 
 	return s.tshOut.Write(p)
-}
-
-// terminalCRLFWriter converts LF line endings to CRLF for attached terminal output.
-// Existing CRLF sequences are preserved.
-type terminalCRLFWriter struct {
-	writer io.Writer
-	prevCR bool
-}
-
-func (w *terminalCRLFWriter) Write(p []byte) (int, error) {
-	out := make([]byte, 0, len(p))
-	for _, b := range p {
-		if b == '\n' && !w.prevCR {
-			out = append(out, '\r')
-		}
-		out = append(out, b)
-		w.prevCR = b == '\r'
-	}
-
-	n, err := w.writer.Write(out)
-	if err != nil {
-		return 0, err
-	}
-	if n != len(out) {
-		return 0, io.ErrShortWrite
-	}
-	return len(p), nil
 }
 
 // runShell executes user's shell on the remote node under an interactive session
