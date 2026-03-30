@@ -29,8 +29,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -663,11 +663,20 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			urlPath = append(urlPath, req.clusterName, req.publicAddr)
 
 			if req.arn != "" {
-				urlPath = append(urlPath, req.arn)
+				urlPath = append(urlPath, url.PathEscape(req.arn))
 			}
 		}
 
-		u.Path = path.Join(urlPath...)
+		// Use strings.Join instead of path.Join to preserve
+		// percent-encoded segments like %2F in ARNs.
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Fall back to RawPath if PathUnescape fails, which can
+		// only happen if a non-ARN segment contains a bare percent.
+		var err error
+		u.Path, err = url.PathUnescape(u.RawPath)
+		if err != nil {
+			u.Path = u.RawPath
+		}
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly
