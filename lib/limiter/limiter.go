@@ -74,14 +74,6 @@ func (l *Limiter) RegisterRequest(token string) error {
 	return l.rateLimiter.RegisterRequest(token)
 }
 
-// Deprecated: RegisterRequestWithCustomRate ignores the custom rate
-// and delegates to RegisterRequest. Use a dedicated Limiter per
-// concern instead. This method exists only for backwards
-// compatibility with enterprise callers.
-func (l *Limiter) RegisterRequestWithCustomRate(token string, _ *RateSet) error {
-	return l.RegisterRequest(token)
-}
-
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	l.connectionLimiter.ServeHTTP(w, r)
 }
