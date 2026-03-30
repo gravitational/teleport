@@ -25,6 +25,8 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"os/user"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,7 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/srv/desktop/x11"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
+	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -178,6 +182,8 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	xgb.Logger = slog.NewLogLogger(cfg.Logger.Handler(), logutils.TraceLevel)
+
 	return s, nil
 }
 
@@ -320,13 +326,14 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				Data: data,
 			})
 		},
+		Logger: s.cfg.Logger,
 	})
-	defer backend.Close()
 	if err != nil {
 		log.WarnContext(ctx, "backend creation failed", "error", err)
 		sendTDPError("Couldn't create backend.")
 		return
 	}
+	defer backend.Close()
 
 	proxyConn.SetDeadline(time.Time{})
 
@@ -353,8 +360,39 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 				sendTDPError("Connection authorization failed.")
 			}
+			currentUser, err := user.Current()
+			if err != nil {
+				log.ErrorContext(ctx, "failed to get current user", "error", err)
+				sendTDPError("Internal server error")
+			}
+			targetUser, err := user.Lookup(m.Username)
+			if err != nil {
+				log.WarnContext(ctx, "couldn't lookup user", "error", err)
+				sendTDPError(fmt.Sprintf("Couldn't find user: %s", m.Username))
+				return
+			}
+			if currentUser.Uid != targetUser.Uid {
+				uid, err := strconv.Atoi(targetUser.Uid)
+				if err != nil {
+					log.ErrorContext(ctx, "couldn't convert uid to int", "error", err)
+					sendTDPError("Internal server error")
+					return
+				}
+				gid, err := strconv.Atoi(targetUser.Gid)
+				if err != nil {
+					log.ErrorContext(ctx, "couldn't convert gid to int", "error", err)
+					sendTDPError("Internal server error")
+					return
+				}
 
-			xsessions, err := x11.GetAvailableXSessions()
+				if err := backend.AuthorityFile.Chown(uid, gid); err != nil {
+					log.ErrorContext(ctx, "couldn't change Xauthority file ownership", "error", err)
+					sendTDPError("Internal server error")
+					return
+				}
+			}
+
+			xsessions, err := x11.GetAvailableXSessions(nil, nil)
 			if err != nil {
 				log.ErrorContext(ctx, "failed to get available xsessions", "error", err)
 				sendTDPError("Couldn't get available xsessions.")
@@ -367,15 +405,24 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				sendTDPError("Couldn't get any xsession.")
 				return
 			}
-			_, err = x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
-				Logger:     log,
-				Command:    xsession,
-				Username:   authCtx.Identity.GetIdentity().Username,
-				Login:      m.Username,
-				LogConfig:  s.cfg.ChildLogConfig,
-				Display:    backend.Display,
-				RemoteAddr: utils.FromAddr(proxyConn.RemoteAddr()),
+			xsessionCmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
+				Logger:         log,
+				Command:        xsession,
+				Username:       authCtx.Identity.GetIdentity().Username,
+				Login:          m.Username,
+				ChildLogConfig: s.cfg.ChildLogConfig,
+				Display:        backend.Display,
+				RemoteAddr:     utils.FromAddr(proxyConn.RemoteAddr()),
+				AuthorityFile:  backend.AuthorityFile.Name(),
 			})
+			go func() {
+				err := xsessionCmd.Wait()
+				if err == nil {
+					sendTDPError("Xsession was terminated")
+				} else {
+					sendTDPError("Xsession was terminated with error")
+				}
+			}()
 			if err != nil {
 				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
 				sendTDPError("Couldn't start Xsession.")

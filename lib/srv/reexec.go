@@ -446,7 +446,7 @@ func RunCommand() (code int, err error) {
 	// Wait until the continue signal is received from Teleport signaling that
 	// Teleport is monitoring this session if Enhanced Session Recording is enabled.
 	if c.RecordWithBPF {
-		err = waitForSignal(ctx, contfd, 10*time.Second)
+		err = WaitForSignal(ctx, contfd, 10*time.Second)
 		if err != nil {
 			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -1561,9 +1561,9 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	return nil
 }
 
-// waitForSignal will wait for the other side of the pipe to signal, if not
+// WaitForSignal will wait for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.

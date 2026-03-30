@@ -3,6 +3,7 @@ package x11
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/randr"
@@ -19,11 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewXvfb(t *testing.T) {
-	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+func testConfig() Config {
+	slog.SetLogLoggerLevel(logutils.TraceLevel)
+	return Config{
+		Logger: slog.Default(),
 	}
-	xvfb, err := NewBackend(t.Context(), Config{})
+}
+
+func TestNewBackend(t *testing.T) {
+	if !IsBackendPresent() {
+		t.Skip("this test requires Backend to be installed")
+	}
+	xvfb, err := NewBackend(t.Context(), testConfig())
 	require.NoError(t, err)
 	require.NotNil(t, xvfb)
 
@@ -42,14 +51,14 @@ func TestNewXvfb(t *testing.T) {
 
 func TestResize(t *testing.T) {
 	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+		t.Skip("this test requires Backend to be installed")
 	}
 
-	xvfb, err := NewBackend(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), testConfig())
 	require.NoError(t, err)
 	defer xvfb.Close()
 
-	conn, _, err := connectToDisplay(xvfb.Display)
+	conn, _, err := connectToDisplay(xvfb.Display, xvfb.authorityCookie)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -75,10 +84,10 @@ func TestResize(t *testing.T) {
 
 func TestGetChanges(t *testing.T) {
 	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+		t.Skip("this test requires Backend to be installed")
 	}
 
-	xvfb, err := NewBackend(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), testConfig())
 	require.NoError(t, err)
 	defer xvfb.Close()
 
@@ -101,7 +110,7 @@ func TestGetChanges(t *testing.T) {
 	require.Equal(t, uint16(1000), changes[0].Width)
 	require.Equal(t, uint16(1000), changes[0].Height)
 
-	conn, setup, err := connectToDisplay(xvfb.Display)
+	conn, setup, err := connectToDisplay(xvfb.Display, xvfb.authorityCookie)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -123,14 +132,14 @@ func TestGetChanges(t *testing.T) {
 
 func TestGetImage(t *testing.T) {
 	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+		t.Skip("this test requires Backend to be installed")
 	}
 
-	xvfb, err := NewBackend(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), testConfig())
 	require.NoError(t, err)
 	defer xvfb.Close()
 
-	conn, setup, err := connectToDisplay(xvfb.Display)
+	conn, setup, err := connectToDisplay(xvfb.Display, xvfb.authorityCookie)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -151,14 +160,14 @@ func TestGetImage(t *testing.T) {
 
 func TestInputs(t *testing.T) {
 	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+		t.Skip("this test requires Backend to be installed")
 	}
 
-	xvfb, err := NewBackend(t.Context(), Config{})
+	xvfb, err := NewBackend(t.Context(), testConfig())
 	require.NoError(t, err)
 	defer xvfb.Close()
 
-	conn, _, err := connectToDisplay(xvfb.Display)
+	conn, _, err := connectToDisplay(xvfb.Display, xvfb.authorityCookie)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -214,10 +223,11 @@ func TestInputs(t *testing.T) {
 
 func TestClipboard(t *testing.T) {
 	if !IsBackendPresent() {
-		t.Skip("this test requires Xvfb to be installed")
+		t.Skip("this test requires Backend to be installed")
 	}
 
 	// clipboard interactions are really complex in X11
+	// to verify it fully we have use external utility
 	_, err := exec.LookPath("xclip")
 	if err != nil {
 		t.Skip("this test requires xclip to be installed")
@@ -225,25 +235,30 @@ func TestClipboard(t *testing.T) {
 
 	var data atomic.Pointer[[]byte]
 
-	xvfb, err := NewBackend(t.Context(), Config{
-		ClipboardDataReceiver: func(bytes []byte) {
-			data.Store(&bytes)
-		},
-	})
+	config := testConfig()
+	config.ClipboardDataReceiver = func(bytes []byte) {
+		data.Store(&bytes)
+	}
+	xvfb, err := NewBackend(t.Context(), config)
 	require.NoError(t, err)
 	defer xvfb.Close()
 
 	err = xvfb.SetClipboardData([]byte("sent_to_clipboard"))
 	require.NoError(t, err)
 
+	env := []string{
+		fmt.Sprintf("DISPLAY=%s", xvfb.Display),
+		fmt.Sprintf("XAUTHORITY=%s", xvfb.AuthorityFile.Name()),
+	}
+
 	cmd := exec.CommandContext(t.Context(), "xclip", "-selection", "clipboard", "-o")
-	cmd.Env = []string{fmt.Sprintf("DISPLAY=%s", xvfb.Display)}
+	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	require.Equal(t, "sent_to_clipboard", string(out))
 
 	cmd = exec.CommandContext(t.Context(), "xclip", "-selection", "clipboard")
-	cmd.Env = []string{fmt.Sprintf("DISPLAY=%s", xvfb.Display)}
+	cmd.Env = env
 	w, err := cmd.StdinPipe()
 	require.NoError(t, err)
 
@@ -298,7 +313,8 @@ func drawRectangle(t *testing.T, conn *xgb.Conn, setup *xproto.SetupInfo, rect x
 func TestGenerateMagicCookie(t *testing.T) {
 	host, err := os.Hostname()
 	require.NoError(t, err)
-	cookie, err := generateMagicCookie(":0")
+	data := make([]byte, 16)
+	cookie, err := generateXauthorityEntry(":0", data)
 	require.NoError(t, err)
 	require.Len(t, cookie, 45+len(host))
 	require.Equal(t, []byte{1, 0}, cookie[0:2])

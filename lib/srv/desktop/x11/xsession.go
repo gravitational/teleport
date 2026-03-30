@@ -10,18 +10,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 )
 
-func GetAvailableXSessions() (map[string]string, error) {
+// GetAvailableXSessions return xsessions available in the system with optional filtering
+func GetAvailableXSessions(included, excluded *regexp.Regexp) (map[string]string, error) {
 	path, exists := os.LookupEnv("TELEPORT_XSESSIONS_PATH")
 	if !exists {
 		path = "/usr/share/xsessions"
@@ -32,7 +34,15 @@ func GetAvailableXSessions() (map[string]string, error) {
 		return nil, trace.Wrap(err)
 	}
 	for _, entry := range dirEntries {
-		if !strings.HasSuffix(entry.Name(), ".desktop") {
+		var found bool
+		var fileName string
+		if fileName, found = strings.CutSuffix(entry.Name(), ".desktop"); !found {
+			continue
+		}
+		if included != nil && !included.MatchString(fileName) {
+			continue
+		}
+		if excluded != nil && excluded.MatchString(fileName) {
 			continue
 		}
 		file, err := os.Open(filepath.Join(path, entry.Name()))
@@ -58,14 +68,27 @@ func GetAvailableXSessions() (map[string]string, error) {
 	return entries, nil
 }
 
+// XSessionConfig is configuration used for starting xsession for specified user.
 type XSessionConfig struct {
-	Logger     *slog.Logger
-	Command    string
-	Username   string
-	Login      string
-	LogConfig  *srv.ChildLogConfig
-	Display    string
-	RemoteAddr utils.NetAddr
+	Logger *slog.Logger
+
+	// ChildLogConfig contains logger configuration for the child process.
+	ChildLogConfig *srv.ChildLogConfig
+
+	// Command is command to execute to start xsession.
+	Command string
+
+	// Username is the username associated with the Teleport identity.
+	Username string
+
+	// Login is the local *nix account.
+	Login string
+
+	// Display is X11 display string (:N) to use for connection to X11 server.
+	Display string
+	// AuthorityFile is XAuthority file used to secure connection to X11 server.
+	AuthorityFile string
+	RemoteAddr    utils.NetAddr
 }
 
 // StartTeleportExecXSession reexecs the current Teleport binary using
@@ -74,6 +97,9 @@ type XSessionConfig struct {
 // It wires the same control-pipe protocol used by SSH reexecs in
 // lib/srv/reexec.go.
 func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.Cmd, error) {
+	if cfg.ChildLogConfig == nil {
+		return nil, trace.BadParameter("missing parameter ChildLogConfig")
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +131,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 	// If the log writer is a file, we can pass it directly to the child
 	// process to write to. Otherwise, we need to create a pipe to the child
 	// process and stream the logs to the log writer.
-	logCfg := cfg.LogConfig
+	logCfg := cfg.ChildLogConfig
 
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		logw = fileWriter
@@ -136,6 +162,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
+	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
 
 	cmdmsg := &srv.ExecCommand{
 		Command:         cfg.Command,
@@ -144,15 +171,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		Login:           cfg.Login,
 		Username:        cfg.Username,
 		Environment:     env,
+		LogConfig:       logCfg.ExecLogConfig,
 		UaccMetadata: srv.UaccMetadata{
 			RemoteAddr: cfg.RemoteAddr,
-		},
-		LogConfig: srv.ExecLogConfig{
-			Level:        logCfg.Level,
-			Format:       logCfg.Format,
-			ExtraFields:  logCfg.ExtraFields,
-			EnableColors: logCfg.EnableColors,
-			Padding:      logCfg.Padding,
 		},
 	}
 
@@ -164,8 +185,29 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		readyw,
 		killr,
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			cfg.Logger.Log(ctx, logutils.TraceLevel, scanner.Text())
+		}
+	}()
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			cfg.Logger.Log(ctx, logutils.TraceLevel, scanner.Text())
+		}
+	}()
+
 	cmd.Cancel = killw.Close
 	if err := cmd.Start(); err != nil {
 		killw.Close()
@@ -183,32 +225,5 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForChildReadySignal(readyr, 10*time.Second); err != nil {
-		_ = cmd.Cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	return cmd, nil
-}
-
-func waitForChildReadySignal(f *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		_, err := f.Read(make([]byte, 1))
-		if err == io.EOF {
-			waitCh <- nil
-			return
-		}
-		waitCh <- err
-	}()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case err := <-waitCh:
-		return trace.Wrap(err)
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for teleport reexec readiness signal")
-	}
 }

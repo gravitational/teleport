@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"testing"
 
@@ -38,11 +39,30 @@ func TestGetAvailableXSessions(t *testing.T) {
 	fixtureDir := filepath.Join(filepath.Dir(helperFile), "testdata")
 	require.NoError(t, os.Setenv("TELEPORT_XSESSIONS_PATH", fixtureDir))
 
-	entries, err := GetAvailableXSessions()
+	entries, err := GetAvailableXSessions(nil, nil)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
-	require.Equal(t, entries["Xfce Session"], "startxfce4")
-	require.Equal(t, entries["KDE Plasma"], "start-plasma")
+	require.Equal(t, "startxfce4", entries["Xfce Session"])
+	require.Equal(t, "start-plasma", entries["KDE Plasma"])
+
+	included, err := regexp.Compile(`xf`)
+	require.NoError(t, err)
+	entries, err = GetAvailableXSessions(included, nil)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, "startxfce4", entries["Xfce Session"])
+
+	excluded, err := regexp.Compile(`ce`)
+	require.NoError(t, err)
+	entries, err = GetAvailableXSessions(nil, excluded)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, "start-plasma", entries["KDE Plasma"])
+
+	require.NoError(t, err)
+	entries, err = GetAvailableXSessions(included, excluded)
+	require.NoError(t, err)
+	require.Len(t, entries, 0)
 }
 
 func TestStartTeleportExecXSession(t *testing.T) {
@@ -53,14 +73,13 @@ func TestStartTeleportExecXSession(t *testing.T) {
 	logger := slog.Default()
 	cfg := func() *XSessionConfig {
 		config := srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
+			Level: slog.LevelDebug,
 		}
-		config.Level.Set(slog.LevelInfo)
 		return &XSessionConfig{
 			Logger:   logger,
 			Username: username,
 			Login:    username,
-			LogConfig: &srv.ChildLogConfig{
+			ChildLogConfig: &srv.ChildLogConfig{
 				ExecLogConfig: config,
 				Writer:        os.Stderr,
 			},

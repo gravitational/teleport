@@ -1393,9 +1393,10 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	return req
 }
 
+// ChildReadyWaitTimeout is time to wait for ready signal from child.
 // The child does not signal until it completes PAM setup, which can take an arbitrary
 // amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
-const childReadyWaitTimeout = 3 * time.Minute
+const ChildReadyWaitTimeout = 3 * time.Minute
 
 // WaitForChild waits for the child process to signal ready through the named pipe.
 func (c *ServerContext) WaitForChild(ctx context.Context) error {
@@ -1408,7 +1409,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Session Recording events to the SSH session.
 	var waitErr error
 	if bpfService.Enabled() {
-		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+		if waitErr = WaitForSignal(ctx, c.readyr, ChildReadyWaitTimeout); waitErr != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}
 	}
