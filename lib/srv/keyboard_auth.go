@@ -46,6 +46,11 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
+	// IP Pinning is enforced in the session controller.
+	if len(preconds) == 1 && preconds[0].Kind == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP {
+		return perms, nil
+	}
+
 	// Source cluster must be the cluster the user will perform the MFA ceremony with. This is usually the cluster the
 	// user is trying to access, but in some cases, such as trusted clusters, the user has to perform the MFA ceremony
 	// with the root cluster instead. In those cases, the RouteToCluster field will be set to the root cluster, so we
@@ -125,7 +130,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
 	for _, precond := range preconds {
 		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA, decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP:
 			// OK
 
 		default:

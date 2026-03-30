@@ -163,6 +163,8 @@ const (
 	PreconditionKind_PRECONDITION_KIND_UNSPECIFIED PreconditionKind = 0
 	// PreconditionKindInBandMFA requires in-band MFA to be completed.
 	PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA PreconditionKind = 1
+	// PreconditionKindPinSourceIP enforces the client IP observed at login matches the client IP of SSH connections.
+	PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP PreconditionKind = 2
 )
 
 // Enum value maps for PreconditionKind.
@@ -170,10 +172,12 @@ var (
 	PreconditionKind_name = map[int32]string{
 		0: "PRECONDITION_KIND_UNSPECIFIED",
 		1: "PRECONDITION_KIND_IN_BAND_MFA",
+		2: "PRECONDITION_KIND_PIN_SOURCE_IP",
 	}
 	PreconditionKind_value = map[string]int32{
-		"PRECONDITION_KIND_UNSPECIFIED": 0,
-		"PRECONDITION_KIND_IN_BAND_MFA": 1,
+		"PRECONDITION_KIND_UNSPECIFIED":   0,
+		"PRECONDITION_KIND_IN_BAND_MFA":   1,
+		"PRECONDITION_KIND_PIN_SOURCE_IP": 2,
 	}
 )
 
@@ -956,10 +960,11 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x1aHOST_USER_MODE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13HOST_USER_MODE_KEEP\x10\x01\x12\x17\n" +
 	"\x13HOST_USER_MODE_DROP\x10\x02\x12\x19\n" +
-	"\x15HOST_USER_MODE_STATIC\x10\x03*X\n" +
+	"\x15HOST_USER_MODE_STATIC\x10\x03*}\n" +
 	"\x10PreconditionKind\x12!\n" +
 	"\x1dPRECONDITION_KIND_UNSPECIFIED\x10\x00\x12!\n" +
-	"\x1dPRECONDITION_KIND_IN_BAND_MFA\x10\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
+	"\x1dPRECONDITION_KIND_IN_BAND_MFA\x10\x01\x12#\n" +
+	"\x1fPRECONDITION_KIND_PIN_SOURCE_IP\x10\x02BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
 
 var (
 	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescOnce sync.Once
