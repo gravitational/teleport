@@ -16,4 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export * from './common';
 export * from './hooks';
+export type * from './types';
+export { default as LiveTextEditor } from './LiveTextEditor';

@@ -235,7 +235,6 @@ const cfg = {
   customTheme: '',
   isStripeManaged: false,
   hasQuestionnaire: false,
-  externalAuditStorage: false,
   premiumSupport: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature

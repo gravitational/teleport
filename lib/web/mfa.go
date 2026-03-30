@@ -556,5 +556,8 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoCha
 		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
 		chal.SSOChallenge.ChannelID = ssoChannelID
 	}
+	if protoChal.GetBrowserMFAChallenge() != nil {
+		chal.BrowserMFAChallenge = client.BrowserChallengeFromProto(protoChal.GetBrowserMFAChallenge())
+	}
 	return chal
 }

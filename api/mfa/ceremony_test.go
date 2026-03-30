@@ -160,15 +160,15 @@ func TestMFACeremony_SSO(t *testing.T) {
 			}
 
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				if cfg.SSOMFACeremony == nil {
-					return nil, trace.BadParameter("expected sso mfa ceremony")
+				if cfg.MFACeremony == nil {
+					return nil, trace.BadParameter("expected mfa ceremony")
 				}
 
-				return cfg.SSOMFACeremony.Run(ctx, chal)
+				return cfg.MFACeremony.Run(ctx, chal)
 			})
 		},
-		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			return &mockSSOMFACeremony{
+		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
+			return &mockMFACeremony{
 				clientCallbackURL: "client-redirect",
 				prompt: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 					return testMFAResponse, nil
@@ -187,23 +187,81 @@ func TestMFACeremony_SSO(t *testing.T) {
 	require.Equal(t, testMFAResponse, resp)
 }
 
-type mockSSOMFACeremony struct {
+func TestMFACeremony_BrowserMFA(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	expectedCallbackURL := "http://localhost:12345/?secret=X"
+
+	testMFAChallenge := &proto.MFAAuthenticateChallenge{
+		BrowserMFAChallenge: &proto.BrowserMFAChallenge{
+			RequestId: "request-id",
+		},
+	}
+	testMFAResponse := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Browser{
+			Browser: &proto.BrowserMFAResponse{
+				RequestId: "request-id",
+			},
+		},
+	}
+
+	browserMFACeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			require.NotNil(t, req)
+			require.Equal(t, expectedCallbackURL, req.BrowserMFATSHRedirectURL)
+			return testMFAChallenge, nil
+		},
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			cfg := new(mfa.PromptConfig)
+			for _, opt := range opts {
+				opt(cfg)
+			}
+
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				if cfg.MFACeremony == nil {
+					return nil, trace.BadParameter("expected mfa ceremony")
+				}
+
+				return cfg.MFACeremony.Run(ctx, chal)
+			})
+		},
+		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
+			return &mockMFACeremony{
+				clientCallbackURL: expectedCallbackURL,
+				prompt: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					return testMFAResponse, nil
+				},
+			}, nil
+		},
+	}
+
+	resp, err := browserMFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
+		MFARequiredCheck: &proto.IsMFARequiredRequest{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, testMFAResponse, resp)
+}
+
+type mockMFACeremony struct {
 	clientCallbackURL string
 	prompt            mfa.PromptFunc
 }
 
 // GetClientCallbackURL returns the client callback URL.
-func (m *mockSSOMFACeremony) GetClientCallbackURL() string {
+func (m *mockMFACeremony) GetClientCallbackURL() string {
 	return m.clientCallbackURL
 }
 
-func (m *mockSSOMFACeremony) GetProxyAddress() string {
+func (m *mockMFACeremony) GetProxyAddress() string {
 	return ""
 }
 
 // Run the SSO MFA ceremony.
-func (m *mockSSOMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+func (m *mockMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return m.prompt(ctx, chal)
 }
 
-func (m *mockSSOMFACeremony) Close() {}
+func (m *mockMFACeremony) Close() {}

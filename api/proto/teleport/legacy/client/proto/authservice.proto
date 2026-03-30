@@ -2465,6 +2465,10 @@ message PresenceMFAChallengeRequest {
   // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
   // If unset, the server will only return non-Browser MFA challenges.
   string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the MFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string browser_mfa_request_id = 5;
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.

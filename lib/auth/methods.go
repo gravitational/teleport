@@ -59,7 +59,7 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState) (*services.SplitAccessCheckerContext, error) {
+func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -71,6 +71,9 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	if scope == "" {
 		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
 		accessInfo := services.AccessInfoFromUserState(userState)
+		if len(allowedResourceAccessIDs) > 0 {
+			accessInfo.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		}
 
 		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 		if err != nil {
@@ -97,6 +100,9 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 
 	// build the user's access info based on the scope pin and userState
 	accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+	if len(allowedResourceAccessIDs) > 0 {
+		accessInfo.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	}
 
 	// create a scoped access checker context. Note that scoped certificate parameters differ from unscoped
 	// certificate parameters in that they are generally not role-determined. We still need to create the full
@@ -161,7 +167,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState)
+	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -423,6 +429,25 @@ func (a *Server) authenticateUserInternal(
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
+	case req.BrowserMFA != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: req.BrowserMFA,
 				},
 			}
 			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)

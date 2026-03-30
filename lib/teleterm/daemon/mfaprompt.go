@@ -74,10 +74,11 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
+	promptSSO := chal.SSOChallenge != nil && p.cfg.MFACeremony != nil
+	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.MFACeremony != nil
 	scope := p.cfg.Extensions.GetScope()
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO {
+	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowserMfa {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
@@ -88,6 +89,13 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			ConnectorType: chal.SSOChallenge.Device.ConnectorType,
 			DisplayName:   chal.SSOChallenge.Device.DisplayName,
 			RedirectUrl:   chal.SSOChallenge.RedirectUrl,
+		}
+	}
+
+	var browserMfaChallenge *mfav1.BrowserMFAChallenge
+	if promptBrowserMfa {
+		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
+			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}
 
@@ -105,6 +113,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 				Totp:          promptOTP,
 				Webauthn:      promptWebauthn,
 				Sso:           ssoChallenge,
+				Browser:       browserMfaChallenge,
 				PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 			})
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
@@ -127,14 +136,14 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			}()
 		}
 
-		// Fire SSO goroutine.
-		if promptSSO {
+		// Fire SSO/Browser MFA goroutine. They both share the same callback handler.
+		if promptSSO || promptBrowserMfa {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 
-				resp, err := p.promptSSO(ctx, chal)
-				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
+				resp, err := p.promptBrowserOrSSO(ctx, chal)
+				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO/Browser MFA authentication failed")}
 			}()
 		}
 	}
@@ -165,7 +174,7 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 	return resp, nil
 }
 
-func (c *mfaPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+func (c *mfaPrompt) promptBrowserOrSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := c.cfg.MFACeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }
