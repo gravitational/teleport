@@ -16,17 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * openNavSection opens a sidenav section and returns its locator
- */
-export async function openNavSection(
-  page: import('@playwright/test').Page,
-  sectionName: string
-) {
-  const button = page.getByRole('button', { name: sectionName });
-  await button.hover();
-  await button.click();
-  const panel = page.locator(`[id="panel-${sectionName}"]`);
-  await panel.waitFor({ state: 'visible', timeout: 5_000 });
-  return panel;
+import type { Locator, Page } from '@playwright/test';
+
+export class SideNavPage {
+  constructor(private page: Page) {}
+
+  /**
+   * openSection opens a sidenav section and returns its locator
+   */
+  async openSection(sectionName: string): Promise<Locator> {
+    const button = this.page.getByRole('button', { name: sectionName });
+    await button.hover();
+    await button.click();
+    const panel = this.page.locator(`[id="panel-${sectionName}"]`);
+    await panel.waitFor({ state: 'visible', timeout: 5_000 });
+    return panel;
+  }
 }

@@ -21,13 +21,13 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 import { teleportConfig } from '@gravitational/e2e/helpers/env';
-import { CLUSTER_NAME, expect, test } from '@gravitational/e2e/helpers/test';
 import { signup } from '@gravitational/e2e/helpers/signup';
 import {
   createResource,
   deleteResource,
   deleteUser,
 } from '@gravitational/e2e/helpers/tctl';
+import { CLUSTER_NAME, expect, test } from '@gravitational/e2e/helpers/test';
 
 const RECORDING_ID = 'e3286c06-d0ec-4d84-aeab-75692b885e3b';
 
@@ -43,9 +43,7 @@ function injectRecording(sessionId: string) {
   const configContent = readFileSync(teleportConfig, 'utf-8');
   const match = configContent.match(/data_dir:\s*(.+)/);
   if (!match) {
-    throw new Error(
-      `couldn't find data_dir in config: ${teleportConfig}`
-    );
+    throw new Error(`couldn't find data_dir in config: ${teleportConfig}`);
   }
   const dataDir = match[1].trim();
 
@@ -123,7 +121,8 @@ version: v3`;
 test('verify that playing a recorded session is denied without read access', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  // We add a longer timeout to add some buffer because this includes a full signup flow and injecting a session recording.
+  test.setTimeout(30_000);
   const username = `test-user-${testInfo.workerIndex}`;
 
   injectRecording(RECORDING_ID);
@@ -140,7 +139,8 @@ test('verify that playing a recorded session is denied without read access', asy
   await recordingLink.click();
   const playerPage = await popupPromise;
   await playerPage.waitForLoadState('load');
-  await expect(playerPage.getByText('unable to determine the length').first()
+  await expect(
+    playerPage.getByText('unable to determine the length').first()
   ).toBeVisible({ timeout: 15_000 });
 
   deleteUser(username);
@@ -150,7 +150,8 @@ test('verify that playing a recorded session is denied without read access', asy
 test('verify that a user can replay a session with read access', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  // We add a longer timeout to add some buffer because this includes a full signup flow and injecting a session recording.
+  test.setTimeout(30_000);
   const username = `test-user-${testInfo.workerIndex}`;
 
   injectRecording(RECORDING_ID);
