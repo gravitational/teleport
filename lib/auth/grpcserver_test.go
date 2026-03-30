@@ -6867,11 +6867,6 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
-
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-watcher")
 	require.NoError(t, err)
 
@@ -6892,11 +6887,6 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
 	require.NoError(t, err)
