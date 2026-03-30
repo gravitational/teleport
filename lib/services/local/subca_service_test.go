@@ -17,6 +17,7 @@
 package local_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -340,4 +341,31 @@ func TestSubCAService_Update_wrongRevision(t *testing.T) {
 	_, err = service.UpdateCertAuthorityOverride(ctx, caOverride)
 	assert.ErrorAs(t, err, new(*trace.CompareFailedError),
 		"UpdateCertAuthorityOverride() revision mismatch error")
+}
+
+func TestSubCAService_GetDeleteNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		SkipExternalRoot: true,
+	})
+	service := env.SubCA
+
+	id := local.CertAuthorityOverrideID{
+		ClusterName: env.ClusterName,
+		CAType:      string(types.WindowsCA),
+	}
+	wantErr := fmt.Sprintf(`"%s/%s" doesn't exist`, id.CAType, id.ClusterName)
+
+	t.Run("Get", func(t *testing.T) {
+		t.Parallel()
+		_, err := service.GetCertAuthorityOverride(t.Context(), id)
+		assert.ErrorContains(t, err, wantErr)
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+		err := service.DeleteCertAuthorityOverride(t.Context(), id)
+		assert.ErrorContains(t, err, wantErr)
+	})
 }
