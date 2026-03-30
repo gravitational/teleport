@@ -293,16 +293,16 @@ func SAMLIdPSpecValidator() tfsdk.AttributeValidator {
 	return SAMLIdPServiceProviderSpecValidator{}
 }
 
+const SamlIdPServiceProviderDescription = "When setting `attribute_mapping`, prefer `entity_id` and `acs_url` to `entity_descriptor`. " +
+	"The API will update `entity_descriptor` with `attribute_mapping`, causing Terraform to taint the " +
+	"resource if the a matching attribute_mapping isn't in the user-provided entity_descriptor."
+
 func (v SAMLIdPServiceProviderSpecValidator) Description(_ context.Context) string {
-	return "When setting `attribute_mapping`, prefer `entity_id` and `acs_url` to `entity_descriptor`. " +
-		"The API will update `entity_descriptor` with `attribute_mapping`, causing Terraform to taint the " +
-		"resource if the a matching attribute_mapping isn't in the user-provided entity_descriptor."
+	return SamlIdPServiceProviderDescription
 }
 
 func (v SAMLIdPServiceProviderSpecValidator) MarkdownDescription(_ context.Context) string {
-	return "When setting `attribute_mapping`, prefer `entity_id` and `acs_url` to `entity_descriptor`. " +
-		"The API will update `entity_descriptor` with `attribute_mapping`, causing Terraform to taint the " +
-		"resource if the a matching attribute_mapping isn't in the user-provided entity_descriptor."
+	return SamlIdPServiceProviderDescription
 }
 
 func (v SAMLIdPServiceProviderSpecValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
