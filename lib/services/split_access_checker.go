@@ -54,7 +54,7 @@ type CommonAccessChecker interface {
 	CheckAccessToRules(ctx RuleContext, resource string, verbs ...string) error
 	HostSudoers(types.Server) ([]string, error)
 	EnhancedRecordingSet() map[string]bool
-	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
+	HostUsers(types.Server) (*HostUsersDecision, error)
 	CheckAgentForward(login string) error
 	MaxConnections() int64
 	MaxSessions() int64

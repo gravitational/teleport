@@ -25,40 +25,75 @@ import (
 	"testing/iotest"
 
 	"github.com/stretchr/testify/require"
+
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
 func TestReadChildError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		readErr    error
-		stderrIn   string
-		wantStderr string
+		name         string
+		readErr      error
+		childErrIn   string
+		wantChildErr string
+		context      *ErrorContext
 	}{
 		{
-			name:       "empty stderr",
-			stderrIn:   "",
-			wantStderr: "",
+			name:         "empty stderr",
+			childErrIn:   "",
+			wantChildErr: "",
 		},
 		{
-			name:       "has stderr",
-			stderrIn:   "Failed to launch: test error.\r\n",
-			wantStderr: "Failed to launch: test error.\r\n",
+			name:         "has stderr",
+			childErrIn:   "Failed to launch: test error.\r\n",
+			wantChildErr: "Failed to launch: test error.\r\n",
 		},
 		{
-			name:       "stderr at max read limit",
-			stderrIn:   strings.Repeat("a", maxRead),
-			wantStderr: strings.Repeat("a", maxRead),
+			name:         "stderr at max read limit",
+			childErrIn:   strings.Repeat("a", maxRead),
+			wantChildErr: strings.Repeat("a", maxRead),
 		},
 		{
-			name:       "stderr over max read limit is truncated",
-			stderrIn:   strings.Repeat("a", maxRead) + "b",
-			wantStderr: strings.Repeat("a", maxRead),
+			name:         "stderr over max read limit is truncated",
+			childErrIn:   strings.Repeat("a", maxRead) + "b",
+			wantChildErr: strings.Repeat("a", maxRead),
 		},
 		{
 			name:    "read error",
 			readErr: errors.New("read failure"),
+		},
+		{
+			name:       "unknown user error with mixed host user creation decisions gets contextualized",
+			childErrIn: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec.\r\n",
+			context: &ErrorContext{
+				Login: "teleport-test-user-does-not-exist-reexec",
+				DecisionContext: &decisionpb.SSHAccessPermitContext{
+					HostUserCreationAllowedBy: []*decisionpb.Determinant{
+						{Kind: "role", Name: "allow-role"},
+					},
+					HostUserCreationDeniedBy: []*decisionpb.Determinant{
+						{Kind: "role", Name: "deny-role"},
+					},
+				},
+			},
+			wantChildErr: "Failed to launch: user: unknown user teleport-test-user-does-not-exist-reexec: host user creation denied by the following resources: [role: \"deny-role\"]\r\n",
+		},
+		{
+			name:       "pam context error for unknown user gets contextualized",
+			childErrIn: "Failed to launch: failed to open PAM context: pam_start failed.\r\n",
+			context: &ErrorContext{
+				Login: "teleport-test-user-does-not-exist-pam",
+				DecisionContext: &decisionpb.SSHAccessPermitContext{
+					HostUserCreationAllowedBy: []*decisionpb.Determinant{
+						{Kind: "role", Name: "allow-role"},
+					},
+					HostUserCreationDeniedBy: []*decisionpb.Determinant{
+						{Kind: "role", Name: "deny-role"},
+					},
+				},
+			},
+			wantChildErr: "Failed to launch: failed to open PAM context: pam_start failed: host user creation denied by the following resources: [role: \"deny-role\"]\r\n",
 		},
 	}
 
@@ -67,14 +102,14 @@ func TestReadChildError(t *testing.T) {
 			t.Parallel()
 
 			if tt.readErr != nil {
-				_, err := ReadChildError(iotest.ErrReader(tt.readErr))
+				_, err := ReadChildError(iotest.ErrReader(tt.readErr), tt.context)
 				require.ErrorIs(t, err, tt.readErr)
 				return
 			}
 
-			got, err := ReadChildError(strings.NewReader(tt.stderrIn))
+			got, err := ReadChildError(strings.NewReader(tt.childErrIn), tt.context)
 			require.NoError(t, err)
-			require.Equal(t, tt.wantStderr, got)
+			require.Equal(t, tt.wantChildErr, got)
 		})
 	}
 }
