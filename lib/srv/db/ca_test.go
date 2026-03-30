@@ -19,7 +19,6 @@
 package db
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -209,7 +208,7 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Azure CA when it's not set",
 			database: azureMySQL.GetName(),
-			cert:     fixtures.TLSCACertPEM + "\n" + fixtures.TLSCACertPEM, // Two CA files.
+			cert:     fixtures.TLSCACertPEM,
 		},
 		{
 			desc:     "should download MongoDB Atlas CA when it's not set",
@@ -404,7 +403,7 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	supportedHints := []string{filepath.Base(azureCAURLBaltimore), filepath.Base(azureCAURLDigiCert)}
+	supportedHints := []string{filepath.Base(azureCAURLDigiCert)}
 	initialCA := generateDatabaseCA(t)
 	caDownloader := &fakeDownloader{
 		cert:    initialCA,
@@ -426,9 +425,7 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 
 	require.NoError(t, databaseServer.initCACert(ctx, azureDB))
-	// It must have the contents of two CAs. Since we're returning the same
-	// content for both, it should have 2 instances of "initialCA".
-	require.Equal(t, string(bytes.Join([][]byte{initialCA, initialCA}, []byte("\n"))), azureDB.GetStatusCA())
+	require.Equal(t, initialCA, azureDB.GetStatusCA())
 }
 
 func generateDatabaseCA(t *testing.T) []byte {

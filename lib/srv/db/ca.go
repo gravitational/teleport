@@ -197,7 +197,6 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 
 	case types.DatabaseTypeAzure:
 		return []string{
-			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLBaltimore)),
 			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLDigiCert)),
 		}, nil
 
@@ -322,9 +321,7 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
-		if strings.HasSuffix(azureCAURLBaltimore, hint) {
-			return d.downloadFromURL(azureCAURLBaltimore)
-		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+		if strings.HasSuffix(azureCAURLDigiCert, hint) {
 			return d.downloadFromURL(azureCAURLDigiCert)
 		}
 		return nil, nil, trace.BadParameter("unknown Azure CA %q", hint)
@@ -348,9 +345,7 @@ func (d *realDownloader) GetVersion(ctx context.Context, database types.Database
 		types.DatabaseTypeMemoryDB:
 		return d.getVersionFromURL(database, amazonRootCA1URL)
 	case types.DatabaseTypeAzure:
-		if strings.HasSuffix(azureCAURLBaltimore, hint) {
-			return d.getVersionFromURL(database, azureCAURLBaltimore)
-		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+		if strings.HasSuffix(azureCAURLDigiCert, hint) {
 			return d.getVersionFromURL(database, azureCAURLDigiCert)
 		}
 		return nil, trace.BadParameter("unknown Azure CA %q", hint)
@@ -505,12 +500,6 @@ const (
 	// https://www.amazontrust.com/repository/
 	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
-	// azureCAURLBaltimore is the URL of the CA certificate for validating certificates
-	// presented by Azure hosted databases. See:
-	//
-	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
-	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
-	azureCAURLBaltimore = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 	// azureCAURLDigiCert is the URL of the new CA certificate for validating
 	// certificates presented by Azure hosted databases.
 	azureCAURLDigiCert = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
