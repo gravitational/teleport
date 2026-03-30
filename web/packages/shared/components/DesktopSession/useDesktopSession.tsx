@@ -329,6 +329,21 @@ export function directorySharingPossible(
 }
 
 /**
+ * Provides a user-friendly message indicating whether directory sharing is enabled,
+ * and the reason it is disabled.
+ */
+export function directorySharingMessage(state: DirectorySharingState): string {
+  if (!state.allowedByAcl) {
+    return 'Directory Sharing disabled by Teleport RBAC.';
+  }
+  if (!state.browserSupported) {
+    return 'Directory Sharing is not supported in this browser.';
+  }
+
+  return 'Share local directories with this Windows desktop.';
+}
+
+/**
  * To be called before any system clipboard read/write operation.
  */
 async function sysClipboardGuard(

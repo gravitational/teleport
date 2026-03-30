@@ -21,6 +21,7 @@ import styled from 'styled-components';
 import { Flex, Stack, Text } from 'design';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderShared, Plus } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
@@ -75,17 +76,26 @@ export function SharedDirectoryList({
                 alignItems="center"
               >
                 <Text>{dir.name}</Text>
-                <ButtonSecondary
-                  size="small"
-                  p={1}
-                  minWidth={0}
-                  height="auto"
-                  title={'Unshare Directory'}
-                  onClick={() => onRemoveSharedDirectory(dir.id)}
-                  disabled={!canRemoveSharedDirectory}
+                <HoverTooltip
+                  placement="bottom"
+                  tipContent={
+                    canRemoveSharedDirectory
+                      ? 'Remove Shared Directory'
+                      : 'The Windows Desktop Server does not support removal of shared directories'
+                  }
                 >
-                  <Eject size="small" disabled={!canRemoveSharedDirectory} />
-                </ButtonSecondary>
+                  <ButtonSecondary
+                    size="small"
+                    p={1}
+                    minWidth={0}
+                    height="auto"
+                    title={'Unshare Directory'}
+                    onClick={() => onRemoveSharedDirectory(dir.id)}
+                    disabled={!canRemoveSharedDirectory}
+                  >
+                    <Eject size="small" disabled={!canRemoveSharedDirectory} />
+                  </ButtonSecondary>
+                </HoverTooltip>
               </Flex>
             ))}
           </Stack>
@@ -95,10 +105,10 @@ export function SharedDirectoryList({
   );
 }
 
-export interface DirectoryItem  {
+export interface DirectoryItem {
   name: string;
   id: number;
-};
+}
 
 const Container = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
