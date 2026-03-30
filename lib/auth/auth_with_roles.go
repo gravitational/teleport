@@ -1112,7 +1112,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 // NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
 // performance characteristics).
 func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
-	if err := a.authorizeWatchRequest(&watch); err != nil {
+	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.NewStream(ctx, watch)
@@ -1120,21 +1120,27 @@ func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (str
 
 // NewWatcher returns a new event watcher
 func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	if err := a.authorizeWatchRequest(&watch); err != nil {
+	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.NewWatcher(ctx, watch)
 }
 
 // authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
-func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
+func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
 		return trace.AccessDenied("can't setup global watch")
 	}
 
+	hasWatchPermissionForKind := a.hasWatchPermissionForKind
+	// If scoped identity is available, leverage this for checks instead.
+	if a.scopedContext != nil {
+		hasWatchPermissionForKind = a.hasWatchPermissionForKindScoped
+	}
+
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		err := a.hasWatchPermissionForKind(kind)
+		err := hasWatchPermissionForKind(ctx, kind)
 		if err != nil {
 			if watch.AllowPartialSuccess {
 				continue
@@ -1160,10 +1166,42 @@ func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
 	return nil
 }
 
+// hasWatchPermissionForKind evaluates whether an identity can watch a specified
+// kind. Must only be called when a.scopedContext != nil -
+// i.e. scopedAuthenticate produced the ServerWithRoles.
+func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
+	ctx context.Context, kind types.WatchKind,
+) error {
+	// Scoped identities currently receive "special" handling. For now, we only
+	// support watching the cert_authority kind, with load_secrets=false.
+	//
+	// For this, we perform a RiskyUnpinnedDecision to permit scoped identities
+	// to read an unscoped resource.
+	if kind.Kind != types.KindCertAuthority {
+		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
+	}
+	if kind.LoadSecrets {
+		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
+	}
+	verb := types.VerbReadNoSecrets
+	ruleCtx := a.scopedContext.RuleContext()
+	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
+		ctx,
+		scopes.Root,
+		func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, kind.Kind, verb)
+		},
+	)
+
+}
+
 // hasWatchPermissionForKind checks the permissions for data of each kind.
 // For watching, most kinds of data just need a Read permission, but some
 // have more complicated logic.
-func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error {
+func (a *ServerWithRoles) hasWatchPermissionForKind(
+	_ context.Context,
+	kind types.WatchKind,
+) error {
 	verb := types.VerbRead
 	switch kind.Kind {
 	case types.KindCertAuthority:

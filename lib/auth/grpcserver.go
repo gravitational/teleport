@@ -540,6 +540,17 @@ const logInterval = 10000
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
+		// Support scoped identities calling the RPC by falling back to scoped
+		// authorizer check.
+		if errors.Is(err, services.ErrScopedIdentity) {
+			auth, err := g.scopedAuthenticate(stream.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(WatchEvents(
+				watch, stream, auth.scopedContext.User.GetName(), auth),
+			)
+		}
 		return trace.Wrap(err)
 	}
 
