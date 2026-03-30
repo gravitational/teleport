@@ -2334,17 +2334,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// When the scope changes between logins (e.g. scoped→unscoped or vice
-	// versa), clear all Teleport keys for this proxy from the SSH agent.
-	if scopeChanged {
-		if agent := tc.LocalAgent(); agent != nil {
-			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
-			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
-				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
-			}
-		}
-	}
-
 	// If the user requested tracing and the login succeeds (even if the user
 	// was already logged in) report the tracing client to the trace provider
 	// to that spans can be exported.
@@ -2529,6 +2518,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// the login operation may update the username and should be considered the more
 	// "authoritative" source.
 	cf.Username = tc.Username
+
+	// When the scope changes between logins (e.g. scoped→unscoped or vice
+	// versa), clear all Teleport keys for this proxy from the SSH agent.
+	if scopeChanged {
+		if agent := tc.LocalAgent(); agent != nil {
+			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
+			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
+				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
+			}
+		}
+	}
 
 	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
 	if err != nil {
