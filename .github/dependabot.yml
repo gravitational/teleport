@@ -343,13 +343,23 @@ updates:
           - node-gyp
           - node-pty
       ui:
+        dependency-type: production
         update-types:
           - 'minor'
           - 'patch'
         # Contrary to what the docs say, if a dependency matches more than one rule, it is _not_
-        # included in the first group that it matches. Other groups must be explicitly included,
-        # otherwise Dependabot is going to perform minor Electron updates in the UI group.
+        # included in the first group that it matches. Other groups must be explicitly excluded,
+        # otherwise Dependabot is going to perform minor Electron updates in ui groups.
         # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
+        exclude-patterns:
+          - 'electron*'
+          - node-gyp
+          - node-pty
+      ui-tooling:
+        dependency-type: development
+        update-types:
+          - 'minor'
+          - 'patch'
         exclude-patterns:
           - 'electron*'
           - node-gyp
