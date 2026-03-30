@@ -99,9 +99,10 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
 					ChallengeRequest: &proto.PresenceMFAChallengeRequest{
-						SessionID:            sessionID,
-						SSOClientRedirectURL: chalReq.SSOClientRedirectURL,
-						ProxyAddress:         chalReq.ProxyAddress,
+						SessionID:                sessionID,
+						SSOClientRedirectURL:     chalReq.SSOClientRedirectURL,
+						BrowserMFATSHRedirectURL: chalReq.BrowserMFATSHRedirectURL,
+						ProxyAddress:             chalReq.ProxyAddress,
 					},
 				},
 			}

@@ -42,8 +42,8 @@ import cfg from 'teleport/config';
 import {
   ContentWithSidePanel,
   InfoGuideSwitch,
-  type InfoGuideTab,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
+  useTerraformInfoGuide,
+} from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
@@ -99,9 +99,7 @@ export function IaCIntegrationOverview() {
   });
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    'terraform' as const
-  );
+  const { activeInfoGuideTab, setActiveInfoGuideTab } = useTerraformInfoGuide();
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
   useNoMinWidth();
 
@@ -123,7 +121,7 @@ export function IaCIntegrationOverview() {
     );
   }
 
-  const isPanelOpen = activeTab === 'settings' && activeInfoGuideTab !== null;
+  const isPanelOpen = activeTab === 'settings' && !!activeInfoGuideTab;
 
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
@@ -144,7 +142,7 @@ export function IaCIntegrationOverview() {
           </Flex>
           {activeTab === 'settings' && (
             <InfoGuideSwitch
-              isPanelOpen={activeInfoGuideTab !== null}
+              isPanelOpen={isPanelOpen}
               activeTab={activeInfoGuideTab}
               onSwitch={setActiveInfoGuideTab}
             />

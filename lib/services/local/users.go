@@ -1969,7 +1969,7 @@ func (s *IdentityService) UpsertMFASessionData(ctx context.Context, sd *services
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
+func (s *IdentityService) GetMFASessionData(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
 	if sessionID == "" {
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
@@ -1982,12 +1982,31 @@ func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID st
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
-func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+func (s *IdentityService) DeleteMFASessionData(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return trace.BadParameter("missing parameter sessionID")
 	}
 
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
+}
+
+// Deprecated: use UpsertMFASessionData.
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+	return trace.Wrap(s.UpsertMFASessionData(ctx, sd))
+}
+
+// Deprecated: use GetMFASessionData.
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+	sd, err := s.GetMFASessionData(ctx, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sd, nil
+}
+
+// Deprecated: use DeleteMFASessionData.
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+	return trace.Wrap(s.DeleteMFASessionData(ctx, sessionID))
 }
 
 func ssoMFASessionDataKey(sessionID string) backend.Key {
