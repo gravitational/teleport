@@ -26,7 +26,7 @@ When a user authenticates to Teleport using Entra ID SAML, the SAML assertion co
 
 Note that the URL provided in the assertion is actually for a dreprecated API, we will actually use the user's ID (from http://schemas.microsoft.com/identity/claims/objectidentifier) to call `transitiveMemberOf` directly.
 
-Since a similar issue was already resolved for the Entra ID OIDC connector, the proposal is to mostly mirror that for the SAML connector and leverage as much of the existing implemention as possible (refactoring, if necessary).
+Since a similar issue was already resolved for the Entra ID OIDC connector, the proposal is to mostly mirror that for the SAML connector and leverage as much of the existing implementation as possible (refactoring, if necessary).
 
 An `EntraIDGroupsProvider` field will be added to `SAMLConnectorSpecV2` to store a user groups provider.
 
@@ -135,7 +135,7 @@ In the case of an error, a suitable error message will be returned. Notable erro
 
 In both cases, the system will now have a SAML connector for Entra, along with an Entra ID plugin and OIDC integration in Teleport, and a federated identity with Graph API permissions in Azure.
 
-1. When the groups overage scenario is detected, the Entra ID plugin will be looked up by matching the `sso_connector_id` to name of the SAML connector being used to authetnicate into Teleport
+1. When the groups overage scenario is detected, the Entra ID plugin will be looked up by matching the `sso_connector_id` to name of the SAML connector being used to authenticate into Teleport
 2. A credential will be constructed using the `tenant_id` and `client_id` from the OIDC integration with a callback to `azureoidc.GenerateEntraOIDCToken` to create the OIDC JWT on token refresh
 3. This credential will be passed to `newGraphClient` to build the authenticated client
 
