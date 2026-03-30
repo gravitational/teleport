@@ -901,14 +901,29 @@ func TestRBACJoinMFA(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, joinRole)
 	require.NoError(t, err)
 
+	pinJoinRole, err := types.NewRole("pinJoin", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, pinJoinRole)
+	require.NoError(t, err)
+
 	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
 	tests := []struct {
-		name      string
-		authPref  types.AuthPreference
-		role      string
-		testError func(t *testing.T, err error)
+		name              string
+		authPref          types.AuthPreference
+		role              string
+		expectPinSourceIP bool
+		testError         func(t *testing.T, err error)
 	}{
 		{
 			name:     "MFA cluster auth, MFA role",
@@ -941,6 +956,15 @@ func TestRBACJoinMFA(t *testing.T) {
 			name:     "no MFA cluster auth, no MFA role",
 			authPref: noMFAAuthPref,
 			role:     joinRole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:              "no MFA cluster auth, pin source IP role",
+			authPref:          noMFAAuthPref,
+			role:              pinJoinRole.GetName(),
+			expectPinSourceIP: true,
 			testError: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
@@ -978,8 +1002,13 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
+			if err == nil && tt.expectPinSourceIP {
+				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+				})
+			}
 		})
 	}
 }
