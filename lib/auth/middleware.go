@@ -375,12 +375,22 @@ func newAccountRecoveryLimiter() (*limiter.RateLimiter, error) {
 	})
 }
 
+// clientIPFromContext extracts the client IP from the gRPC peer in
+// the given context.
+func clientIPFromContext(ctx context.Context) (string, error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", trace.AccessDenied("missing peer info")
+	}
+	return utils.ClientIPFromAddr(peerInfo.Addr)
+}
+
 // rateLimitUnaryInterceptor returns a gRPC unary interceptor that
 // applies the default rate and connection limiter to all endpoints,
 // plus the stricter account recovery limiter on recovery endpoints.
 func (a *Middleware) rateLimitUnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		clientIP, err := limiter.ClientIPFromContext(ctx)
+		clientIP, err := clientIPFromContext(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

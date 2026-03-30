@@ -154,7 +154,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 // invalid or if there have been too many requests from that address
 // recently.
 func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
-	token, err := clientIPFromAddr(addr)
+	token, err := utils.ClientIPFromAddr(addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

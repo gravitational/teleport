@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Limiter helps limiting connections and request rates
@@ -121,7 +122,7 @@ func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 			return nil, trace.AccessDenied("missing peer info")
 		}
 
-		clientIP, err := clientIPFromAddr(peerInfo.Addr)
+		clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -144,7 +145,7 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 		return trace.AccessDenied("missing peer info")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, err := clientIPFromAddr(peerInfo.Addr)
+	clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -156,37 +157,6 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 	}
 	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
-}
-
-// ClientIPFromContext extracts the client IP from the gRPC peer in
-// the given context.
-func ClientIPFromContext(ctx context.Context) (string, error) {
-	peerInfo, ok := peer.FromContext(ctx)
-	if !ok {
-		return "", trace.AccessDenied("missing peer info")
-	}
-	return clientIPFromAddr(peerInfo.Addr)
-}
-
-func clientIPFromAddr(addr net.Addr) (string, error) {
-	if addr == nil {
-		return "", trace.BadParameter("missing client IP")
-	}
-
-	s := addr.String()
-
-	// bufconn peers don't include host:port, so use a stable synthetic key
-	// for request/connection limiting in tests.
-	if s == "bufconn" && addr.Network() == "bufconn" {
-		return "bufconn", nil
-	}
-
-	clientIP, _, err := net.SplitHostPort(s)
-	if err == nil {
-		return clientIP, nil
-	}
-
-	return "", trace.BadParameter("missing client IP")
 }
 
 // WrapListener returns a [Listener] that wraps the provided listener
