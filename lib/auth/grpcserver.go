@@ -543,13 +543,16 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		// Support scoped identities calling the RPC by falling back to scoped
 		// authorizer check.
 		if errors.Is(err, services.ErrScopedIdentity) {
-			auth, err := g.scopedAuthenticate(stream.Context())
+			scopedAuth, err := g.scopedAuthenticate(stream.Context())
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(WatchEvents(
-				watch, stream, auth.scopedContext.User.GetName(), auth),
-			)
+				watch,
+				stream,
+				scopedAuth.scopedContext.User.GetName(),
+				scopedAuth,
+			))
 		}
 		return trace.Wrap(err)
 	}

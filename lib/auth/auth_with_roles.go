@@ -1192,7 +1192,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 			return checker.Common().CheckAccessToRules(&ruleCtx, kind.Kind, verb)
 		},
 	)
-
 }
 
 // hasWatchPermissionForKind checks the permissions for data of each kind.
