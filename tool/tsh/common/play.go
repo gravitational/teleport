@@ -167,7 +167,7 @@ func exportSession(cf *CLIConf) error {
 			}
 			// when playing from a file, id is not included, this
 			// makes the outputs otherwise identical
-			event.SetID("")
+			// event.SetID("")
 
 			if first {
 				first = false
