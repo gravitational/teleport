@@ -1759,7 +1759,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
-				sd, err := a.GetSSOMFASessionData(ctx, requestID)
+				sd, err := a.GetMFASessionData(ctx, requestID)
 				assert.NoError(t, err)
 				assert.Equal(t, resp.MFAToken, sd.Token)
 			},

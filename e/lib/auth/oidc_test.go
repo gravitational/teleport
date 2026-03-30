@@ -1931,7 +1931,7 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
-				sd, err := suite.authServer.GetSSOMFASessionData(ctx, token)
+				sd, err := suite.authServer.GetMFASessionData(ctx, token)
 				assert.NoError(t, err)
 				assert.Equal(t, resp.MFAToken, sd.Token)
 			},
@@ -1983,7 +1983,7 @@ func TestValidateOIDCResponseMFA(t *testing.T) {
 				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
-				sd, err := suite.authServer.GetSSOMFASessionData(ctx, token)
+				sd, err := suite.authServer.GetMFASessionData(ctx, token)
 				assert.NoError(t, err)
 				assert.Equal(t, resp.MFAToken, sd.Token)
 			},
