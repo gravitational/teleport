@@ -8206,6 +8206,7 @@ func TestSessionRecordingMode(t *testing.T) {
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
 				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
 				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeOff}},
 			},
 		},
 		"strict default multiple roles": {
@@ -8215,6 +8216,7 @@ func TestSessionRecordingMode(t *testing.T) {
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeOff}},
 			},
 		},
 		"default multiple roles": {
@@ -8223,6 +8225,37 @@ func TestSessionRecordingMode(t *testing.T) {
 			rolesOptions: []types.RoleOptions{
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
 				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeOff}},
+			},
+		},
+		"off server-specific option": {
+			expectedMode: constants.SessionRecordingModeOff,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeOff}},
+			},
+		},
+		"off server-specific multiple roles": {
+			expectedMode: constants.SessionRecordingModeBestEffort,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeBestEffort}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeOff}},
+			},
+		},
+		"off server-specific strict default": {
+			expectedMode: constants.SessionRecordingModeOff,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeStrict}},
+				{RecordSession: &types.RecordSession{SSH: constants.SessionRecordingModeOff}},
+			},
+		},
+		"off default": {
+			expectedMode: constants.SessionRecordingModeOff,
+			service:      constants.SessionRecordingServiceSSH,
+			rolesOptions: []types.RoleOptions{
+				{RecordSession: &types.RecordSession{Default: constants.SessionRecordingModeOff}},
 			},
 		},
 	}
