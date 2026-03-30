@@ -1166,8 +1166,8 @@ func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *type
 	return nil
 }
 
-// hasWatchPermissionForKind evaluates whether an identity can watch a specified
-// kind. Must only be called when a.scopedContext != nil -
+// hasWatchPermissionForKindScoped evaluates whether an identity can watch a
+// specified kind. Must only be called when a.scopedContext != nil -
 // i.e. scopedAuthenticate produced the ServerWithRoles.
 func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 	ctx context.Context, kind types.WatchKind,
