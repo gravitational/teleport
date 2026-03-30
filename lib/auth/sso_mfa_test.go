@@ -274,7 +274,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				assert.True(t, req.CheckUser)
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, &services.MFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
@@ -313,7 +313,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				assert.True(t, req.CheckUser)
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, &services.MFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
@@ -341,7 +341,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				require.NotNil(t, chal.SSOChallenge, "expected SSO challenge to be returned")
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)
 			},

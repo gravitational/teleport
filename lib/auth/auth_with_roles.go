@@ -7521,7 +7521,7 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 
 		// Device trust: authorize device before issuing a register challenge without an MFA response or privilege token.
 		// This is an exceptional case for users registering their first MFA challenge through `tsh`.
-		if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
+		if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil && mfaResp.GetBrowser() == nil {
 			if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
 				return nil, trace.Wrap(err, "device trust is required for users to register their first MFA device")
 			}
