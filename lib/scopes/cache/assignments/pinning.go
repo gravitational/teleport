@@ -179,7 +179,8 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 
 	// Ensure the scope we are pinning to it descendent or equiv to the bot scope.
 	// nb: This restriction may be relaxed w/ introduction of cross-scope privilege.
-	if !scopes.PolicyAssignmentScope(pin.Scope).IsSubjectToPolicyResourceScope(botScope) {
+	rel := scopes.Compare(botScope, pin.GetScope())
+	if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
 		return trace.BadParameter(
 			"pinned scope %q is not subject to bot scope %q in assignment population request for bot %q",
 			pin.GetScope(), botScope, botName,
@@ -229,7 +230,8 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 					continue
 				}
 				// ignore assignments where assigned scope is not descendent or equiv to bot scope.
-				if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(botScope) {
+				rel := scopes.Compare(botScope, subAssignment.GetScope())
+				if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
 					continue
 				}
 
