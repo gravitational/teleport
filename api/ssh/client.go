@@ -35,7 +35,7 @@ const (
 	// VersionPrefix is the prefix for the SSH client version string used by Teleport SSH clients.
 	VersionPrefix = "SSH-2.0-Teleport"
 
-	// DefaultClientVersion returns the default SSH client identification string used by Teleport SSH clients.
+	// DefaultClientVersion is the default SSH client identification string used by Teleport SSH clients.
 	DefaultClientVersion = VersionPrefix + "_" + api.Version
 
 	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
@@ -77,8 +77,6 @@ func (NonTeleportSSHVersionError) Error() string {
 //	 - SSH-2.0-Teleport <feature1,feature2,...>
 //	 - SSH-2.0-Teleport_<teleport_version>
 //	 - SSH-2.0-Teleport_<teleport_version> <feature1,feature2,...>
-//	 - SSH-2.0-Teleport<teleport_version>
-//	 - SSH-2.0-Teleport<teleport_version> <feature1,feature2,...>
 func ParseClientVersion(clientVersion string) (string, []string, error) {
 	// Ensure it is actually has the Teleport SSH client version prefix before doing any further parsing or validation.
 	rest, ok := strings.CutPrefix(clientVersion, VersionPrefix)
@@ -91,7 +89,7 @@ func ParseClientVersion(clientVersion string) (string, []string, error) {
 	// return the specific invalid character in the error message since it could be used for malicious purposes.
 	if strings.ContainsFunc(
 		clientVersion,
-		func(r rune) bool { return r < 32 || r > 126 },
+		func(r rune) bool { return r < ' ' || r > '~' },
 	) {
 		return "", nil, trace.BadParameter(
 			"SSH client version contains invalid characters (only ASCII characters 32-126 are allowed)",
@@ -105,6 +103,12 @@ func ParseClientVersion(clientVersion string) (string, []string, error) {
 
 	// Separate the version part from the features part by the first space.
 	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
+
+	// If a version is present, it must be prefixed with an underscore. This is to ensure consistency with OpenSSH
+	// client version strings, which also use an underscore to separate the client name from the version.
+	if versionPart != "" && !strings.HasPrefix(versionPart, "_") {
+		return "", nil, trace.BadParameter("SSH client version must be prefixed with an underscore")
+	}
 
 	// Remove the leading underscore from the version part, if present.
 	versionPart = strings.TrimPrefix(versionPart, "_")
@@ -130,36 +134,18 @@ func IsFeatureSupported(clientVersion, feature string) (bool, error) {
 	return slices.Contains(features, feature), nil
 }
 
-// PublicKeyAuthConfig configures the public-key authentication method used by a Teleport SSH client. Exactly one of
-// Signers or GetSigners must be set.
+// PublicKeyAuthConfig configures the public-key authentication method used by a Teleport SSH client.
 type PublicKeyAuthConfig struct {
-	// Signers contains static signers to use for public-key authentication.
-	Signers []ssh.Signer
-
 	// GetSigners dynamically returns signers for public-key authentication.
 	GetSigners func() ([]ssh.Signer, error)
 }
 
 func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
-	switch {
-	case len(c.Signers) == 0 && c.GetSigners == nil:
-		return nil, trace.BadParameter("public key auth requires Signers or GetSigners")
-
-	case len(c.Signers) > 0 && c.GetSigners != nil:
-		return nil, trace.BadParameter("public key auth supports exactly one of Signers or GetSigners")
-
-	case c.GetSigners != nil:
-		return ssh.PublicKeysCallback(c.GetSigners), nil
+	if c.GetSigners == nil {
+		return nil, trace.BadParameter("public key auth requires GetSigners")
 	}
 
-	// This shallow clones. May need to be improved if we have more complex signers or need thread safety.
-	signers := slices.Clone(c.Signers)
-
-	if slices.Contains(signers, nil) {
-		return nil, trace.BadParameter("public key auth Signers must not contain nil entries")
-	}
-
-	return ssh.PublicKeys(signers...), nil
+	return ssh.PublicKeysCallback(c.GetSigners), nil
 }
 
 // ClientConfig configures a Teleport SSH client wrapper around tracessh.

@@ -83,12 +83,6 @@ func TestParseSSHClientVersion(t *testing.T) {
 			wantVersion:   "19.1.2-dev",
 			wantFeatures:  []string{"mfav1", "foov1=bar"},
 		},
-		{
-			name:          "prefix with version without underscore",
-			clientVersion: VersionPrefix + "19.1.2-dev",
-			wantVersion:   "19.1.2-dev",
-			wantFeatures:  nil,
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			version, features, err := ParseClientVersion(tt.clientVersion)
@@ -117,6 +111,13 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 			clientVersion: VersionPrefix + "_19.1.2-dev.1" + " " + "mfav1,foov1\xc3",
 			wantErr: trace.BadParameter(
 				"SSH client version contains invalid characters (only ASCII characters 32-126 are allowed)",
+			),
+		},
+		{
+			name:          "version without required underscore",
+			clientVersion: VersionPrefix + "19.1.2-dev",
+			wantErr: trace.BadParameter(
+				"SSH client version must be prefixed with an underscore",
 			),
 		},
 	} {
@@ -168,27 +169,36 @@ func TestIsSSHFeatureSupported(t *testing.T) {
 func TestIsSSHFeatureSupportedErrors(t *testing.T) {
 	t.Parallel()
 
-	got, err := IsFeatureSupported("SSH-2.0-OpenSSH_9.9.9", "mfav1")
-	require.ErrorIs(t, err, NonTeleportSSHVersionError{})
-	require.False(t, got)
+	for _, tt := range []struct {
+		name          string
+		clientVersion string
+		wantErr       error
+	}{
+		{
+			name:          "invalid prefix",
+			clientVersion: "SSH-2.0-OpenSSH_9.9.9",
+			wantErr:       NonTeleportSSHVersionError{},
+		},
+		{
+			name:          "version without required underscore",
+			clientVersion: VersionPrefix + "19.1.2-dev",
+			wantErr: trace.BadParameter(
+				"SSH client version must be prefixed with an underscore",
+			),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := IsFeatureSupported(tt.clientVersion, "mfav1")
+			require.ErrorIs(t, err, tt.wantErr)
+			require.False(t, got)
+		})
+	}
 }
 
 func TestPublicKeyAuthConfigAuthMethod(t *testing.T) {
 	t.Parallel()
 
 	signer := generateSigner(t)
-
-	t.Run("static signer", func(t *testing.T) {
-		t.Parallel()
-
-		config := PublicKeyAuthConfig{
-			Signers: []ssh.Signer{signer},
-		}
-
-		authMethod, err := config.authMethod()
-		require.NoError(t, err)
-		require.NotNil(t, authMethod)
-	})
 
 	t.Run("dynamic signer", func(t *testing.T) {
 		t.Parallel()
@@ -208,34 +218,15 @@ func TestPublicKeyAuthConfigAuthMethod(t *testing.T) {
 func TestPublicKeyAuthConfigAuthMethodErrors(t *testing.T) {
 	t.Parallel()
 
-	signer := generateSigner(t)
-
 	for _, tt := range []struct {
 		name    string
 		config  PublicKeyAuthConfig
 		wantErr error
 	}{
 		{
-			name:    "missing signers",
+			name:    "missing GetSigners callback",
 			config:  PublicKeyAuthConfig{},
-			wantErr: trace.BadParameter("public key auth requires Signers or GetSigners"),
-		},
-		{
-			name: "both signers and callback provided",
-			config: PublicKeyAuthConfig{
-				Signers: []ssh.Signer{signer},
-				GetSigners: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{signer}, nil
-				},
-			},
-			wantErr: trace.BadParameter("public key auth supports exactly one of Signers or GetSigners"),
-		},
-		{
-			name: "nil signers in Signers slice",
-			config: PublicKeyAuthConfig{
-				Signers: []ssh.Signer{signer, nil},
-			},
-			wantErr: trace.BadParameter("public key auth Signers must not contain nil entries"),
+			wantErr: trace.BadParameter("public key auth requires GetSigners"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,7 +245,9 @@ func TestClientConfigSSHClientConfigSetsDefaults(t *testing.T) {
 	cfg := ClientConfig{
 		User: "alice",
 		PublicKeyAuth: PublicKeyAuthConfig{
-			Signers: []ssh.Signer{signer},
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
 	}
@@ -283,7 +276,9 @@ func TestClientConfigSSHClientConfigClonesAlgorithmsAndPreservesFields(t *testin
 		},
 		User: "alice",
 		PublicKeyAuth: PublicKeyAuthConfig{
-			Signers: []ssh.Signer{signer},
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback:   ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
 		BannerCallback:    bannerCallback,
@@ -323,7 +318,9 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 			config: func() ClientConfig {
 				return ClientConfig{
 					PublicKeyAuth: PublicKeyAuthConfig{
-						Signers: []ssh.Signer{signer},
+						GetSigners: func() ([]ssh.Signer, error) {
+							return []ssh.Signer{signer}, nil
+						},
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
 				}
@@ -336,7 +333,9 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 				return ClientConfig{
 					User: "alice",
 					PublicKeyAuth: PublicKeyAuthConfig{
-						Signers: []ssh.Signer{signer},
+						GetSigners: func() ([]ssh.Signer, error) {
+							return []ssh.Signer{signer}, nil
+						},
 					},
 				}
 			},
@@ -350,23 +349,7 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
 				}
 			},
-			wantErr: trace.BadParameter("public key auth requires Signers or GetSigners"),
-		},
-		{
-			name: "signers and callback",
-			config: func() ClientConfig {
-				return ClientConfig{
-					User: "alice",
-					PublicKeyAuth: PublicKeyAuthConfig{
-						Signers: []ssh.Signer{signer},
-						GetSigners: func() ([]ssh.Signer, error) {
-							return []ssh.Signer{signer}, nil
-						},
-					},
-					HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
-				}
-			},
-			wantErr: trace.BadParameter("public key auth supports exactly one of Signers or GetSigners"),
+			wantErr: trace.BadParameter("public key auth requires GetSigners"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
