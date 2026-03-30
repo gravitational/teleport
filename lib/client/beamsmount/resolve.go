@@ -169,6 +169,12 @@ func unmountOne(entry MountEntry, opts UmountOptions) error {
 		return trace.Wrap(err)
 	}
 
+	// Remove the mount point directory if it's empty. Best-effort: a
+	// non-empty or user-provided directory should not be silently deleted.
+	if err := os.Remove(entry.MountPoint); err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(opts.Stderr, "WARNING: could not remove mount directory %s: %v\n", entry.MountPoint, err)
+	}
+
 	// Remove from state file after successful unmount.
 	if err := WithStateLock(opts.StateFile, func(state *MountState) error {
 		state.RemoveByMountPoint(entry.MountPoint)

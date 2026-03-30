@@ -233,6 +233,19 @@ func onBeamsDelete(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// Unmount any active mounts for this beam before deleting.
+	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
+	if err := beamsmount.UmountTarget(beamsmount.UmountOptions{
+		Target:    beamID,
+		Mode:      beamsmount.UmountModeBeam,
+		Force:     true,
+		StateFile: stateFile,
+		Stdout:    cf.Stdout(),
+		Stderr:    os.Stderr,
+	}); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "unmounting beam before delete")
+	}
+
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
@@ -674,11 +687,23 @@ func onBeamsMount(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	mountPoint := cf.BeamMountPoint
+	if mountPoint == "" {
+		beamRef := beam.GetStatus().GetAlias()
+		if beamRef == "" {
+			beamRef = beam.GetMetadata().GetName()
+		}
+		mountPoint, err = beamsmount.DefaultMountPoint(beamRef)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return trace.Wrap(beamsmount.Mount(beamsmount.MountOptions{
 		BeamID:     beam.GetMetadata().GetName(),
 		BeamAlias:  beam.GetStatus().GetAlias(),
 		NodeID:     nodeID,
-		MountPoint: cf.BeamMountPoint,
+		MountPoint: mountPoint,
 		RemotePath: cf.BeamRemotePath,
 		TshPath:    tshPath,
 		Debug:      cf.Debug,

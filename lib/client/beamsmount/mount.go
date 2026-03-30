@@ -119,6 +119,10 @@ func Mount(opts MountOptions) error {
 	}
 	args = append(args, sshfsTarget, opts.MountPoint)
 
+	if _, err := exec.LookPath("sshfs"); err != nil {
+		return trace.NotFound("sshfs is not installed. %s", sshfsInstallHint())
+	}
+
 	cmd := exec.Command("sshfs", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = opts.Stdout
@@ -132,7 +136,11 @@ func Mount(opts MountOptions) error {
 		cmd.Stderr = os.Stderr
 	}
 
-	fmt.Fprintf(opts.Stdout, "Mounting beam %q at %s\n", beamDisplayRef(opts), opts.MountPoint)
+	if err := os.MkdirAll(opts.MountPoint, 0755); err != nil {
+		return trace.Wrap(err, "creating mount point directory")
+	}
+
+	fmt.Fprintf(opts.Stdout, "Mounting beam %q (%s) at %s\n", beamDisplayRef(opts), opts.RemotePath, opts.MountPoint)
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err, "starting sshfs")
@@ -143,10 +151,14 @@ func Mount(opts MountOptions) error {
 	// Wait briefly for the mount to be established. sshfs with -f stays in
 	// the foreground but the mount is available almost immediately after Start.
 	if err := waitForMount(opts.MountPoint, 10*time.Second); err != nil {
-		// sshfs started but mount didn't appear — kill it and report.
 		_ = cmd.Process.Kill()
-		return trace.Wrap(err, "timed out waiting for mount at %s", opts.MountPoint)
+		if !opts.SshfsDebug {
+			return trace.Wrap(err, "run with --sshfs-debug for more details")
+		}
+		return trace.Wrap(err)
 	}
+
+	fmt.Fprintf(opts.Stdout, "Mounted successfully.\n")
 
 	// Record mount in state file.
 	entry := MountEntry{
@@ -185,9 +197,9 @@ func Mount(opts MountOptions) error {
 	return nil
 }
 
-// waitForMount polls until the mount point is an active mount or the timeout
-// elapses. We check that Stat succeeds on the mount point, which indicates
-// that FUSE is serving the filesystem.
+// waitForMount polls until the mount point is stat-able or the timeout elapses.
+// TODO: use device ID comparison (mountPoint vs parent) to detect an actual
+// FUSE mount rather than just directory existence.
 func waitForMount(mountPoint string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -196,7 +208,7 @@ func waitForMount(mountPoint string, timeout time.Duration) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return trace.Errorf("mount not ready after %s", timeout)
+	return trace.Errorf("timed out waiting for mount at %s", mountPoint)
 }
 
 func beamDisplayRef(opts MountOptions) string {

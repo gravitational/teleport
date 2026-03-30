@@ -92,10 +92,20 @@ func (s *MountState) FindByMountPoint(mountPoint string) *MountEntry {
 }
 
 // StateFilePath returns the path to the mount state file for the given
-// tsh home directory and proxy host. Mount state is cluster-scoped, stored
-// alongside other per-proxy data in ~/.tsh/keys/<proxy>/beams_mounts.json.
+// tsh home directory and proxy host. Mount state is stored in
+// ~/.tsh/beams/<proxy>.json so it survives tsh logout.
 func StateFilePath(tshHome, proxyHost string) string {
-	return filepath.Join(tshHome, "keys", proxyHost, "beams_mounts.json")
+	return filepath.Join(tshHome, "beams", proxyHost+".json")
+}
+
+// DefaultMountPoint returns the default local directory for a beam mount:
+// ~/beams/<beamRef>.
+func DefaultMountPoint(beamRef string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err, "resolving home directory")
+	}
+	return filepath.Join(home, "beams", beamRef), nil
 }
 
 // WithStateLock acquires an exclusive file lock on the state file's sibling
