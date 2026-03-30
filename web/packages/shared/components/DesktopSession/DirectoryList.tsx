@@ -18,72 +18,86 @@
 
 import styled from 'styled-components';
 
-import { Flex, H2, Text, Toggle, Stack } from 'design';
-import { ButtonWarningBorder , ButtonBorder, ButtonPrimary, ButtonSecondary} from 'design/Button/Button';
-import { FolderShared, Eject, Plus } from 'design/Icon';
+import { Flex, Stack, Text } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
+import { Eject, FolderShared, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
-    sharedDirectories: DirectoryItem[],
-    onRemoveSharedDirectory: (number) => void;
-    onAddSharedDirectory: () => void;
+  sharedDirectories: DirectoryItem[];
+  onRemoveSharedDirectory: (id: number) => void;
+  onAddSharedDirectory: () => void;
+  canRemoveSharedDirectory: boolean;
+  canSharedDirectories: boolean;
 }
 
 export function SharedDirectoryList({
   sharedDirectories,
   onRemoveSharedDirectory,
   onAddSharedDirectory,
-}: SharedDirectoriesProps) {     
+  canRemoveSharedDirectory,
+  canSharedDirectories,
+}: SharedDirectoriesProps) {
   return (
-    <MenuIcon Icon={FolderShared}>
+    <MenuIcon
+      Icon={FolderShared}
+      buttonIconProps={{ disabled: !canSharedDirectories }}
+      tooltip={
+        !canSharedDirectories
+          ? 'Directory sharing is not enabled for this session'
+          : undefined
+      }
+    >
       <Container>
-
         <Stack gap={1} fullWidth>
-        {/* Header row */}
-        
-        <Flex justifyContent="space-between" alignItems="center">
-          <Text typography="h4">Shared Directories</Text>
-          <ButtonPrimary
-            size="small"
-            p={1}
-            minWidth={0}
-            height="auto"
-            onClick={onAddSharedDirectory}
-            compact={true}
-            $inputAlignment={false}
-          >
-            <Plus size="small" />
-          </ButtonPrimary>
-        </Flex>
+          {/* Header row */}
+          <Flex justifyContent="space-between" alignItems="center">
+            <Text typography="h4">Shared Directories</Text>
+            <ButtonPrimary
+              size="small"
+              p={1}
+              minWidth={0}
+              height="auto"
+              onClick={onAddSharedDirectory}
+              compact={true}
+              $inputAlignment={false}
+            >
+              <Plus size="small" />
+            </ButtonPrimary>
+          </Flex>
 
-        {/* Directory list */}
-        <Stack gap={1} fullWidth>
-          {sharedDirectories.map(dir => (
-            <Flex key={dir.DirectoryId} justifyContent="space-between" alignItems="center">              
-              <Text>{dir.Name}</Text>
-              <ButtonSecondary
-                size="small"
-                p={1}
-                minWidth={0}
-                height="auto"
-                title={'Unshare Directory'}                
-                onClick={() => onRemoveSharedDirectory(dir.DirectoryId)}
+          {/* Directory list */}
+          <Stack gap={1} fullWidth>
+            {sharedDirectories.map(dir => (
+              <Flex
+                key={dir.id}
+                justifyContent="space-between"
+                alignItems="center"
               >
-            <Eject size="small" />
-          </ButtonSecondary>          
-            </Flex>
-          ))}
+                <Text>{dir.name}</Text>
+                <ButtonSecondary
+                  size="small"
+                  p={1}
+                  minWidth={0}
+                  height="auto"
+                  title={'Unshare Directory'}
+                  onClick={() => onRemoveSharedDirectory(dir.id)}
+                  disabled={!canRemoveSharedDirectory}
+                >
+                  <Eject size="small" disabled={!canRemoveSharedDirectory} />
+                </ButtonSecondary>
+              </Flex>
+            ))}
+          </Stack>
         </Stack>
-      </Stack>
-
       </Container>
     </MenuIcon>
   );
 }
 
-export type DirectoryItem = {
-    DirectoryId: number,
-    Name: string
+export interface DirectoryItem  {
+  name: string;
+  id: number;
 };
 
 const Container = styled.div`

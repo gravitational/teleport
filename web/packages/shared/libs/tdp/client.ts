@@ -100,6 +100,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
+  SERVER_CAPABILITIES = 'server capabilities',
 }
 
 type EventMap = {
@@ -116,6 +117,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  [TdpClientEvent.SERVER_CAPABILITIES]: [ServerCapabilities];
   'terminal.webauthn': [string];
 };
 
@@ -154,6 +156,10 @@ let wasmReady: Promise<void> | undefined;
 // Defines which protocol the client will start with.
 type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
 
+type ServerCapabilities = {
+  directoryRemoval: boolean;
+};
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -168,7 +174,6 @@ export class TdpClient extends EventEmitter<EventMap> {
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
   private codec: Codec | undefined;
-  private identifiers: Identifiers;
 
   private logger = new Logger('TDPClient');
 
@@ -351,6 +356,11 @@ export class TdpClient extends EventEmitter<EventMap> {
     return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
   };
 
+  onServerCapabilities = (listener: (caps: ServerCapabilities) => void) => {
+    this.on(TdpClientEvent.SERVER_CAPABILITIES, listener);
+    return () => this.off(TdpClientEvent.SERVER_CAPABILITIES, listener);
+  };
+
   private async initWasm() {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
@@ -517,6 +527,9 @@ export class TdpClient extends EventEmitter<EventMap> {
     // In the future, we may add new server capability advertisements
     // that will affect client configuration.
     // For now we'll just activate the the connection.
+    this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
+      directoryRemoval: hello.directoryRemovalSupport,
+    });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -736,8 +749,6 @@ export class TdpClient extends EventEmitter<EventMap> {
     if (!sharedDirectory) {
       return;
     }
-
-
     const readData = await sharedDirectory.read(
       req.path,
       req.offset,
@@ -877,13 +888,17 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   async shareDirectory(): Promise<[number, string]> {
     const [id, name] = await this.directoryManager.shareDirectory();
-    this.sendSharedDirectoryAnnounce(id, name)
-    return [id, name]
+    this.sendSharedDirectoryAnnounce(id, name);
+    return [id, name];
   }
 
   async unshareDirectory(directoryId: number) {
-    this.directoryManager.unshareDirectory(directoryId)
+    this.directoryManager.unshareDirectory(directoryId);
     this.sendRemoveSharedDirectory(directoryId);
+  }
+
+  listSharedDirectories(): [string, number][] {
+    return this.directoryManager.listSharedDirectories();
   }
 
   sendSharedDirectoryAnnounce(directoryId: number, name: string) {
@@ -1063,6 +1078,15 @@ class SharedDirectoryManager {
         `Attempted to unshare invalid directory id: ${directoryId}`
       );
     }
+  }
+
+  // returns an array of tuples (directoryName, directoryId) representing
+  // the set of currently shared directories.
+  listSharedDirectories(): [string, number][] {
+    return Array.from(this.sharedDirectories).map(entry => [
+      entry[1].getDirectoryName(),
+      entry[0],
+    ]);
   }
 }
 

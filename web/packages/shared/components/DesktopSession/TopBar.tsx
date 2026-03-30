@@ -19,11 +19,14 @@
 import { useTheme } from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
+import { Clipboard } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import {
+  SharedDirectoryList,
+  DirectoryItem,
+} from 'shared/components/DesktopSession/DirectoryList';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
-import { SharedDirectoryList, type DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -35,8 +38,7 @@ export default function TopBar(props: Props) {
     clipboardSharingMessage,
     onDisconnect,
     canShareDirectory,
-    isSharingDirectory,
-    onShareDirectory,
+    onAddSharedDirectory,
     onCtrlAltDel,
     alerts,
     sharedDirectories,
@@ -44,6 +46,7 @@ export default function TopBar(props: Props) {
     onRemoveSharedDirectory,
     isConnected,
     latency,
+    canRemoveSharedDirectory,
   } = props;
   const theme = useTheme();
 
@@ -69,20 +72,26 @@ export default function TopBar(props: Props) {
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,
-              isSharingDirectory
+              sharedDirectories.length > 0 // isSharingDirectory
             )}
             placement="bottom"
           >
-          <SharedDirectoryList sharedDirectories={sharedDirectories} onRemoveSharedDirectory={onRemoveSharedDirectory} onAddSharedDirectory={onShareDirectory}/>
-          {/*<FolderShared style={primaryOnTrue(isSharingDirectory)} />*/}
+            <SharedDirectoryList
+              sharedDirectories={sharedDirectories}
+              onRemoveSharedDirectory={onRemoveSharedDirectory}
+              onAddSharedDirectory={onAddSharedDirectory}
+              canRemoveSharedDirectory={canRemoveSharedDirectory}
+              canSharedDirectories={canShareDirectory}
+            />
+            {/*<FolderShared style={primaryOnTrue(isSharingDirectory)} />*/}
           </HoverTooltip>
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />          
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           <ActionMenu
             showShareDirectory={canShareDirectory}
-            onShareDirectory={onShareDirectory}
+            onShareDirectory={onAddSharedDirectory}
             onDisconnect={onDisconnect}
             onCtrlAltDel={onCtrlAltDel}
           />
@@ -110,9 +119,9 @@ type Props = {
   isSharingClipboard: boolean;
   clipboardSharingMessage: string;
   canShareDirectory: boolean;
-  isSharingDirectory: boolean;
+  //isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
-  onShareDirectory: VoidFunction;
+  onAddSharedDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   alerts: ToastNotificationItem[];
   sharedDirectories: DirectoryItem[];
@@ -123,4 +132,5 @@ type Props = {
     client: number;
     server: number;
   };
+  canRemoveSharedDirectory: boolean;
 };

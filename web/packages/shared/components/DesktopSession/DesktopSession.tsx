@@ -55,8 +55,11 @@ import useDesktopSession, {
   clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
-  isSharingDirectory,
 } from './useDesktopSession';
+
+export interface ServerCapabilities {
+  canRemoveSharedDirectories: boolean;
+}
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -99,12 +102,11 @@ export function DesktopSession({
     onClipboardData,
     sendLocalClipboardToRemote,
     clipboardSharingState,
-    clearSharing,
-    onShareDirectory,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
-    sharedDirectories,
     onRemoveAlert,
-    onRemoveSharedDirectory,
     addAlert,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
 
@@ -145,18 +147,14 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleConnectionClose = useCallback(
-    (error?: Error) => {
-      clearSharing();
-      setTdpConnectionStatus({
-        status: 'disconnected',
-        fromTdpError: error instanceof TdpError,
-        message: error?.message || '',
-      });
-      initialTdpConnectionSucceeded.current = false;
-    },
-    [clearSharing]
-  );
+  const handleConnectionClose = useCallback((error?: Error) => {
+    setTdpConnectionStatus({
+      status: 'disconnected',
+      fromTdpError: error instanceof TdpError,
+      message: error?.message || '',
+    });
+    initialTdpConnectionSucceeded.current = false;
+  }, []);
   useListener(client.onError, handleConnectionClose);
   useListener(client.onTransportClose, handleConnectionClose);
 
@@ -223,6 +221,18 @@ export function DesktopSession({
       setLatencyStats({
         client: stats.client,
         server: stats.server,
+      });
+    }, [])
+  );
+
+  const [serverCapabilities, setServerCapabilities] = useState<
+    ServerCapabilities | undefined
+  >({ canRemoveSharedDirectories: false });
+  useListener(
+    client.onServerCapabilities,
+    useCallback(caps => {
+      setServerCapabilities({
+        canRemoveSharedDirectories: caps.directoryRemoval,
       });
     }, [])
   );
@@ -361,16 +371,16 @@ export function DesktopSession({
         }}
         userHost={`${username} on ${desktop}`}
         canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
         clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
+        onAddSharedDirectory={addSharedDirectory}
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
-        sharedDirectories={sharedDirectories}
+        sharedDirectories={sharedDirectoriesState}
         onRemoveAlert={onRemoveAlert}
-        onRemoveSharedDirectory={onRemoveSharedDirectory}
+        onRemoveSharedDirectory={removeSharedDirectory}
         latency={latencyStats}
+        canRemoveSharedDirectory={serverCapabilities.canRemoveSharedDirectories}
       />
 
       {/* The UI states below (except the loading indicator) take up space.*/}
