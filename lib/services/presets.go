@@ -836,6 +836,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(types.KindScopedRole, RW()),
 				},
 			},
 		},

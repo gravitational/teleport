@@ -178,6 +178,13 @@ endif
 		--terraform_out=config=protoc-gen-terraform-scopedtoken.yaml:./tfschema \
 		teleport/scopes/joining/v1/token.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-scopedrole.yaml:./tfschema \
+		teleport/scopes/access/v1/role.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
@@ -190,6 +197,7 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1/summarizer_terraform.go ./tfschema/summarizer/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1/token_terraform.go ./tfschema/scopes/joining/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/role_terraform.go ./tfschema/scopes/access/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
