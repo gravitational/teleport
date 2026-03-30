@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -223,6 +224,10 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	}
 	if !requiredPolicy.IsSatisfiedBy(identity.UnmappedIdentity.PrivateKeyPolicy) {
 		return ctx, keys.NewPrivateKeyPolicyError(requiredPolicy)
+	}
+
+	if err := authz.CheckIPPinning(ctx, remoteAddr, identity.UnmappedIdentity.PinnedIP, identity.AccessChecker.PinSourceIP(), s.cfg.Logger); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Don't apply the following checks in non-node contexts.

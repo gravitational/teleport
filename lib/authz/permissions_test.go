@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -970,7 +969,7 @@ func TestCheckIPPinning(t *testing.T) {
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "client source address was not found in the context",
+			wantErr:  "client IP was not provided",
 		},
 		{
 			desc:       "IP pinning enabled, port=0 (marked by proxyProtocolMode unspecified)",
@@ -985,23 +984,51 @@ func TestCheckIPPinning(t *testing.T) {
 			pinnedIP:   "127.0.0.1",
 			pinIP:      true,
 		},
+		{
+			desc:       "invalid client IP",
+			clientAddr: "localhost:1",
+			pinnedIP:   "127.0.0.1:1",
+			pinIP:      true,
+			wantErr:    "\"localhost\" is not a valid IP address",
+		},
+		{
+			desc:       "invalid pinned IP",
+			clientAddr: "127.0.0.1:1",
+			pinnedIP:   "localhost",
+			pinIP:      true,
+			wantErr:    "\"localhost\" is not a valid IP address",
+		},
+		// IPv6
+		{
+			desc:       "IPv6: correct IP pinning",
+			clientAddr: "[2001:db8::1]:444",
+			pinnedIP:   "2001:db8::1",
+			pinIP:      true,
+		},
+		{
+			desc:       "IPv6: pinned IP doesn't match",
+			clientAddr: "[2001:db8::1]:444",
+			pinnedIP:   "2001:db8::2",
+			pinIP:      true,
+			wantErr:    authz.ErrIPPinningMismatch.Error(),
+		},
+		{
+			desc:       "IPv6: equivalency with compression",
+			clientAddr: "[2001:db8:0:0:0:0:0:1]:444",
+			pinnedIP:   "2001:db8::1",
+			pinIP:      true,
+		},
 	}
 
 	for _, tt := range testCases {
-		ctx := context.Background()
-		if tt.clientAddr != "" {
-			ctx = authz.ContextWithClientSrcAddr(ctx, utils.MustParseAddr(tt.clientAddr))
-		}
-		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
-
-		err := authz.CheckIPPinning(ctx, identity, tt.pinIP, nil)
-
-		if tt.wantErr != "" {
-			require.ErrorContains(t, err, tt.wantErr)
-		} else {
-			require.NoError(t, err)
-		}
-
+		t.Run(tt.desc, func(t *testing.T) {
+			err := authz.CheckIPPinning(context.Background(), tt.clientAddr, tt.pinnedIP, tt.pinIP, nil)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
