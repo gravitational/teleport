@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { processRedirectUri } from './processRedirectUri';
-import { validateClientRedirect } from './urlValidation';
+import { BrowserMfaAccessDenied, BrowserMfaProcessing } from './BrowserMFA';
 
-export { processRedirectUri, validateClientRedirect };
+export default {
+  title: 'Teleport/BrowserMFA',
+};
+
+export function Processing() {
+  return <BrowserMfaProcessing />;
+}
+
+export function AccessDenied() {
+  return <BrowserMfaAccessDenied statusText="MFA validation failed" />;
+}
+
+export function AccessDeniedWithLongMessage() {
+  return (
+    <BrowserMfaAccessDenied statusText="Your browser could not complete this authentication request. Please retry and ensure your security key or passkey is available." />
+  );
+}
