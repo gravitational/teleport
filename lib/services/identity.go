@@ -268,15 +268,34 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
-	// UpsertMFASessionData creates or updates SSO/Browser MFA session data in
+	// UpsertMFASessionData creates or updates MFA session data in
 	// storage, for the purpose of later verifying an MFA authentication attempt.
 	// MFA session data is expected to expire according to backend settings.
+	// Used for both SSO and Browser MFA.
 	UpsertMFASessionData(ctx context.Context, sd *MFASessionData) error
 
+	// GetMFASessionData retrieves SSO or Browser MFA session data by ID.
+	GetMFASessionData(ctx context.Context, sessionID string) (*MFASessionData, error)
+
+	// DeleteMFASessionData deletes SSO or Browser MFA session data by ID.
+	DeleteMFASessionData(ctx context.Context, sessionID string) error
+
+	// TODO(danielashare): Remove deprecated *SSOMFASessionData functions once teleport.e is using the new functions
+	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
+	// storage, for the purpose of later verifying an SSO MFA authentication
+	// attempt.
+	//
+	// Deprecated: use UpsertMFASessionData.
+	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
+
 	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
-	GetSSOMFASessionData(ctx context.Context, sessionID string) (*MFASessionData, error)
+	//
+	// Deprecated: use GetMFASessionData.
+	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
 
 	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
+	//
+	// Deprecated: use DeleteMFASessionData.
 	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.

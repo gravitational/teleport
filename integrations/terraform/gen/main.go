@@ -321,6 +321,21 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	kubernetesCluster = payload{
+		Name:                   "KubeCluster",
+		TypeName:               "KubernetesClusterV3",
+		VarName:                "kubeCluster",
+		GetMethod:              "GetKubernetesCluster",
+		CreateMethod:           "CreateKubernetesCluster",
+		UpdateMethod:           "UpdateKubernetesCluster",
+		DeleteMethod:           "DeleteKubernetesCluster",
+		ID:                     `kubeCluster.Metadata.Name`,
+		Kind:                   "kube_cluster",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_kube_cluster",
+		HasCheckAndSetDefaults: true,
+	}
+
 	lock = payload{
 		Name:                   "Lock",
 		TypeName:               "LockV2",
@@ -1014,6 +1029,8 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
+	generateResource(kubernetesCluster, pluralResource)
+	generateDataSource(kubernetesCluster, pluralDataSource)
 	generateResource(lock, pluralResource)
 	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)

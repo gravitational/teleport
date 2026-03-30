@@ -794,6 +794,7 @@ func NewPresetTerraformProviderRole() types.Role {
 				// Login/user set.
 				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
@@ -809,6 +810,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDevice, RW()),
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindKubernetesCluster, RW()),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
@@ -988,6 +990,7 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			AppLabels:            wildcardLabels,
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
+			KubernetesLabels:     wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
 		},
 		teleport.PresetListAccessRequestResourcesRoleName: {
