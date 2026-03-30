@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport-windows-auth
 
-go 1.19
+go 1.25.0
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
@@ -16,7 +16,7 @@ require (
 	github.com/josephspurrier/goversioninfo v1.4.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
-	golang.org/x/image v0.18.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 )
 
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
