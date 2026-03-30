@@ -54,6 +54,7 @@ type pluginInstallArgs struct {
 	netIQ   netIQArgs
 	awsIC   awsICInstallArgs
 	github  githubArgs
+	slack   slackArgs
 }
 
 type pluginEditArgs struct {
@@ -66,6 +67,11 @@ type scimArgs struct {
 	connector     string
 	connectorType string
 	auth          string
+}
+
+type slackArgs struct {
+	cmd      *kingpin.CmdClause
+	appToken string
 }
 
 type pluginDeleteArgs struct {
@@ -127,6 +133,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
 	p.initInstallGithub(p.install.cmd)
+	p.initInstallSlack(p.install.cmd)
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
@@ -254,6 +261,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallAWSIC
 	case p.install.github.cmd.FullCommand():
 		commandFunc = p.InstallGithub
+	case p.install.slack.cmd.FullCommand():
+		commandFunc = p.InstallSlack
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():
