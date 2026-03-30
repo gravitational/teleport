@@ -237,6 +237,117 @@ func TestPublicKeyAuthConfigAuthMethodErrors(t *testing.T) {
 	}
 }
 
+func TestPublicKeyAuthConfigIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		config PublicKeyAuthConfig
+		want   bool
+	}{
+		{
+			name: "explicit nil GetSigners callback",
+			config: PublicKeyAuthConfig{
+				GetSigners: nil,
+			},
+			want: true,
+		},
+		{
+			name: "GetSigners callback set",
+			config: PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return nil, nil
+				},
+			},
+			want: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.config.IsEmpty())
+		})
+	}
+}
+
+func TestClientConfigIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		config ClientConfig
+		want   bool
+	}{
+		{
+			name:   "empty config",
+			config: ClientConfig{},
+			want:   true,
+		},
+		{
+			name: "User set",
+			config: ClientConfig{
+				User: "alice",
+			},
+			want: false,
+		},
+		{
+			name: "PublicKeyAuth set",
+			config: ClientConfig{
+				PublicKeyAuth: PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return nil, nil
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "HostKeyCallback set",
+			config: ClientConfig{
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
+			},
+			want: false,
+		},
+		{
+			name: "BannerCallback set",
+			config: ClientConfig{
+				BannerCallback: func(string) error { return nil },
+			},
+			want: true,
+		},
+		{
+			name: "HostKeyAlgorithms set",
+			config: ClientConfig{
+				HostKeyAlgorithms: []string{ssh.KeyAlgoED25519},
+			},
+			want: true,
+		},
+		{
+			name: "HostKeyAlgorithms empty but allocated",
+			config: ClientConfig{
+				HostKeyAlgorithms: []string{},
+			},
+			want: true,
+		},
+		{
+			name: "Timeout set",
+			config: ClientConfig{
+				Timeout: time.Second,
+			},
+			want: true,
+		},
+		{
+			name: "negative timeout set",
+			config: ClientConfig{
+				Timeout: -time.Second,
+			},
+			want: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.config.IsEmpty())
+		})
+	}
+}
+
 func TestClientConfigSSHClientConfigSetsDefaults(t *testing.T) {
 	t.Parallel()
 

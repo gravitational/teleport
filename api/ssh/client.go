@@ -140,8 +140,13 @@ type PublicKeyAuthConfig struct {
 	GetSigners func() ([]ssh.Signer, error)
 }
 
+// IsEmpty returns true if the PublicKeyAuthConfig does not have an effective GetSigners function set.
+func (c PublicKeyAuthConfig) IsEmpty() bool {
+	return c.GetSigners == nil
+}
+
 func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
-	if c.GetSigners == nil {
+	if c.IsEmpty() {
 		return nil, trace.BadParameter("public key auth requires GetSigners")
 	}
 
@@ -204,6 +209,13 @@ func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 		HostKeyAlgorithms: slices.Clone(c.HostKeyAlgorithms),
 		Timeout:           cmp.Or(c.Timeout, defaults.DefaultIOTimeout),
 	}, nil
+}
+
+// IsEmpty() returns true if the config does not have any effective values.
+func (c ClientConfig) IsEmpty() bool {
+	return c.User == "" &&
+		c.PublicKeyAuth.IsEmpty() &&
+		c.HostKeyCallback == nil
 }
 
 // Dial dials an SSH server using the SSH client config wrapper.
