@@ -57,10 +57,8 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 }
 
 func newAPIKube(kube clusters.Kube) *api.Kube {
-	staticLabels := kube.KubernetesCluster.GetStaticLabels()
-	dynamicLabels := kube.KubernetesCluster.GetDynamicLabels()
 	apiLabels := makeAPILabels(
-		ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels)),
+		ui.MakeLabelsWithoutInternalPrefixes(kube.KubernetesCluster.GetAllLabels()),
 	)
 
 	return &api.Kube{
