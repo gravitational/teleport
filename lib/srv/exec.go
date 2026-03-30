@@ -31,6 +31,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -132,6 +134,11 @@ type localExec struct {
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
 
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
+
 	pid int
 }
 
@@ -140,7 +147,7 @@ func (e *localExec) GetCommand() string {
 	return e.Command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *localExec) SetCommand(command string) {
 	e.Command = command
 }
@@ -156,21 +163,59 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		return nil, trace.Wrap(err)
 	}
 
+	// Create pipes to capture stdio of the shell (grandchild) process, closing our
+	// side of each pipe after starting the command.
+	shellStdinR, shellStdinW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStdinR.Close()
+	e.Ctx.AddCloser(shellStdinW)
+
+	shellStdoutR, shellStdoutW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStdoutW.Close()
+	e.Ctx.AddCloser(shellStdoutR)
+
+	shellStderrR, shellStderrW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStderrW.Close()
+	e.Ctx.AddCloser(shellStderrR)
+
 	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx)
+	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinR, shellStdoutW, shellStderrW)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
-
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.Cmd.StdinPipe()
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer stderrW.Close()
+	e.Cmd.Stderr = stderrW
+
+	e.waitForOutputStreams.Go(func() {
+		defer stderrR.Close()
+
+		childErr, err := reexec.ReadChildError(stderrR)
+		if err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := io.WriteString(channel, childErr); err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+		}
+	})
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -195,12 +240,23 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Save off the PID of the Teleport process under which the command is executing.
 	e.pid = e.Cmd.Process.Pid
 
+	// copy stdio between the channel and shell process.
 	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
-			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		if _, err := io.Copy(shellStdinW, channel); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdin from SSH channel to local command", "error", err)
 		}
-		inputWriter.Close()
+		shellStdinW.Close()
 	}()
+	e.waitForOutputStreams.Go(func() {
+		if _, err := io.Copy(channel, shellStdoutR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdout from local command to SSH channel", "error", err)
+		}
+	})
+	e.waitForOutputStreams.Go(func() {
+		if _, err := io.Copy(channel.Stderr(), shellStderrR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stderr from local command to SSH channel", "error", err)
+		}
+	})
 
 	logger.InfoContext(ctx, "Started local command execution")
 
@@ -215,6 +271,7 @@ func (e *localExec) Wait() *ExecResult {
 
 	// Block until the command is finished executing.
 	err := e.Cmd.Wait()
+	e.waitForOutputStreams.Wait()
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
 	} else {
@@ -362,7 +419,7 @@ func (e *remoteExec) GetCommand() string {
 	return e.command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *remoteExec) SetCommand(command string) {
 	e.command = command
 }
