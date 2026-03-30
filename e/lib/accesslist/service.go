@@ -320,7 +320,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		return nil, trace.Wrap(err)
 	}
 
-	pageSize := int(req.PageSize)
+	pageSize := int(req.GetPageSize())
 
 	if pageSize == 0 {
 		pageSize = defaultAccessListPageSize
@@ -386,7 +386,7 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 		return nil, trace.Wrap(err)
 	}
 
-	pageSize := int(req.PageSize)
+	pageSize := int(req.GetPageSize())
 
 	if pageSize == 0 {
 		pageSize = defaultAccessListPageSize
@@ -396,7 +396,7 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 	authErr := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList)
 
 	var results []*accesslist.AccessList
-	nextToken := req.NextToken
+	nextToken := req.GetNextToken()
 	for {
 		var page []*accesslist.AccessList
 		var getErr error
@@ -715,7 +715,7 @@ func (s *Service) GetInheritedGrants(ctx context.Context, req *accesslistv1.GetI
 		return nil, trace.Wrap(err)
 	}
 
-	acl, getErr := s.cache.GetAccessList(ctx, req.AccessListId)
+	acl, getErr := s.cache.GetAccessList(ctx, req.GetAccessListId())
 
 	// If we can get the access list, authorize using it.
 	_, err = s.userCanReadAccessList(ctx, authCtx, acl, types.VerbRead)
@@ -850,7 +850,7 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := s.cache.GetAccessList(ctx, req.Name)
+	accessList, err := s.cache.GetAccessList(ctx, req.GetName())
 
 	if err != nil && !trace.IsNotFound(err) {
 		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
@@ -860,10 +860,10 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 	if accessList != nil {
 		accessListTitle = accessList.Spec.Title
 	}
-	s.emitDeleteAccessListEvent(ctx, authCtx, req.Name, accessListTitle, deleteErr)
+	s.emitDeleteAccessListEvent(ctx, authCtx, req.GetName(), accessListTitle, deleteErr)
 
 	if deleteErr == nil {
-		s.emitDeleteAccessListUsageEvent(ctx, req.Name)
+		s.emitDeleteAccessListUsageEvent(ctx, req.GetName())
 	}
 
 	return resp, trace.Wrap(deleteErr)
@@ -940,12 +940,12 @@ func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessList
 
 // CountAccessListMembers will count all access list members.
 func (s *Service) CountAccessListMembers(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (*accesslistv1.CountAccessListMembersResponse, error) {
-	_, err := s.authOrIsOwner(ctx, req.AccessListName, types.VerbRead)
+	_, err := s.authOrIsOwner(ctx, req.GetAccessListName(), types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	count, listCount, err := s.cache.CountAccessListMembers(ctx, req.AccessListName)
+	count, listCount, err := s.cache.CountAccessListMembers(ctx, req.GetAccessListName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -958,12 +958,12 @@ func (s *Service) CountAccessListMembers(ctx context.Context, req *accesslistv1.
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (*accesslistv1.ListAccessListMembersResponse, error) {
-	retrievedAccessList, _, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessList, types.VerbRead, types.VerbList)
+	retrievedAccessList, _, err := s.authOrIsOwnerWithAccessList(ctx, req.GetAccessList(), types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextToken, err := s.cache.ListAccessListMembers(ctx, req.AccessList, int(req.PageSize), req.PageToken)
+	results, nextToken, err := s.cache.ListAccessListMembers(ctx, req.GetAccessList(), int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1000,7 +1000,7 @@ func (s *Service) ListAllAccessListMembers(ctx context.Context, req *accesslistv
 		return nil, trace.Wrap(authErr)
 	}
 
-	members, nextToken, err := s.cache.ListAllAccessListMembers(ctx, int(req.PageSize), req.PageToken)
+	members, nextToken, err := s.cache.ListAllAccessListMembers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1119,7 +1119,7 @@ func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, 
 
 	var joinTime time.Time
 	if resp != nil {
-		joinTime = resp.Spec.Joined.AsTime()
+		joinTime = resp.GetSpec().GetJoined().AsTime()
 	}
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, accessListName, upsertErr,
@@ -1134,7 +1134,7 @@ func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, 
 
 // UpdateAccessListMember updates an access list member resource.
 func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.UpdateAccessListMemberRequest) (*accesslistv1.Member, error) {
-	authCtx, err := s.authOrIsOwner(ctx, req.Member.Spec.AccessList, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authOrIsOwner(ctx, req.GetMember().GetSpec().GetAccessList(), types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1143,7 +1143,7 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	member, err := conv.FromMemberProto(req.Member)
+	member, err := conv.FromMemberProto(req.GetMember())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1157,19 +1157,19 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.BadParameter("Access List Member entries of kind 'list' cannot be updated")
 	}
 
-	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.Member.Spec.AccessList); err != nil {
-		return nil, trace.Wrap(err, "updating members not allowed for Access List %q", req.Member.Spec.AccessList)
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.GetMember().GetSpec().GetAccessList()); err != nil {
+		return nil, trace.Wrap(err, "updating members not allowed for Access List %q", req.GetMember().GetSpec().GetAccessList())
 	}
 
 	resp, accessListName, updated, upsertErr := s.runAccessListMemberOp(ctx, authCtx, member, s.accessLists.UpdateAccessListMember)
 
 	var joinTime time.Time
 	if resp != nil {
-		joinTime = resp.Spec.Joined.AsTime()
+		joinTime = resp.GetSpec().GetJoined().AsTime()
 	}
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, accessListName, upsertErr,
-		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.Member))...)
+		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.GetMember()))...)
 
 	if upsertErr == nil {
 		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, accessListName, member)
@@ -1508,7 +1508,7 @@ func (s *Service) emitDeleteAccessListMemberUsageEvent(ctx context.Context, acce
 
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list (without deleting the access list itself).
 func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbDelete)
+	authCtx, err := s.authOrIsOwner(ctx, req.GetAccessList(), types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1523,20 +1523,20 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.AccessList); err != nil {
-		return nil, trace.Wrap(err, "deleting members not allowed for Access List %q", req.AccessList)
+	if err := s.checkMembersModificationAllowedByName(ctx, *authCtx, req.GetAccessList()); err != nil {
+		return nil, trace.Wrap(err, "deleting members not allowed for Access List %q", req.GetAccessList())
 	}
 
 	resp, deleteErr := s.deleteAllAccessListMembersForAccessList(ctx, req)
 
-	s.emitDeleteAllAccessListMembersForAccessListEvent(ctx, username, req.AccessList, deleteErr)
+	s.emitDeleteAllAccessListMembersForAccessListEvent(ctx, username, req.GetAccessList(), deleteErr)
 
 	return resp, trace.Wrap(deleteErr)
 }
 
 // deleteAllAccessListMembersForAccessList is a helper for deleting all access list members for an access list that returns the response and an error.
 func (s *Service) deleteAllAccessListMembersForAccessList(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) (*emptypb.Empty, error) {
-	err := s.accessLists.DeleteAllAccessListMembersForAccessList(ctx, req.AccessList)
+	err := s.accessLists.DeleteAllAccessListMembersForAccessList(ctx, req.GetAccessList())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1557,6 +1557,10 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
 	}
+	var accessListTitle string
+	if accessList != nil {
+		accessListTitle = accessList.Spec.Title
+	}
 	event := &apievents.AccessListMemberDeleteAllForAccessList{
 		Metadata: apievents.Metadata{
 			Type: events.AccessListMemberDeleteAllForAccessListEvent,
@@ -1567,7 +1571,7 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 		},
 		AccessListMemberMetadata: apievents.AccessListMemberMetadata{
 			AccessListName:  accessListName,
-			AccessListTitle: accessList.Spec.Title,
+			AccessListTitle: accessListTitle,
 		},
 		Status: apievents.Status{
 			Success: deleteErr == nil,
@@ -1601,8 +1605,8 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 	var accessListName string
 	var title string
 	if resp != nil {
-		accessListName = resp.AccessList.GetHeader().GetMetadata().GetName()
-		title = resp.AccessList.GetSpec().GetTitle()
+		accessListName = resp.GetAccessList().GetHeader().GetMetadata().GetName()
+		title = resp.GetAccessList().GetSpec().GetTitle()
 	}
 	if accessListModified {
 		s.emitUpsertAccessListEvent(ctx, username, updated, accessListName,
@@ -1666,7 +1670,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	req *accesslistv1.UpsertAccessListWithMembersRequest) (resp *accesslistv1.UpsertAccessListWithMembersResponse, updated,
 	accessListModified bool, modified *memberChanges, err error,
 ) {
-	newAccessList, err := conv.FromProto(req.AccessList)
+	newAccessList, err := conv.FromProto(req.GetAccessList())
 	if err != nil {
 		return nil, false, false, nil, trace.Wrap(err)
 	}
@@ -1729,7 +1733,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	// Get the old members here, also used for emitting events.
-	oldMembers, err := s.getAccessListMemberMap(ctx, req.AccessList.Header.Metadata.GetName())
+	oldMembers, err := s.getAccessListMemberMap(ctx, req.GetAccessList().GetHeader().GetMetadata().GetName())
 	if err != nil {
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
@@ -1740,8 +1744,8 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	// Convert members
-	members := make([]*accesslist.AccessListMember, 0, len(req.Members))
-	for _, member := range req.Members {
+	members := make([]*accesslist.AccessListMember, 0, len(req.GetMembers()))
+	for _, member := range req.GetMembers() {
 		m, err := conv.FromMemberProto(member)
 		if err != nil {
 			return nil, updated, accessListModified, nil, trace.Wrap(err)
@@ -1932,7 +1936,7 @@ func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Contex
 // AccessRequestPromote promotes an access request to an access list.
 func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
 	// Ensure current user is either owner or has permission to add members to the provided ACL.
-	accessList, authCtx, err := s.authOrIsOwnerWithAccessList(ctx, req.AccessListName, types.VerbCreate, types.VerbUpdate)
+	accessList, authCtx, err := s.authOrIsOwnerWithAccessList(ctx, req.GetAccessListName(), types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1942,14 +1946,14 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 	}
 
 	accessReviewSubmission := types.AccessReviewSubmission{
-		RequestID: req.RequestId,
+		RequestID: req.GetRequestId(),
 		Review: types.AccessReview{
 			ProposedState: types.RequestState_PROMOTED,
 			AccessList: &types.PromotedAccessList{
-				Name:  req.AccessListName,
+				Name:  req.GetAccessListName(),
 				Title: accessList.Spec.Title,
 			},
-			Reason: req.Reason,
+			Reason: req.GetReason(),
 		},
 	}
 
@@ -1965,7 +1969,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 	}
 
 	accessReqs, err := s.authServer.GetAccessRequests(ctx, types.AccessRequestFilter{
-		ID: req.RequestId,
+		ID: req.GetRequestId(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1983,7 +1987,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 
 	// Check if the access list can be used for promotion.
 	if !slices.ContainsFunc(allowedPromotions.Promotions, func(p *types.AccessRequestAllowedPromotion) bool {
-		return p.AccessListName == req.AccessListName
+		return p.AccessListName == req.GetAccessListName()
 	}) {
 		return nil, trace.AccessDenied("access request cannot be promoted to requested access list")
 	}
@@ -2008,7 +2012,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 			},
 		},
 		Spec: accesslist.AccessListMemberSpec{
-			AccessList: req.AccessListName,
+			AccessList: req.GetAccessListName(),
 			Name:       memberName,
 			AddedBy:    authCtx.User.GetName(),
 		},
@@ -2030,11 +2034,11 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (*accesslistv1.ListAccessListReviewsResponse, error) {
-	if _, err := s.authOrIsOwner(ctx, req.AccessList, types.VerbList, types.VerbRead); err != nil {
+	if _, err := s.authOrIsOwner(ctx, req.GetAccessList(), types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	reviews, nextToken, err := s.accessListReviews.ListAccessListReviews(ctx, req.AccessList, int(req.PageSize), req.NextToken)
+	reviews, nextToken, err := s.accessListReviews.ListAccessListReviews(ctx, req.GetAccessList(), int(req.GetPageSize()), req.GetNextToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2054,7 +2058,7 @@ func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.L
 // CreateAccessListReview will create a new review for an access list. It will also modify the original access list
 // and its members depending on the details of the review.
 func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.CreateAccessListReviewRequest) (*accesslistv1.CreateAccessListReviewResponse, error) {
-	review, err := conv.FromReviewProto(req.Review)
+	review, err := conv.FromReviewProto(req.GetReview())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2068,7 +2072,7 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := s.accessLists.GetAccessList(ctx, req.Review.Spec.AccessList)
+	accessList, err := s.accessLists.GetAccessList(ctx, req.GetReview().GetSpec().GetAccessList())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2156,6 +2160,10 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
 	}
+	var accessListTitle string
+	if accessList != nil {
+		accessListTitle = accessList.Spec.Title
+	}
 	event := &apievents.AccessListReview{
 		Metadata: apievents.Metadata{
 			Type: events.AccessListReviewEvent,
@@ -2172,7 +2180,7 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 			ReviewFrequencyChanged:        review.Spec.Changes.ReviewFrequencyChanged.String(),
 			ReviewDayOfMonthChanged:       review.Spec.Changes.ReviewDayOfMonthChanged.String(),
 			RemovedMembers:                review.Spec.Changes.RemovedMembers,
-			AccessListTitle:               accessList.Spec.Title,
+			AccessListTitle:               accessListTitle,
 		},
 		Status: apievents.Status{
 			Success: createErr == nil,
@@ -2220,7 +2228,7 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 	}
 
 	// ignore errors, we just want the access list if it exists for rbac purposes.
-	accessList, _ := s.accessLists.GetAccessList(ctx, req.AccessListName)
+	accessList, _ := s.accessLists.GetAccessList(ctx, req.GetAccessListName())
 
 	if err := s.hasAccessListRBAC(ctx, authCtx, accessList, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
@@ -2230,11 +2238,11 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.accessListReviews.DeleteAccessListReview(ctx, req.AccessListName, req.ReviewName); err != nil {
+	if err := s.accessListReviews.DeleteAccessListReview(ctx, req.GetAccessListName(), req.GetReviewName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s.emitDeleteAccessListReviewUsageEvent(ctx, req.AccessListName, req.ReviewName)
+	s.emitDeleteAccessListReviewUsageEvent(ctx, req.GetAccessListName(), req.GetReviewName())
 
 	return &emptypb.Empty{}, nil
 }
@@ -2299,7 +2307,7 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	user, err := s.authServer.GetUser(ctx, req.Username, false)
+	user, err := s.authServer.GetUser(ctx, req.GetUsername(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2314,7 +2322,7 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedAcls, nextToken, totalCount, err := paginateSlice(filteredAcls, int(req.PageSize), req.PageToken)
+	paginatedAcls, nextToken, totalCount, err := paginateSlice(filteredAcls, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2719,15 +2727,15 @@ type memberEventMetadata struct {
 
 // accessListMemberProtoToMemberEventMetadata converts a member proto into a memberNameAndReason.
 func accessListMemberProtoToMemberEventMetadata(member *accesslistv1.Member) *memberEventMetadata {
-	if member == nil || member.Spec == nil {
+	if member.GetSpec() == nil {
 		return nil
 	}
 
 	return &memberEventMetadata{
-		name:     member.Spec.Name,
-		kind:     member.Spec.MembershipKind,
-		reason:   member.Spec.Reason,
-		joinedOn: member.Spec.Joined.AsTime(),
+		name:     member.GetSpec().GetName(),
+		kind:     member.GetSpec().GetMembershipKind(),
+		reason:   member.GetSpec().GetReason(),
+		joinedOn: member.GetSpec().GetJoined().AsTime(),
 	}
 }
 
