@@ -95,7 +95,9 @@ test('generate command', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: /Generate Command/i }));
 
-  const commandBoxEl = screen.getAllByText(/AWS CloudShell/i, { exact: false })[0];
+  const commandBoxEl = screen.getAllByText(/AWS CloudShell/i, {
+    exact: false,
+  })[0];
   await waitFor(() => {
     expect(commandBoxEl).toBeInTheDocument();
   });
