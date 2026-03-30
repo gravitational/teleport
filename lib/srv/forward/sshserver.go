@@ -1395,11 +1395,20 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, scx)
 		case sshutils.AgentForwardRequest:
-			// to maintain interoperability with OpenSSH, agent forwarding requests
-			// should never fail, all errors should be logged and we should continue
-			// processing requests.
+			// Agent forwarding requests should not be fatal to the session, just send the
+			// error message to the client and attempt to continue the session.
 			err := s.handleAgentForward(ctx, ch, req, scx)
 			if err != nil {
+				// TODO(Joerger): Teleport agents always reply with success when agent forwarding is requested
+				// to avoid sending a fatal error for the client session. While OpenSSH clients handle agent
+				// forwarding failures gracefully, Teleport clients do not. We should update this behavior to
+				// match that of X11 forwarding in a backwards comptible way.
+				s.logger.ErrorContext(ctx, "failure handling SSH request", "request_type", req.Type, "error", err)
+				if err := req.Reply(true, nil); err != nil {
+					s.logger.ErrorContext(ctx, "failed replying OK to SSH request", "request_type", req.Type, "error", err)
+				}
+				req.WantReply = false
+
 				message := "agent forwarding request failed: " + utils.FormatErrorWithNewline(err)
 				s.stderrWrite(ctx, ch, message)
 			}
@@ -1429,19 +1438,28 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case x11.ForwardRequest:
-		// X11 forwarding requests should not fail, just send the error message to the client
-		// and attempt to continue the session.
+		// X11 forwarding requests should not be fatal to the session, just send the
+		// error message to the client and attempt to continue the session.
 		if err := s.handleX11Forward(ctx, ch, req, scx); err != nil {
-			message := "X11 forwarding request failed: " + utils.FormatErrorWithNewline(err)
-			s.stderrWrite(ctx, ch, message)
+			s.replyError(ctx, ch, req, trace.Errorf("X11 forwarding request failed: %v", err.Error()))
+			req.WantReply = false
 		}
 		return nil
 	case sshutils.AgentForwardRequest:
-		// to maintain interoperability with OpenSSH, agent forwarding requests
-		// should never fail, all errors should be logged and we should continue
-		// processing requests.
+		// Agent forwarding requests should not be fatal to the session, just send the
+		// error message to the client and attempt to continue the session.
 		err := s.handleAgentForward(ctx, ch, req, scx)
 		if err != nil {
+			// TODO(Joerger): Teleport agents always reply with success when agent forwarding is requested
+			// to avoid sending a fatal error for the client session. While OpenSSH clients handle agent
+			// forwarding failures gracefully, Teleport clients do not. We should update this behavior to
+			// match that of X11 forwarding in a backwards comptible way.
+			s.logger.ErrorContext(ctx, "failure handling SSH request", "request_type", req.Type, "error", err)
+			if err := req.Reply(true, nil); err != nil {
+				s.logger.ErrorContext(ctx, "failed replying OK to SSH request", "request_type", req.Type, "error", err)
+			}
+			req.WantReply = false
+
 			message := "agent forwarding request failed: " + utils.FormatErrorWithNewline(err)
 			s.stderrWrite(ctx, ch, message)
 		}
