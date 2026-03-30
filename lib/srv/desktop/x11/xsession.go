@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/trace"
 )
@@ -58,12 +59,13 @@ func GetAvailableXSessions() (map[string]string, error) {
 }
 
 type XSessionConfig struct {
-	Logger    *slog.Logger
-	Command   string
-	Username  string
-	Login     string
-	LogConfig *srv.ChildLogConfig
-	Display   string
+	Logger     *slog.Logger
+	Command    string
+	Username   string
+	Login      string
+	LogConfig  *srv.ChildLogConfig
+	Display    string
+	RemoteAddr utils.NetAddr
 }
 
 // StartTeleportExecXSession reexecs the current Teleport binary using
@@ -142,6 +144,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		Login:           cfg.Login,
 		Username:        cfg.Username,
 		Environment:     env,
+		UaccMetadata: srv.UaccMetadata{
+			RemoteAddr: cfg.RemoteAddr,
+		},
 		LogConfig: srv.ExecLogConfig{
 			Level:        logCfg.Level,
 			Format:       logCfg.Format,

@@ -338,12 +338,13 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				return
 			}
 			_, err = x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
-				Logger:    log,
-				Command:   xsession,
-				Username:  authCtx.Identity.GetIdentity().Username,
-				Login:     m.Username,
-				LogConfig: s.cfg.ChildLogConfig,
-				Display:   backend.Display,
+				Logger:     log,
+				Command:    xsession,
+				Username:   authCtx.Identity.GetIdentity().Username,
+				Login:      m.Username,
+				LogConfig:  s.cfg.ChildLogConfig,
+				Display:    backend.Display,
+				RemoteAddr: utils.FromAddr(proxyConn.RemoteAddr()),
 			})
 			if err != nil {
 				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
