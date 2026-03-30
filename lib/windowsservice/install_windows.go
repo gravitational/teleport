@@ -40,8 +40,9 @@ type InstallConfig struct {
 	Name string
 	// Description is the service description.
 	Description string
-	// Command is the tsh subcommand that the service manager invokes on start.
-	Command string
+	// Command is the tsh subcommand (and its arguments) that the service manager
+	// invokes on start. Each element becomes a separate command-line argument.
+	Command []string
 	// EventSourceName is the name of an event source that will log service events.
 	EventSourceName string
 	// AccessPermissions defines which service control actions are granted to
@@ -59,7 +60,7 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 	if cfg.Name == "" {
 		return trace.BadParameter("service name is required")
 	}
-	if cfg.Command == "" {
+	if len(cfg.Command) == 0 {
 		return trace.BadParameter("command is required")
 	}
 	if cfg.EventSourceName == "" {
@@ -94,7 +95,7 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 				StartType:   mgr.StartManual,
 				Description: cfg.Description,
 			},
-			cfg.Command,
+			cfg.Command...,
 		)
 		if err != nil {
 			return trace.Wrap(err, "creating VNet Windows service")
@@ -173,8 +174,7 @@ func grantServiceRights(name string, accessPermissions windows.ACCESS_MASK) erro
 	if err != nil {
 		return trace.Wrap(err, "parsing authenticated users SID")
 	}
-	// Build an explicit access entry allowing authenticated users to start,
-	// stop, and query the service.
+	// Build an explicit access entry for authenticated users.
 	ea := []windows.EXPLICIT_ACCESS{{
 		AccessPermissions: accessPermissions,
 		AccessMode:        windows.GRANT_ACCESS,
@@ -210,9 +210,9 @@ func assertTshInProgramFiles(tshPath string) error {
 	if err := assertRegularFile(tshPath); err != nil {
 		return trace.Wrap(err)
 	}
-	programFiles := os.Getenv("PROGRAMFILES")
-	if programFiles == "" {
-		return trace.Errorf("PROGRAMFILES env var is not set")
+	programFiles, err := windows.KnownFolderPath(windows.FOLDERID_ProgramFiles, 0)
+	if err != nil {
+		return trace.Wrap(err, "failed to read Program Files path")
 	}
 	// Windows file paths are case-insensitive.
 	cleanedProgramFiles := strings.ToLower(filepath.Clean(programFiles)) + string(filepath.Separator)

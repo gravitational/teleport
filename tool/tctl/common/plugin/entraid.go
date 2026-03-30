@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -46,8 +46,8 @@ import (
 )
 
 var (
-	bold    = color.New(color.Bold).SprintFunc()
-	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
+	bold    = lipgloss.NewStyle().Bold(true).Render
+	boldRed = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render
 
 	step1Template = bold("Step 1: Run the Setup Script") + `
 

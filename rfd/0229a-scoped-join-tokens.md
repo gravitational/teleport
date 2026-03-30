@@ -86,6 +86,8 @@ to facilitate existing provisioning semantics.
  message ScopedTokenSpec {
 -  // AssignedScope is the scope to which this token is assigned.
 +  // The scope to which this token is assigned.
++  //
+*  // Must be equivalent or descendent to the scope of the token itself.
    string assigned_scope = 1;
 
 -  // TODO(fspmarshall): port relevant token features to scoped tokens.
@@ -166,6 +168,10 @@ the token's name is no longer the secret. This is similar to how the bounded
 keypair join method manages the registration secret. The `token` join method
 will require specifying both the token's name and secret when using scoped
 tokens.
+
+The `spec.assigned_scope` field specifies the scope that will be assigned to any
+resource provisioned using this token. This must be specified and must be
+equivalent or descendent to the `scope` of the token resource itself.
 
 ### Provisioning
 

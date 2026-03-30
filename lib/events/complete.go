@@ -359,6 +359,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	// for both Desktop and SSH sessions
 	var lastEvent events.AuditEvent
 	var startTime time.Time
+	var sessionType recordingmetadata.SessionType
 	var isPTYSession bool
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -396,6 +397,7 @@ loop:
 				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
 
 			case *events.SessionStart:
+				sessionType = recordingmetadata.SessionTypeTTY
 				isPTYSession = true
 				startTime = e.Time
 				sshSessionEnd.Type = SessionEndEvent
@@ -412,6 +414,9 @@ loop:
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
+
+			case *events.DatabaseSessionStart:
+				startTime = e.Time
 
 			case *events.SessionJoin:
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
@@ -466,7 +471,7 @@ loop:
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
 	if !startTime.IsZero() && !sessionEndEvent.GetTime().IsZero() {
 		duration := sessionEndEvent.GetTime().Sub(startTime)
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, duration); err != nil {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
 	} else {

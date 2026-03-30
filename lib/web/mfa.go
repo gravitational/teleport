@@ -77,41 +77,6 @@ func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.
 	return OK(), nil
 }
 
-type deleteMFADeviceRequest struct {
-	// DeviceName is the name of the device to delete.
-	DeviceName string `json:"deviceName"`
-	// ExistingMFAResponse is an MFA challenge response from an existing device.
-	// Not required if the user has no existing devices.
-	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
-}
-
-// deleteMFADeviceHandle deletes an mfa device for the user defined in the `token`, given as a query parameter.
-func (h *Handler) deleteMFADeviceHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (any, error) {
-	var req deleteMFADeviceRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := clt.DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
-		DeviceName:          req.DeviceName,
-		ExistingMFAResponse: mfaResponse,
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return OK(), nil
-}
-
 type addMFADeviceRequest struct {
 	// PrivilegeTokenID is privilege token id.
 	PrivilegeTokenID string `json:"tokenId"`
@@ -344,72 +309,6 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 	return resp, nil
 }
 
-type createRegisterChallengeRequest struct {
-	// DeviceType is the type of MFA device to get a register challenge for.
-	DeviceType string `json:"deviceType"`
-	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
-	// It mimics the proto.DeviceUsage enum.
-	// Defaults to MFA.
-	DeviceUsage string `json:"deviceUsage"`
-	// ExistingMFAResponse is an MFA challenge response from an existing device.
-	// Not required if the user has no existing devices.
-	ExistingMFAResponse *client.MFAChallengeResponse `json:"existingMfaResponse"`
-}
-
-// createRegisterChallengeHandle creates and returns MFA register challenges for a new device for the specified device type.
-func (h *Handler) createRegisterChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (any, error) {
-	var req createRegisterChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var deviceType proto.DeviceType
-	switch req.DeviceType {
-	case "totp":
-		deviceType = proto.DeviceType_DEVICE_TYPE_TOTP
-	case "webauthn":
-		deviceType = proto.DeviceType_DEVICE_TYPE_WEBAUTHN
-	default:
-		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
-	}
-
-	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mfaResponse, err := req.ExistingMFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	chal, err := clt.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
-		DeviceType:          deviceType,
-		DeviceUsage:         deviceUsage,
-		ExistingMFAResponse: mfaResponse,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp := &client.MFARegisterChallenge{}
-	switch chal.GetRequest().(type) {
-	case *proto.MFARegisterChallenge_TOTP:
-		resp.TOTP = &client.TOTPRegisterChallenge{
-			QRCode: chal.GetTOTP().GetQRCode(),
-		}
-	case *proto.MFARegisterChallenge_Webauthn:
-		resp.Webauthn = wantypes.CredentialCreationFromProto(chal.GetWebauthn())
-	}
-
-	return resp, nil
-}
-
 func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
 	var deviceUsage proto.DeviceUsage
 	switch strings.ToLower(reqUsage) {
@@ -455,6 +354,13 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
+type isMFARequiredLinuxDesktop struct {
+	// DesktopName is the Linux Desktop server name.
+	DesktopName string `json:"desktop_name"`
+	// Login is the Linux desktop user login.
+	Login string `json:"login"`
+}
+
 type IsMFARequiredApp struct {
 	// ResolveAppParams contains info used to resolve an application
 	ResolveAppParams
@@ -472,6 +378,9 @@ type IsMFARequiredRequest struct {
 	// WindowsDesktop contains fields required to check if target
 	// windows desktop requires MFA check.
 	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	// LinuxDesktop contains fields required to check if target
+	// linux desktop requires MFA check.
+	LinuxDesktop *isMFARequiredLinuxDesktop `json:"linux_desktop,omitempty"`
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
@@ -534,6 +443,25 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
+				},
+			},
+		}
+	}
+
+	if r.LinuxDesktop != nil {
+		numRequests++
+		if r.LinuxDesktop.DesktopName == "" {
+			return nil, trace.BadParameter("missing desktop_name for checking linux desktop target")
+		}
+		if r.LinuxDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking linux desktop target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_LinuxDesktop{
+				LinuxDesktop: &proto.RouteToLinuxDesktop{
+					LinuxDesktop: r.LinuxDesktop.DesktopName,
+					Login:        r.LinuxDesktop.Login,
 				},
 			},
 		}

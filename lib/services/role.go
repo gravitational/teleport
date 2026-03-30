@@ -2451,18 +2451,18 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
-type linuxLoginMatcher struct {
+type linuxDesktopLoginMatcher struct {
 	login string
 }
 
-// NewLinuxLoginMatcher creates a RoleMatcher that checks whether the role's
+// NewLinuxDesktopLoginMatcher creates a RoleMatcher that checks whether the role's
 // Linux desktop logins match the specified condition.
-func NewLinuxLoginMatcher(login string) RoleMatcher {
-	return &linuxLoginMatcher{login: login}
+func NewLinuxDesktopLoginMatcher(login string) RoleMatcher {
+	return &linuxDesktopLoginMatcher{login: login}
 }
 
 // Match matches a Linux Desktop login against a role.
-func (l *linuxLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+func (l *linuxDesktopLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLinuxDesktopLogins(typ)
 	return slices.Contains(logins, l.login), nil
 }
@@ -2892,36 +2892,6 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 	)
 
 	return preconds
-}
-
-// CheckDeviceAccess verifies if the device state satisfies the device trust
-// requirements of the user's RoleSet.
-//
-// Only device-related fields on AccessState are considered.
-// EnableDeviceVerification is respected; if set to false, this check is a no-op
-// and returns nil.
-//
-// This is used for early authorization checks where a full resource object
-// is not yet available, but we need to verify the device before proceeding.
-func (set RoleSet) CheckDeviceAccess(state AccessState) error {
-	if !state.EnableDeviceVerification {
-		return nil
-	}
-	for _, role := range set {
-		// Note: Unlike RoleSet.checkAccess, VerifyTrustedDeviceMode does not short-circuit
-		// if the device is already verified. It performs validation across the entire RoleSet.
-		if err := dtauthz.VerifyTrustedDeviceMode(
-			role.GetOptions().DeviceTrustMode,
-			dtauthz.VerifyTrustedDeviceModeParams{
-				IsTrustedDevice: state.DeviceVerified,
-				IsBot:           state.IsBot,
-				AllowEmptyMode:  true,
-			},
-		); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]

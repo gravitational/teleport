@@ -260,6 +260,9 @@ type Server struct {
 
 	// childLogConfig is the log config for child processes.
 	childLogConfig *srv.ChildLogConfig
+
+	// immutableLabels are the immutable labels assigned to the server's host certificate
+	immutableLabels map[string]string
 }
 
 // EventMetadata returns metadata about the server.
@@ -366,10 +369,8 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: srv.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
 }
 
@@ -445,8 +446,14 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	// Set the listener before starting heartbeats so the first node heartbeat
+	// does not advertise an empty address.
+	if err := s.srv.SetListener(l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.startPeriodicOperations()
-	return trace.Wrap(s.srv.Serve(l))
+	return trace.Wrap(s.srv.Serve())
 }
 
 func (s *Server) startPeriodicOperations() {
@@ -803,13 +810,21 @@ func SetScope(scope string) ServerOption {
 	}
 }
 
+// SetImmutableLabels sets the server's immutable labels.
+func SetImmutableLabels(labels map[string]string) ServerOption {
+	return func(s *Server) error {
+		s.immutableLabels = labels
+		return nil
+	}
+}
+
 // SetChildLogConfig sets the config that will be used to handle logs
 // from child processes.
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
 			ExecLogConfig: srv.ExecLogConfig{
-				Level:        cfg.LoggerLevel,
+				Level:        cfg.LoggerLevel.Level(),
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
 				EnableColors: cfg.LogConfig.EnableColors,
@@ -992,8 +1007,8 @@ func New(
 			Announcer:       s.authService,
 			GetServerInfo:   s.getServerResource,
 			KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-			AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-			ServerTTL:       apidefaults.ServerAnnounceTTL,
+			AnnouncePeriod:  apidefaults.ProxyAnnounceTTL()/2 + utils.RandomDuration(apidefaults.ProxyAnnounceTTL()/10),
+			ServerTTL:       apidefaults.ProxyAnnounceTTL(),
 			CheckPeriod:     defaults.HeartbeatCheckPeriod,
 			Clock:           s.clock,
 			OnHeartbeat:     s.onHeartbeat,
@@ -1183,14 +1198,15 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels:  s.getDynamicLabels(),
-			Addr:       addr,
-			Hostname:   s.hostname,
-			UseTunnel:  s.useTunnel,
-			Version:    teleport.Version,
-			ProxyIDs:   s.connectedProxyGetter.GetProxyIDs(),
-			RelayGroup: relayGroup,
-			RelayIds:   relayIDs,
+			CmdLabels:       s.getDynamicLabels(),
+			Addr:            addr,
+			Hostname:        s.hostname,
+			UseTunnel:       s.useTunnel,
+			Version:         teleport.Version,
+			ProxyIDs:        s.connectedProxyGetter.GetProxyIDs(),
+			RelayGroup:      relayGroup,
+			RelayIds:        relayIDs,
+			ImmutableLabels: s.immutableLabels,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))

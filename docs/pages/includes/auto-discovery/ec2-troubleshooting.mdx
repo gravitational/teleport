@@ -1,6 +1,38 @@
 If Installs are showing failed or instances are failing to appear check the
-Command history in AWS System Manager -> Node Management -> Run Command.
+Command history in AWS Systems Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
+
+### Installation script exit codes
+
+When enrolling an instance into Teleport, the installation script returns a specific exit code when facing well-known issues:
+- 100: `bash` binary is missing
+- 101: `sudo` binary is missing
+- 102: `curl` binary is missing
+- 103: `/opt` or `/` do not have the required minimum space to install Teleport, at least 1250MB is required
+- 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
+
+You can customize the installation script - as describe in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
+
+Whether the installation exits with a pre-flight check or with your own custom installation script, the exit code appears in `ssm.run` Teleport audit events, in the `exit_code` field.
+It also appears in AWS Systems Manager -> Node Management -> Run Command -> Command history.
+
+Example of the `ssm.run` event with an exit code:
+```json
+{
+  "code": "TDS00W",
+  "event": "ssm.run",
+  "instance_id": "i-0000",
+  "region": "<region>",
+  "invocation_url": "https://<region>.console.aws.amazon.com/systems-manager/run-command/<uuid>/i-0000",
+  "platform_name": "Ubuntu",
+  "platform_type": "Linux",
+  "platform_version": "24.04",
+  "status": "curl is not installed in the instance. Please install all required tools (bash, sudo, curl) and try again.",
+  "stderr": "failed to run commands: exit status 102",
+  "stdout": "curl is missing\n",
+  "exit_code": 102
+}
+```
 
 ### `cannot unmarshal object into Go struct field`
 

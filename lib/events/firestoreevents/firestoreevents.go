@@ -369,7 +369,7 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 			limit:     req.Limit,
 			order:     req.Order,
 			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 			sessionID: "",
 		})
 	if err != nil {
@@ -479,6 +479,20 @@ func (l *Log) query(
 		docID = checkpointParts[1]
 	}
 
+	getCheckpointTime := func(docSnap *firestore.DocumentSnapshot) (int64, error) {
+		createdAtValue, ok := docSnap.Data()[createdAtDocProperty]
+		if !ok {
+			return 0, trace.BadParameter("missing %q field in event document %q", createdAtDocProperty, docSnap.Ref.ID)
+		}
+
+		checkpointTime, ok := createdAtValue.(int64)
+		if !ok {
+			return 0, trace.BadParameter("invalid %q type %T in event document %q", createdAtDocProperty, createdAtValue, docSnap.Ref.ID)
+		}
+
+		return checkpointTime, nil
+	}
+
 	for {
 		if lastKey != "" {
 			query = query.StartAfter(checkpointTime, docID)
@@ -520,13 +534,26 @@ func (l *Log) query(
 				return nil, "", trace.Errorf("failed to unmarshal event %v", err)
 			}
 
+			if filter.search != "" && !events.MatchSearch(filter.search, string(data)) {
+				checkpointTime, err = getCheckpointTime(docSnap)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				docID = docSnap.Ref.ID
+				lastKey = strconv.FormatInt(checkpointTime, 10) + ":" + docID
+				continue
+			}
+
 			// if the total size of the events exceeds the limit, return the events
 			// collected so far and the last key to resume the query.
 			if totalSize+len(data) >= events.MaxEventBytesInResponse {
 				return values, lastKey, nil
 			}
 
-			checkpointTime = docSnap.Data()[createdAtDocProperty].(int64)
+			checkpointTime, err = getCheckpointTime(docSnap)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
 			docID = docSnap.Ref.ID
 			lastKey = strconv.FormatInt(checkpointTime, 10) + ":" + docID
 
@@ -588,6 +615,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condition  utils.FieldsCondition
 }
 
@@ -663,7 +691,7 @@ func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEve
 			limit:     req.Limit,
 			order:     req.Order,
 			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 			sessionID: "",
 		})
 

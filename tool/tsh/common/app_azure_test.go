@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +42,6 @@ import (
 )
 
 func TestAzure(t *testing.T) {
-	lib.SetInsecureDevMode(true)
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -54,6 +52,7 @@ func TestAzure(t *testing.T) {
 		testserver.WithClusterName("localhost"),
 		testserver.WithBootstrap(connector, user, azureRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
@@ -93,7 +92,9 @@ func TestAzure(t *testing.T) {
 		return ""
 	}
 
-	versionWithoutMSAL := semver.New(azureCLIVersionMSALRequirement.String())
+	versionWithoutMSAL := new(semver.Version)
+	*versionWithoutMSAL = *azureCLIVersionMSALRequirement
+	require.Greater(t, versionWithoutMSAL.Minor, int64(0))
 	versionWithoutMSAL.Minor -= 1
 
 	for name, tc := range map[string]struct {

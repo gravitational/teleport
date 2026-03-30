@@ -4,20 +4,11 @@
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
 #include "./common.h"
-#include "../helpers.h"
-
-// ARGSIZE specifies the max argument size read. This value must match the
-// `ArgvMax` Golang constant.
-#define ARGSIZE 1024
-#define MAXARGS 20
 
 // Size, in bytes, of the ring buffer used to report
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*8)
-
-// hashmap keeps all cgroups id that should be monitored by Teleport.
-BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -33,6 +24,7 @@ struct common_data_t {
     u64 ppid;
     u8 command[TASK_COMM_LEN];
     u64 cgroup;
+    u32 audit_session_id;
 };
 
 struct data_t {
@@ -50,11 +42,18 @@ struct data_t {
     int retval;
     // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // AuditSessionID is the audit session ID that is used to correlate
+    // events with specific sessions.
+    u32 audit_session_id;
 };
 
 // Force emitting struct data_t into the ELF. bpf2go needs this
 // to generate the Go bindings.
 const struct data_t *unused __attribute__((unused));
+
+// Hashmap that keeps all audit session IDs that should be monitored 
+// by Teleport.
+BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
 
 BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
 
@@ -75,6 +74,7 @@ static int __submit_arg(void *ptr, struct common_data_t *common)
     data->type = EVENT_ARG;
     data->pid = common->pid;
     data->cgroup = common->cgroup;
+    data->audit_session_id = common->audit_session_id;
     for (int i = 0; i < TASK_COMM_LEN; i++)
         data->command[i] = common->command[i];
 
@@ -97,21 +97,20 @@ static int enter_execve(const char *filename,
                 const char *const *envp)
 {
     struct common_data_t common = {};
-    struct task_struct *task;
-    u64 cgroup = bpf_get_current_cgroup_id();
-    u64 *is_monitored;
 
-    // Check if the cgroup should be monitored.
-    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 session_id = BPF_CORE_READ(task, sessionid);
+    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
     if (is_monitored == NULL) {
-        // Missed entry.
         return 0;
     }
 
-    common.pid = bpf_get_current_pid_tgid() >> 32;
-    common.cgroup = cgroup;
+    print_command_event(task, filename, argv);
 
-    task = (struct task_struct *)bpf_get_current_task();
+    common.pid = bpf_get_current_pid_tgid() >> 32;
+    common.cgroup = bpf_get_current_cgroup_id();
+    common.audit_session_id = session_id;
+
     common.ppid = BPF_CORE_READ(task, real_parent, tgid);
     bpf_get_current_comm(&common.command, sizeof(common.command));
 
@@ -129,7 +128,7 @@ static int enter_execve(const char *filename,
 
         // If no arguments were sent, we reached the end of the arguments list.
         if (res == 0)
-             goto out;
+            goto out;
     }
 
     // handle truncated argument list
@@ -142,14 +141,10 @@ out:
 
 static int exit_execve(int ret)
 {
-    struct task_struct *task;
-    u64 cgroup = bpf_get_current_cgroup_id();
-    u64 *is_monitored;
-
-    // Check if the cgroup should be monitored.
-    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 session_id = BPF_CORE_READ(task, sessionid);
+    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
     if (is_monitored == NULL) {
-        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
 
@@ -160,7 +155,8 @@ static int exit_execve(int ret)
     }
 
     data->pid = bpf_get_current_pid_tgid() >> 32;
-    data->cgroup = cgroup;
+    data->cgroup = bpf_get_current_cgroup_id();
+    data->audit_session_id = session_id;
 
     task = (struct task_struct *)bpf_get_current_task();
     data->ppid = BPF_CORE_READ(task, real_parent, tgid);

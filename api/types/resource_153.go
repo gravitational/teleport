@@ -356,11 +356,16 @@ func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func ProtoResource153ToLegacy[T ProtoResource153](r T) ResourceWithLabels {
+func ProtoResource153ToLegacy[T ProtoResource153](r T) ClonableResourceWithLabels {
 	return &protoResource153ToLegacyAdapter[T]{
 		r,
 		resource153ToResourceWithLabelsAdapter[T]{
 			resource153ToLegacyAdapter[T]{r},
 		},
 	}
+}
+
+type ClonableResourceWithLabels interface {
+	ResourceWithLabels
+	CloneResource() ResourceWithLabels
 }

@@ -257,6 +257,11 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: newUserKeys.windowsDesktop,
 			Cert:       certs.TLS,
 		}
+	case proto.UserCertsRequest_LinuxDesktop:
+		keyRing.LinuxDesktopTLSCredentials[params.RouteToLinuxDesktop.LinuxDesktop] = TLSCredential{
+			PrivateKey: newUserKeys.linuxDesktop,
+			Cert:       certs.TLS,
+		}
 	}
 
 	return keyRing, nil
@@ -428,6 +433,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 		newUserKeys.windowsDesktop = tlsSubjectKey
+	case proto.UserCertsRequest_LinuxDesktop:
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		newUserKeys.linuxDesktop = tlsSubjectKey
 	default:
 		// Assume we're reissuing the base SSH and TLS certs, reuse the existing
 		// private keys.
@@ -473,6 +484,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		RouteToDatabase:                  params.RouteToDatabase,
 		RouteToApp:                       params.RouteToApp,
 		RouteToWindowsDesktop:            params.RouteToWindowsDesktop,
+		RouteToLinuxDesktop:              params.RouteToLinuxDesktop,
 		NodeName:                         params.NodeName,
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
@@ -510,6 +522,8 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
+	case params.RouteToLinuxDesktop.LinuxDesktop != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Linux desktop", params.RouteToLinuxDesktop.LinuxDesktop))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
@@ -729,7 +743,7 @@ type PerformSessionMFACeremonyParams struct {
 }
 
 type newUserKeys struct {
-	ssh, tls, app, db, kube, windowsDesktop *keys.PrivateKey
+	ssh, tls, app, db, kube, windowsDesktop, linuxDesktop *keys.PrivateKey
 }
 
 // PerformSessionMFACeremonyResult contains the result of a successful
@@ -767,16 +781,18 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
+	var mfaKnownToBeRequired bool
 	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
-			return nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
 		case !mfaRequiredResp.Required:
 			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
 		mfaRequiredReq = nil // Already checked, don't check again at root.
+		mfaKnownToBeRequired = true
 	}
 
 	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
@@ -784,7 +800,20 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
-	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
+	params.MFACeremony.CreateAuthenticateChallenge = func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+		chal, err := rootClient.CreateAuthenticateChallenge(ctx, req)
+		if err != nil {
+			// not an exhaustive list, but connection problem and limit exceeded are
+			// almost surely caused by network conditions or general problems rather
+			// than being from the actual handling of the request
+			if !mfaKnownToBeRequired && (trace.IsConnectionProblem(err) || trace.IsLimitExceeded(err)) {
+				return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
+			}
+			return nil, trace.Wrap(err)
+		}
+		return chal, nil
+	}
+
 	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
@@ -873,6 +902,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			keyRing.WindowsDesktopTLSCredentials[certsReq.RouteToWindowsDesktop.WindowsDesktop] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.windowsDesktop,
+			}
+		case proto.UserCertsRequest_LinuxDesktop:
+			if keyRing.LinuxDesktopTLSCredentials == nil {
+				keyRing.LinuxDesktopTLSCredentials = make(map[string]TLSCredential)
+			}
+			keyRing.LinuxDesktopTLSCredentials[certsReq.RouteToLinuxDesktop.LinuxDesktop] = TLSCredential{
+				Cert:       newCerts.TLS,
+				PrivateKey: params.newUserKeys.linuxDesktop,
 			}
 		default:
 			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)

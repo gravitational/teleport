@@ -32,6 +32,7 @@ import (
 )
 
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	emitter := &eventstest.MockRecorderEmitter{}
 	r := authclient.AuthenticateUserRequest{
@@ -50,6 +51,7 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 }
 
 func Test_trimUserAgent(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		inputUserAgent string

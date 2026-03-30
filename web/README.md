@@ -170,54 +170,25 @@ We are targeting last 2 versions of all major browsers. To quickly find out whic
 pnpm dlx browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
 ```
 
-### Setup Prettier on VSCode
+### Setup Oxfmt in Your Editor
 
-1. Install plugin: https://github.com/prettier/prettier-vscode
-1. Go to Command Palette: CMD/CTRL + SHIFT + P (or F1)
-1. Type `open settings`
-1. Select `Open Settings (JSON)`
-1. Include the below snippet and save:
+We use [oxfmt](https://oxc.rs/docs/guide/usage/formatter) for code formatting.
 
-```js
+**VSCode:**
+Install the [oxc-vscode](https://oxc.rs/docs/contribute/vscode) extension from the Visual Studio Marketplace, then add to your settings:
 
-    // Set the default
-    "editor.formatOnSave": false,
-    // absolute config path
-    "prettier.configPath": ".prettierrc.js",
-    // enable per-language
-    "[html]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[javascript]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[javascriptreact]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-    },
-    "[typescript]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[typescriptreact]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-    },
-    "[json]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "vscode.json-language-features"
-    },
-    "[jsonc]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "vscode.json-language-features"
-    },
-    "[markdown]": {
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-    },
+```json
+    "editor.formatOnSave": true,
     "editor.tabSize": 2,
+```
+
+**JetBrains (WebStorm, IntelliJ, etc.):**
+Install the [Oxc plugin](https://plugins.jetbrains.com/plugin/27061-oxc) from the JetBrains Marketplace.
+
+**CLI:**
+```bash
+pnpm format        # format all files
+pnpm format-check  # check without writing
 ```
 
 ### MFA Development
@@ -306,7 +277,7 @@ in the root `package.json`:
 to avoid generating a different lockfile when `e` isn't cloned).
 For example, `react` - it is imported in every package (in `e` too), so it
 needs to be kept in the root.
-2. CLI tools which are run from the root of the repo, like `prettier`.
+2. CLI tools which are run from the root of the repo, like `oxfmt`.
 
 ### Adding an Audit Event
 

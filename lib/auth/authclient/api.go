@@ -1011,18 +1011,6 @@ type DiscoveryAccessPoint interface {
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
-// ExpiryAccessPoint is the API used by the expiry service.
-type ExpiryAccessPoint interface {
-	// Semaphores provides semaphore operations
-	types.Semaphores
-
-	// ListAccessRequests is an access request getter with pagination and sorting options.
-	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
-
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
-}
-
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
@@ -1441,6 +1429,9 @@ type Cache interface {
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+
+	// GetAccessListOwners returns a list of owners for a particular access list.
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
 
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)

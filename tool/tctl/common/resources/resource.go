@@ -60,10 +60,12 @@ func Handlers() map[string]Handler {
 		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
+		types.KindExternalAuditStorage:               externalAuditStorageHandler(),
 		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
+		types.KindInferencePolicy:                    inferencePolicyHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
@@ -84,6 +86,7 @@ func Handlers() map[string]Handler {
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
+		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
@@ -93,6 +96,7 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
+		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
 }
 

@@ -181,6 +181,8 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
 	case usertasks.TaskTypeDiscoverRDS:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
+	case usertasks.TaskTypeDiscoverAzureVM:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverAzureVm().GetInstances()))
 	}
 	return ret
 }
@@ -249,7 +251,6 @@ func (s *Service) GetUserTask(ctx context.Context, req *usertasksv1.GetUserTaskR
 	}
 
 	return rsp, nil
-
 }
 
 // UpdateUserTask updates user task resource.

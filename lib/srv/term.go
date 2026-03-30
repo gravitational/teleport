@@ -61,12 +61,15 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
-	// WaitForChild blocks until the child process has completed any required
-	// setup operations before proceeding with execution.
-	WaitForChild(ctx context.Context) error
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled. Otherwise, this
+	// method is a no-op.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine (placed in a cgroup).
+	// pre-processing routine if Enhanced Session Recording is enabled.
+	// Otherwise, this method is a no-op.
 	Continue()
 
 	// KillUnderlyingShell tries to gracefully stop the terminal process.
@@ -220,11 +223,10 @@ func (t *terminal) Run(ctx context.Context) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Close our half of the write pipe since it is only to be used by the child process.
 	// Not closing prevents being signaled when the child closes its half.
 	if err := t.serverContext.readyw.Close(); err != nil {
-		t.log.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
+		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
 	}
 	t.serverContext.readyw = nil
 
@@ -257,12 +259,25 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) WaitForChild(ctx context.Context) error {
-	return t.serverContext.WaitForChild(ctx)
+// ReadAuditSessionID reads the unique audit session ID of the process
+// that will be used to correlate audit events to the SSH session for
+// sessions with Enhanced Session Recording enabled. Otherwise, this
+// method is a no-op.
+func (t *terminal) ReadAuditSessionID() (uint32, error) {
+	if !t.serverContext.recordWithBPF() {
+		return 0, nil
+	}
+
+	if err := t.serverContext.WaitForChild(t.serverContext.cancelContext); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return readAuditSessionID(t.pid)
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine (placed in a cgroup).
+// pre-processing routine if Enhanced Session Recording is enabled.
+// Otherwise, this method is a no-op.
 func (t *terminal) Continue() {
 	if err := t.serverContext.contw.Close(); err != nil {
 		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
@@ -613,8 +628,8 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForChild(context.Context) error {
-	return nil
+func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {
+	return 0, nil
 }
 
 // Continue does nothing for remote command execution.

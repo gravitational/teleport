@@ -1,4 +1,3 @@
-;
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -18,14 +17,9 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
-
-
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
-
-
 
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
@@ -36,8 +30,6 @@ import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewS
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
-
-
 
 import { AppLauncher } from './AppLauncher';
 import cfg from './config';
@@ -55,7 +47,6 @@ import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
 import { Welcome } from './Welcome';
 
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -71,9 +62,10 @@ const queryClient = new QueryClient({
 });
 
 const Teleport: React.FC<Props> = props => {
-  const { ctx, history } = props;
+  const { ctx } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
+
   // update the favicon based on the system pref, and listen if it changes
   // overtime.
   // TODO(avatus) this can be expanded upon eventually to handle the entire theme
@@ -100,11 +92,11 @@ const Teleport: React.FC<Props> = props => {
   }, []);
 
   return (
-    <CatchError>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CatchError>
           <LayoutContextProvider>
-            <Router history={history}>
+            <Router>
               <Suspense fallback={null}>
                 <Switch>
                   {createPublicRoutes()}
@@ -115,8 +107,9 @@ const Teleport: React.FC<Props> = props => {
                           <TeleportContextProvider ctx={ctx}>
                             <Switch>
                               <Route
+                                exact={false}
                                 path={cfg.routes.appLauncher}
-                                component={AppLauncher}
+                                element={<AppLauncher />}
                               />
                               <Route>{createPrivateRoutes()}</Route>
                             </Switch>
@@ -129,9 +122,9 @@ const Teleport: React.FC<Props> = props => {
               </Suspense>
             </Router>
           </LayoutContextProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </CatchError>
+        </CatchError>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -140,7 +133,7 @@ function publicOSSRoutes() {
     <Route
       title="Login"
       path={cfg.routes.login}
-      component={Login}
+      element={<Login />}
       key="login"
     />,
     ...getSharedPublicRoutes(),
@@ -153,49 +146,49 @@ export function getSharedPublicRoutes() {
       key="login-failed"
       title="Login Failed"
       path={cfg.routes.loginError}
-      component={LoginFailed}
+      element={<LoginFailed />}
     />,
     <Route
       key="login-failed-legacy"
       title="Login Failed"
       path={cfg.routes.loginErrorLegacy}
-      component={LoginFailed}
+      element={<LoginFailed />}
     />,
     <Route
       key="success"
       title="Success"
       path={cfg.routes.loginSuccess}
-      component={LoginSuccess}
+      element={<LoginSuccess />}
     />,
     <Route
       key="terminal"
       title="Finish Login in Terminal"
       path={cfg.routes.loginTerminalRedirect}
-      component={LoginTerminalRedirect}
+      element={<LoginTerminalRedirect />}
     />,
     <Route
       key="autoclose"
       title="Working on SSO login"
       path={cfg.routes.loginClose}
-      component={LoginClose}
+      element={<LoginClose />}
     />,
     <Route
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      element={<Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      element={<Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="saml-slo-failed"
       title="SAML Single Logout Failed"
       path={cfg.routes.samlSloFailed}
-      component={SingleLogoutFailed}
+      element={<SingleLogoutFailed />}
     />,
   ];
 }
@@ -207,11 +200,11 @@ function privateOSSRoutes() {
       <Route
         key="player"
         path={cfg.routes.player}
-        component={ViewSessionRecordingRoute}
+        element={<ViewSessionRecordingRoute />}
       />
       <Route
         path={cfg.routes.root}
-        render={() => <Main features={getOSSFeatures()} />}
+        element={<Main features={getOSSFeatures()} />}
       />
     </Switch>
   );
@@ -222,23 +215,18 @@ export function getSharedPrivateRoutes() {
     <Route
       key="desktop"
       path={cfg.routes.desktop}
-      component={DesktopSession}
+      element={<DesktopSession />}
     />,
     <Route
       key="linuxDesktop"
       path={cfg.routes.linuxDesktop}
-      component={DesktopSession}
+      element={<DesktopSession />}
     />,
-    <Route
-      key="linuxDesktopSelector"
-      path={cfg.routes.linuxDesktopSelector}
-      component={DesktopSession}
-    />,
-    <Route key="console" path={cfg.routes.console} component={Console} />,
+    <Route key="console" path={cfg.routes.console} element={<Console />} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
-      component={HeadlessRequest}
+      element={<HeadlessRequest />}
     />,
   ];
 }
@@ -247,7 +235,6 @@ export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;
-  history: History;
   renderPublicRoutes?: () => React.ReactNode[];
   renderPrivateRoutes?: () => React.ReactNode;
 };

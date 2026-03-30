@@ -63,6 +63,7 @@ type Config struct {
 
 	TTL             time.Duration
 	RenewalInterval time.Duration
+	Leeway          time.Duration
 
 	FIPS bool
 
@@ -543,13 +544,29 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
+	// Note: This leeway cap check is simpler than app/db tunnel services as the
+	// main renewal loop is, well, a loop, and will not attempt to renew more
+	// often than the configured renewal interval.
+	leeway := cfg.Leeway
+	if leeway >= cfg.TTL {
+		log.WarnContext(ctx, "leeway is greater than credential lifetime and "+
+			"will be ignored, be aware of potential failures due to clock drift",
+			"credential_ttl", cfg.TTL,
+			"configured_leeway", cfg.Leeway,
+		)
+		leeway = 0
+	}
+
 	// Note: This simple expiration check is probably not the best possible
 	// solution to determine when to discard an existing identity: the client
 	// could have severe clock drift, or there could be non-expiry related
 	// reasons that an identity should be thrown out. We may improve this
-	// discard logic in the future if we determine we're still creating  excess
+	// discard logic in the future if we determine we're still creating excess
 	// bot instances.
-	now := time.Now()
+	// To allow users to manually compensate for clock drift if e.g. using very
+	// tight renewal/TTL values, we expose a configurable leeway to trigger
+	// modestly early renewal.
+	now := time.Now().Add(leeway)
 	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
 		slog.WarnContext(
 			ctx,
@@ -564,6 +581,7 @@ func renewIdentity(
 			"expiry", expiry,
 			"ttl", cfg.TTL,
 			"renewal_interval", cfg.RenewalInterval,
+			"leeway", cfg.Leeway,
 		)
 
 		newIdentity, err := botIdentityFromToken(ctx, log, cfg, nil)
@@ -748,9 +766,6 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", cfg.Connection.AddressKind)
 	}
 
-	// Only set during bound keypair joining, but used both before and after.
-	var boundKeypairState boundkeypair.ClientState
-
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
 		params.AzureParams = joinclient.AzureParams{
@@ -767,30 +782,17 @@ func botIdentityFromToken(
 		if err != nil {
 			return nil, trace.Wrap(err, "loading registration secret from disk")
 		}
+		params.BoundKeypairRegistrationSecret = joinSecret
 
-		boundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
+		params.BoundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
-
-		params.BoundKeypairParams = boundKeypairState.ToJoinParams(boundkeypair.ClientParams{
-			RegistrationSecret: joinSecret,
-		})
 	}
 
 	result, err := joinclient.Join(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if boundKeypairState != nil {
-		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := boundKeypairState.Store(ctx); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)

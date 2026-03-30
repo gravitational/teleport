@@ -141,7 +141,7 @@ example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
 
 ## Step 3/3. Configure a GitHub Actions Workflow
 
-Now that the bot has been successfully created, you now need to configure your
+Now that the bot has been successfully created, you need to configure your
 GitHub Action's workflow to authenticate as this bot and then use the
 credentials produced by `tbot`. To help with this, Teleport publishes
 several easy-to-use GitHub Actions that can be used within your workflow.
@@ -193,12 +193,12 @@ spec:
     # Allow login to the Linux user 'root'.
     logins: ['root']
     # Allow connection to any node. Adjust these labels to match only nodes
-    # that ansible needs to access.
+    # that needed to access.
     node_labels:
       '*': '*'
 ```
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -331,7 +331,7 @@ in `kubernetes_resources`. Otherwise the example `kubectl get pods -A` execution
 will be denied.
 </Admonition>
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -385,7 +385,7 @@ Replace:
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
-Kubernetes (e.g `kubectl` and `helm`) can use your cluster with no additional
+Kubernetes (e.g. `kubectl` and `helm`) can use your cluster with no additional
 configuration.
 
 Add, commit, and push this new workflow file to the default branch of your
@@ -557,8 +557,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    - name: Fetch kubectl
-      uses: azure/setup-kubectl@v3
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -735,7 +733,7 @@ services: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service.
-- `example-bot` with the name of the token you created in the first step.
+- `example-bot` with the name of the token you created in the second step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
 configuration.

@@ -35,6 +35,8 @@ import {
   ClusterLifecycleManager,
 } from './clusterLifecycleManager';
 
+/* oxlint-disable jest/no-standalone-expect */
+
 beforeAll(() => {
   Logger.init(new NullService());
 });
@@ -288,7 +290,6 @@ const tests: {
   },
 ];
 
-// eslint-disable-next-line jest/expect-expect
 test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
   const mockTshdClient = new MockTshClient();
   const mockAppUpdater = {

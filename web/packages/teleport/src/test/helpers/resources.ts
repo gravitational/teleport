@@ -28,6 +28,10 @@ import { JsonObject } from 'teleport/types';
 const path = '/v1/webapi/sites/:clusterId/resources';
 
 export const fetchUnifiedResourcesSuccess = (opts?: {
+  // FIXME: the response type should be raw API payload, not `UnifiedResource`.
+  // `UnifiedResource` is produced later by `resourceService.fetchUnifiedResources()`
+  // via `makeUnifiedResource`.
+  // Mixing these layers can cause some values to be missing after going through makeUnifiedResource.
   response?: ResourcesResponse<UnifiedResource> & { items: UnifiedResource[] };
   delayMs?: number;
   mockSearch?: boolean;

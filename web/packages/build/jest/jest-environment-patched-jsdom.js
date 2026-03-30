@@ -1,3 +1,4 @@
+/* oxlint-disable constructor-super */
 import { TransformStream, WritableStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { BroadcastChannel } from 'node:worker_threads';

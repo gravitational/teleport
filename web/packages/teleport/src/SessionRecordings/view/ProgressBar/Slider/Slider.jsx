@@ -251,8 +251,6 @@ const ReactSlider = createReactClass({
     this.tempArray = value.slice();
 
     for (var i = 0; i < value.length; i++) {
-      // Disabling since this is legacy code copied from some other library.
-      // eslint-disable-next-line react/no-direct-mutation-state
       this.state.value[i] = this._trimAlignValue(value[i], newProps);
     }
     if (this.state.value.length > value.length)

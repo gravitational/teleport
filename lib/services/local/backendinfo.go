@@ -51,8 +51,8 @@ func NewBackendInfoService(b backend.Backend) (*BackendInfoService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*backendinfov1.BackendInfo],
 			UnmarshalFunc: services.UnmarshalProtoResource[*backendinfov1.BackendInfo],
 			ValidateFunc:  backendinfotype.ValidateBackendInfo,
-			NameKeyFunc: func(string) string {
-				return types.MetaNameBackendInfo
+			NameKeyFunc: func() backend.Key {
+				return backend.NewKey(types.MetaNameBackendInfo)
 			},
 		})
 	if err != nil {

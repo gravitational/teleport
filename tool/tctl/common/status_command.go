@@ -110,6 +110,11 @@ func newStatusModel(ctx context.Context, client *authclient.Client, pingResp pro
 			slog.WarnContext(ctx, "Failed to fetch CA", "type", caType, "error", err)
 			continue
 		}
+		// Filter repeated lines in case of WindowsCA query fallback.
+		// TODO(codingllama): DELETE IN 20. WindowsCA is guaranteed to exist by then.
+		if len(cas) > 0 && cas[0].GetType() != caType {
+			continue
+		}
 		authorities = append(authorities, cas...)
 	}
 	cluster, err := newClusterStatusModel(pingResp, authorities)

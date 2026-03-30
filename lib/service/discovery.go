@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
@@ -136,7 +135,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 // In those situations, ambient credentials (used by the AWS SDK) will provide access to the tenant's infra, which is not desired.
 // Setting IntegrationOnlyCredentials to true, will prevent usage of the ambient credentials.
 func (process *TeleportProcess) integrationOnlyCredentials() bool {
-	return process.Config.Auth.Enabled && modules.GetModules().Features().Cloud
+	return process.Config.Auth.Enabled && process.Config.Modules.Features().Cloud
 }
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.

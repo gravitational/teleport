@@ -20,7 +20,9 @@ package assignments
 
 import (
 	"context"
+	"os"
 	"slices"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -33,17 +35,38 @@ import (
 )
 
 const (
-	defaultPageSize = 256
-	maxPageSize     = 1024
+	defaultPageSize               = 256
+	maxPageSize                   = 1024
+	defaultMaxAssignmentTreeBytes = 2048
 )
+
+// AssignmentCacheConfig is the configuration for the assignment cache.
+type AssignmentCacheConfig struct {
+	// MaxAssignmentTreeBytes is the maximum encoded size for assignment trees, which make up
+	// the bulk of the size of a scope pin when encoded on a certificate. See [pinning.PruneAssignmentTree]
+	// for details on how pruning of oversized assignment trees works. Defaults to 2kb.
+	MaxAssignmentTreeBytes int
+}
 
 // AssignmentCache is a cache for scoped role assignments.
 type AssignmentCache struct {
 	cache *cache.Cache[*scopedaccessv1.ScopedRoleAssignment, string]
+	cfg   AssignmentCacheConfig
 }
 
-// NewAssignmentCache creates a new assignment cache instance.
-func NewAssignmentCache() *AssignmentCache {
+// NewAssignmentCache creates a new assignment cache instance with the given configuration.
+func NewAssignmentCache(cfg AssignmentCacheConfig) *AssignmentCache {
+	if cfg.MaxAssignmentTreeBytes == 0 {
+		cfg.MaxAssignmentTreeBytes = defaultMaxAssignmentTreeBytes
+	}
+
+	if matb := os.Getenv("TELEPORT_UNSTABLE_MAX_ASSIGNMENT_TREE_BYTES"); matb != "" {
+		parsed, err := strconv.Atoi(matb)
+		if err == nil && parsed > 0 {
+			cfg.MaxAssignmentTreeBytes = parsed
+		}
+	}
+
 	return &AssignmentCache{
 		cache: cache.Must(cache.Config[*scopedaccessv1.ScopedRoleAssignment, string]{
 			Scope: func(assignment *scopedaccessv1.ScopedRoleAssignment) string {
@@ -54,6 +77,7 @@ func NewAssignmentCache() *AssignmentCache {
 			},
 			Clone: proto.CloneOf[*scopedaccessv1.ScopedRoleAssignment],
 		}),
+		cfg: cfg,
 	}
 }
 

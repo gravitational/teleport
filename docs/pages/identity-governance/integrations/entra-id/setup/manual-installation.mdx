@@ -36,14 +36,14 @@ Enter a name for your application and create the application.
 Open the newly created enterprise application.
 
 Under “Manage” menu select “Single sign-on”. In this configuration UI, you will need to set up Teleport
-as an SAML servicer provider.
+as an SAML service provider.
 
 Click edit button to configure  “Basic SAML Configuration”.
 Enter the SAML assertion endpoint as Entity ID and ACS URL value.
 - **Entity ID and ACS URL:** SAML ACS endpoint of your Teleport cluster. 
 E.g. `https://example.teleport.sh/v1/webapi/saml/acs/entra-id`
 
-For “Attributes & Claims”, attributes with user will already be available for you but you will need to 
+For “Attributes & Claims”, attributes for the user will already be available for you but you will need to 
 add a `groups` claim. 
 
 ![Entra ID Integration](../../../../../img/igs/entraid/entra-sso-config.png)

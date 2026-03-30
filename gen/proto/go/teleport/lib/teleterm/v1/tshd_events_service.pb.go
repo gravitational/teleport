@@ -24,6 +24,7 @@
 package teletermv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -773,6 +774,8 @@ type PromptMFARequest struct {
 	// per-session MFA but we may still need to know that the user has TOTP
 	// configured as an option.
 	PerSessionMfa bool `protobuf:"varint,7,opt,name=per_session_mfa,json=perSessionMfa,proto3" json:"per_session_mfa,omitempty"`
+	// BrowserMFAChallenge is sent when browser-based MFA is supported.
+	Browser       *v1.BrowserMFAChallenge `protobuf:"bytes,8,opt,name=browser,proto3" json:"browser,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -847,6 +850,13 @@ func (x *PromptMFARequest) GetPerSessionMfa() bool {
 		return x.PerSessionMfa
 	}
 	return false
+}
+
+func (x *PromptMFARequest) GetBrowser() *v1.BrowserMFAChallenge {
+	if x != nil {
+		return x.Browser
+	}
+	return nil
 }
 
 // SSOChallenge contains SSO challenge details.
@@ -1593,7 +1603,7 @@ var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDes
 
 const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\n" +
-	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\"\xff\x01\n" +
+	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\xff\x01\n" +
 	"\x0eReloginRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12`\n" +
 	"\x14gateway_cert_expired\x18\x02 \x01(\v2,.teleport.lib.teleterm.v1.GatewayCertExpiredH\x00R\x12gatewayCertExpired\x12W\n" +
@@ -1637,7 +1647,7 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12<\n" +
 	"\x1aheadless_authentication_id\x18\x02 \x01(\tR\x18headlessAuthenticationId\x12I\n" +
 	"!headless_authentication_client_ip\x18\x03 \x01(\tR\x1eheadlessAuthenticationClientIp\"+\n" +
-	")SendPendingHeadlessAuthenticationResponse\"\xf5\x01\n" +
+	")SendPendingHeadlessAuthenticationResponse\"\xb5\x02\n" +
 	"\x10PromptMFARequest\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x12\n" +
 	"\x04totp\x18\x03 \x01(\bR\x04totp\x12\x1a\n" +
@@ -1645,7 +1655,8 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\vcluster_uri\x18\x05 \x01(\tR\n" +
 	"clusterUri\x128\n" +
 	"\x03sso\x18\x06 \x01(\v2&.teleport.lib.teleterm.v1.SSOChallengeR\x03sso\x12&\n" +
-	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfaJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
+	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfa\x12>\n" +
+	"\abrowser\x18\b \x01(\v2$.teleport.mfa.v1.BrowserMFAChallengeR\abrowserJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
 	"\fSSOChallenge\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12%\n" +
 	"\x0econnector_type\x18\x02 \x01(\tR\rconnectorType\x12!\n" +
@@ -1739,6 +1750,7 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
 	(*RouteToApp)(nil),                                // 28: teleport.lib.teleterm.v1.RouteToApp
 	(*PortRange)(nil),                                 // 29: teleport.lib.teleterm.v1.PortRange
+	(*v1.BrowserMFAChallenge)(nil),                    // 30: teleport.mfa.v1.BrowserMFAChallenge
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1751,32 +1763,33 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	8,  // 7: teleport.lib.teleterm.v1.CannotProxyVnetConnection.invalid_local_port:type_name -> teleport.lib.teleterm.v1.InvalidLocalPort
 	29, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
 	13, // 9: teleport.lib.teleterm.v1.PromptMFARequest.sso:type_name -> teleport.lib.teleterm.v1.SSOChallenge
-	25, // 10: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
-	0,  // 11: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
-	4,  // 12: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
-	10, // 13: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
-	12, // 14: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
-	15, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
-	17, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
-	19, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
-	21, // 18: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
-	23, // 19: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
-	26, // 20: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
-	3,  // 21: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
-	9,  // 22: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
-	11, // 23: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
-	14, // 24: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
-	16, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
-	18, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
-	20, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
-	22, // 28: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
-	24, // 29: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	27, // 30: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	21, // [21:31] is the sub-list for method output_type
-	11, // [11:21] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	30, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v1.BrowserMFAChallenge
+	25, // 11: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
+	0,  // 12: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
+	4,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
+	10, // 14: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
+	12, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
+	15, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+	17, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+	19, // 18: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+	21, // 19: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+	23, // 20: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+	26, // 21: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	3,  // 22: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
+	9,  // 23: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
+	11, // 24: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
+	14, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
+	16, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+	18, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+	20, // 28: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+	22, // 29: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+	24, // 30: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	27, // 31: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	22, // [22:32] is the sub-list for method output_type
+	12, // [12:22] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() }

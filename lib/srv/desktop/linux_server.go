@@ -29,6 +29,7 @@ import (
 	"time"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/srv/desktop/x11"
 	"github.com/gravitational/trace"
@@ -63,10 +64,6 @@ type LinuxService struct {
 	cfg        LinuxServiceConfig
 	middleware *authz.Middleware
 
-	// clusterName is the cached local cluster name, to avoid calling
-	// cfg.AccessPoint.GetClusterName multiple times.
-	clusterName string
-
 	// auditCache caches information from shared directory
 	// TDP messages that are needed for
 	// creating shared directory audit events.
@@ -74,6 +71,8 @@ type LinuxService struct {
 
 	closeCtx context.Context
 	close    func()
+
+	heartbeat *srv.HeartbeatV2
 }
 
 // LinuxServiceConfig contains all necessary configuration values for a
@@ -170,10 +169,9 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageLinuxDesktopOnly},
 		},
-		clusterName: clusterName.GetClusterName(),
-		closeCtx:    ctx,
-		close:       close,
-		auditCache:  newSharedDirectoryAuditCache(),
+		closeCtx:   ctx,
+		close:      close,
+		auditCache: newSharedDirectoryAuditCache(),
 	}
 
 	if err := s.startServiceHeartbeat(); err != nil {
@@ -191,6 +189,7 @@ func (s *LinuxService) startServiceHeartbeat() error {
 			desktop, err := linuxdesktopv1.NewLinuxDesktop(s.cfg.Heartbeat.HostUUID, &linuxdesktopv1pb.LinuxDesktopSpec{
 				Addr:     s.cfg.Heartbeat.PublicAddr,
 				Hostname: s.cfg.Hostname,
+				ProxyIds: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -203,6 +202,9 @@ func (s *LinuxService) startServiceHeartbeat() error {
 		PollInterval:     defaults.HeartbeatCheckPeriod,
 		OnHeartbeat:      s.cfg.Heartbeat.OnHeartbeat,
 	})
+
+	s.heartbeat = heartbeat
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -218,6 +220,10 @@ func (s *LinuxService) startServiceHeartbeat() error {
 // established ones. Close does not wait for the connections to be finished.
 func (s *LinuxService) Close() error {
 	s.close()
+
+	if s.heartbeat != nil {
+		s.heartbeat.Close()
+	}
 
 	return nil
 }
@@ -286,10 +292,25 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	log.DebugContext(ctx, "Authenticated Linux desktop connection")
+
 	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 		sendTDPError("Connection authorization failed.")
+		return
+	}
+
+	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		log.ErrorContext(ctx, "failed to get auth preference", "error", err)
+		sendTDPError("Failed to get auth preference.")
+		return
+	}
+
+	desktop, err := s.cfg.AuthClient.GetLinuxDesktop(ctx, s.cfg.Heartbeat.HostUUID)
+	if err != nil {
+		log.ErrorContext(ctx, "failed to get linux desktop", "error", err)
+		sendTDPError("Failed to get Linux desktop.")
 		return
 	}
 
@@ -324,6 +345,15 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		}
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
+			state := authCtx.GetAccessState(authPref)
+			if err := authCtx.Checker.CheckAccess(
+				types.Resource153ToResourceWithLabels(desktop),
+				state,
+				services.NewLinuxDesktopLoginMatcher(m.Username)); err != nil {
+				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
+				sendTDPError("Connection authorization failed.")
+			}
+
 			xsessions, err := x11.GetAvailableXSessions()
 			if err != nil {
 				log.ErrorContext(ctx, "failed to get available xsessions", "error", err)

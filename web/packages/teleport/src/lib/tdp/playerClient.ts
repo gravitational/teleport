@@ -177,7 +177,7 @@ export class PlayerClient extends TdpClient {
       }
 
       // Handle TDPB recordings by switching to the TDPB codec
-      if (json.tdpb_message !== undefined) {
+      if (json.tdpb_message) {
         await super.processMessage(
           base64ToArrayBuffer(json.tdpb_message),
           this.tdpbCodec

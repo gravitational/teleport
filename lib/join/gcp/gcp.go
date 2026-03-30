@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -118,11 +117,6 @@ func CheckIDToken(
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
-	}
-
 	claims, err := params.Validator.Validate(ctx, string(params.IDToken))
 	if err != nil {
 		log.WarnContext(ctx, "Unable to validate GCP IDToken",
@@ -140,16 +134,16 @@ func CheckIDToken(
 
 	// Note: try to return claims even in case of error to improve logging on
 	// failed auth attempts.
-	return claims, trace.Wrap(checkGCPAllowRules(token, claims))
+	return claims, trace.Wrap(checkGCPAllowRules(params.ProvisionToken, claims))
 }
 
-func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkGCPAllowRules(token provision.Token, claims *IDTokenClaims) error {
 	compute := claims.Google.ComputeEngine
 	// unmatchedLocation is true if the location restriction is set and the "google.compute_engine.zone"
 	// claim is not present in the IDToken. This happens when the joining node is not a GCE VM.
 	unmatchedLocation := false
 	// If a single rule passes, accept the IDToken.
-	for _, rule := range token.Spec.GCP.Allow {
+	for _, rule := range token.GetGCPRules().Allow {
 		if !slices.Contains(rule.ProjectIDs, compute.ProjectID) {
 			continue
 		}

@@ -32,19 +32,19 @@ export function AwsOidcRoutes() {
           key="aws-oidc-resource-table"
           exact
           path={cfg.routes.integrationStatusResources}
-          component={Details}
+          element={<Details />}
         />
         <Route
           key="aws-oidc-task-table"
           exact
           path={cfg.routes.integrationTasks}
-          component={Tasks}
+          element={<Tasks />}
         />
         <Route
           key="aws-oidc-dashboard"
           exact
           path={cfg.routes.integrationStatus}
-          component={AwsOidcDashboard}
+          element={<AwsOidcDashboard />}
         />
       </Switch>
     </AwsOidcStatusProvider>

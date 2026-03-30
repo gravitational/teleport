@@ -54,7 +54,6 @@ func NewFixture(t *testing.T) *Fixture {
 	fixture.Priv, fixture.Pub, err = testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
-	// Find AllocatePortsNum free listening ports to use.
 	fixture.Me, err = user.Current()
 	require.NoError(t, err)
 

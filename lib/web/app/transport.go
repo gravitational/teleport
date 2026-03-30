@@ -386,7 +386,8 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 
 		conn, err = dialAppServer(ctx, clusterClient, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.WarnContext(ctx, "Failed to connect to application server", "app_server", appServer.GetName(), "error", err)
+			t.c.log.WarnContext(ctx, "Failed to connect to application server",
+				"app_server", appServer.GetName(), "host_id", appServer.GetHostID(), "error", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if

@@ -170,7 +170,8 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		}
 
 		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name: name,
+			Name:       name,
+			WithSecret: true,
 		})
 		if err != nil {
 			scopedErr = err
@@ -523,8 +524,9 @@ func (s *Server) makeHostResult(
 		return nil, trace.Wrap(err)
 	}
 	return &messages.HostResult{
-		Certificates: *certificates,
-		HostID:       certsParams.HostID,
+		Certificates:    *certificates,
+		HostID:          certsParams.HostID,
+		ImmutableLabels: token.GetImmutableLabels(),
 	}, nil
 }
 

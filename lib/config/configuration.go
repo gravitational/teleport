@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -718,6 +717,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
+		&cfg.Apps.Limiter,
 		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
@@ -2048,6 +2048,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Log when proxy_service is enabled in the same config but has no
+	// public_addr. The proxy falls back to the cluster name for the
+	// auth redirect. Per-app public_addr controls the app's FQDN but
+	// does not replace this.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.InfoContext(context.Background(),
+			"proxy_service.public_addr not set; using cluster name for app auth redirects",
+			"nodename", cfg.Hostname)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
@@ -2324,28 +2334,33 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
-	var cert *x509.Certificate
+	var certs []*x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
+		derCert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+		certs = []*x509.Certificate{derCert}
 	}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
+		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
+		certs = pemCerts
 	}
 
 	locateServer := servicecfg.LocateServer{
@@ -2360,7 +2375,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		CAs:                certs,
 		LocateServer:       locateServer,
 	}
 
@@ -2408,20 +2423,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 // applyLinuxDesktopConfig applies file configuration for the "linux_desktop_service" section.
 func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.LinuxDesktop.Enabled = true
-
-	if fc.LinuxDesktop.ListenAddress != "" {
-		listenAddr, err := utils.ParseHostPortAddr(fc.LinuxDesktop.ListenAddress, defaults.LinuxDesktopListenPort)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.LinuxDesktop.ListenAddr = *listenAddr
-	}
-
-	var err error
-	cfg.LinuxDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.LinuxDesktop.PublicAddr, defaults.LinuxDesktopListenPort)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	if fc.LinuxDesktop.Labels != nil {
 		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
@@ -2524,9 +2525,6 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2939,14 +2937,16 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
+
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -3010,6 +3010,10 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
 	return nil
 }
 

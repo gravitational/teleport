@@ -132,6 +132,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// GetAllowCLIAuthViaBrowser returns if cli auth via browser is allowed by cluster settings.
+	GetAllowCLIAuthViaBrowser() bool
+	// SetAllowCLIAuthViaBrowser sets the value of the allow cli auth via browser setting.
+	SetAllowCLIAuthViaBrowser(b bool)
+
 	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
 	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
@@ -465,6 +470,22 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
+// GetAllowCLIAuthViaBrowser returns whether cli auth via browser is
+// allowed. If it's not explicitly configured, it defaults to true when
+// WebAuthn is enabled as a second factor.
+func (c *AuthPreferenceV2) GetAllowCLIAuthViaBrowser() bool {
+	if c.Spec.AllowCLIAuthViaBrowser != nil {
+		return c.Spec.AllowCLIAuthViaBrowser.Value
+	}
+
+	// Default to enabled when WebAuthn is enabled.
+	return c.IsSecondFactorWebauthnAllowed()
+}
+
+func (c *AuthPreferenceV2) SetAllowCLIAuthViaBrowser(b bool) {
+	c.Spec.AllowCLIAuthViaBrowser = NewBoolOption(b)
 }
 
 // SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
@@ -807,6 +828,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Validate AllowCLIAuthViaBrowser. WebAuthn is required for cli auth via browser.
+	if !hasWebauthn && c.Spec.AllowCLIAuthViaBrowser != nil && c.Spec.AllowCLIAuthViaBrowser.Value {
+		return trace.BadParameter("missing required Webauthn configuration for allow_cli_auth_via_browser=true")
 	}
 
 	// Prevent local lockout by disabling local second factor methods.

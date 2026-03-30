@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
 import {
@@ -29,10 +28,8 @@ import {
   Subtitle1,
   Text,
 } from 'design';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
 import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
@@ -41,14 +38,14 @@ import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import { ApiError } from 'teleport/services/api/parseError';
 import {
   Regions as AwsRegion,
   IntegrationKind,
-  integrationService,
 } from 'teleport/services/integrations';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
+import { useEnrollCloudIntegration } from '../Shared';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import {
   ContentWithSidePanel,
@@ -65,15 +62,21 @@ import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
 import { Ec2Config, WildcardRegion } from './types';
 
-const INTEGRATION_CHECK_RETRIES = 6;
-const INTEGRATION_CHECK_RETRY_DELAY = 5000;
-
 export function EnrollAws() {
   useNoMinWidth();
 
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState('');
+  const {
+    integrationName,
+    setIntegrationName,
+    copyTerraformConfig,
+    integrationExists,
+    isFetching,
+    isError,
+    checkIntegration,
+    cancelCheckIntegration,
+  } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
   const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
     '*',
@@ -98,79 +101,6 @@ export function EnrollAws() {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [activeInfoGuideTab, setActiveInfoGuideTab] =
     useState<InfoGuideTab>('terraform');
-
-  const toastNotifications = useToastNotifications();
-
-  const integrationQueryKey = ['integration', integrationName];
-
-  const {
-    data: integrationData,
-    isFetching,
-    isSuccess,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: integrationQueryKey,
-    queryFn: ({ signal }) =>
-      integrationService.fetchIntegration(integrationName, signal),
-    enabled: false,
-    retry: (failureCount, error: unknown) => {
-      const shouldRetry =
-        failureCount < INTEGRATION_CHECK_RETRIES &&
-        error instanceof ApiError &&
-        error.response.status === 404;
-      return shouldRetry;
-    },
-    retryDelay: INTEGRATION_CHECK_RETRY_DELAY,
-    gcTime: 0,
-  });
-
-  const queryClient = useQueryClient();
-
-  // show success toast
-  useEffect(() => {
-    if (isSuccess && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'success',
-        content: {
-          title: 'Amazon Web Services successfully added',
-          description:
-            'Amazon Web Services has been successfully added ' +
-            'to this Teleport Cluster. Your resources will appear ' +
-            "automatically as they're discovered. This may take a few minutes.",
-          action: {
-            content: 'View Integration',
-            linkTo: cfg.getIaCIntegrationRoute(
-              IntegrationKind.AwsOidc,
-              integrationName
-            ),
-          },
-          isAutoRemovable: false,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuccess, isFetching, integrationName]);
-
-  // show error toast
-  useEffect(() => {
-    if (isError && !isFetching && integrationName) {
-      toastNotifications.add({
-        severity: 'error',
-        content: {
-          title: 'Failed to detect integration',
-          description: `Unable to detect the AWS integration "${integrationName}". Please check your configuration and try again.`,
-        },
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isError, isFetching, integrationName]);
-
-  const checkIntegration = () => {
-    refetch();
-  };
-
-  const integrationExists = !!integrationData;
 
   const onInfoGuideClick = (section: InfoGuideTab) => {
     if (isPanelOpen && activeInfoGuideTab === section) {
@@ -224,7 +154,7 @@ export function EnrollAws() {
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
+                    copyTerraformConfig(terraformConfig);
                   }
                 }}
                 integrationExists={integrationExists}
@@ -234,10 +164,7 @@ export function EnrollAws() {
                     checkIntegration();
                   }
                 }}
-                handleCancelCheckIntegration={() => {
-                  queryClient.cancelQueries({ queryKey: integrationQueryKey });
-                  queryClient.resetQueries({ queryKey: integrationQueryKey });
-                }}
+                handleCancelCheckIntegration={cancelCheckIntegration}
                 isCheckingIntegration={isFetching}
                 checkIntegrationError={isError}
               />
@@ -293,7 +220,7 @@ export function EnrollAws() {
                   terraformConfig={terraformConfig}
                   handleCopy={() => {
                     if (validator.validate() && terraformConfig) {
-                      copyToClipboard(terraformConfig);
+                      copyTerraformConfig(terraformConfig);
                     }
                   }}
                 />
@@ -331,7 +258,6 @@ export function IntegrationSection({
       <FieldInput
         ml={4}
         mb={0}
-        autoFocus={true}
         rule={requiredIntegrationName}
         value={integrationName}
         required={true}

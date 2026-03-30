@@ -569,7 +569,7 @@ connect to it.
 The output service generates the following artifacts:
 - `ssh_host-cert.pub`: an SSH certificate signed by the Teleport host certificate authority.
 - `ssh_host`: the private key associated with the SSH host certificate.
-- `ssh_host-user-ca.pub`: an export of the Teleport user certificate authority in an OpenSSH compatible format.
+- `ssh_host-user-ca.pub`: an export of the configured Teleport certificate authorities in an OpenSSH-compatible format.
 
 ```yaml
 # type specifies the type of the output. For the ssh host output, this will
@@ -579,6 +579,10 @@ type: ssh_host
 # These names should match the names that clients use to connect to the host.
 principals:
   - host.example.com
+# ca_type selects which CA type is exported to `ssh_host-user-ca.pub`.
+# Supported values are `user` and `openssh`. If unspecified, this defaults to
+# `user`.
+ca_type: user
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
@@ -776,7 +780,7 @@ example, opening tunnels or providing APIs.
 
 The `workload-identity-api` services opens a listener that provides a local
 workload identity API, intended to serve workload identity credentials
-(e.g X509/JWT SPIFFE SVIDs) to workloads running on the same host.
+(e.g. X509/JWT SPIFFE SVIDs) to workloads running on the same host.
 
 For more information about this, see the
 [Workload Identity API and Workload Attestation reference](./workload-identity/workload-identity-api-and-workload-attestation.mdx)
