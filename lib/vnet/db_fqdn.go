@@ -38,6 +38,11 @@ const dbFQDNInfix = ".db."
 // Since database resource names cannot contain dots (enforced by
 // ValidateDatabaseName), parsing splits the prefix on the last dot to separate
 // the optional database user from the resource name.
+//
+// Note: DNS labels are limited to 63 characters. Database resource names or
+// usernames longer than 63 characters cannot be used in VNet FQDNs. Database
+// usernames with characters invalid in DNS labels (such as '@') also cannot be
+// used. Those users must connect via other means such as 'tsh db connect' or through the proxy's API.
 func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err error) {
 	suffix := dbFQDNInfix + fullyQualify(zone)
 	if !strings.HasSuffix(fqdn, suffix) {

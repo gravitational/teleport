@@ -175,6 +175,10 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 		// checking configured DNS zones.
 		shouldYieldAllCandidates := isDirectSubdomain(fqdn, profileName)
 
+		// Check if fqdn looks like a database FQDN using the root proxy address
+		rootProxyHost := rootProxyHostFromProfile(profileName)
+		fqdnMatchesDBZone := strings.HasSuffix(fqdn, dbFQDNInfix+fullyQualify(rootProxyHost))
+
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {
 				return true
@@ -182,6 +186,12 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 			if isDescendantSubdomain(fqdn, candidate.clusterName) {
 				// This may match an SSH server, must yield the client.
+				return true
+			}
+
+			if fqdnMatchesDBZone {
+				// This FQDN has a .db.<root-proxy> pattern, so it may
+				// match a database in any cluster (including leaves).
 				return true
 			}
 
@@ -392,10 +402,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	// reader.my-db.db.root-proxy.example.com), but the leaf cluster's
 	// ProxyPublicAddr may differ. Also try the root proxy address (the
 	// profileName with port stripped) so leaf cluster databases resolve.
-	rootProxyHost := candidate.profileName
-	if host, _, err := net.SplitHostPort(candidate.profileName); err == nil {
-		rootProxyHost = host
-	}
+	rootProxyHost := rootProxyHostFromProfile(candidate.profileName)
 	if rootProxyHost != clusterConfig.ProxyPublicAddr {
 		zones = append(zones, rootProxyHost)
 	}
@@ -421,6 +428,9 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		Limit:               1,
 	})
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, trace.Wrap(err)
+		}
 		log.InfoContext(ctx, "Failed to list database servers", "error", err)
 		return nil, errNoMatch
 	}
@@ -520,4 +530,12 @@ func fullyQualify(domain string) string {
 		return domain
 	}
 	return domain + "."
+}
+
+// rootProxyHostFromProfile returns the root proxy hostname from a profile name,
+func rootProxyHostFromProfile(profileName string) string {
+	if host, _, err := net.SplitHostPort(profileName); err == nil {
+		return host
+	}
+	return profileName
 }

@@ -78,6 +78,9 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 			}),
 		}, nil
 	}
+	// Database matches are checked after TCP app matches (which have the most
+	// specific public_addr matching) but before web app and cluster fallbacks.
+	// This implements the resolution order: App → DB → SSH
 	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
 		dbInfo := matchedDB.GetDatabaseInfo()
 		return &tcpHandlerSpec{
