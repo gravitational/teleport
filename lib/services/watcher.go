@@ -1856,7 +1856,7 @@ func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Conte
 
 	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
 	for _, oktaAssignment := range oktaAssignments {
-		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment.Copy()
 	}
 	c.mu.Lock()
 	c.current = newCurrent
