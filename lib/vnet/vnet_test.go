@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -1485,9 +1486,13 @@ func TestSSH(t *testing.T) {
 				Clock: clock.Now,
 			}
 			var bannerMessages []string
-			clientConfig := &ssh.ClientConfig{
-				User:            tc.sshUser,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(tc.sshUserSigner)},
+			clientConfig := apissh.ClientConfig{
+				User: tc.sshUser,
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{tc.sshUserSigner}, nil
+					},
+				},
 				HostKeyCallback: certChecker.CheckHostKey,
 				BannerCallback: func(msg string) error {
 					bannerMessages = append(bannerMessages, msg)
@@ -1495,7 +1500,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1513,9 +1518,13 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 		// Set up the SSH client config to capture the host certs it sees.
 		var checkedHostCerts []*ssh.Certificate
-		clientConfig := &ssh.ClientConfig{
+		clientConfig := apissh.ClientConfig{
 			User: "testuser",
-			Auth: []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{sshUserSigner}, nil
+				},
+			},
 			HostKeyCallback: func(addr string, remote net.Addr, key ssh.PublicKey) error {
 				checkedHostCerts = append(checkedHostCerts, key.(*ssh.Certificate))
 				return nil
@@ -1525,7 +1534,7 @@ func TestSSH(t *testing.T) {
 		for range connections {
 			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
 			require.NoError(t, err)
-			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
+			sshConn, _, _, err := apissh.NewClientConnWithTimeout(ctx, conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
 			expectReportedSSHSessions.Add(1)
@@ -1683,13 +1692,13 @@ func TestPriority(t *testing.T) {
 			},
 			Clock: clock.Now,
 		}
-		clientConfig := &ssh.ClientConfig{
+		clientConfig := apissh.ClientConfig{
 			User:            "testuser",
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
+			PublicKeyAuth:   apissh.PublicKeyAuthConfig{GetSigners: func() ([]ssh.Signer, error) { return []ssh.Signer{sshUserSigner}, nil }},
 			HostKeyCallback: certChecker.CheckHostKey,
 		}
 
-		sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
 		require.NoError(t, err)
 		defer sshConn.Close()
 

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1311,10 +1312,14 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 	// Establish a connection to the newly created server.
 	sessCh := make(chan *tracessh.Session)
 	go func() {
-		client, err := tracessh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
-			Timeout:         10 * time.Second,
-			User:            "user",
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		client, err := apissh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), apissh.ClientConfig{
+			Timeout: 10 * time.Second,
+			User:    "user",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
 		if err != nil {

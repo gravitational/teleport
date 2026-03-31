@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -248,13 +249,16 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := ssh.NewClientConn(
+			conn, chCh, reqCh, err := apissh.NewClientConnWithTimeout(
+				t.Context(),
 				clientDialConn,
 				"127.0.0.1:222",
-				&ssh.ClientConfig{
+				apissh.ClientConfig{
 					User: test.clientLogin,
-					Auth: []ssh.AuthMethod{
-						ssh.PublicKeys(userCert),
+					PublicKeyAuth: apissh.PublicKeyAuthConfig{
+						GetSigners: func() ([]ssh.Signer, error) {
+							return []ssh.Signer{userCert}, nil
+						},
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 					Timeout:         5 * time.Second,

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -37,7 +38,7 @@ import (
 )
 
 func TestKeyManager_verify_github(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	bk, err := memory.New(memory.Config{})
@@ -88,9 +89,13 @@ func TestKeyManager_verify_github(t *testing.T) {
 		hostKeyCallback, err := m.HostKeyCallback(githubServer)
 		require.NoError(t, err)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			conn, err := ssh.Dial("tcp", targetAddress, &ssh.ClientConfig{
-				User:            "git",
-				Auth:            clientAuth,
+			conn, err := apissh.Dial(ctx, "tcp", targetAddress, apissh.ClientConfig{
+				User: "git",
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{}}, nil
+					},
+				},
 				HostKeyCallback: hostKeyCallback,
 			})
 			require.NoError(t, err)
@@ -114,4 +119,8 @@ func TestKeyManager_verify_github(t *testing.T) {
 		_, err := m.HostKeyCallback(unsupported)
 		require.Error(t, err)
 	})
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

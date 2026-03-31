@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -105,8 +106,8 @@ type AgentPoolConfig struct {
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
 	AccessPoint authclient.AccessCache
-	// AuthMethods contains SSH credentials that this pool connects as.
-	AuthMethods []ssh.AuthMethod
+	// PublicKeyAuthConfig contains SSH public key credentials that this pool connects as.
+	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -155,8 +156,8 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("missing 'AccessPoint' parameter")
 	}
-	if len(cfg.AuthMethods) == 0 {
-		return trace.BadParameter("missing 'AuthMethods' parameter")
+	if cfg.PublicKeyAuthConfig.IsEmpty() {
+		return trace.BadParameter("missing 'PublicKeyAuthConfig' parameter")
 	}
 	if len(cfg.HostUUID) == 0 {
 		return trace.BadParameter("missing 'HostUUID' parameter")
@@ -481,13 +482,13 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	dialer := &agentDialer{
-		client:      p.AccessPoint,
-		fips:        p.FIPS,
-		authMethods: p.AuthMethods,
-		options:     options,
-		username:    p.HostUUID,
-		logger:      p.logger,
-		isClaimed:   p.tracker.IsClaimed,
+		client:              p.AccessPoint,
+		fips:                p.FIPS,
+		publicKeyAuthConfig: p.PublicKeyAuthConfig,
+		options:             options,
+		username:            p.HostUUID,
+		logger:              p.logger,
+		isClaimed:           p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{

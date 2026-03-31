@@ -43,6 +43,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -654,8 +655,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				WebProxyAddr:      "localhost",
 				ProxySSHPrincipal: "proxy_ssh_principal_override",
 				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:       []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:            tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "proxy_ssh_principal_override",
 		}, {
@@ -665,8 +670,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "key_principal",
 		}, {
@@ -676,8 +685,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ /* no agent key principals */ },
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "host_login",
 		}, {
@@ -691,9 +704,13 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 						Username: "jumphost_user",
 					},
 				},
-				Agent:       &mockAgent{ /* no agent key principals */ },
-				AuthMethods: []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:      tracing.NoopProvider().Tracer("test"),
+				Agent: &mockAgent{ /* no agent key principals */ },
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "jumphost_user",
 		},
@@ -1189,10 +1206,15 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 func TestConnectToProxyCancelledContext(t *testing.T) {
 	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
-	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
+	// cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
 	cfg.TLSRoutingEnabled = true
+	cfg.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		GetSigners: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{&mockSigner{}}, nil
+		},
+	}
 
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)

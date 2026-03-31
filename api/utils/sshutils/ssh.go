@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 // HandshakePayload structure is sent as a JSON blob by the teleport
@@ -141,14 +142,18 @@ func ParseAuthorizedKeys(authorizedKeys [][]byte) ([]ssh.PublicKey, error) {
 // If known_hosts are provided, they will be used in the config's HostKeyCallback.
 //
 // The config is set up to authenticate to proxy with the first available principal.
-func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHosts ...[]byte) (*ssh.ClientConfig, error) {
-	authMethod, err := AsAuthMethod(sshCert, priv)
+func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHosts ...[]byte) (apissh.ClientConfig, error) {
+	signer, err := SSHSigner(sshCert, priv)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
-	cfg := &ssh.ClientConfig{
-		Auth:    []ssh.AuthMethod{authMethod},
+	cfg := apissh.ClientConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
+		},
 		Timeout: defaults.DefaultIOTimeout,
 	}
 
@@ -161,12 +166,12 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHos
 	if len(knownHosts) > 0 {
 		trustedKeys, err := ParseKnownHosts(knownHosts)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return apissh.ClientConfig{}, trace.Wrap(err)
 		}
 
 		cfg.HostKeyCallback, err = HostKeyCallback(trustedKeys, false)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
+			return apissh.ClientConfig{}, trace.Wrap(err, "failed to convert certificate authorities to HostKeyCallback")
 		}
 	}
 

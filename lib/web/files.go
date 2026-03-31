@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -201,9 +202,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		dialTimeout = netConfig.GetSSHDialTimeout()
 	}
 
-	sshConfig := &ssh.ClientConfig{
+	sshConfig := apissh.ClientConfig{
 		User:            tc.HostLogin,
-		Auth:            tc.AuthMethods,
+		PublicKeyAuth:   tc.PublicKeyAuthConfig,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         dialTimeout,
 	}
@@ -344,11 +345,16 @@ func (f *fileTransfer) issueSingleUseCert(mfaResponse *proto.MFAAuthenticateResp
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	am, err := sshutils.AsAuthMethod(sshCert, pk.Signer)
+	signer, err := sshutils.SSHSigner(sshCert, pk.Signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tc.AuthMethods = []ssh.AuthMethod{am}
+	tc.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		GetSigners: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{signer}, nil
+		},
+	}
+
 	return nil
 }

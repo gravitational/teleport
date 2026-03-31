@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -95,7 +96,12 @@ func TestMux(t *testing.T) {
 
 		go startSSHServer(t, mux.SSH())
 
-		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{&mockSigner{}}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
 		})
@@ -103,7 +109,7 @@ func TestMux(t *testing.T) {
 		defer clt.Close()
 
 		// Make sure the SSH connection works correctly
-		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		ok, response, err := clt.SendRequest(t.Context(), "echo", true, []byte("beep"))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "beep", string(response))
@@ -485,8 +491,12 @@ func TestMux(t *testing.T) {
 		backend1.StartTLS()
 		defer backend1.Close()
 
-		_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
+		_, err = apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{&mockSigner{}}, nil
+				},
+			},
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
@@ -540,7 +550,13 @@ func TestMux(t *testing.T) {
 
 		go startSSHServer(t, mux.SSH())
 
-		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{&mockSigner{}}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
 		})
@@ -548,7 +564,7 @@ func TestMux(t *testing.T) {
 		defer clt.Close()
 
 		// Make sure the SSH connection works correctly
-		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		ok, response, err := clt.SendRequest(t.Context(), "echo", true, []byte("beep"))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "beep", string(response))
@@ -1556,4 +1572,8 @@ func httpGet(conn net.Conn, url string) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

@@ -67,6 +67,7 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -286,9 +287,9 @@ type Config struct {
 	// X11ForwardingTrusted specifies the X11 forwarding security mode.
 	X11ForwardingTrusted bool
 
-	// AuthMethods are used to login into the cluster. If specified, the client will
-	// use them in addition to certs stored in the client store.
-	AuthMethods []ssh.AuthMethod
+	// PublicKeyAuthConfig specifies how the client should obtain public keys for SSH authentication. If specified, the
+	// client will use this in addition to certs stored in the client store.
+	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
 
 	// TLSConfig is TLS configuration, if specified, the client
 	// will use this TLS configuration to access API endpoints
@@ -545,8 +546,8 @@ type CachePolicy struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ClientStore == nil {
-		if c.TLS == nil && c.AuthMethods == nil {
-			return trace.BadParameter("either client store is or static auth methods are required")
+		if c.TLS == nil && c.PublicKeyAuthConfig.IsEmpty() {
+			return trace.BadParameter("either client store is set or public key auth config must be set")
 		}
 		// Client will use static auth methods instead of client store.
 		// Initialize empty client store to prevent panics.
@@ -3260,7 +3261,8 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 // clientConfig wraps [ssh.ClientConfig] with additional
 // information about a cluster.
 type clientConfig struct {
-	*ssh.ClientConfig
+	apissh.ClientConfig
+
 	proxyAddress string
 	clusterName  func() string
 }
@@ -3274,7 +3276,12 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-	authMethods := slices.Clone(tc.Config.AuthMethods)
+
+	signers, err := tc.PublicKeyAuthConfig.GetSigners()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
@@ -3288,7 +3295,11 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			// callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
+			clusterSigners, err := clusterGuesser.signersForCluster(ctx, clusterName())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			signers = append(signers, clusterSigners...)
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3309,27 +3320,31 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	} else if tc.localAgent != nil {
 		// Load SSH certs for all clusters we have, in case we don't yet
 		// have a certificate for tc.SiteName (like during `tsh login leaf`).
-		signers, err := tc.localAgent.Signers()
+		localSigners, err := tc.localAgent.Signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 		if len(signers) > 0 {
-			authMethods = append(authMethods, ssh.PublicKeys(signers...))
+			signers = append(signers, localSigners...)
 		}
 	}
 
-	if len(authMethods) == 0 {
+	if len(signers) == 0 {
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
 	return &clientConfig{
-		ClientConfig: &ssh.ClientConfig{
+		ClientConfig: apissh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
-			Auth:            authMethods,
-			Timeout:         tc.SSHDialTimeout,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					return signers, nil
+				},
+			},
+			Timeout: tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,

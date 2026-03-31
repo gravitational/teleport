@@ -63,13 +63,13 @@ import (
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/metadata"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
@@ -80,7 +80,7 @@ type Identity interface {
 	TLSConfig() (*tls.Config, error)
 
 	// SSHClientConfig returns the bot's SSH client configuration.
-	SSHClientConfig() (*ssh.ClientConfig, error)
+	SSHClientConfig() (apissh.ClientConfig, error)
 }
 
 // Config contains options used to create the API client.

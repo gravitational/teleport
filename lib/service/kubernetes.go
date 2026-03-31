@@ -25,9 +25,11 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
@@ -132,13 +134,17 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				InsecureMode:             process.Config.InsecureMode,
-				Component:                teleport.ComponentKube,
-				HostUUID:                 conn.HostID(),
-				Resolver:                 conn.TunnelProxyResolver(),
-				Client:                   conn.Client,
-				AccessPoint:              accessPoint,
-				AuthMethods:              conn.ClientAuthMethods(),
+				InsecureMode: process.Config.InsecureMode,
+				Component:    teleport.ComponentKube,
+				HostUUID:     conn.HostID(),
+				Resolver:     conn.TunnelProxyResolver(),
+				Client:       conn.Client,
+				AccessPoint:  accessPoint,
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return conn.ServerGetHostSigners(), nil
+					},
+				},
 				Cluster:                  teleportClusterName,
 				Server:                   shtl,
 				FIPS:                     process.Config.FIPS,
