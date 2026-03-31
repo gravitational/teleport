@@ -97,6 +97,7 @@ func TestMux(t *testing.T) {
 		go startSSHServer(t, mux.SSH())
 
 		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
 				GetSigners: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{&mockSigner{}}, nil
@@ -492,6 +493,7 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		_, err = apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
 				GetSigners: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{&mockSigner{}}, nil

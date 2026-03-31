@@ -415,6 +415,7 @@ func sshClientConfig(t *testing.T) apissh.ClientConfig {
 	clientSigner, err := ssh.NewSignerFromSigner(clientKey)
 	require.NoError(t, err)
 	return apissh.ClientConfig{
+		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			GetSigners: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{clientSigner}, nil
