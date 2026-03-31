@@ -449,6 +449,7 @@ The following new validation will be enforced for the ScopedToken resource:
 - When `spec.roles` does not include `Bot`:
   - `spec.bot_name` must not be set.
   - `spec.bot_scope` must not be set.
+  - `spec.usage_mode` must not be set to `bot`.
 
 When joining with an unscoped token, the following new validation will be
 enforced:
