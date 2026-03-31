@@ -746,6 +746,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			Renewable:                identity.Renewable,
 			Usage:                    identity.AcceptedUsage,
 			Scope:                    identity.Scope,
+			BotInternal:              identity.BotInternal,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1088,6 +1089,7 @@ type TestIdentity struct {
 	Renewable      bool
 	Generation     uint64
 	Scope          string
+	BotInternal    bool
 }
 
 // TestUser returns TestIdentity for local user. Note that this constructor only produces a
@@ -1108,6 +1110,20 @@ func TestScopedUser(username string, scope string) TestIdentity {
 			},
 		},
 		Scope: scope,
+	}
+}
+
+// TestScopedBot returns a TestIdentity for a scoped bot user with BotInternal=true.
+func TestScopedBot(username string, scope string) TestIdentity {
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username: username,
+			},
+		},
+		Scope:       scope,
+		BotInternal: true,
 	}
 }
 

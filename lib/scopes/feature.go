@@ -30,6 +30,9 @@ import (
 const (
 	// featureVarName is the name of the unstable scopes feature flag.
 	featureVarName = "TELEPORT_UNSTABLE_SCOPES"
+	// mwiFeatureVarName is the name of the unstable MWI scopes feature flag.
+	// Both this and TELEPORT_UNSTABLE_SCOPES must be enabled to use MWI scopes.
+	mwiFeatureVarName = "TELEPORT_UNSTABLE_SCOPES_MWI"
 )
 
 // FeatureEnabled checks if the scopes feature is enabled.
@@ -58,4 +61,24 @@ func ScopesStatusToString(s proto.ScopesStatus) string {
 	default:
 		return "unknown"
 	}
+}
+
+// MWIFeatureEnabled checks if the MWI scopes feature is enabled. It returns
+// true only if both MWI Scopes and general Scopes features are enabled.
+func MWIFeatureEnabled() bool {
+	if !FeatureEnabled() {
+		return false
+	}
+
+	enabled, err := apiutils.ParseBool(os.Getenv(mwiFeatureVarName))
+	return enabled && err == nil
+}
+
+// AssertMWIFeatureEnabled checks if the MWI scopes feature is enabled, and
+// returns a helpful error message if it is not.
+func AssertMWIFeatureEnabled() error {
+	if !MWIFeatureEnabled() {
+		return trace.Errorf("MWI scoping features are not enabled, set " + mwiFeatureVarName + "=yes and " + featureVarName + "=yes to enable MWI scoping features (caution: not ready for production use)")
+	}
+	return nil
 }

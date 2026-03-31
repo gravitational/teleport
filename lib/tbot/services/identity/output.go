@@ -69,6 +69,8 @@ func OutputServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
+			getBotIdentity:            deps.BotIdentity,
 		}
 		return svc, nil
 	}
@@ -96,6 +98,10 @@ type OutputService struct {
 	alpnUpgradeCache  *internal.ALPNUpgradeCache
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
+
+	getBotIdentity func() *identity.Identity
+
+	scoped bool
 }
 
 func (s *OutputService) String() string {
@@ -106,14 +112,25 @@ func (s *OutputService) String() string {
 }
 
 func (s *OutputService) OneShot(ctx context.Context) error {
-	return s.generate(ctx)
+	f := s.generate
+	if s.scoped {
+		f = s.generateScoped
+	}
+
+	return f(ctx)
 }
 
+// TODO: Find a way to indicate clearly if service supports scoped mode.
+// Perhaps bifurcate interface and check if implements optional interface.
 func (s *OutputService) Run(ctx context.Context) error {
+	f := s.generate
+	if s.scoped {
+		f = s.generateScoped
+	}
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
-		F:               s.generate,
+		F:               f,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
@@ -195,6 +212,80 @@ func (s *OutputService) generate(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		proxyPing, err := s.proxyPinger.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err, "pinging proxy")
+		}
+		if err := renderSSHConfig(
+			ctx,
+			s.log,
+			proxyPing,
+			clusterNames,
+			s.cfg.Destination,
+			s.botAuthClient,
+			s.executablePath,
+			s.alpnUpgradeCache,
+			s.insecure,
+			s.fips,
+		); err != nil {
+			return trace.Wrap(err, "rendering OpenSSH configuration files")
+		}
+	}
+
+	return nil
+}
+
+func (s *OutputService) generateScoped(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"OutputService/generateScoped",
+	)
+	defer span.End()
+	s.log.InfoContext(ctx, "Generating output in scoped mode")
+
+	// Check the ACLs. We can't fix them, but we can warn if they're
+	// misconfigured. We'll need to precompute a list of keys to check.
+	// Note: This may only log a warning, depending on configuration.
+	if err := s.cfg.Destination.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+		return trace.Wrap(err)
+	}
+	// Ensure this destination is also writable. This is a hard fail if
+	// ACLs are misconfigured, regardless of configuration.
+	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
+		return trace.Wrap(err, "verifying destination")
+	}
+
+	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	userCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.UserCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	databaseCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	id, err := s.identityGenerator.GenerateScoped(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+	)
+	if err != nil {
+		return trace.Wrap(err, "generating scoped identity")
+	}
+
+	if err := s.render(ctx, id, hostCAs, userCAs, databaseCAs); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if s.cfg.SSHConfigMode == SSHConfigModeOn {
+		// For unscoped, we'd actually fetch all the clusters we can access
+		// here, but scopes don't support trusted clusters, so we can just
+		// use our cluster as indicated by our identity.
+		clusterNames := []string{id.ClusterName}
+
 		proxyPing, err := s.proxyPinger.Ping(ctx)
 		if err != nil {
 			return trace.Wrap(err, "pinging proxy")

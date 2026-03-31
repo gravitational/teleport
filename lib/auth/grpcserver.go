@@ -68,6 +68,7 @@ import (
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -112,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/healthcheckconfig/healthcheckconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
+	"github.com/gravitational/teleport/lib/auth/issuance/issuancev1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -535,6 +537,20 @@ const logInterval = 10000
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
+		// Support scoped identities calling the RPC by falling back to scoped
+		// authorizer check.
+		if errors.Is(err, services.ErrScopedIdentity) {
+			scopedAuth, err := g.scopedAuthenticate(stream.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(WatchEvents(
+				watch,
+				stream,
+				scopedAuth.scopedContext.User.GetName(),
+				scopedAuth,
+			))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -6095,13 +6111,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6109,7 +6125,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -6614,6 +6630,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	healthcheckconfigv1pb.RegisterHealthCheckConfigServiceServer(server, healthCheckConfigSvc)
+
+	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		AuthServer:       cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "instantiating issuancev1 service")
+	}
+	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
 
 	// start a workload cluster service that returns errors for all RPCs when not running on Teleport Cloud
 	if !modules.GetModules().Features().Cloud {

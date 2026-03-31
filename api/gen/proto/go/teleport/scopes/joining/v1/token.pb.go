@@ -170,7 +170,11 @@ type ScopedTokenSpec struct {
 	// The Azure Devops-specific configuration used with the "azure_devops" join method.
 	AzureDevops *AzureDevops `protobuf:"bytes,9,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
 	// The Oracle-specific configuration used with the "oracle" join method.
-	Oracle        *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	Oracle *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	// Configuration specific to the "bound_keypair" join method.
+	BoundKeypair  *BoundKeypairSpec `protobuf:"bytes,11,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
+	BotName       string            `protobuf:"bytes,12,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
+	BotScope      string            `protobuf:"bytes,13,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -273,6 +277,27 @@ func (x *ScopedTokenSpec) GetOracle() *Oracle {
 		return x.Oracle
 	}
 	return nil
+}
+
+func (x *ScopedTokenSpec) GetBoundKeypair() *BoundKeypairSpec {
+	if x != nil {
+		return x.BoundKeypair
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetBotName() string {
+	if x != nil {
+		return x.BotName
+	}
+	return ""
+}
+
+func (x *ScopedTokenSpec) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -441,6 +466,7 @@ type UsageStatus struct {
 	// Types that are valid to be assigned to Status:
 	//
 	//	*UsageStatus_SingleUse
+	//	*UsageStatus_BoundKeypair
 	Status        isUsageStatus_Status `protobuf_oneof:"status"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -492,6 +518,15 @@ func (x *UsageStatus) GetSingleUse() *SingleUseStatus {
 	return nil
 }
 
+func (x *UsageStatus) GetBoundKeypair() *BoundKeypairStatus {
+	if x != nil {
+		if x, ok := x.Status.(*UsageStatus_BoundKeypair); ok {
+			return x.BoundKeypair
+		}
+	}
+	return nil
+}
+
 type isUsageStatus_Status interface {
 	isUsageStatus_Status()
 }
@@ -501,7 +536,14 @@ type UsageStatus_SingleUse struct {
 	SingleUse *SingleUseStatus `protobuf:"bytes,1,opt,name=single_use,json=singleUse,proto3,oneof"`
 }
 
+type UsageStatus_BoundKeypair struct {
+	// The usage status for a bound keypair token.
+	BoundKeypair *BoundKeypairStatus `protobuf:"bytes,2,opt,name=bound_keypair,json=boundKeypair,proto3,oneof"`
+}
+
 func (*UsageStatus_SingleUse) isUsageStatus_Status() {}
+
+func (*UsageStatus_BoundKeypair) isUsageStatus_Status() {}
 
 // The status of a scoped token.
 type ScopedTokenStatus struct {
@@ -1012,6 +1054,186 @@ func (x *Oracle) GetAllow() []*Oracle_Rule {
 	return nil
 }
 
+// Configuration for bound_keypair type join tokens.
+type BoundKeypairSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Parameters related to initial onboarding and keypair registration.
+	Onboarding *BoundKeypairSpec_OnboardingSpec `protobuf:"bytes,1,opt,name=onboarding,proto3" json:"onboarding,omitempty"`
+	// Parameters related to recovery after identity expiration, including the
+	// initial join.
+	Recovery *BoundKeypairSpec_RecoverySpec `protobuf:"bytes,2,opt,name=recovery,proto3" json:"recovery,omitempty"`
+	// An optional timestamp that forces clients to perform a keypair rotation on
+	// the next join or recovery attempt after the given date. If `LastRotatedAt`
+	// is unset or before this timestamp, a rotation will be requested. It is
+	// recommended to set this value to the current timestamp if a rotation should
+	// be triggered on the next join attempt.
+	RotateAfter   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=rotate_after,json=rotateAfter,proto3" json:"rotate_after,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec) Reset() {
+	*x = BoundKeypairSpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairSpec.ProtoReflect.Descriptor instead.
+func (*BoundKeypairSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *BoundKeypairSpec) GetOnboarding() *BoundKeypairSpec_OnboardingSpec {
+	if x != nil {
+		return x.Onboarding
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec) GetRecovery() *BoundKeypairSpec_RecoverySpec {
+	if x != nil {
+		return x.Recovery
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec) GetRotateAfter() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RotateAfter
+	}
+	return nil
+}
+
+// Status information specific to bound_keypair type tokens.
+type BoundKeypairStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A secret value that may be used for public key registration during the
+	// initial join process if no public key is preregistered. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will
+	// remain empty. Otherwise, if
+	// `.spec.bound_keypair.onboarding.registration_secret` is set, that value
+	// will be copied here. If that field is unset, a value will be randomly
+	// generated.
+	RegistrationSecret string `protobuf:"bytes,1,opt,name=registration_secret,json=registrationSecret,proto3" json:"registration_secret,omitempty"`
+	// The currently bound public key. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will
+	// be copied here on creation, otherwise it will be populated as part of
+	// public key registration process. This value will be updated over time if
+	// keypair rotation takes place, and will always reflect the currently trusted
+	// public key. This value is written in SSH authorized_keys format.
+	BoundPublicKey string `protobuf:"bytes,2,opt,name=bound_public_key,json=boundPublicKey,proto3" json:"bound_public_key,omitempty"`
+	// The ID of the currently associated bot instance. A new bot instance is
+	// issued on each join; the new bot instance will have a
+	// `previous_bot_instance` set to this value, if any.
+	BoundBotInstanceId string `protobuf:"bytes,3,opt,name=bound_bot_instance_id,json=boundBotInstanceId,proto3" json:"bound_bot_instance_id,omitempty"`
+	// The count of the total number of recoveries performed using this token. It
+	// is incremented for every successful join or rejoin. Recovery is only
+	// allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or
+	// if the recovery mode is `relaxed` or `insecure`.
+	RecoveryCount uint32 `protobuf:"varint,4,opt,name=recovery_count,json=recoveryCount,proto3" json:"recovery_count,omitempty"`
+	// A timestamp of the last successful recovery attempt. Note that normal
+	// renewals with valid client certificates do not count as a recovery attempt,
+	// however the initial join during onboarding does. This corresponds with the
+	// last time `bound_bot_instance_id` was updated.
+	LastRecoveredAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_recovered_at,json=lastRecoveredAt,proto3" json:"last_recovered_at,omitempty"`
+	// A timestamp of the last time the keypair was rotated, if any. This is not
+	// set at initial join.
+	LastRotatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_rotated_at,json=lastRotatedAt,proto3" json:"last_rotated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairStatus) Reset() {
+	*x = BoundKeypairStatus{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairStatus) ProtoMessage() {}
+
+func (x *BoundKeypairStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairStatus.ProtoReflect.Descriptor instead.
+func (*BoundKeypairStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *BoundKeypairStatus) GetRegistrationSecret() string {
+	if x != nil {
+		return x.RegistrationSecret
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetBoundPublicKey() string {
+	if x != nil {
+		return x.BoundPublicKey
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetBoundBotInstanceId() string {
+	if x != nil {
+		return x.BoundBotInstanceId
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetRecoveryCount() uint32 {
+	if x != nil {
+		return x.RecoveryCount
+	}
+	return 0
+}
+
+func (x *BoundKeypairStatus) GetLastRecoveredAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRecoveredAt
+	}
+	return nil
+}
+
+func (x *BoundKeypairStatus) GetLastRotatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRotatedAt
+	}
+	return nil
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -1036,7 +1258,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1048,7 +1270,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1115,7 +1337,7 @@ type GCP_Rule struct {
 
 func (x *GCP_Rule) Reset() {
 	*x = GCP_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +1349,7 @@ func (x *GCP_Rule) String() string {
 func (*GCP_Rule) ProtoMessage() {}
 
 func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1178,7 +1400,7 @@ type Azure_Rule struct {
 
 func (x *Azure_Rule) Reset() {
 	*x = Azure_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1412,7 @@ func (x *Azure_Rule) String() string {
 func (*Azure_Rule) ProtoMessage() {}
 
 func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1262,7 +1484,7 @@ type AzureDevops_Rule struct {
 
 func (x *AzureDevops_Rule) Reset() {
 	*x = AzureDevops_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1274,7 +1496,7 @@ func (x *AzureDevops_Rule) String() string {
 func (*AzureDevops_Rule) ProtoMessage() {}
 
 func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1589,7 @@ type Oracle_Rule struct {
 
 func (x *Oracle_Rule) Reset() {
 	*x = Oracle_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1379,7 +1601,7 @@ func (x *Oracle_Rule) String() string {
 func (*Oracle_Rule) ProtoMessage() {}
 
 func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1423,6 +1645,160 @@ func (x *Oracle_Rule) GetInstances() []string {
 	return nil
 }
 
+// Parameters for initial joining and keypair
+// registration.
+type BoundKeypairSpec_OnboardingSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The initial public key is used to preregister a public key generated by
+	// `tbot keypair create`. When set, no initial join secret is generated or
+	// made available for use, and clients must have the associated private key
+	// available to join. If set, `initial_join_secret` and
+	// `must_register_before` are ignored. This value is written in SSH
+	// authorized_keys format.
+	InitialPublicKey string `protobuf:"bytes,1,opt,name=initial_public_key,json=initialPublicKey,proto3" json:"initial_public_key,omitempty"`
+	// A secret that joining clients may use to register their public key on
+	// first join, which may be used instead of preregistering a public key with
+	// `initial_public_key`. If `initial_public_key` is set, this value is
+	// ignored. Otherwise, if set, this value will be used to populate
+	// `.status.bound_keypair.registration_secret`. If unset and no
+	// `initial_public_key` is provided, a random secure value will be generated
+	// server-side to populate the status field.
+	RegistrationSecret string `protobuf:"bytes,2,opt,name=registration_secret,json=registrationSecret,proto3" json:"registration_secret,omitempty"`
+	// An optional time before which registration via registration join secret
+	// must be performed. Attempts to register using a registration secret after
+	// this timestamp will not be allowed. This may be modified after creation
+	// if necessary to allow the initial registration to take place. This value
+	// is ignored if `initial_public_key` is set.
+	MustRegisterBefore *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=must_register_before,json=mustRegisterBefore,proto3" json:"must_register_before,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) Reset() {
+	*x = BoundKeypairSpec_OnboardingSpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec_OnboardingSpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec_OnboardingSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairSpec_OnboardingSpec.ProtoReflect.Descriptor instead.
+func (*BoundKeypairSpec_OnboardingSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 0}
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetInitialPublicKey() string {
+	if x != nil {
+		return x.InitialPublicKey
+	}
+	return ""
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetRegistrationSecret() string {
+	if x != nil {
+		return x.RegistrationSecret
+	}
+	return ""
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetMustRegisterBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.MustRegisterBefore
+	}
+	return nil
+}
+
+// RecoverySpec contains parameters for recovery after identity expiration.
+type BoundKeypairSpec_RecoverySpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The maximum number of allowed recovery attempts. This value may be raised
+	// or lowered after creation to allow additional recovery attempts should
+	// the initial limit be exhausted. If `mode` is set to `standard`, recovery
+	// attempts will only be allowed if `.status.bound_keypair.recovery_count`
+	// is less than this limit. This limit is not enforced if `mode` is set to
+	// `relaxed` or `insecure`. This value must be at least 1 to allow for the
+	// initial join during onboarding, which counts as a recovery.
+	Limit uint32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Mode sets the recovery rule enforcement mode. It may be one of these
+	// values:
+	//   - standard (or unset): all configured rules enforced. The recovery limit
+	//     and client join state are required and verified. This is the most
+	//     secure recovery mode.
+	//   - relaxed: recovery limit is not enforced, but client join state is still
+	//     required. This effectively allows unlimited recovery attempts, but
+	//     client join state still helps mitigate stolen credentials.
+	//   - insecure: neither the recovery limit nor client join state are
+	//     enforced. This allows any client with the private key to join freely.
+	//     This is less secure, but can be useful in certain situations, like in
+	//     otherwise unsupported CI/CD providers. This mode should be used with
+	//     care, and RBAC rules should be configured to heavily restrict which
+	//     resources this identity can access.
+	Mode          string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) Reset() {
+	*x = BoundKeypairSpec_RecoverySpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec_RecoverySpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec_RecoverySpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairSpec_RecoverySpec.ProtoReflect.Descriptor instead.
+func (*BoundKeypairSpec_RecoverySpec) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 1}
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -1435,7 +1811,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x8d\x04\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x98\x05\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -1449,7 +1825,10 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05azure\x18\b \x01(\v2!.teleport.scopes.joining.v1.AzureR\x05azure\x12J\n" +
 	"\fazure_devops\x18\t \x01(\v2'.teleport.scopes.joining.v1.AzureDevopsR\vazureDevops\x12:\n" +
 	"\x06oracle\x18\n" +
-	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\"\xb6\x01\n" +
+	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\x12Q\n" +
+	"\rbound_keypair\x18\v \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x19\n" +
+	"\bbot_name\x18\f \x01(\tR\abotName\x12\x1b\n" +
+	"\tbot_scope\x18\r \x01(\tR\bbotScope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -1460,10 +1839,11 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\aused_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x06usedAt\x12A\n" +
 	"\x0ereusable_until\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rreusableUntil\x12.\n" +
 	"\x13used_by_fingerprint\x18\x03 \x01(\fR\x11usedByFingerprint\x12T\n" +
-	"\x10host_cert_params\x18\x04 \x01(\v2*.teleport.scopes.joining.v1.HostCertParamsR\x0ehostCertParams\"e\n" +
+	"\x10host_cert_params\x18\x04 \x01(\v2*.teleport.scopes.joining.v1.HostCertParamsR\x0ehostCertParams\"\xbc\x01\n" +
 	"\vUsageStatus\x12L\n" +
 	"\n" +
-	"single_use\x18\x01 \x01(\v2+.teleport.scopes.joining.v1.SingleUseStatusH\x00R\tsingleUseB\b\n" +
+	"single_use\x18\x01 \x01(\v2+.teleport.scopes.joining.v1.SingleUseStatusH\x00R\tsingleUse\x12U\n" +
+	"\rbound_keypair\x18\x02 \x01(\v2..teleport.scopes.joining.v1.BoundKeypairStatusH\x00R\fboundKeypairB\b\n" +
 	"\x06status\"j\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\x12=\n" +
@@ -1525,7 +1905,27 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\atenancy\x18\x01 \x01(\tR\atenancy\x12/\n" +
 	"\x13parent_compartments\x18\x02 \x03(\tR\x12parentCompartments\x12\x18\n" +
 	"\aregions\x18\x03 \x03(\tR\aregions\x12\x1c\n" +
-	"\tinstances\x18\x04 \x03(\tR\tinstancesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xff\x03\n" +
+	"\x10BoundKeypairSpec\x12[\n" +
+	"\n" +
+	"onboarding\x18\x01 \x01(\v2;.teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpecR\n" +
+	"onboarding\x12U\n" +
+	"\brecovery\x18\x02 \x01(\v29.teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpecR\brecovery\x12=\n" +
+	"\frotate_after\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vrotateAfter\x1a\xbd\x01\n" +
+	"\x0eOnboardingSpec\x12,\n" +
+	"\x12initial_public_key\x18\x01 \x01(\tR\x10initialPublicKey\x12/\n" +
+	"\x13registration_secret\x18\x02 \x01(\tR\x12registrationSecret\x12L\n" +
+	"\x14must_register_before\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x12mustRegisterBefore\x1a8\n" +
+	"\fRecoverySpec\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\rR\x05limit\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\"\xd5\x02\n" +
+	"\x12BoundKeypairStatus\x12/\n" +
+	"\x13registration_secret\x18\x01 \x01(\tR\x12registrationSecret\x12(\n" +
+	"\x10bound_public_key\x18\x02 \x01(\tR\x0eboundPublicKey\x121\n" +
+	"\x15bound_bot_instance_id\x18\x03 \x01(\tR\x12boundBotInstanceId\x12%\n" +
+	"\x0erecovery_count\x18\x04 \x01(\rR\rrecoveryCount\x12F\n" +
+	"\x11last_recovered_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastRecoveredAt\x12B\n" +
+	"\x0flast_rotated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRotatedAtBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -1539,33 +1939,37 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),            // 0: teleport.scopes.joining.v1.ScopedToken
-	(*ScopedTokenSpec)(nil),        // 1: teleport.scopes.joining.v1.ScopedTokenSpec
-	(*HostCertParams)(nil),         // 2: teleport.scopes.joining.v1.HostCertParams
-	(*SingleUseStatus)(nil),        // 3: teleport.scopes.joining.v1.SingleUseStatus
-	(*UsageStatus)(nil),            // 4: teleport.scopes.joining.v1.UsageStatus
-	(*ScopedTokenStatus)(nil),      // 5: teleport.scopes.joining.v1.ScopedTokenStatus
-	(*StaticScopedTokens)(nil),     // 6: teleport.scopes.joining.v1.StaticScopedTokens
-	(*StaticScopedTokensSpec)(nil), // 7: teleport.scopes.joining.v1.StaticScopedTokensSpec
-	(*ImmutableLabels)(nil),        // 8: teleport.scopes.joining.v1.ImmutableLabels
-	(*AWS)(nil),                    // 9: teleport.scopes.joining.v1.AWS
-	(*GCP)(nil),                    // 10: teleport.scopes.joining.v1.GCP
-	(*Azure)(nil),                  // 11: teleport.scopes.joining.v1.Azure
-	(*AzureDevops)(nil),            // 12: teleport.scopes.joining.v1.AzureDevops
-	(*Oracle)(nil),                 // 13: teleport.scopes.joining.v1.Oracle
-	nil,                            // 14: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*AWS_Rule)(nil),               // 15: teleport.scopes.joining.v1.AWS.Rule
-	(*GCP_Rule)(nil),               // 16: teleport.scopes.joining.v1.GCP.Rule
-	(*Azure_Rule)(nil),             // 17: teleport.scopes.joining.v1.Azure.Rule
-	(*AzureDevops_Rule)(nil),       // 18: teleport.scopes.joining.v1.AzureDevops.Rule
-	(*Oracle_Rule)(nil),            // 19: teleport.scopes.joining.v1.Oracle.Rule
-	(*v1.Metadata)(nil),            // 20: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
+	(*ScopedToken)(nil),                     // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil),                 // 1: teleport.scopes.joining.v1.ScopedTokenSpec
+	(*HostCertParams)(nil),                  // 2: teleport.scopes.joining.v1.HostCertParams
+	(*SingleUseStatus)(nil),                 // 3: teleport.scopes.joining.v1.SingleUseStatus
+	(*UsageStatus)(nil),                     // 4: teleport.scopes.joining.v1.UsageStatus
+	(*ScopedTokenStatus)(nil),               // 5: teleport.scopes.joining.v1.ScopedTokenStatus
+	(*StaticScopedTokens)(nil),              // 6: teleport.scopes.joining.v1.StaticScopedTokens
+	(*StaticScopedTokensSpec)(nil),          // 7: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*ImmutableLabels)(nil),                 // 8: teleport.scopes.joining.v1.ImmutableLabels
+	(*AWS)(nil),                             // 9: teleport.scopes.joining.v1.AWS
+	(*GCP)(nil),                             // 10: teleport.scopes.joining.v1.GCP
+	(*Azure)(nil),                           // 11: teleport.scopes.joining.v1.Azure
+	(*AzureDevops)(nil),                     // 12: teleport.scopes.joining.v1.AzureDevops
+	(*Oracle)(nil),                          // 13: teleport.scopes.joining.v1.Oracle
+	(*BoundKeypairSpec)(nil),                // 14: teleport.scopes.joining.v1.BoundKeypairSpec
+	(*BoundKeypairStatus)(nil),              // 15: teleport.scopes.joining.v1.BoundKeypairStatus
+	nil,                                     // 16: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),                        // 17: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),                        // 18: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),                      // 19: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),                // 20: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),                     // 21: teleport.scopes.joining.v1.Oracle.Rule
+	(*BoundKeypairSpec_OnboardingSpec)(nil), // 22: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	(*BoundKeypairSpec_RecoverySpec)(nil),   // 23: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	(*v1.Metadata)(nil),                     // 24: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	20, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	24, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	8,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
@@ -1574,25 +1978,33 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	11, // 6: teleport.scopes.joining.v1.ScopedTokenSpec.azure:type_name -> teleport.scopes.joining.v1.Azure
 	12, // 7: teleport.scopes.joining.v1.ScopedTokenSpec.azure_devops:type_name -> teleport.scopes.joining.v1.AzureDevops
 	13, // 8: teleport.scopes.joining.v1.ScopedTokenSpec.oracle:type_name -> teleport.scopes.joining.v1.Oracle
-	21, // 9: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	21, // 10: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 11: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 12: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	4,  // 13: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	20, // 14: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 15: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 16: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	14, // 17: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	15, // 18: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	16, // 19: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
-	17, // 20: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
-	18, // 21: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
-	19, // 22: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	14, // 9: teleport.scopes.joining.v1.ScopedTokenSpec.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec
+	25, // 10: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	25, // 11: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 12: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 13: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	15, // 14: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
+	4,  // 15: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	24, // 16: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 17: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 18: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	16, // 19: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	17, // 20: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	18, // 21: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	19, // 22: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	20, // 23: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	21, // 24: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	22, // 25: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	23, // 26: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	25, // 27: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
+	25, // 28: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
+	25, // 29: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
+	25, // 30: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -1602,6 +2014,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	}
 	file_teleport_scopes_joining_v1_token_proto_msgTypes[4].OneofWrappers = []any{
 		(*UsageStatus_SingleUse)(nil),
+		(*UsageStatus_BoundKeypair)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1609,7 +2022,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -177,7 +177,11 @@ type BotInstance struct {
 	Spec *BotInstanceSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Fields that are set by the server as results of operations. These should
 	// not be modified by users.
-	Status        *BotInstanceStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	Status *BotInstanceStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	// Scope of the BotInstance. This is determined based on the scope of the Bot
+	// associated with this instance, and may be used for scoped RBAC on the
+	// BotInstance resource.
+	Scope         string `protobuf:"bytes,7,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -252,6 +256,13 @@ func (x *BotInstance) GetStatus() *BotInstanceStatus {
 		return x.Status
 	}
 	return nil
+}
+
+func (x *BotInstance) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
 }
 
 // BotInstanceSpec contains fields
@@ -811,14 +822,15 @@ var File_teleport_machineid_v1_bot_instance_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/machineid/v1/bot_instance.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\"\x8e\x02\n" +
+	"(teleport/machineid/v1/bot_instance.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\"\xa4\x02\n" +
 	"\vBotInstance\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12:\n" +
 	"\x04spec\x18\x05 \x01(\v2&.teleport.machineid.v1.BotInstanceSpecR\x04spec\x12@\n" +
-	"\x06status\x18\x06 \x01(\v2(.teleport.machineid.v1.BotInstanceStatusR\x06status\"\x8a\x01\n" +
+	"\x06status\x18\x06 \x01(\v2(.teleport.machineid.v1.BotInstanceStatusR\x06status\x12\x14\n" +
+	"\x05scope\x18\a \x01(\tR\x05scope\"\x8a\x01\n" +
 	"\x0fBotInstanceSpec\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +

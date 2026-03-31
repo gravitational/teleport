@@ -122,6 +122,8 @@ func (o *OutputConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "validating destination")
 	}
 
+	// TODO: If running in scoped mode, ensure only appropriate fields are set.
+
 	if _, ok := o.Destination.(*destination.Directory); !ok {
 		// If destDir is unset, we're not using a filesystem destination and
 		// ssh_config will not be sensible. Log a note and bail early without

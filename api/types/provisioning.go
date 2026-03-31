@@ -165,6 +165,10 @@ type ProvisionToken interface {
 	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
 	// GetOracle will return the Oracle specific configuration for this token.
 	GetOracle() *ProvisionTokenSpecV2Oracle
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -569,6 +573,16 @@ func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
 // GetOracle will return the Oracle specific configuration for this token.
 func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
 	return p.Spec.Oracle
+}
+
+// GetBoundKeypair returns bound keypair specific configuration for this token.
+func (p *ProvisionTokenV2) GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair {
+	return p.Spec.BoundKeypair
+}
+
+// GetBoundKeypairStatus returns bound keypair status for this token.
+func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair {
+	return p.Status.BoundKeypair
 }
 
 // GetJoinMethod returns joining method that must be used with this token.

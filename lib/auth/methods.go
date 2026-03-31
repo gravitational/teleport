@@ -59,7 +59,10 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
+// todo: on bot join, call this (or something like this) with scope determined
+// from bot, by this point, the scope passed in here should match both bot
+// and join token. nb: one day we will loosen this restriction for cross-scope.
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,8 +97,36 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	}
 
 	// populate the scope pin with the user's assigned scoped roles
-	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
-		return nil, trace.Wrap(err)
+	if userState.IsBot() {
+		// todo: probably preferable we just bifurcate this function??
+		// and directly accept the Bot type rather than inferring this from
+		// underlying user :')
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		// nb: we could enforce that botScope == scope here - but we already
+		// enforce this in PopulatePinnedAssignmentsForBot.
+		// todo: where is most appropriate to enforce this.
+		if botName == "" {
+			// impossible code path - IsBot is predicated on this label.
+			return nil, trace.BadParameter("bot without a name may not generate certs")
+		}
+		// TODO-CRITICAL: If bot, nuke traits as per RFD
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// todo: as a wider thought, where do we explicitly prevent non-bot
+		// users authenticating?
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// build the user's access info based on the scope pin and userState
@@ -167,7 +198,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -829,7 +860,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		certReq.TTL = time.Minute
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

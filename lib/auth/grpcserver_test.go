@@ -59,7 +59,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -88,6 +90,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -6710,4 +6713,129 @@ func TestGRPCServingStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
+}
+
+// TestWatchEvents_ScopedIdentity verifies that scoped identities can use the
+// WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
+// and that watching with secrets is correctly denied.
+func TestWatchEvents_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
+
+	// Create a scoped role with an empty allow block (no permissions).
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-watcher")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClient.Close()
+
+	t.Run("ca without secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: false,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
+	t.Run("ca with secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch-secrets",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: true,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
+
+	t.Run("unauthorized kind", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "user-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindUser,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
 }

@@ -2442,7 +2442,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
@@ -2543,6 +2543,80 @@ func TestGetCertAuthority(t *testing.T) {
 	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
+
+	// scoped identity with an empty allow block can still fetch CA without
+	// secrets but is denied when requesting secrets.
+	t.Run("scoped identity", func(t *testing.T) {
+		srv := newTestTLSServer(t)
+		ctx := t.Context()
+
+		adminClient, err := srv.NewClient(authtest.TestAdmin())
+		require.NoError(t, err)
+
+		scopedSvc := adminClient.ScopedAccessServiceClient()
+		_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
+				Kind:    scopedaccess.KindScopedRole,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "empty-role",
+				},
+				Scope: "/test",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/test/scope"},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
+			return err == nil && len(rsp.GetRoles()) >= 1
+		}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
+
+		user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+		require.NoError(t, err)
+
+		_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.NewString(),
+				},
+				Scope: "/test",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: user.GetName(),
+					Assignments: []*scopedaccessv1.Assignment{
+						{Role: "empty-role", Scope: "/test/scope"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
+			return err == nil && len(rsp.GetAssignments()) >= 1
+		}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
+
+		scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+		require.NoError(t, err)
+		defer scopedClt.Close()
+
+		hostCAID := types.CertAuthID{
+			DomainName: srv.ClusterName(),
+			Type:       types.HostCA,
+		}
+
+		// scoped identity is authorized to fetch CA without secrets
+		_, err = scopedClt.GetCertAuthority(ctx, hostCAID, false)
+		require.NoError(t, err)
+
+		// scoped identity is not authorized to fetch CA with secrets
+		_, err = scopedClt.GetCertAuthority(ctx, hostCAID, true)
+		require.True(t, trace.IsAccessDenied(err))
+	})
 }
 
 func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
