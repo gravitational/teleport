@@ -866,7 +866,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login as alice unscoped
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -880,7 +880,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 
 	// Login as bob unscoped — switches active profile to bob shows as expired.
 	// Need to relogin as bob.
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -890,7 +890,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login as bob again to generate the certs
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -903,13 +903,21 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, keysAfterBob)
 
+	hasBobKey, hasAliceKey := false, false
 	for _, key := range keysAfterBob {
 		if strings.HasPrefix(key.Comment, "teleport:") {
-			require.True(t, strings.Contains(key.Comment, bob.GetName()) || strings.Contains(key.Comment, alice.GetName()))
+			if strings.Contains(key.Comment, bob.GetName()) {
+				hasBobKey = true
+			}
+			if strings.Contains(key.Comment, alice.GetName()) {
+				hasAliceKey = true
+			}
 		}
 	}
+	require.True(t, hasBobKey)
+	require.True(t, hasAliceKey)
 
-	// Logging in with max scoped clears the keyring.
+	// Logging in with max, a scoped user, clears the agent
 	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
