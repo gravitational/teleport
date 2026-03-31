@@ -489,7 +489,9 @@ export function percent(n: number, d: number): string {
 }
 
 const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
-  let content = <Text>{integration.details}</Text>;
+  let content = (
+    <Text>{integration.status?.errorMessage || integration.details}</Text>
+  );
   switch (integration.kind) {
     case IntegrationKind.AwsOidc:
     case IntegrationKind.AzureOidc:
