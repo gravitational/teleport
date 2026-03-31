@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/subca"
 )
 
-func TestSubCACommand(t *testing.T) {
+func TestCommand_PubKeyHash(t *testing.T) {
 	t.Parallel()
 
 	const certPEM = `-----BEGIN CERTIFICATE-----
