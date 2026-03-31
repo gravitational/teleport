@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -160,10 +161,20 @@ func (a *ServerWithRoles) authorizeAction(resource string, verb string, extraVer
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if authz.IsCurrentUser(a.context, username) {
+	authCtx := &a.context
+	if a.scopedContext != nil {
+		var isUnscoped bool
+		authCtx, isUnscoped = a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return trace.AccessDenied("current user actions not allowed for scoped identities")
+		}
+	}
+
+	// TODO(eriktate): see if this can be converted to using a scoped context
+	if authz.IsCurrentUser(*authCtx, username) {
 		return nil
 	}
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+	return authCtx.Checker.CheckAccessToRule(&services.Context{User: authCtx.User},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
@@ -3454,27 +3465,27 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	if req.Username != a.context.User.GetName() {
+	if req.Username != a.getUser().GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		if len(req.AccessRequests) > 0 {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding access requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
-			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
-			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.getUser().GetName())
+			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.getUser().GetName())
 		}
 		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
 	}
@@ -3515,7 +3526,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
 func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	currentIdentity := a.context.Identity.GetIdentity()
+	currentIdentity := a.getIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
 	// considering new or dropped access requests. This will include roles from
@@ -3594,10 +3605,9 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	identity := a.context.Identity.GetIdentity()
 	return a.generateUserCerts(
 		ctx, req,
-		certRequestDeviceExtensions(identity.DeviceExtensions),
+		certRequestDeviceExtensions(a.getIdentity().DeviceExtensions),
 	)
 }
 
@@ -3622,7 +3632,239 @@ func getBotName(user services.UserState) string {
 	return ""
 }
 
+func (a *ServerWithRoles) generateScopedUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
+	// Device trust: authorize device before issuing certificates.
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.verifyUserDeviceForCertIssuance(ctx, req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped identities don't support impersonation
+	if req.Username != a.scopedContext.User.GetName() {
+		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
+	}
+
+	identity := a.scopedContext.Identity.GetIdentity()
+	if identity.DisallowReissue {
+		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
+	}
+
+	// Extract the user and role set for whom the certificate will be generated.
+	// This should be safe since this is typically done against a local user.
+	//
+	// This call bypasses RBAC check for users read on purpose.
+	// Users who are allowed to impersonate other users might not have
+	// permissions to read user data.
+	user, err := a.authServer.GetUser(ctx, req.Username, false)
+	if err != nil {
+		a.authServer.logger.DebugContext(ctx, "Could not impersonate user, the user could not be fetched from local store",
+			"error", err,
+			"user", req.Username,
+		)
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	// Note that user and their login states can be out of sync in the backend.
+	// For example, GitHub identities obtained from GitHub proxy OAuth flow are
+	// preserved in user login state, where local users may get updated roles
+	// from ConnectMyComputer setup. So here we retrieve additional fields from
+	// user login state. Ideally we should solve this some other way.
+	if githubIdentities := user.GetGithubIdentities(); len(githubIdentities) == 0 {
+		uls, err := a.authServer.Services.GetUserLoginState(ctx, user.GetName())
+		if trace.IsNotFound(err) {
+			// Nothing to do.
+		} else if err != nil {
+			return nil, trace.Wrap(err, "updating GitHub identities")
+		} else if githubIdentities := uls.GetGithubIdentities(); len(githubIdentities) > 0 {
+			user.SetGithubIdentities(githubIdentities)
+		}
+	}
+
+	// Do not allow SSO users to be impersonated.
+	if req.Username != a.scopedContext.User.GetName() && user.GetUserType() == types.UserTypeSSO {
+		a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for externally managed user",
+			"user", a.scopedContext.User.GetName(),
+			"external_user", req.Username,
+		)
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if req.Username != a.scopedContext.User.GetName() {
+		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
+	}
+	sessionExpires := identity.Expires
+	if sessionExpires.IsZero() {
+		a.authServer.logger.WarnContext(ctx, "Denied cert issuance for identity with no expiry",
+			"identity", identity.Username,
+		)
+		return nil, trace.AccessDenied("access denied")
+	}
+	if req.Expires.Before(a.authServer.GetClock().Now()) {
+		return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
+	}
+
+	if identity.Renewable || isRoleImpersonation(req) {
+		// Bot self-renewal or role impersonation can request certs with an
+		// expiry up to the global maximum allowed value.
+		if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
+			req.Expires = maxTime
+		}
+	} else if !isCertWrittenToDiskFlow(&req) {
+		// If requested certificate is for a flow that does not involve writing the certificate to disk
+		// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
+		// it is limited by max session ttl or mfa_verification_interval or req.Expires.
+
+		// Calculate the expiration time.
+		roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// [roleSet.AdjustMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
+		// MFA tap and `mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
+		sessionTTL := roleSet.AdjustMFAVerificationInterval(
+			roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration()),
+			readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
+		adjustedSessionExpires := a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+		if req.Expires.After(adjustedSessionExpires) {
+			req.Expires = adjustedSessionExpires
+		}
+	} else if req.Expires.After(sessionExpires) {
+		// Standard user impersonation has an expiry limited to the expiry
+		// of the current session. This prevents a user renewing their
+		// own certificates indefinitely to avoid re-authenticating.
+		req.Expires = sessionExpires
+	}
+
+	// we're going to extend the roles list based on the access requests, so we
+	// ensure that all the current requests are added to the new certificate
+	// (and are checked again)
+	req.AccessRequests = append(req.AccessRequests, a.scopedContext.Identity.GetIdentity().ActiveRequests...)
+	if req.Username != a.scopedContext.User.GetName() && len(req.AccessRequests) > 0 {
+		return nil, trace.AccessDenied("user %q requested cert for %q and included access requests, this is not supported.", a.scopedContext.User.GetName(), req.Username)
+	}
+
+	accessInfo, err := a.desiredAccessInfo(ctx, &req, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Generate certificate, note that the roles TTL will be ignored because
+	// the request is coming from "tctl auth sign" itself.
+	certReq := cert.Request{
+		User:                             user,
+		TTL:                              req.Expires.Sub(a.authServer.GetClock().Now()),
+		Compatibility:                    req.Format,
+		SSHPublicKey:                     req.SSHPublicKey,
+		TLSPublicKey:                     req.TLSPublicKey,
+		SSHPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		TLSPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		OverrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
+		RouteToCluster:                   req.RouteToCluster,
+		RequesterName:                    req.RequesterName,
+		KubernetesCluster:                req.KubernetesCluster,
+		DBService:                        req.RouteToDatabase.ServiceName,
+		DBProtocol:                       req.RouteToDatabase.Protocol,
+		DBUser:                           req.RouteToDatabase.Username,
+		DBName:                           req.RouteToDatabase.Database,
+		DBRoles:                          req.RouteToDatabase.Roles,
+		AppName:                          req.RouteToApp.Name,
+		AppPublicAddr:                    req.RouteToApp.PublicAddr,
+		AppURI:                           req.RouteToApp.URI,
+		AppTargetPort:                    int(req.RouteToApp.TargetPort),
+		AppClusterName:                   req.RouteToApp.ClusterName,
+		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
+		AzureIdentity:                    req.RouteToApp.AzureIdentity,
+		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		CheckerContext:                   a.scopedContext.CheckerContext, // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
+		// Copy IP from current identity to the generated certificate, if present,
+		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
+		LoginIP:                a.scopedContext.Identity.GetIdentity().LoginIP,
+		Traits:                 accessInfo.Traits,
+		ActiveRequests:         req.AccessRequests,
+		ConnectionDiagnosticID: req.ConnectionDiagnosticID,
+		BotName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		BotInstanceID: a.scopedContext.Identity.GetIdentity().BotInstanceID,
+		JoinToken:     a.scopedContext.Identity.GetIdentity().JoinToken,
+		// Propagate any join attributes from the current identity to the new
+		// identity.
+		JoinAttributes: a.scopedContext.Identity.GetIdentity().JoinAttributes,
+	}
+
+	switch req.Usage {
+	case proto.UserCertsRequest_Database:
+		certReq.Usage = []string{teleport.UsageDatabaseOnly}
+	case proto.UserCertsRequest_App:
+		certReq.Usage = []string{teleport.UsageAppsOnly}
+	case proto.UserCertsRequest_Kubernetes:
+		certReq.Usage = []string{teleport.UsageKubeOnly}
+	case proto.UserCertsRequest_SSH:
+		// SSH certs are ssh-only by definition, certReq.usage only applies to
+		// TLS certs.
+	case proto.UserCertsRequest_All:
+		// Unrestricted usage.
+	case proto.UserCertsRequest_WindowsDesktop:
+		// Desktop certs.
+		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
+	default:
+		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
+	}
+	for _, o := range opts {
+		o(&certReq)
+	}
+
+	// If the user is renewing a renewable cert, make sure the renewable flag
+	// remains for subsequent requests of the primary certificate. The
+	// renewable flag should never be carried over for impersonation, role
+	// requests, or when the disallow-reissue flag has already been set.
+	if a.scopedContext.Identity.GetIdentity().Renewable &&
+		req.Username == a.scopedContext.User.GetName() &&
+		!isRoleImpersonation(req) &&
+		!certReq.DisallowReissue {
+		certReq.Renewable = true
+	}
+
+	// If the cert is renewable, process any bot instance updates (generation
+	// counter, auth records, etc). `updateBotInstance()` may modify certain
+	// `certReq` attributes (generation, botInstanceID).
+	if certReq.Renewable {
+		currentIdentityGeneration := a.scopedContext.Identity.GetIdentity().Generation
+
+		// If we're handling a renewal for a bot, we want to return the
+		// Host CAs as well as the User CAs.
+		if certReq.BotName != "" {
+			certReq.IncludeHostCA = true
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.authServer.updateBotInstance(
+			ctx, &certReq, user.GetName(), certReq.BotName,
+			certReq.BotInstanceID, nil, int32(currentIdentityGeneration),
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs, nil
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
+	if a.scopedContext != nil {
+		return a.generateScopedUserCerts(ctx, req, opts...)
+	}
 	// Device trust: authorize device before issuing certificates.
 	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
@@ -4118,7 +4360,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, u
 		return nil
 	}
 
-	identity := a.context.Identity.GetIdentity()
+	identity := a.getIdentity()
 	return trace.Wrap(dtauthz.VerifyTLSUser(ctx, dt, identity))
 }
 
@@ -8538,4 +8780,18 @@ func (a *ServerWithRoles) resolveUnscopedAuthContext() (*authz.Context, bool) {
 	}
 
 	return &a.context, true
+}
+
+func (a *ServerWithRoles) getIdentity() tlsca.Identity {
+	if a.scopedContext != nil {
+		return a.scopedContext.Identity.GetIdentity()
+	}
+	return a.context.Identity.GetIdentity()
+}
+
+func (a *ServerWithRoles) getUser() types.User {
+	if a.scopedContext != nil {
+		return a.scopedContext.User
+	}
+	return a.context.User
 }
