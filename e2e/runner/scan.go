@@ -24,15 +24,19 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
-// fixtureArrayRe matches fixture arrays inside test.use() calls, including multiline declarations.
-//   - test.use({ fixtures: ['ssh-node'] })
-//   - test.use({ fixtures: [['connect'], { option: true }] })
-var fixtureArrayRe = regexp.MustCompile(`test\.use\([^)]*fixtures:\s*\[+([^]]*)]`)
+// fixtureArrayRe matches fixture array declarations within a test.use() call body.
+//   - fixtures: ['ssh-node']
+//   - fixtures: [['connect'], { option: true }]
+var fixtureArrayRe = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+
+// lineNumberSuffixRe matches a trailing :line_number on a test path (e.g. "my-spec.ts:42").
+var lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
 
 // fixtureRefRe extracts individual quoted fixture names from the matched array contents.
 var fixtureRefRe = regexp.MustCompile(`'([^']+)'`)
@@ -41,41 +45,58 @@ var fixtureRefRe = regexp.MustCompile(`'([^']+)'`)
 // e.g. `from '@gravitational/e2e/helpers/connect'` → "connect"
 var helperImportRe = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
 
+const testUseCallPrefix = "test.use("
+
+// scanTarget represents a file to scan with an optional line constraint.
+type scanTarget struct {
+	path string
+	line int // 0 means scan entire file
+}
+
+// blockRange represents a brace-delimited block in a source file (1-indexed lines).
+type blockRange struct {
+	start, end int
+}
+
+// callRange represents the byte offsets of a test.use(...) call in the content string.
+type callRange struct {
+	start, end int
+}
+
 // scanFixtures scans test files and the helpers they import to discover which fixtures are needed.
 func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
-	specFiles, err := resolveFilesToScan(e2eDir, testFiles)
+	targets, err := resolveFilesToScan(e2eDir, testFiles)
 	if err != nil {
 		slog.Debug("fixture scan: error resolving files", "error", err)
 
 		return nil
 	}
 
-	slog.Debug("fixture scan: resolved spec files", "count", len(specFiles), "files", specFiles)
+	slog.Debug("fixture scan: resolved targets", "count", len(targets))
 
 	// Helpers can also reference fixtures (such as Connect), so we need to scan them as well.
 	importedHelpers := make(map[string]bool)
-	for _, file := range specFiles {
-		for _, helper := range parseHelperImports(file) {
+	for _, t := range targets {
+		for _, helper := range parseHelperImports(t.path) {
 			importedHelpers[helper] = true
 		}
 	}
 
-	filesToScan := specFiles
+	// Helpers are always scanned fully (no line targeting).
+	// No existence check needed — scanFile handles missing files gracefully.
 	for helper := range importedHelpers {
-		helperPath := filepath.Join(e2eDir, "helpers", helper+".ts")
-
-		if _, err := os.Stat(helperPath); err == nil {
-			filesToScan = append(filesToScan, helperPath)
-		}
+		targets = append(targets, scanTarget{
+			path: filepath.Join(e2eDir, "helpers", helper+".ts"),
+		})
 	}
 
-	slog.Debug("fixture scan: total files to scan", "count", len(filesToScan))
+	slog.Debug("fixture scan: total files to scan", "count", len(targets))
 
 	seen := make(map[string]struct{})
 	var result []*fixtures.Fixture
 
-	for _, file := range filesToScan {
-		for _, f := range scanFile(file) {
+	for _, t := range targets {
+		for _, f := range scanFile(t.path, t.line) {
 			if _, ok := seen[f.Name]; ok {
 				continue
 			}
@@ -88,35 +109,77 @@ func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 	return result
 }
 
-func resolveFilesToScan(e2eDir string, testFiles []string) ([]string, error) {
+func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error) {
 	if len(testFiles) == 0 {
-		return walkSpecFiles(filepath.Join(e2eDir, "tests"))
-	}
-
-	var files []string
-	for _, tf := range testFiles {
-		abs := filepath.Join(e2eDir, tf)
-
-		info, err := os.Stat(abs)
+		paths, err := walkSpecFiles(filepath.Join(e2eDir, "tests"))
 		if err != nil {
-			continue
+			return nil, err
 		}
 
-		if info.IsDir() {
-			matches, err := walkSpecFiles(abs)
+		targets := make([]scanTarget, len(paths))
+		for i, p := range paths {
+			targets[i] = scanTarget{path: p}
+		}
+
+		return targets, nil
+	}
+
+	// Cache the full spec file list lazily for substring filter fallback,
+	// so we walk the tree at most once even with multiple filter arguments.
+	var allSpecs []string
+
+	var targets []scanTarget
+	for _, tf := range testFiles {
+		// Extract optional Playwright :line suffix (e.g. "my-spec.ts:42").
+		var line int
+		if loc := lineNumberSuffixRe.FindStringIndex(tf); loc != nil {
+			var err error
+			line, err = strconv.Atoi(tf[loc[0]+1:])
 			if err != nil {
 				return nil, err
 			}
 
-			files = append(files, matches...)
+			tf = tf[:loc[0]]
+		}
+
+		abs := filepath.Join(e2eDir, tf)
+
+		info, err := os.Stat(abs)
+		if err == nil {
+			if info.IsDir() {
+				matches, err := walkSpecFiles(abs)
+				if err != nil {
+					return nil, err
+				}
+
+				for _, m := range matches {
+					targets = append(targets, scanTarget{path: m})
+				}
+			} else {
+				targets = append(targets, scanTarget{path: abs, line: line})
+			}
 
 			continue
 		}
 
-		files = append(files, abs)
+		// Not a concrete path — treat as a Playwright substring filter
+		// and match against all spec files.
+		if allSpecs == nil {
+			allSpecs, err = walkSpecFiles(filepath.Join(e2eDir, "tests"))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		for _, spec := range allSpecs {
+			rel, _ := filepath.Rel(e2eDir, spec)
+			if strings.Contains(rel, tf) {
+				targets = append(targets, scanTarget{path: spec})
+			}
+		}
 	}
 
-	return files, nil
+	return targets, nil
 }
 
 func walkSpecFiles(root string) ([]string, error) {
@@ -151,33 +214,151 @@ func parseHelperImports(path string) []string {
 	return helpers
 }
 
-func scanFile(path string) []*fixtures.Fixture {
+func scanFile(path string, targetLine int) []*fixtures.Fixture {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
 
-	// Strip single-line comment lines before matching so that commented-out fixture declarations are not detected.
-	var filtered []string
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "//") {
+	lines := strings.Split(string(data), "\n")
+	cleaned := stripComments(lines)
+	blocks := parseBlocks(cleaned)
+	content := strings.Join(cleaned, "\n")
+
+	var result []*fixtures.Fixture
+	for _, call := range findTestUseCalls(content) {
+		callLine := 1 + strings.Count(content[:call.start], "\n")
+
+		if targetLine > 0 && !fixtureInScope(callLine, targetLine, blocks) {
 			continue
 		}
 
-		filtered = append(filtered, line)
-	}
-
-	// Match against the joined content so that fixture arrays spanning multiple lines are detected correctly.
-	content := strings.Join(filtered, "\n")
-
-	var result []*fixtures.Fixture
-	for _, m := range fixtureArrayRe.FindAllStringSubmatch(content, -1) {
-		for _, ref := range fixtureRefRe.FindAllStringSubmatch(m[1], -1) {
-			if f := fixtures.FindByName(ref[1]); f != nil {
-				result = append(result, f)
+		body := content[call.start:call.end]
+		for _, m := range fixtureArrayRe.FindAllStringSubmatch(body, -1) {
+			for _, ref := range fixtureRefRe.FindAllStringSubmatch(m[1], -1) {
+				if f := fixtures.FindByName(ref[1]); f != nil {
+					result = append(result, f)
+				}
 			}
 		}
 	}
 
 	return result
+}
+
+func stripComments(lines []string) []string {
+	cleaned := make([]string, len(lines))
+	inBlock := false
+
+	for i, line := range lines {
+		if inBlock {
+			if idx := strings.Index(line, "*/"); idx >= 0 {
+				inBlock = false
+				cleaned[i] = line[idx+2:]
+			}
+
+			continue
+		}
+
+		if strings.HasPrefix(strings.TrimSpace(line), "//") {
+			continue
+		}
+
+		if idx := strings.Index(line, "/*"); idx >= 0 {
+			if endIdx := strings.Index(line[idx+2:], "*/"); endIdx >= 0 {
+				// Single-line block comment.
+				cleaned[i] = line[:idx] + line[idx+2+endIdx+2:]
+
+				continue
+			}
+
+			inBlock = true
+			cleaned[i] = line[:idx]
+
+			continue
+		}
+
+		cleaned[i] = line
+	}
+
+	return cleaned
+}
+
+func parseBlocks(lines []string) []blockRange {
+	var blocks []blockRange
+	var stack []int
+
+	for i, line := range lines {
+		lineNum := i + 1
+		for _, ch := range line {
+			switch ch {
+			case '{':
+				stack = append(stack, lineNum)
+
+			case '}':
+				if len(stack) > 0 {
+					start := stack[len(stack)-1]
+					stack = stack[:len(stack)-1]
+					blocks = append(blocks, blockRange{start: start, end: lineNum})
+				}
+			}
+		}
+	}
+
+	return blocks
+}
+
+func findTestUseCalls(content string) []callRange {
+	var calls []callRange
+	offset := 0
+
+	for {
+		idx := strings.Index(content[offset:], testUseCallPrefix)
+		if idx < 0 {
+			break
+		}
+
+		callStart := offset + idx
+		// Start paren counting after the opening '(' in "test.use("
+		depth := 1
+		pos := callStart + len(testUseCallPrefix)
+
+		for pos < len(content) && depth > 0 {
+			switch content[pos] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+
+			pos++
+		}
+
+		if depth == 0 {
+			calls = append(calls, callRange{start: callStart, end: pos})
+		}
+
+		offset = pos
+	}
+
+	return calls
+}
+
+func fixtureInScope(fixtureLine, targetLine int, blocks []blockRange) bool {
+	var enclosing *blockRange
+
+	for i := range blocks {
+		b := &blocks[i]
+		if fixtureLine > b.start && fixtureLine < b.end {
+			if enclosing == nil || (b.end-b.start) < (enclosing.end-enclosing.start) {
+				enclosing = b
+			}
+		}
+	}
+
+	if enclosing == nil {
+		return true
+	}
+
+	return targetLine >= enclosing.start && targetLine <= enclosing.end
 }

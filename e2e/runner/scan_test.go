@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 func TestScanFile(t *testing.T) {
@@ -85,6 +87,17 @@ func TestScanFile(t *testing.T) {
 });`,
 			wantNames: []string{"connect"},
 		},
+		{
+			name:      "nested parens in options before fixtures",
+			content:   `test.use({ timeout: getTimeout(), fixtures: ['ssh-node'] });`,
+			wantNames: []string{"ssh-node"},
+		},
+		{
+			name: "block comment is stripped",
+			content: `/* test.use({ fixtures: ['ssh-node'] }); */
+test.use({ fixtures: ['connect'] });`,
+			wantNames: []string{"connect"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -93,10 +106,85 @@ func TestScanFile(t *testing.T) {
 			tmpFile := filepath.Join(dir, "test.spec.ts")
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			got := scanFile(tmpFile)
+			got := scanFile(tmpFile, 0)
 
 			if len(got) != len(tt.wantNames) {
 				t.Fatalf("got %d fixtures, want %d", len(got), len(tt.wantNames))
+			}
+
+			for i, f := range got {
+				if f.Name != tt.wantNames[i] {
+					t.Errorf("fixture[%d] name = %q, want %q", i, f.Name, tt.wantNames[i])
+				}
+			}
+		})
+	}
+}
+
+func TestScanFileLineScope(t *testing.T) {
+	content := `test.use({ fixtures: ['ssh-node'] });       // 1  (top-level)
+                                                            // 2
+test.describe('connect tests', () => {                      // 3
+  test.use({ fixtures: ['connect'] });                      // 4
+                                                            // 5
+  test('opens connect', async () => {                       // 6
+    // test body                                            // 7
+  });                                                       // 8
+});                                                         // 9
+                                                            // 10
+test.describe('web tests', () => {                          // 11
+  test('opens web', async () => {                           // 12
+    // test body                                            // 13
+  });                                                       // 14
+}); 																											  // 15
+                                                            // 16
+test.describe(() => {                                       // 17
+  test.use({ fixtures: ['connect'] });                      // 18
+  test('one', async () => {                                 // 19
+    // test body                                            // 20
+  });                                                       // 21
+  test('two', async () => {                                 // 22
+    // test body                                            // 23
+  });                                                       // 24
+});                                                         // 25`
+
+	tests := []struct {
+		name       string
+		targetLine int
+		wantNames  []string
+	}{
+		{
+			name:       "no line filter returns all fixtures",
+			targetLine: 0,
+			wantNames:  []string{"ssh-node", "connect", "connect"},
+		},
+		{
+			name:       "line inside connect describe gets top-level and connect",
+			targetLine: 7,
+			wantNames:  []string{"ssh-node", "connect"},
+		},
+		{
+			name:       "line inside web describe gets only top-level",
+			targetLine: 13,
+			wantNames:  []string{"ssh-node"},
+		},
+		{
+			name:       "line targeting specific test inside describe with test.use",
+			targetLine: 23,
+			wantNames:  []string{"ssh-node", "connect"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tmpFile := filepath.Join(dir, "test.spec.ts")
+			writeFile(t, dir, "test.spec.ts", content)
+
+			got := scanFile(tmpFile, tt.targetLine)
+
+			if len(got) != len(tt.wantNames) {
+				t.Fatalf("got %d fixtures, want %d: %v", len(got), len(tt.wantNames), fixtureNames(got))
 			}
 
 			for i, f := range got {
@@ -187,6 +275,58 @@ test('something', async () => {});
 	})
 }
 
+func TestResolveFilesToScan(t *testing.T) {
+	e2eDir := t.TempDir()
+	testsDir := createDir(t, e2eDir, "tests", "connect")
+
+	writeFile(t, testsDir, "auth.spec.ts", "test('auth', async () => {});")
+	writeFile(t, testsDir, "session.spec.ts", "test('session', async () => {});")
+
+	t.Run("file with line number", func(t *testing.T) {
+		rel, _ := filepath.Rel(e2eDir, filepath.Join(testsDir, "auth.spec.ts"))
+		targets, err := resolveFilesToScan(e2eDir, []string{rel + ":42"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(targets) != 1 {
+			t.Fatalf("expected 1 target, got %d", len(targets))
+		}
+
+		if targets[0].line != 42 {
+			t.Errorf("expected line 42, got %d", targets[0].line)
+		}
+	})
+
+	t.Run("directory expands to spec files", func(t *testing.T) {
+		targets, err := resolveFilesToScan(e2eDir, []string{"tests/connect"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(targets) != 2 {
+			t.Fatalf("expected 2 targets, got %d", len(targets))
+		}
+
+		for _, tgt := range targets {
+			if tgt.line != 0 {
+				t.Errorf("directory target should have line=0, got %d", tgt.line)
+			}
+		}
+	})
+
+	t.Run("substring filter matches spec files", func(t *testing.T) {
+		targets, err := resolveFilesToScan(e2eDir, []string{"auth"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(targets) != 1 {
+			t.Fatalf("expected 1 target, got %d", len(targets))
+		}
+	})
+}
+
 func createDir(t *testing.T, path ...string) string {
 	t.Helper()
 
@@ -205,4 +345,12 @@ func writeFile(t *testing.T, dir, name, content string) {
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("writing file %s: %v", path, err)
 	}
+}
+
+func fixtureNames(ff []*fixtures.Fixture) []string {
+	names := make([]string, len(ff))
+	for i, f := range ff {
+		names[i] = f.Name
+	}
+	return names
 }
