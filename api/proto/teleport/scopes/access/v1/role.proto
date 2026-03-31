@@ -106,6 +106,10 @@ message ScopedRoleSSH {
   // PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions.
   // If not set, X11 forwarding is not permitted.
   optional bool permit_x11_forwarding = 4;
+
+  // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
+  // over an SSH session. It defaults to true unless explicitly set to false.
+  optional bool ssh_file_copy = 5;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block

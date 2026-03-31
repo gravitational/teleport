@@ -192,5 +192,5 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
-	return c.checker.scopedCompatChecker.CanCopyFiles()
+	return c.checker.role.Spec.Ssh.GetSshFileCopy()
 }
