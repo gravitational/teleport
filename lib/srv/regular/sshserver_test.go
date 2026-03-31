@@ -670,7 +670,9 @@ func TestX11AuditLog(t *testing.T) {
 				if ok {
 					return x11Event
 				}
-				// ignore other events
+			case <-t.Context().Done():
+				t.Fatal("timed out waiting for X11Forward audit event")
+				return nil
 			}
 		}
 	}
