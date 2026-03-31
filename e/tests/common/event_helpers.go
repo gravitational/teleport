@@ -128,39 +128,39 @@ type EventStatusAssertion func(require.TestingT, *apievents.Status)
 // WithSuccess returns an EventStatusAssertion that checks the event success
 // flag matches the supplied value.
 func WithSuccess(success bool) EventStatusAssertion {
-	return func(t require.TestingT, event *apievents.Status) {
+	return func(t require.TestingT, eventStatus *apievents.Status) {
 		if h, ok := t.(interface{ Helper() }); ok {
 			h.Helper()
 		}
-		require.Equal(t, success, event.Success)
+		require.Equal(t, success, eventStatus.Success)
 	}
 }
 
 // WithError is an EventStatusAssertion that asserts the event contains a
 // non-empty error message.
-func WithError(t require.TestingT, event *apievents.Status) {
+func WithError(t require.TestingT, eventStatus *apievents.Status) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
-	require.NotEmpty(t, event.Error)
+	require.NotEmpty(t, eventStatus.Error)
 }
 
 // WithNoError is an EventStatusAssertion that asserts the event contains an
 // empty error message.
-func WithNoError(t require.TestingT, event *apievents.Status) {
+func WithNoError(t require.TestingT, eventStatus *apievents.Status) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
-	require.Empty(t, event.Error)
+	require.Empty(t, eventStatus.Error)
 }
 
 // WithErrorMatching returns an EventStatusAssertion that checks the event's
 // error message matches the supplied regular expression pattern.
 func WithErrorMatching(pattern string) EventStatusAssertion {
-	return func(t require.TestingT, event *apievents.Status) {
+	return func(t require.TestingT, eventStatus *apievents.Status) {
 		if h, ok := t.(interface{ Helper() }); ok {
 			h.Helper()
 		}
-		require.Regexp(t, regexp.MustCompile(pattern), event.Error)
+		require.Regexp(t, regexp.MustCompile(pattern), eventStatus.Error)
 	}
 }

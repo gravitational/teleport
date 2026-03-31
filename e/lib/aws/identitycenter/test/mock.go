@@ -457,7 +457,7 @@ func (s *scimClientMock) Ping(_ context.Context) error {
 }
 
 func clipSlice[T any](src []T, options *scimsdk.QueryOptions) ([]T, int) {
-	// cget the page bounds from the query
+	// get the page bounds from the query
 	startIndex := 1
 	pageSize := maxPageSize
 

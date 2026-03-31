@@ -412,17 +412,3 @@ func (svc *Service) emitSyncEvent(ctx context.Context, in *apievents.AWSICResour
 		svc.log.ErrorContext(ctx, "Failed to emit resource sync event", "error", err)
 	}
 }
-
-// syncEventUserMessage
-func syncEventUserMessage(inMessage string, err error) string {
-	const successMessage = "Periodic account, permission set and account assignment sync"
-	if err != nil {
-		// inMessage will be empty if the sync process erred out during
-		// upstream resource fetch or fetched data processing step.
-		if inMessage == "" {
-			inMessage = successMessage + " failed"
-		}
-		return inMessage
-	}
-	return successMessage
-}

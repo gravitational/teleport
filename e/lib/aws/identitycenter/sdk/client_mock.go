@@ -546,55 +546,75 @@ func (c *ClientMock) ValidateResourceSyncCredential(ctx context.Context) error {
 	return nil
 }
 
+// GetMockAccount fetches a mock AWS account from the mock's backing state.
+// Returns nil if no such account exists
+func (c *ClientMock) GetMockAccount(id string) *Account {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	return c.getAccountByID(id)
+}
+
+// RenameMockAccount looks up a mock AWS Account by ID and, if present, renames
+// it
+func (c *ClientMock) RenameMockAccount(id, newName string) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if a := c.getAccountByID(id); a != nil {
+		a.Name = newName
+	}
+}
+
 // DeleteMockGroup removes a group and its account assignments from the mocked
 // data set.
 func (c *ClientMock) DeleteMockGroup(id string) {
 	c.Mu.Lock()
-	c.Groups = slices.DeleteFunc(c.Groups, func(g *Group) bool {
-		return g.ID == id
-	})
+	defer c.Mu.Unlock()
+
+	c.Groups = slices.DeleteFunc(c.Groups, byGroupID(id))
 	delete(c.GroupMemberships, id)
 	delete(c.GroupAssignments, id)
-	c.Mu.Unlock()
 }
 
 // DeleteMockUser removes a user and their account assignments from the mocked
 // data set.
 func (c *ClientMock) DeleteMockUser(id string) {
 	c.Mu.Lock()
-	// Find and remove the user from the mock
-	userIndex := slices.IndexFunc(c.Users, func(u *MockUser) bool {
-		return aws.ToString(u.UserId) == id
-	})
-	if userIndex >= 0 {
-		c.Users = slices.Delete(c.Users, userIndex, userIndex+1)
-	}
+	defer c.Mu.Unlock()
+
+	c.Users = slices.DeleteFunc(c.Users, byUserID(id))
 	delete(c.UserAssignments, id)
-	c.Mu.Unlock()
 }
 
-func (c *ClientMock) userIndex(id string) int {
-	return slices.IndexFunc(c.Users, func(u *MockUser) bool {
-		return aws.ToString(u.UserId) == id
-	})
+func (c *ClientMock) getAccountByID(id string) *Account {
+	if i := slices.IndexFunc(c.Accounts, byAccountID(id)); i != -1 {
+		return c.Accounts[i]
+	}
+	return nil
 }
 
 func (c *ClientMock) getUserByID(id string) *MockUser {
-	if i := c.userIndex(id); i != -1 {
+	if i := slices.IndexFunc(c.Users, byUserID(id)); i != -1 {
 		return c.Users[i]
 	}
 	return nil
 }
 
-func (c *ClientMock) groupIndex(id string) int {
-	return slices.IndexFunc(c.Groups, func(g *Group) bool {
-		return g.ID == id
-	})
-}
-
 func (c *ClientMock) getGroupByID(id string) *Group {
-	if i := c.groupIndex(id); i != -1 {
+	if i := slices.IndexFunc(c.Groups, byGroupID(id)); i != -1 {
 		return c.Groups[i]
 	}
 	return nil
+}
+
+func byAccountID(id string) func(*Account) bool {
+	return func(a *Account) bool { return a.ID == id }
+}
+
+func byUserID(id string) func(*MockUser) bool {
+	return func(u *MockUser) bool { return aws.ToString(u.UserId) == id }
+}
+
+func byGroupID(id string) func(*Group) bool {
+	return func(g *Group) bool { return g.ID == id }
 }

@@ -356,8 +356,8 @@ func updateRoleWithRetry(ctx context.Context, svc RolesService, role *types.Role
 // configure it as the Account Assignment Role.
 //
 // If the role blocking the creation was not created by the Identity Center
-// integration, the blocking role is left alone and an error is written to the
-// log.
+// integration, the blocking role is left alone, an error is written to the
+// log and the function returns a [*roleNameCollisionError].
 func (svc *Service) handleRoleNameClash(ctx context.Context, newRole *types.RoleV6) (*types.RoleV6, error) {
 	log := svc.log.With("role_name", newRole.GetName())
 	log.DebugContext(ctx, "Handling role name collision")
@@ -369,7 +369,7 @@ func (svc *Service) handleRoleNameClash(ctx context.Context, newRole *types.Role
 
 	if l, ok := existingRole.GetLabel(roleCreatedByLabel); !ok || l != types.KindIdentityCenter {
 		log.ErrorContext(ctx, "An existing role is blocking the creation of an Identity Center role. Please review this role and rename or delete it.")
-		return nil, trace.BadParameter("Existing role blocks Account Assignment Role creation: %s", newRole.GetName())
+		return nil, &roleNameCollisionError{roleName: newRole.GetName()}
 	}
 
 	log.DebugContext(ctx, "Reclaiming existing role")

@@ -91,7 +91,7 @@ func (svc *Service) synchronize(ctx context.Context) error {
 	var syncEvent apievents.AWSICResourceSync
 	var err error
 	defer func() {
-		syncEvent.UserMessage = syncEventUserMessage(syncEvent.UserMessage, err)
+		finalizeSyncEventMessage(&syncEvent, err)
 		svc.emitSyncEvent(ctx, &syncEvent, err == nil)
 	}()
 
@@ -194,4 +194,27 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 		accountAssignments:     accountAssignments,
 		accountAssignmentRoles: roles,
 	}, nil
+}
+
+// finalizeSyncEventMessage writes the finishing touches to the sync event before
+// it gets emitted, handling error cases and so on.
+func finalizeSyncEventMessage(syncEvent *apievents.AWSICResourceSync, syncErr error) {
+	syncEvent.UserMessage = syncEventUserMessage(syncEvent.UserMessage, syncErr)
+	if syncErr != nil {
+		syncEvent.Error = newAWSSyncError(syncErr).Error()
+	}
+}
+
+// syncEventUserMessage generates a UserMessage for the sync event.
+func syncEventUserMessage(inMessage string, err error) string {
+	const successMessage = "Periodic account, permission set and account assignment sync"
+	if err != nil {
+		// inMessage will be empty if the sync process erred out during
+		// upstream resource fetch or fetched data processing step.
+		if inMessage == "" {
+			inMessage = successMessage + " failed"
+		}
+		return inMessage
+	}
+	return successMessage
 }

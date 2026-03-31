@@ -56,26 +56,20 @@ func requireTestClusterWithIdentityCenter(t *testing.T, opts ...common.Option) (
 	// this assertion a bit more time than the regular `require.Eventually()` 3
 	// seconds
 
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			accounts, _, err := auth.ListIdentityCenterAccounts(ctx, 0, "")
-			require.NoError(t, err)
-			require.Len(t, mockIC.Accounts, len(accounts))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, acct := range mockIC.Accounts {
+			requireICAccount(ctx, t, auth.IdentityCenter, acct.ID,
+				withAccountLabel(types.AWSSSORegionLabel, "eu-central-1"))
+		}
 
-			for _, acct := range accounts {
-				assertICAccount(ctx, t, auth.IdentityCenter, acct.GetMetadata().GetName(),
-					withAccountLabel(types.AWSSSORegionLabel, "eu-central-1"))
-			}
+		permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, mockIC.PermissionSets, len(permissionSet))
 
-			permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
-			require.NoError(t, err)
-			require.Len(t, mockIC.PermissionSets, len(permissionSet))
-
-			accList, _, err := auth.ListAccessLists(ctx, 0, "")
-			require.NoError(t, err)
-			require.Len(t, mockIC.Groups, len(accList))
-		},
-		10*time.Second, 100*time.Millisecond)
+		accList, _, err := auth.ListAccessLists(ctx, 0, "")
+		require.NoError(t, err)
+		require.Len(t, mockIC.Groups, len(accList))
+	}, 10*time.Second, 100*time.Millisecond)
 
 	return sut, client
 }

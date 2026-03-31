@@ -43,36 +43,3 @@ func UpdateUser(ctx context.Context, usersSvc services.UsersService, username st
 	}
 	return nil
 }
-
-type RoleAllowDesc RoleConditionsDesc
-type RoleDenyDesc RoleConditionsDesc
-
-type RoleConditionsDesc struct {
-	groupLabels    types.Labels
-	reviewRequests *types.AccessReviewConditions
-}
-
-func CreateRole(t *testing.T, sut *SUT, name string, allow RoleAllowDesc, deny RoleDenyDesc) types.Role {
-	t.Helper()
-	ctx := t.Context()
-	authServer := sut.Teleport.Process.GetAuthServer()
-
-	spec := types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			GroupLabels:    allow.groupLabels,
-			ReviewRequests: allow.reviewRequests,
-		},
-		Deny: types.RoleConditions{
-			GroupLabels:    deny.groupLabels,
-			ReviewRequests: deny.reviewRequests,
-		},
-	}
-
-	role, err := types.NewRole(name, spec)
-	require.NoError(t, err, "types.NewRole")
-
-	created, err := authServer.CreateRole(ctx, role)
-	require.NoError(t, err, "authServer.CreateRole")
-
-	return created
-}
