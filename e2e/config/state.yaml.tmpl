@@ -48,3 +48,17 @@ spec:
       - root
     windows_logins: null
 version: v2
+---
+kind: trusted_cluster
+version: v2
+metadata:
+  name: dummy-trusted-cluster
+spec:
+  enabled: false
+  token: dummy-token
+  tunnel_addr: localhost:11111
+  web_proxy_addr: localhost:11111
+  role_map:
+  - local:
+    - access
+    remote: access
