@@ -202,6 +202,7 @@ exclude_fields:
 
     # UIConfig
     - "UIConfigV1.Metadata.Name" # It's a singleton resource
+    - "UIConfigV1.Metadata.Revision"
 
     # User
     - "UserSpecV2.LocalAuth" # We do not need to set user auth data
