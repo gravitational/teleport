@@ -38,10 +38,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -767,9 +767,8 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
-	var inBandMFASupported bool
-	inBandMFASupported, err = api.IsSSHFeatureSupported(string(conn.ClientVersion()), "mfav1")
-	if err != nil && !trace.IsBadParameter(api.ErrNonTeleportSSHVersion) {
+	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
+	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
 		return nil, trace.Wrap(err)
 	}
 
