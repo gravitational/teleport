@@ -24,7 +24,6 @@ import * as proto from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { proxyHostname } from 'teleterm/services/tshd/cluster';
 import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -269,3 +268,15 @@ test('launching VNet for the first time from the connections panel does not open
     within(visibleDoc).queryByText(/VNet automatically proxies connections/)
   ).not.toBeInTheDocument();
 });
+
+function proxyHostname(proxyHost: string) {
+  let parsedURL: URL;
+
+  try {
+    parsedURL = new URL(`https://${proxyHost}`);
+  } catch {
+    return proxyHost;
+  }
+
+  return parsedURL.hostname;
+}

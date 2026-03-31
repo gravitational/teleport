@@ -55,18 +55,6 @@ export function proxyHostToBrowserProxyHost(proxyHost: string) {
   return parsedURL.host;
 }
 
-export function proxyHostname(proxyHost: string) {
-  let parsedURL: URL;
-
-  try {
-    parsedURL = new URL(`https://${proxyHost}`);
-  } catch {
-    return proxyHost;
-  }
-
-  return parsedURL.hostname;
-}
-
 /**
  * Creates a cluster by merging properties that can be read from
  * the profile from disk with properties from details.
