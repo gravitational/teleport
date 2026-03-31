@@ -18,12 +18,11 @@
 
 import styled from 'styled-components';
 
-import { Flex, Stack, Text} from 'design';
+import { Flex, Stack, Text } from 'design';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { Theme } from 'design/theme';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -45,28 +44,25 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canSharedDirectories,
 }: SharedDirectoriesProps) {
-  const headerText = sharedDirectories.length == 1 ? "Shared Directory" : "Shared Directories"
   return (
     <MenuIcon
-      Icon={FolderPlus}
+      Icon={(props) => <FolderPlus {...props} size="large" />}
       buttonIconProps={{
         disabled: !canSharedDirectories,
         // square highlight instead of default circle
         css: 'border-radius: 0',
       }}
       // Right align the menu with the icon
-      menuProps={
-        {
-          anchorOrigin: {
-            vertical: 'bottom',
-            horizontal: 'right',
-          },
-          transformOrigin: {
-            vertical: 'top',
-            horizontal: 'right',
-          }
-        }        
-      }
+      menuProps={{
+        anchorOrigin: {
+          vertical: 'bottom',
+          horizontal: 'right',
+        },
+        transformOrigin: {
+          vertical: 'top',
+          horizontal: 'right',
+        },
+      }}
       tooltip={
         !canSharedDirectories
           ? 'Directory sharing is not enabled for this session'
@@ -76,12 +72,7 @@ export function SharedDirectoryList({
       <Container>
         <Stack gap={1} fullWidth>
           {/* Header row */}
-          <Flex justifyContent="space-between" alignItems="center">
-            <Text typography="h4">              
-              {sharedDirectories.length > 0 ? `${sharedDirectories.length} ` + headerText : headerText }              
-            </Text>
-          </Flex>
-          <hr></hr>
+          {sharedDirectoryHeader(sharedDirectories.length)}
 
           {/* Directory list */}
           <Stack gap={1} fullWidth>
@@ -112,26 +103,51 @@ export function SharedDirectoryList({
             ))}
 
             {/* Share Button */}
-            <Flex justifyContent="space-between" alignItems="center">
-              <PurpleText>
-              <Text>Connect a shared directory</Text>
-              </PurpleText>
-              <ButtonPrimary              
-                size="small"
-                p={1}
-                minWidth={0}
-                height="auto"
-                onClick={onAddSharedDirectory}
-                compact={true}
-                $inputAlignment={false}
-              >
-                <Plus size="small" />
-              </ButtonPrimary>
-            </Flex>
+            {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
           </Stack>
         </Stack>
       </Container>
     </MenuIcon>
+  );
+}
+
+function addDirectoryButton(directoryCount: number, onClick: () => void) {
+  return (
+    <Flex justifyContent="space-between" alignItems="center">
+      <PurpleText $purple={directoryCount > 0}>
+        <Text>Connect a shared directory</Text>
+      </PurpleText>
+      <ButtonPrimary
+        size="small"
+        p={1}
+        minWidth={0}
+        height="auto"
+        onClick={onClick}
+        compact={true}
+        $inputAlignment={false}
+      >
+        <Plus size="small" />
+      </ButtonPrimary>
+    </Flex>
+  );
+}
+
+function sharedDirectoryHeader(directoryCount: number) {
+  if (directoryCount == 0) {
+    return;
+  }
+
+  const headerText =
+    directoryCount == 1 ? 'Shared Directory' : 'Shared Directories';
+  return (
+    <div>
+      <Flex justifyContent="space-between" alignItems="center">
+        <Text typography="h4">
+          {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
+        </Text>
+      </Flex>
+      <hr></hr>
+    </div>
   );
 }
 
@@ -141,7 +157,6 @@ const Container = styled.div`
   width: 370px;
 `;
 
-
-const PurpleText = styled.div`
-  color: ${p => p.theme.colors.brand};
+const PurpleText = styled.div<{ $purple: boolean }>`
+  color: ${p => (p.$purple ? p.theme.colors.brand : 'inherit')};
 `;

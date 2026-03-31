@@ -27,7 +27,7 @@ import {
 
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAsync';
-import { ClipboardData, TdpClient } from 'shared/libs/tdp';
+import { ClientScreenSpec, ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
 
 declare global {
@@ -51,9 +51,6 @@ export default function useDesktopSession(
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const [directorySharingState, setDirectorySharingState] = useState<{
-    removalSupported: boolean;
-  }>({ removalSupported: false });
 
   const [clipboardSharingState, setClipboardSharingState] = useState<{
     readState?: PermissionState;
@@ -135,9 +132,20 @@ export default function useDesktopSession(
     }
   }
 
+  const connect = (
+    options: {
+      keyboardLayout?: number;
+      screenSpec?: ClientScreenSpec;
+    } = {}
+  ) => {
+    // The client clears any tracked shared directories on each connect.
+    setSharedDirectoriesState([]);
+    return tdpClient.connect(options);
+  };
+
   const addSharedDirectory = async () => {
     try {
-      const [id, name] = await tdpClient.shareDirectory();
+      await tdpClient.shareDirectory();
       setSharedDirectoriesState(
         tdpClient.listSharedDirectories().map(entry => {
           return {
@@ -189,6 +197,7 @@ export default function useDesktopSession(
     alerts,
     onRemoveAlert,
     addAlert,
+    connect,
   };
 }
 

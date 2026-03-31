@@ -108,6 +108,7 @@ export function DesktopSession({
     alerts,
     onRemoveAlert,
     addAlert,
+    connect,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
 
   const [tdpConnectionStatus, setTdpConnectionStatus] =
@@ -245,10 +246,12 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect({
+    
+    connect({
       keyboardLayout,
       screenSpec: canvasRendererRef.current.getSize(),
-    });
+    })
+    
     return () => {
       client.shutdown();
     };

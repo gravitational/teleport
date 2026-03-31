@@ -286,8 +286,6 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     this.logger.info('Transport is closed');
 
-    //this.sharedDirectory = undefined;
-    this.directoryManager.reset();
     this.transport = undefined;
   }
 
