@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.2"
+const Version = "18.7.0-dev.gzdunek.1"
 
 const VersionMajor = 18
 const VersionMinor = 7
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionPatch = 0
+const VersionPreRelease = "dev.gzdunek.1"
 const VersionMetadata = ""
