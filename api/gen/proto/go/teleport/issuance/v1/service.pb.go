@@ -157,15 +157,7 @@ type Certs struct {
 	// SSH certificate marshaled in the authorized key format.
 	Ssh []byte `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// TLS X.509 certificate (PEM-encoded).
-	Tls []byte `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
-	// List of TLS Certificate Authorities - marshalled in unknown format.
-	// TODO: Explicitly state what CA this will be is for? host?
-	// OR - perhaps send actual CA resource.
-	TlsCaCerts [][]byte `protobuf:"bytes,3,rep,name=tls_ca_certs,json=tlsCaCerts,proto3" json:"tls_ca_certs,omitempty"`
-	// List of SSH Certificate Authorities - marshalled in unknown format.
-	// TODO: Explicitly state what CA this will be is for? host?
-	// OR - perhaps send actual CA resource?
-	SshCaCerts    [][]byte `protobuf:"bytes,4,rep,name=ssh_ca_certs,json=sshCaCerts,proto3" json:"ssh_ca_certs,omitempty"`
+	Tls           []byte `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -214,20 +206,6 @@ func (x *Certs) GetTls() []byte {
 	return nil
 }
 
-func (x *Certs) GetTlsCaCerts() [][]byte {
-	if x != nil {
-		return x.TlsCaCerts
-	}
-	return nil
-}
-
-func (x *Certs) GetSshCaCerts() [][]byte {
-	if x != nil {
-		return x.SshCaCerts
-	}
-	return nil
-}
-
 var File_teleport_issuance_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_issuance_v1_service_proto_rawDesc = "" +
@@ -238,14 +216,10 @@ const file_teleport_issuance_v1_service_proto_rawDesc = "" +
 	"\x0etls_public_key\x18\x02 \x01(\fR\ftlsPublicKey\x12+\n" +
 	"\x03ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\"P\n" +
 	"\x1bIssueScopedBotCertsResponse\x121\n" +
-	"\x05certs\x18\x01 \x01(\v2\x1b.teleport.issuance.v1.CertsR\x05certs\"o\n" +
+	"\x05certs\x18\x01 \x01(\v2\x1b.teleport.issuance.v1.CertsR\x05certs\"+\n" +
 	"\x05Certs\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
-	"\x03tls\x18\x02 \x01(\fR\x03tls\x12 \n" +
-	"\ftls_ca_certs\x18\x03 \x03(\fR\n" +
-	"tlsCaCerts\x12 \n" +
-	"\fssh_ca_certs\x18\x04 \x03(\fR\n" +
-	"sshCaCerts2\x8d\x01\n" +
+	"\x03tls\x18\x02 \x01(\fR\x03tls2\x8d\x01\n" +
 	"\x0fIssuanceService\x12z\n" +
 	"\x13IssueScopedBotCerts\x120.teleport.issuance.v1.IssueScopedBotCertsRequest\x1a1.teleport.issuance.v1.IssueScopedBotCertsResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1;issuancev1b\x06proto3"
 

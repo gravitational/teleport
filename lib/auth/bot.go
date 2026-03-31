@@ -590,8 +590,8 @@ func (a *Server) generateInitialBotCerts(
 	// - We only want to allow scoped cert generation if ScopeJoinToken is used
 	// and the token scope follows the bot scoping rules - see RFD
 	scope, _ := userState.GetLabel(types.BotScopeLabel)
-	// accessCheckerForScope works fine if scope is empty.
-	scopeAwareChecker, err := a.accessCheckerForScope(ctx, scope, userState, []types.ResourceAccessID{})
+	// AccessCheckerForScope works fine if scope is empty.
+	scopeAwareChecker, err := a.AccessCheckerForScope(ctx, scope, userState, []types.ResourceAccessID{})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -662,7 +662,7 @@ func (a *Server) generateInitialBotCerts(
 		}
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

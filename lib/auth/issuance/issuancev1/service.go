@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	v1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
@@ -14,22 +15,26 @@ import (
 )
 
 type authServer interface {
+	AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error)
+	GenerateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error)
 }
 
-type Cache interface {
+type cache interface {
 	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
 }
 
 type Service struct {
 	v1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
-	cache            Cache
+	cache            cache
+	authServer       authServer
 }
 
 // ServiceConfig is the config for instantiating a Service
 type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
-	Cache            Cache
+	Cache            cache
+	AuthServer       authServer
 }
 
 // NewService returns a new issuancev1 gRPC service.
@@ -39,6 +44,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Cache != nil:
 		return nil, trace.BadParameter("cache is required")
+	case cfg.AuthServer != nil:
+		return nil, trace.BadParameter("auth server is required")
 	}
 
 	return &Service{
@@ -72,11 +79,15 @@ func (s *Service) IssueScopedBotCerts(
 	currentIdentity := authCtx.Identity.GetIdentity()
 	switch {
 	case !currentIdentity.BotInternal:
-		return nil, trace.AccessDenied("bot identity is not an internal identity")
+		return nil, trace.AccessDenied(
+			"bot identity is not an internal identity",
+		)
 	case currentIdentity.DisallowReissue:
 		return nil, trace.AccessDenied("reissuance is prohibited")
 	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.Scope == "":
-		return nil, trace.AccessDenied("scope pin missing, rpc can only be invoked by scoped identities")
+		return nil, trace.AccessDenied(
+			"scope pin missing, rpc can only be invoked by scoped identities",
+		)
 	}
 
 	// Fetch Bot User to ensure it still exists and is coherent to the current
@@ -108,9 +119,19 @@ func (s *Service) IssueScopedBotCerts(
 	// Sanity check that the scope is also descendent or equiv to the bot's scope
 	rel := scopes.Compare(botScope, requestedScope)
 	if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
-		return nil, trace.AccessDenied("requested scope %q is not descendent or equivalent to bot's scope %q", requestedScope, botScope)
+		return nil, trace.AccessDenied(
+			"requested scope %q is not descendent or equivalent to bot's scope %q",
+			requestedScope,
+			botScope,
+		)
 	}
 
+	checker, err := s.authServer.AccessCheckerForScope(
+		ctx, requestedScope, user, []types.ResourceAccessID{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "build access checker")
+	}
 	accessInfo := services.AccessInfoFromUserState(user)
 	// As per RFD, today we do not support traits for scoped Bots. Explicitly
 	// prevent this in case user has been manually modified to add traits and
@@ -118,7 +139,8 @@ func (s *Service) IssueScopedBotCerts(
 	accessInfo.Traits = nil
 
 	certReq := cert.Request{
-		User: user,
+		User:           user,
+		CheckerContext: checker,
 		// TODO-CRITICAL(strideynet): Validate TTL.
 		TTL:          req.Ttl.AsDuration(),
 		SSHPublicKey: req.SshPublicKey,
@@ -137,4 +159,21 @@ func (s *Service) IssueScopedBotCerts(
 		BotInstanceID:  "",
 	}
 
+	// nb(strideynet): One day, we'll want to pull more of the logic around
+	// cert generation into this package rather than invoking this via the
+	// auth server struct.
+	certs, err := s.authServer.GenerateUserCert(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Notably, we do not return any CAs. The Bot already has an internal
+	// identity and the ability to fetch/watch CAs. Returning CAs here would
+	// create confusion around where to correctly source CAs.
+	return &v1pb.IssueScopedBotCertsResponse{
+		Certs: &v1pb.Certs{
+			Tls: certs.TLS,
+			Ssh: certs.SSH,
+		},
+	}, nil
 }

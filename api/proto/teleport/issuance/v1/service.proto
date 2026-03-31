@@ -59,12 +59,4 @@ message Certs {
   bytes ssh = 1;
   // TLS X.509 certificate (PEM-encoded).
   bytes tls = 2;
-  // List of TLS Certificate Authorities - marshalled in unknown format.
-  // TODO: Explicitly state what CA this will be is for? host?
-  // OR - perhaps send actual CA resource.
-  repeated bytes tls_ca_certs = 3;
-  // List of SSH Certificate Authorities - marshalled in unknown format.
-  // TODO: Explicitly state what CA this will be is for? host?
-  // OR - perhaps send actual CA resource?
-  repeated bytes ssh_ca_certs = 4;
 }

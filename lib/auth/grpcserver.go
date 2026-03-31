@@ -6636,7 +6636,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:            cfg.AuthServer.Cache,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "instantiating issuancev1 service")
 	}
 	issuancev1pb.RegisterIssuanceServiceServer(server, issuanceSvc)
 

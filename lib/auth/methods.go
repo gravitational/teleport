@@ -62,7 +62,7 @@ const (
 // todo: on bot join, call this (or something like this) with scope determined
 // from bot, by this point, the scope passed in here should match both bot
 // and join token. nb: one day we will loosen this restriction for cross-scope.
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,7 +97,6 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	}
 
 	// populate the scope pin with the user's assigned scoped roles
-	// TODO: if bot, use PopulatePinnedAssignmentsForBot rather than for user.
 	if userState.IsBot() {
 		// todo: probably preferable we just bifurcate this function??
 		// and directly accept the Bot type rather than inferring this from
@@ -114,6 +113,7 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 			// impossible code path - IsBot is predicated on this label.
 			return nil, trace.BadParameter("bot without a name may not generate certs")
 		}
+		// TODO-CRITICAL: If bot, nuke traits as per RFD
 		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
 			ctx, botName, botScope, scopePin,
 		); err != nil {
@@ -198,7 +198,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -860,7 +860,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		certReq.TTL = time.Minute
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
