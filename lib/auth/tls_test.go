@@ -5090,7 +5090,6 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 	})
 }
 
-
 // TestEventsClusterConfig test cluster configuration
 func TestEventsClusterConfig(t *testing.T) {
 	t.Parallel()
