@@ -86,7 +86,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		return
 	}
 
-	if clusterMaintenanceConfigBefore == nil {
+	if clusterMaintenanceConfigBefore == nil || trace.IsNotFound(err) {
 		clusterMaintenanceConfigBefore = &apitypes.ClusterMaintenanceConfigV1{}
 	}
 	clusterMaintenanceConfig = clusterMaintenanceConfig.WithNonce(math.MaxUint64).(*apitypes.ClusterMaintenanceConfigV1)

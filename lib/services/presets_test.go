@@ -697,6 +697,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// Some of the new resources got introduced, but not all
 									types.KindBot,
@@ -747,6 +748,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// The resources that already got into the main rule are still present.
 									types.KindBot,

@@ -116,7 +116,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 
 	{{- if .GetCanReturnNil }}
 
-	if {{.VarName}}Before == nil {
+	if {{.VarName}}Before == nil || trace.IsNotFound(err) {
 		{{.VarName}}Before = &{{.ProtoPackage}}.{{.TypeName}}{}
 	}
 
