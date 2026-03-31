@@ -357,6 +357,12 @@ updates:
           - node-pty
           # Exclude type packages; they need to be updated together with the corresponding app deps.
           - '@types/*'
+          # Exclude teleterm dev deps that are really just regular deps that we don't want
+          # electron-builder to externalize (see https://github.com/gravitational/teleport/pull/65213).
+          - '@protobuf-ts/grpc-transport'
+          - '@xterm/*',
+          - events
+          - 'react-dnd*'
       ui:
         update-types:
           - 'minor'
