@@ -55,6 +55,7 @@ type ACLCommand struct {
 	usersList     *kingpin.CmdClause
 	reviewsCreate *kingpin.CmdClause
 	reviewsList   *kingpin.CmdClause
+	auditSummary  *kingpin.CmdClause
 
 	// Used for managing a particular access list.
 	accessListName string
@@ -71,10 +72,22 @@ type ACLCommand struct {
 	removeMembers string
 
 	// Some extra options that control output.
-	reviewOnly bool // lists only access lists due for review
+	reviewOnly  bool // lists only access lists due for review
+	summaryDays int  // number of days to look back for audit summary
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
+}
+
+// auditSummaryEntry holds a review combined with its access list title for display.
+type auditSummaryEntry struct {
+	AccessListName  string    `json:"access_list_name"`
+	Title           string    `json:"title"`
+	Description     string    `json:"description"`
+	ReviewTimestamp time.Time `json:"review_timestamp"`
+	Reviewers       []string  `json:"reviewers"`
+	RemovedMembers  []string  `json:"removed_members"`
+	Notes           string    `json:"notes"`
 }
 
 const (
@@ -122,6 +135,11 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 	c.reviewsList.Arg("access-list-name", "The access list name to fetch review history for.").Required().StringVar(&c.accessListName)
 	c.reviewsList.Flag("format", "Output format 'yaml', 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
+	audit := acl.Command("audit", "Audit access list reviews.")
+	c.auditSummary = audit.Command("summary", "Show a summary of access list reviews that occurred within the past N months.")
+	c.auditSummary.Flag("days", "Number of days to look back for reviews.").Default("30").IntVar(&c.summaryDays)
+	c.auditSummary.Flag("format", "Output format 'json' or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
+
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
@@ -145,6 +163,8 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncl
 		commandFunc = c.ReviewsCreate
 	case c.reviewsList.FullCommand():
 		commandFunc = c.ReviewsList
+	case c.auditSummary.FullCommand():
+		commandFunc = c.AuditSummary
 	default:
 		return false, nil
 	}
@@ -385,6 +405,86 @@ func (c *ACLCommand) displayAccessLists(accessLists ...*accesslist.AccessList) e
 
 	// technically unreachable since kingpin validates the EnumVar
 	return trace.BadParameter("invalid format %q", c.format)
+}
+
+// AuditSummary fetches all access list reviews from the past N months and displays a summary.
+func (c *ACLCommand) AuditSummary(ctx context.Context, client *authclient.Client) error {
+	cutoff := time.Now().AddDate(0, 0, -c.summaryDays)
+
+	accessLists, err := stream.Collect(clientutils.Resources(ctx, client.AccessListClient().ListAccessLists))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var filtered []*accesslist.Review
+	for _, al := range accessLists {
+		reviews, err := stream.Collect(clientutils.Resources(ctx,
+			func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+				return client.AccessListClient().ListAccessListReviews(ctx, al.GetName(), pageSize, pageToken)
+			}))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, r := range reviews {
+			if r.Spec.ReviewDate.After(cutoff) {
+				filtered = append(filtered, r)
+			}
+		}
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Spec.ReviewDate.After(filtered[j].Spec.ReviewDate)
+	})
+
+	// Build a name->title map from the already-fetched access lists.
+	titles := make(map[string]string, len(accessLists))
+	descriptions := make(map[string]string, len(accessLists))
+	for _, al := range accessLists {
+		titles[al.GetName()] = al.Spec.Title
+		descriptions[al.GetName()] = al.Spec.Description
+	}
+
+	entries := make([]auditSummaryEntry, 0, len(filtered))
+	for _, r := range filtered {
+		entries = append(entries, auditSummaryEntry{
+			AccessListName:  r.Spec.AccessList,
+			Title:           titles[r.Spec.AccessList],
+			Description:     descriptions[r.Spec.AccessList],
+			ReviewTimestamp: r.Spec.ReviewDate,
+			Reviewers:       r.Spec.Reviewers,
+			RemovedMembers:  r.Spec.Changes.RemovedMembers,
+			Notes:           r.Spec.Notes,
+		})
+	}
+
+	return trace.Wrap(c.displayAuditSummary(entries))
+}
+
+func (c *ACLCommand) displayAuditSummary(entries []auditSummaryEntry) error {
+	switch c.format {
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(c.Stdout, entries))
+	case teleport.Text:
+		if len(entries) == 0 {
+			fmt.Fprintln(c.Stdout, "No access list reviews found.")
+			return nil
+		}
+		table := asciitable.MakeTable([]string{"Access List", "Title", "Review Date", "Reviewers", "Removed Members", "Notes"})
+		for _, e := range entries {
+			table.AddRow([]string{
+				e.AccessListName,
+				e.Title,
+				e.ReviewTimestamp.Format(time.DateOnly),
+				strings.Join(e.Reviewers, ","),
+				strings.Join(e.RemovedMembers, ","),
+				e.Notes,
+			})
+		}
+		_, err := fmt.Fprintln(c.Stdout, table.AsBuffer().String())
+		return trace.Wrap(err)
+	default:
+		return trace.BadParameter("unsupported output format %q", c.format)
+	}
 }
 
 func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessList) error {
