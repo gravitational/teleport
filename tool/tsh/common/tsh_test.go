@@ -918,7 +918,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	require.True(t, hasAliceKey)
 
 	// Logging in with max, a scoped user, clears the agent
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -940,7 +940,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	}
 
 	// Logging in with max in a different scope clears the agent, and sets new certs for max
-	err = Run(context.Background(), []string{
+	err = Run(t.Context(), []string{
 		"login",
 		"--insecure",
 		"--debug",
@@ -954,7 +954,7 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, keysAfterMaxRescoped)
 
-	require.NotElementsMatch(t, keysAfterMax, keysAfterMaxRescoped)
+	require.NotContains(t, keysAfterMaxRescoped, keysAfterMax)
 }
 
 func TestRelogin(t *testing.T) {
