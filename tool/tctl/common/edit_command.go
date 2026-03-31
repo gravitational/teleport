@@ -153,11 +153,23 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	key := func(r services.UnknownResource) string {
-		return fmt.Sprintf("%s/%s", r.Kind, r.GetName())
+		return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.GetName())
 	}
 	originalResourcesMap := make(map[string][]byte)
 	for _, r := range originalResources {
 		originalResourcesMap[key(r)] = r.Raw
+	}
+	if len(originalResourcesMap) != len(originalResources) {
+		slog.DebugContext(ctx, "tctl edit clobbered resources on originalResourcesMap",
+			"ref", e.ref,
+			//nolint:sloglint // Log matching variable names.
+			"originalResourcesMap", len(originalResourcesMap),
+			"originalResources", len(originalResources),
+		)
+		return trace.BadParameter(
+			"tctl edit cannot handle multiple resources of kind %q, please specify a single resource to edit",
+			e.ref.Kind,
+		)
 	}
 
 	if err := e.runEditor(ctx, f.Name()); err != nil {
