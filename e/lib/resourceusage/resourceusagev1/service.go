@@ -18,6 +18,7 @@ import (
 // ServiceConfig contains parameters and dependencies for the resource usage Service.
 type ServiceConfig struct {
 	AuditLog            events.AuditLogger
+	Modules             modules.Modules
 	Authorizer          authz.Authorizer
 	Clock               clockwork.Clock
 	GetDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
@@ -30,6 +31,8 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("param AuditLog must be specified")
 	case c.Authorizer == nil:
 		return trace.BadParameter("param Authorizer must be specified")
+	case c.Modules == nil:
+		return trace.BadParameter("param Modules must be specified")
 	case c.GetDevicesUsageFunc == nil:
 		return trace.BadParameter("param GetDevicesUsageFunc must be specified")
 	}
@@ -45,6 +48,7 @@ type Service struct {
 
 	auditLog            events.AuditLogger
 	authorizer          authz.Authorizer
+	modules             modules.Modules
 	clock               clockwork.Clock
 	getDevicesUsageFunc func(ctx context.Context, f *modules.Features) (*resourceusagepb.DevicesUsage, error)
 }
@@ -58,6 +62,7 @@ func New(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		auditLog:            cfg.AuditLog,
 		authorizer:          cfg.Authorizer,
+		modules:             cfg.Modules,
 		clock:               cfg.Clock,
 		getDevicesUsageFunc: cfg.GetDevicesUsageFunc,
 	}, nil
@@ -69,7 +74,7 @@ func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequ
 		return nil, trace.Wrap(err)
 	}
 
-	f := modules.GetModules().Features()
+	f := s.modules.Features()
 	if !f.IsUsageBasedBilling {
 		return &resourceusagepb.GetUsageResponse{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,

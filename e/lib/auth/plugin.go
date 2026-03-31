@@ -422,6 +422,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
 		GetDevicesUsageFunc: deviceService.GetResourceDevicesUsage,
+		Modules:             modules.GetModules(),
 	}); err != nil {
 		return trace.Wrap(err)
 	}

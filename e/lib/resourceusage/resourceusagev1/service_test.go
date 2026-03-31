@@ -60,6 +60,7 @@ func (fakeChecker) CheckAccessToRule(context services.RuleContext, namespace str
 }
 
 func Test_GetUsage(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -68,6 +69,7 @@ func Test_GetUsage(t *testing.T) {
 			authorizer: &fakeAuthorizer{
 				authorize: false,
 			},
+			modules:  modulestest.EnterpriseModules(),
 			auditLog: nil, // not invoked in this case
 			clock:    clock,
 		}
@@ -81,6 +83,7 @@ func Test_GetUsage(t *testing.T) {
 			authorizer: &fakeAuthorizer{
 				authorize: true,
 			},
+			modules:  modulestest.EnterpriseModules(),
 			auditLog: nil, // not invoked in this case
 			clock:    clock,
 		}
@@ -128,12 +131,6 @@ func Test_GetUsage(t *testing.T) {
 
 		// Set features
 		const monthlyLimit = 42
-		features := modules.GetModules().Features()
-		features.IsUsageBasedBilling = true
-		features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Limit: monthlyLimit, Enabled: true}
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: features,
-		})
 
 		devicesUsage := &resourceusagepb.DevicesUsage{
 			DevicesUsageLimit: 10,
@@ -142,6 +139,16 @@ func Test_GetUsage(t *testing.T) {
 		svc := &Service{
 			authorizer: &fakeAuthorizer{
 				authorize: true,
+			},
+			modules: &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					IsUsageBasedBilling: true,
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.AccessRequests:         {Enabled: true, Limit: monthlyLimit},
+						entitlements.MobileDeviceManagement: {Enabled: true},
+					},
+				},
 			},
 			auditLog: al,
 			clock:    clock,
