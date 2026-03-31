@@ -58,16 +58,18 @@ type ServiceConfig struct {
 // NewService returns a new issuancev1 gRPC service.
 func NewService(cfg *ServiceConfig) (*Service, error) {
 	switch {
-	case cfg.ScopedAuthorizer != nil:
+	case cfg.ScopedAuthorizer == nil:
 		return nil, trace.BadParameter("scoped authorizer is required")
-	case cfg.Cache != nil:
+	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache is required")
-	case cfg.AuthServer != nil:
+	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("auth server is required")
 	}
 
 	return &Service{
 		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		authServer:       cfg.AuthServer,
 	}, nil
 }
 
@@ -96,6 +98,10 @@ func (s *Service) IssueScopedBotCerts(
 	// invoking the endpoint
 	currentIdentity := authCtx.Identity.GetIdentity()
 	switch {
+	case !currentIdentity.IsBot():
+		return nil, trace.BadParameter(
+			"IssueScopedBotCerts can only be invoked by bots",
+		)
 	case !currentIdentity.BotInternal:
 		return nil, trace.AccessDenied(
 			"bot identity is not an internal identity",

@@ -2868,6 +2868,7 @@ type GenerateUserTestCertsRequest struct {
 	KubernetesCluster        string
 	Usage                    []string
 	Scope                    string
+	BotInternal              bool
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2918,6 +2919,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
 		certReq.BotName = botName
 		certReq.BotInstanceID = uuid.NewString()
+		certReq.BotInternal = req.BotInternal
 	}
 
 	certs, err := a.GenerateUserCert(ctx, certReq)
