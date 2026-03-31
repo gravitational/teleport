@@ -61,7 +61,7 @@ type eksAuditLogFetcherRunner interface {
 // eksAuditLogWatcher is a watcher that waits for notifications on a channel
 // indicating what EKS clusters should have audit logs fetched, and reconciles
 // that against what is currently being fetched. Fetchers are started and
-// stopped in response to this reconcilliation.
+// stopped in response to this reconciliation.
 type eksAuditLogWatcher struct {
 	client             accessgraphv1alpha.AccessGraphServiceClient
 	log                *slog.Logger
@@ -109,39 +109,31 @@ type fetcherCompleted struct {
 // and starts/stops log fetchers as required to match the given list. It
 // completes when the given context is done.
 //
-// If any errors occur initializing the grpc stream, it is returned and the
-// main loop is not run.
+// If any errors occur initializing the grpc stream, the main loop continues to
+// run, but reconcile events on the auditLogClustersCh channel are ignored, but
+// drained. The error often is that Identity Activity Center is not enabled
+// in access graph. All errors are logged. This behavior means any callers
+// to Reconcile do not block as we are always receiving on the channel for
+// reconciliation.
+//
+// The main loop will terminate when ctx is done.
 func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	w.log.InfoContext(ctx, "EKS Audit Log Watcher started")
 	defer w.log.InfoContext(ctx, "EKS Audit Log Watcher completed")
 
-	stream, err := w.client.KubeAuditLogStream(ctx)
-	if err != nil {
-		w.log.ErrorContext(ctx, "Failed to get access graph service KubeAuditLogStream", "error", err)
-		return trace.Wrap(err)
-	}
-
-	config := &accessgraphv1alpha.KubeAuditLogConfig{}
-	if err := sendTAGKubeAuditLogConfig(ctx, stream, config); err != nil {
-		w.log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
-		return trace.Wrap(err)
-	}
-
-	config, err = receiveTAGKubeAuditLogConfig(ctx, stream)
-	if err != nil {
-		w.log.ErrorContext(ctx, "Failed to receive access graph config", "error", err)
-		return trace.Wrap(err)
-	}
-	w.log.InfoContext(ctx, "KubeAuditLogConfig received", "config", config)
+	stream := w.initializeStream(ctx)
 
 	// Loop waiting for EKS clusters we need to fetch audit logs for on
-	// s.awsKubeAuditLogClustersCh channel (from the resource syncer).
+	// w.auditLogClustersCh channel (from the resource syncer).
 	// Reconcile that list of clusters against what we know and start/stop
-	// any log fetchers necessary.
+	// any log fetchers necessary. Just drain channels if we don't have
+	// a connection/stream to access graph.
 	for {
 		select {
 		case clusters := <-w.auditLogClustersCh:
-			w.reconcile(ctx, clusters, stream)
+			if stream != nil {
+				w.reconcile(ctx, clusters, stream)
+			}
 		case completed := <-w.completedCh:
 			w.complete(ctx, completed)
 		case <-ctx.Done():
@@ -150,13 +142,36 @@ func (w *eksAuditLogWatcher) Run(ctx context.Context) error {
 	}
 }
 
-// Reconcile triggers a reconcilliation of currently running fetchers against
-// the given slice of clusters. The reconcilliation will stop any fetchers for
+func (w *eksAuditLogWatcher) initializeStream(ctx context.Context) accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient {
+	stream, err := w.client.KubeAuditLogStream(ctx)
+	if err != nil {
+		w.log.ErrorContext(ctx, "Failed to get access graph service KubeAuditLogStream", "error", err)
+		return nil
+	}
+
+	config := &accessgraphv1alpha.KubeAuditLogConfig{}
+	if err := sendTAGKubeAuditLogConfig(ctx, stream, config); err != nil {
+		w.log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+		return nil
+	}
+
+	config, err = receiveTAGKubeAuditLogConfig(ctx, stream)
+	if err != nil {
+		w.log.ErrorContext(ctx, "Failed to receive access graph config", "error", err)
+		return nil
+	}
+	w.log.InfoContext(ctx, "KubeAuditLogConfig received", "config", config)
+
+	return stream
+}
+
+// Reconcile triggers a reconciliation of currently running fetchers against
+// the given slice of clusters. The reconciliation will stop any fetchers for
 // clusters not in the slice and start any fetchers for clusters in the slice
 // that are not running.
 //
 // If the given context is done before the clusters can be sent to the
-// reconcilliation goroutine, the context's error will be returned.
+// reconciliation goroutine, the context's error will be returned.
 func (w *eksAuditLogWatcher) Reconcile(ctx context.Context, clusters []eksAuditLogCluster) error {
 	select {
 	case <-ctx.Done():

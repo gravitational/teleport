@@ -24,6 +24,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -133,6 +134,45 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 	})
 }
 
+func TestEKSAuditLogWatcher_ReconcileWhileDisabled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+
+		fetcherTracker := newFakeFetcherTracker()
+		clientStream := failingKubeAuditLogStream{
+			recvErr: trace.BadParameter("Identity activity center is not configured, cannot process Kube Audit Log stream"),
+		}
+		client := &fakeKubeAuditLogClient{clientStream: &clientStream}
+		watcher := newEKSAuditLogWatcher(client, slog.New(slog.DiscardHandler))
+		watcher.newFetcher = fetcherTracker.newFetcher
+		var err error
+		go func() { err = watcher.Run(ctx) }()
+
+		synctest.Wait()
+
+		// eksAuditLogWatcher should have sent a Config request. The fake
+		// client stream should have returned an error which disables the
+		// watcher, but leaves it draining the reconcile channel.
+
+		require.Len(t, clientStream.sentReqs, 1)
+		require.NotNil(t, clientStream.sentReqs[0].GetConfig())
+
+		// Send a single cluster1 to the watcher to reconcile
+		cluster1 := &accessgraphv1alpha.AWSEKSClusterV1{Arn: "test-arn"}
+		fetcher1 := &aws_sync.Fetcher{}
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}})
+		synctest.Wait()
+
+		// Verify that a fetcher not was created/started.
+		_, ok := fetcherTracker.fetchers["test-arn"]
+		require.False(t, ok, "eksAuditLogFetcher created when not enabled")
+
+		cancel()
+		synctest.Wait()
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
+
 // fakeFetcherTracker keeps track of the fetchers created by an
 // eksAuditLogWatcher. It has a newFetcher method that can plug into a watcher
 // so that real fetchers are not created, and returns a fake fetcher for
@@ -207,4 +247,27 @@ type fakeKubeAuditLogClient struct {
 // Implements KubeAuditLogStream grpc method on the client
 func (c *fakeKubeAuditLogClient) KubeAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (kalsClient, error) {
 	return c.clientStream, nil
+}
+
+// failingKubeAuditLogStream is a kalsClient stream for tests where we need to
+// simulate the server returning an error from the streaming function. This
+// cannot be done with GRPCTester.
+//
+// The only methods implemented are those required for the existing tests
+// (TestEKSAuditLogWatcher_ReconcileWhileDisabled). If the unit under test
+// changes or tests are expanded, other methods may be required to be
+// implemented. For now if those methods are called, it will panic.
+type failingKubeAuditLogStream struct {
+	grpc.ClientStream
+	sentReqs []*kalsRequest
+	recvErr  error
+}
+
+func (s *failingKubeAuditLogStream) Send(req *kalsRequest) error {
+	s.sentReqs = append(s.sentReqs, req)
+	return nil
+}
+
+func (s *failingKubeAuditLogStream) Recv() (*kalsResponse, error) {
+	return nil, s.recvErr
 }
