@@ -329,9 +329,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -349,9 +349,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"blue"},
@@ -369,9 +369,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/east",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/east"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -389,9 +389,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/prod/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -409,7 +409,7 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
 				},
 			},
@@ -423,9 +423,9 @@ func TestScopedRBAC(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"red"},
@@ -1238,9 +1238,9 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
@@ -1258,16 +1258,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "10m",
 				},
 			},
@@ -1281,16 +1279,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "1h",
 				},
 			},
@@ -1304,16 +1300,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "25m",
 				},
 			},
@@ -1327,16 +1321,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "22m",
 				},
 			},
@@ -1350,16 +1342,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "15m",
 				},
 			},
@@ -1373,16 +1363,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "team",
 							Values: []string{"blue"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "12m",
 				},
 			},
@@ -1396,16 +1384,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging/west",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"testuser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "16m",
 				},
 			},
@@ -1419,16 +1405,14 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/west"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"wronguser"},
-					NodeLabels: []*labelv1.Label{
+					Labels: []*labelv1.Label{
 						{
 							Name:   "env",
 							Values: []string{"test"},
 						},
 					},
-				},
-				Options: &scopedaccessv1.ScopedRoleOptions{
 					ClientIdleTimeout: "18m",
 				},
 			},

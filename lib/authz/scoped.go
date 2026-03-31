@@ -72,7 +72,7 @@ func ScopedContextFromUnscopedContext(authCtx *Context) *ScopedContext {
 	return &ScopedContext{
 		User:            authCtx.User,
 		Identity:        authCtx.Identity,
-		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(authCtx.Checker),
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(authCtx.Checker),
 		unscopedContext: authCtx,
 	}
 }
@@ -140,7 +140,7 @@ func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Aut
 	return &ScopedContext{
 		User:           user,
 		Identity:       u,
-		CheckerContext: services.NewScopedSplitAccessCheckerContext(checkerContext),
+		CheckerContext: checkerContext,
 	}, nil
 }
 
@@ -156,7 +156,7 @@ type ScopedContext struct {
 	// CheckerContext is the top-level access checker for the authenticated identity. This types serves a similar
 	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
 	// scoped decision model.
-	CheckerContext *services.SplitAccessCheckerContext
+	CheckerContext *services.ScopedAccessCheckerContext
 	// unscopedContext is the context derived from unscoped authorization, if available. This will be nil
 	// if the calling identity was scoped.
 	unscopedContext *Context

@@ -303,7 +303,7 @@ func (a *Server) newWebSession(
 		TTL:            sessionTTL,
 		SSHPublicKey:   sshAuthorizedKey,
 		TLSPublicKey:   tlsPublicKeyPEM,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
 	}
@@ -592,7 +592,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		User:           user,
 		LoginIP:        req.LoginIP,
 		TLSPublicKey:   tlsPublicKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
 		TTL:            req.SessionTTL,
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
