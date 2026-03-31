@@ -72,11 +72,7 @@ func (l *Limiter) GetNumConnection(token string) (int64, error) {
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
-	return l.rateLimiter.RegisterRequest(token, nil)
-}
-
-func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
-	return l.rateLimiter.RegisterRequest(token, customRate)
+	return l.rateLimiter.RegisterRequest(token)
 }
 
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {

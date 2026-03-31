@@ -19,7 +19,6 @@
 package limiter
 
 import (
-	"cmp"
 	"context"
 	"net"
 	"net/http"
@@ -77,14 +76,16 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
-		// The default TTL here is not super important because we set
-		// the TTL explicitly for each entry we insert.
-		TTL:   10 * time.Second,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if limiter.rates.Len() > 0 {
+		limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
+			// The default TTL here is not super important because we set
+			// the TTL explicitly for each entry we insert.
+			TTL:   10 * time.Second,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &limiter, nil
@@ -93,6 +94,8 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 // IsRateLimited checks if the provided token is currently
 // rate-limited without consuming any tokens.
 func (l *RateLimiter) IsRateLimited(token string) bool {
+	// No rates configured means no buckets can exist, so skip the
+	// lock entirely.
 	if l.rates.Len() == 0 {
 		return false
 	}
@@ -110,14 +113,11 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 }
 
 // RegisterRequest increases number of requests for the provided token.
-// If neither the default rates nor a custom rate are configured, the
-// request passes through without any limiting.
-func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
-	// cmp.Or returns the first non-zero value. A non-nil RateSet
-	// with zero entries is still selected over l.rates, which is
-	// fine because Len() == 0 catches that case below.
-	rate := cmp.Or(customRate, l.rates)
-	if rate.Len() == 0 {
+// It returns an error if there are too many requests with the provided
+// token. If no rates are configured, the request passes through
+// without any limiting.
+func (l *RateLimiter) RegisterRequest(token string) error {
+	if l.rates.Len() == 0 {
 		return nil
 	}
 
@@ -126,17 +126,17 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
-	ttl := rate.MaxPeriod()*10 + 1
+	ttl := l.rates.MaxPeriod()*10 + 1
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
-			return ratelimit.NewTokenBucketSet(rate, l.clock), nil
+			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	bucketSet.Update(rate)
+	bucketSet.Update(l.rates)
 
 	delay, err := bucketSet.Consume(1)
 	if err != nil {
@@ -157,7 +157,7 @@ func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return l.RegisterRequest(token, nil)
+	return l.RegisterRequest(token)
 }
 
 // WrapHandle wraps the given HTTP handler with the rate limiter.

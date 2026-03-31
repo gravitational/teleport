@@ -71,9 +71,9 @@ func New(config TokenLimiterConfig) (*TokenLimiter, error) {
 		log: slog.With(teleport.ComponentKey, "ratelimiter"),
 	}
 
-	// Skip FnCache creation when no rates are configured. FnCache
-	// spawns a background goroutine for cleanup, and the noop path
-	// in ServeHTTP never touches bucketSets.
+	// Skip FnCache creation when no rates are configured. Creating
+	// an FnCache allocates an internal map and a context that the
+	// noop path in ServeHTTP never uses.
 	if config.Rates.Len() > 0 {
 		bucketSets, err := utils.NewFnCache(utils.FnCacheConfig{
 			// The default TTL only drives the cleanup sweep interval

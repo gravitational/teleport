@@ -5319,7 +5319,7 @@ func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limite
 		result, err := fn(w, r, p)
 		if err != nil {
 			if shouldLimit(err) {
-				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+				if err := limiter.RegisterRequest(remoteAddr); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -5381,7 +5381,7 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(limiter.RegisterRequest(remote, nil))
+	return trace.Wrap(limiter.RegisterRequest(remote))
 }
 
 func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*SessionContext, error) {

@@ -34,7 +34,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
-	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -422,28 +421,6 @@ func TestNoRates_Middleware(t *testing.T) {
 	}
 }
 
-func TestNoRates_CustomRateStillApplied(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-	limiter, err := NewLimiter(Config{Clock: clock})
-	require.NoError(t, err)
-
-	customRate := ratelimit.NewRateSet()
-	err = customRate.Add(time.Minute, 1, 2)
-	require.NoError(t, err)
-
-	// Default rate path should be a noop (no rates configured).
-	for range 100 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
-	}
-
-	// Custom rate should still be enforced even without default rates.
-	require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
-	require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
-	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
-}
-
 func TestNoRates_IsRateLimited(t *testing.T) {
 	t.Parallel()
 
@@ -456,7 +433,7 @@ func TestNoRates_IsRateLimited(t *testing.T) {
 	// RegisterRequest is a no-op, so even after many calls the token
 	// should not appear rate-limited.
 	for range 100 {
-		require.NoError(t, limiter.RegisterRequest("token1", nil))
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.False(t, limiter.IsRateLimited("token1"))
 }
@@ -580,19 +557,19 @@ func TestRateLimiter_IsRateLimited(t *testing.T) {
 
 	// Consume some tokens but not all
 	for range 5 {
-		require.NoError(t, limiter.RegisterRequest("token1", nil))
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the rest of the tokens
 	for range 4 {
-		require.NoError(t, limiter.RegisterRequest("token1", nil))
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the last token
-	require.NoError(t, limiter.RegisterRequest("token1", nil))
+	require.NoError(t, limiter.RegisterRequest("token1"))
 	// Now token1 should be rate limited
 	require.True(t, limiter.IsRateLimited("token1"))
 	// token2 should not be rate limited
