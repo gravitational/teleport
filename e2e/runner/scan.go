@@ -19,6 +19,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -171,11 +172,16 @@ func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error)
 			}
 		}
 
+		before := len(targets)
 		for _, spec := range allSpecs {
 			rel, _ := filepath.Rel(e2eDir, spec)
 			if strings.Contains(rel, tf) {
 				targets = append(targets, scanTarget{path: spec})
 			}
+		}
+
+		if len(targets) == before {
+			return nil, fmt.Errorf("test path %q did not resolve to any spec files", tf)
 		}
 	}
 
