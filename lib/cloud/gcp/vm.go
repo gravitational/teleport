@@ -43,6 +43,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -566,10 +567,12 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := &ssh.ClientConfig{
+	config := apissh.ClientConfig{
 		User: sshUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback: callback,
 	}

@@ -85,7 +85,7 @@ func (g *gcpAlloyDBAdminClient) GenerateClientCertificate(ctx context.Context, i
   %v
 
 Make sure Teleport database agent's IAM user has the 'alloydb.clusters.generateClientCertificate' permission.
-Create a custom role with this permission or use the predefined 'Cloud AlloyDB Database User' role.  
+Create a custom role with this permission or use the predefined 'Cloud AlloyDB Database User' role.
 
 Note that IAM changes may take a few minutes to propagate.`, err)
 		}
@@ -111,11 +111,11 @@ func (g *gcpAlloyDBAdminClient) GetEndpointAddress(ctx context.Context, info gcp
 		// Cloud AlloyDB Client is the least-privileged role with alloydb.clusters.generateClientCertificate permission.
 		if strings.Contains(err.Error(), "Permission 'alloydb.instances.connect' denied") {
 			return "", trace.AccessDenied(`Could not generate client certificate:
-		
+
   %v
 
 Make sure Teleport database agent's IAM user has the 'alloydb.instances.connect' permission.
-Create a custom role with this permission or use the predefined 'Cloud AlloyDB Database User' role.  
+Create a custom role with this permission or use the predefined 'Cloud AlloyDB Database User' role.
 
 Note that IAM changes may take a few minutes to propagate.`, err)
 		}

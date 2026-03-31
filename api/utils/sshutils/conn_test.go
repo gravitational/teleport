@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	apissh "github.com/gravitational/teleport/api/ssh"
 )
 
 type server struct {
@@ -73,8 +74,13 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := ssh.NewClientConn(conn, "", &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
+	sconn, nc, r, err := apissh.NewClientConnWithTimeout(t.Context(), conn, "", apissh.ClientConfig{
+		User: "teleport-test",
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{s.cSigner}, nil
+			},
+		},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	})
 	require.NoError(t, err)

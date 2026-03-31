@@ -491,6 +491,14 @@ linters:
           - forbidigo
         path: ^api/observability/tracing/ssh/
         text: ssh.NewClientConn
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientConnWithTimeout
 
       # Only the api/ssh package is allowed to call the api/observability/tracing/ssh package directly. All others must use the api/ssh package.
       - linters:
