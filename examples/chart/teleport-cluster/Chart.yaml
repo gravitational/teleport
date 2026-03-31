@@ -1,4 +1,4 @@
-.version: &version "18.7.2-dev.disceks.3"
+.version: &version "18.7.4-dev.disceks.1"
 
 name: teleport-cluster
 apiVersion: v2
