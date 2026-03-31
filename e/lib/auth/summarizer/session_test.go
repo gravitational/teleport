@@ -89,9 +89,123 @@ func TestAnalyseSessionCommands_ErrorFromProvider(t *testing.T) {
 
 	details := createSessionDetails("test-session-error")
 	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
-	require.ErrorContains(t, err, "command analysis error")
-	require.Nil(t, sessionAnalysis)
-	require.Nil(t, commandAnalyses)
+	require.NoError(t, err)
+
+	require.NotNil(t, sessionAnalysis)
+	require.True(t, sessionAnalysis.CommandAnalysisFailed)
+
+	require.Len(t, commandAnalyses, 1)
+	require.Equal(t, "error command", commandAnalyses[0].Command)
+	require.Contains(t, commandAnalyses[0].ShortDescription, "Command analysis failed")
+	require.Equal(t, "high", commandAnalyses[0].RiskLevel)
+}
+
+func TestAnalyseSessionCommands_PartialFailure(t *testing.T) {
+	ctx := t.Context()
+
+	commands := make(chan ttyterminal.Command, 3)
+	commands <- &mockCommand{[]string{"ls -la"}}
+	commands <- &mockCommand{[]string{"error command"}}
+	commands <- &mockCommand{[]string{"exit"}}
+	close(commands)
+
+	var provider mockSessionInferenceProvider
+
+	pool := newWorkerPool(5)
+
+	details := createSessionDetails("test-session-partial-failure")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	require.NoError(t, err)
+
+	require.NotNil(t, sessionAnalysis)
+	require.True(t, sessionAnalysis.CommandAnalysisFailed)
+
+	require.Len(t, commandAnalyses, 3)
+
+	// First command succeeded
+	require.Equal(t, "ls -la", commandAnalyses[0].Command)
+	require.Equal(t, "Command executed", commandAnalyses[0].ShortDescription)
+
+	// Second command failed gracefully
+	require.Equal(t, "error command", commandAnalyses[1].Command)
+	require.Contains(t, commandAnalyses[1].ShortDescription, "Command analysis failed")
+	require.Equal(t, "high", commandAnalyses[1].RiskLevel)
+	require.Equal(t, "other", commandAnalyses[1].Category)
+	require.Equal(t, "command analysis error", commandAnalyses[1].InferenceErrorMessage)
+
+	// Third command succeeded
+	require.Equal(t, "exit", commandAnalyses[2].Command)
+	require.Equal(t, "Command executed", commandAnalyses[2].ShortDescription)
+}
+
+func TestAnalyseSessionCommands_FailedCommandBumpsRiskToMedium(t *testing.T) {
+	ctx := t.Context()
+
+	commands := make(chan ttyterminal.Command, 1)
+	commands <- &mockCommand{[]string{"error command"}}
+	close(commands)
+
+	var provider mockSessionInferenceProvider
+
+	pool := newWorkerPool(5)
+
+	details := createSessionDetails("test-session-risk-bump")
+	sessionAnalysis, _, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	require.NoError(t, err)
+
+	require.NotNil(t, sessionAnalysis)
+	require.True(t, sessionAnalysis.CommandAnalysisFailed)
+
+	// The LLM returned "low" for the session synthesis, but it should be bumped to at least "medium" because
+	// a command failed to be analyzed.
+	require.Equal(t, "medium", sessionAnalysis.RiskLevel)
+}
+
+func TestAnalyseSessionCommands_FailedCommandKeepsHigherRisk(t *testing.T) {
+	ctx := t.Context()
+
+	commands := make(chan ttyterminal.Command, 1)
+	commands <- &mockCommand{[]string{"error command"}}
+	close(commands)
+
+	provider := &mockSessionProviderWithRisk{sessionRiskLevel: "high", sessionRiskScore: 75}
+
+	pool := newWorkerPool(5)
+
+	details := createSessionDetails("test-session-risk-keep-high")
+	sessionAnalysis, _, err := analyzeSessionCommands(ctx, provider, pool, commands, details)
+	require.NoError(t, err)
+
+	require.NotNil(t, sessionAnalysis)
+	require.True(t, sessionAnalysis.CommandAnalysisFailed)
+
+	// The LLM returned "high" which is above "medium", so it should stay.
+	require.Equal(t, "high", sessionAnalysis.RiskLevel)
+}
+
+func TestAnalyseSessionCommands_PartialFailureBumpsRiskToMedium(t *testing.T) {
+	ctx := t.Context()
+
+	commands := make(chan ttyterminal.Command, 2)
+	commands <- &mockCommand{[]string{"ls -la"}}
+	commands <- &mockCommand{[]string{"error command"}}
+	close(commands)
+
+	var provider mockSessionInferenceProvider
+
+	pool := newWorkerPool(5)
+
+	details := createSessionDetails("test-session-partial-risk-bump")
+	sessionAnalysis, commandAnalyses, err := analyzeSessionCommands(ctx, &provider, pool, commands, details)
+	require.NoError(t, err)
+
+	require.NotNil(t, sessionAnalysis)
+	require.True(t, sessionAnalysis.CommandAnalysisFailed)
+	require.Len(t, commandAnalyses, 2)
+
+	// The LLM returned "low" for the session synthesis, but it should be bumped to at least "medium" because a
+	// command failed to analyze.
+	require.Equal(t, "medium", sessionAnalysis.RiskLevel)
 }
 
 func TestSummarizeChunksInParallel(t *testing.T) {
@@ -220,6 +334,26 @@ func TestSynthesizeChunkSummaries(t *testing.T) {
 	require.Equal(t, "Final synthesis", result.ShortDescription)
 }
 
+// mockSessionProviderWithRisk embeds the base mock but overrides the session
+// synthesis to return a configurable risk level.
+type mockSessionProviderWithRisk struct {
+	mockSessionInferenceProvider
+	sessionRiskLevel string
+	sessionRiskScore int
+}
+
+func (m *mockSessionProviderWithRisk) SummarizeMultipleCommands(
+	_ context.Context,
+	_ session.ID,
+	_, _, _ string,
+) (*schema.SessionAnalysis, error) {
+	return &schema.SessionAnalysis{
+		ShortDescription: "Session analysis",
+		RiskLevel:        m.sessionRiskLevel,
+		RiskScore:        m.sessionRiskScore,
+	}, nil
+}
+
 type mockSessionInferenceProvider struct{}
 
 func (m *mockSessionInferenceProvider) SummarizeCommand(
@@ -229,16 +363,16 @@ func (m *mockSessionInferenceProvider) SummarizeCommand(
 	loginName,
 	prompt string,
 ) (*schema.CommandAnalysis, error) {
-	if strings.Contains(prompt, "error command") {
+	if strings.HasSuffix(prompt, "error command") {
 		return nil, errors.New("command analysis error")
 	}
 
 	cmd := "unknown"
-	if strings.Contains(prompt, "ls -la") {
+	if strings.HasSuffix(prompt, "ls -la") {
 		cmd = "ls -la"
-	} else if strings.Contains(prompt, "cat /etc/passwd") {
+	} else if strings.HasSuffix(prompt, "cat /etc/passwd") {
 		cmd = "cat /etc/passwd"
-	} else if strings.Contains(prompt, "exit") {
+	} else if strings.HasSuffix(prompt, "exit") {
 		cmd = "exit"
 	}
 

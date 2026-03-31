@@ -79,28 +79,29 @@ func commandAnalysisToProto(cmd *CommandAnalysis) *summarizerv1pb.CommandAnalysi
 	}
 
 	return &summarizerv1pb.CommandAnalysis{
-		Command:             cmd.Command,
-		Category:            commandCategoryToProto(cmd.Category),
-		Success:             cmd.Success,
-		RiskLevel:           riskLevelToProto(cmd.RiskLevel),
-		RiskScore:           int32(cmd.RiskScore),
-		ThreatCategory:      threatCategoryToProto(cmd.ThreatCategory),
-		TimelineTitle:       cmd.TimelineTitle,
-		TimelineSubtitle:    cmd.TimelineSubtitle,
-		ShortDescription:    cmd.ShortDescription,
-		DetailedDescription: cmd.Description,
-		ErrorMessages:       cmd.ErrorMessages,
-		SuspiciousFlags:     cmd.SuspiciousFlags,
-		SensitiveItems:      cmd.SensitiveItems,
-		SuspiciousPatterns:  cmd.SuspiciousPatterns,
-		Iocs:                cmd.IOCs,
-		MitreAttackIds:      cmd.MitreAttackIDs,
-		HasSensitiveData:    cmd.HasSensitiveData,
-		PrivilegeEscalation: cmd.PrivilegeEscalation,
-		DataExfiltration:    cmd.DataExfiltration,
-		Persistence:         cmd.Persistence,
-		StartOffset:         durationpb.New(cmd.StartOffset),
-		EndOffset:           durationpb.New(cmd.EndOffset),
+		Command:               cmd.Command,
+		Category:              commandCategoryToProto(cmd.Category),
+		Success:               cmd.Success,
+		RiskLevel:             riskLevelToProto(cmd.RiskLevel),
+		RiskScore:             int32(cmd.RiskScore),
+		ThreatCategory:        threatCategoryToProto(cmd.ThreatCategory),
+		TimelineTitle:         cmd.TimelineTitle,
+		TimelineSubtitle:      cmd.TimelineSubtitle,
+		ShortDescription:      cmd.ShortDescription,
+		DetailedDescription:   cmd.Description,
+		ErrorMessages:         cmd.ErrorMessages,
+		SuspiciousFlags:       cmd.SuspiciousFlags,
+		SensitiveItems:        cmd.SensitiveItems,
+		SuspiciousPatterns:    cmd.SuspiciousPatterns,
+		Iocs:                  cmd.IOCs,
+		MitreAttackIds:        cmd.MitreAttackIDs,
+		HasSensitiveData:      cmd.HasSensitiveData,
+		PrivilegeEscalation:   cmd.PrivilegeEscalation,
+		DataExfiltration:      cmd.DataExfiltration,
+		Persistence:           cmd.Persistence,
+		StartOffset:           durationpb.New(cmd.StartOffset),
+		EndOffset:             durationpb.New(cmd.EndOffset),
+		InferenceErrorMessage: cmd.InferenceErrorMessage,
 	}
 }
 
@@ -142,6 +143,11 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 	if analysis.TooLarge {
 		tooLarge := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
 		es.NeedsFurtherReview = &tooLarge
+	}
+
+	if analysis.CommandAnalysisFailed && es.NeedsFurtherReview == nil {
+		failed := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED
+		es.NeedsFurtherReview = &failed
 	}
 
 	return es

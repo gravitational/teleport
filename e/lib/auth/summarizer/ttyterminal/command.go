@@ -30,6 +30,8 @@ type Command interface {
 	StartOffset() time.Duration
 	// EndOffset returns the end time of the command, relative to the start of the session.
 	EndOffset() time.Duration
+	// RawInput returns the raw input text of the command.
+	RawInput() string
 }
 
 // ReconstructedCommand represents the reconstructed terminal input and output
@@ -47,6 +49,18 @@ func (r *ReconstructedCommand) StartOffset() time.Duration {
 // EndOffset returns the end time of the command, relative to the start of the session.
 func (r *ReconstructedCommand) EndOffset() time.Duration {
 	return r.output.endTime
+}
+
+// RawInput returns the raw input text of the command by joining all input chunk lines.
+func (r *ReconstructedCommand) RawInput() string {
+	var sb strings.Builder
+	for _, chunk := range r.input.chunks {
+		for _, line := range chunk.lines {
+			sb.WriteString(line.content)
+			sb.WriteString("\n")
+		}
+	}
+	return strings.TrimSpace(sb.String())
 }
 
 // ChunkCount returns the number of output chunks for the command.

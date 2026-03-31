@@ -13,7 +13,8 @@ type SessionAnalysis struct {
 	RiskLevel string `json:"risk_level" jsonschema:"required,enum=none,enum=low,enum=medium,enum=high,enum=critical" jsonschema_description:"Context-aware risk level. Examples: canceled commands=none/low, /etc/hosts with 127.0.0.1 dev.local=low, hijacking google.com=high, known malware domains=critical. Assess actual activity not privilege level"`
 	RiskScore int    `json:"risk_score" jsonschema:"required" jsonschema_description:"Numeric risk score 0-100. Ranges: 0-20 benign, 20-40 low, 40-60 medium, 60-80 high, 80-100 critical"`
 
-	TooLarge bool `json:"too_large" jsonschema:"required" jsonschema_description:"Indicates if the session analysis could not be completed due to size constraints"`
+	TooLarge              bool
+	CommandAnalysisFailed bool
 }
 
 var SessionAnalysisSchema = generateSchema[SessionAnalysis]()

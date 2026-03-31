@@ -10,6 +10,7 @@ import {
 } from '@floating-ui/react';
 import { useState } from 'react';
 import styled from 'styled-components';
+import { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import { Button } from 'design/Button';
@@ -28,6 +29,8 @@ export function SessionDescription({
   shortDescription,
   detailedDescription,
 }: SessionDescriptionProps) {
+  const theme = useTheme();
+
   const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
@@ -95,7 +98,12 @@ export function SessionDescription({
           <StyledPopover
             shadow={true}
             ref={refs.setFloating}
-            style={{ ...floatingStyles, overflow: 'visible' }}
+            style={{
+              ...floatingStyles,
+              overflow: 'visible',
+              borderRadius: '12px',
+              border: `1px solid ${theme.colors.spotBackground[1]}`,
+            }}
             {...getFloatingProps()}
           >
             <Arrow

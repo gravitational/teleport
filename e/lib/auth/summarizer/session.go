@@ -72,9 +72,10 @@ func (s *sessionAnalyzer) analyzeCommands(
 	currentChunk := &commandChunk{}
 
 	promptHeaderTokens := tokenizer.CountTokens(chunkSynthesisPromptHeader(0))
-	promptFooterTokens := tokenizer.CountTokens(chunkSynthesisPromptFooter())
+	promptFooterTokens := tokenizer.CountTokens(chunkSynthesisPromptFooter(false))
 
 	var commandAnalyses []*schema.CommandAnalysis
+	var commandAnalysisFailed bool
 
 	trail := &contextTrail{}
 
@@ -86,7 +87,16 @@ func (s *sessionAnalyzer) analyzeCommands(
 
 		result, err := summarizeReconstructedCommand(ctx, s.sessionID, s.provider, s.pool, cmd, s.username, s.loginName, s.sessionMetadata, trailPrompt)
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "summarizing command %d", commandIndex)
+			result = &schema.CommandAnalysis{
+				Command:               cmd.RawInput(),
+				ShortDescription:      fmt.Sprintf("Command analysis failed: %v", err),
+				Description:           fmt.Sprintf("The inference provider failed to analyze this command: %v", err),
+				InferenceErrorMessage: err.Error(),
+				RiskLevel:             "high",
+				Category:              "other",
+				ThreatCategory:        "none",
+			}
+			commandAnalysisFailed = true
 		}
 
 		entry := &commandEntry{
@@ -129,6 +139,13 @@ func (s *sessionAnalyzer) analyzeCommands(
 			return nil, nil, trace.Wrap(err, "synthesizing single chunk")
 		}
 
+		if commandAnalysisFailed {
+			analysis.CommandAnalysisFailed = true
+			if !isHigherRisk(analysis.RiskLevel, "medium") {
+				analysis.RiskLevel = "medium"
+			}
+		}
+
 		return analysis, commandAnalyses, nil
 	}
 
@@ -139,6 +156,13 @@ func (s *sessionAnalyzer) analyzeCommands(
 		return nil, nil, trace.Wrap(err, "synthesizing chunk summaries")
 	}
 
+	if commandAnalysisFailed {
+		analysis.CommandAnalysisFailed = true
+		if !isHigherRisk(analysis.RiskLevel, "medium") {
+			analysis.RiskLevel = "medium"
+		}
+	}
+
 	return analysis, commandAnalyses, nil
 }
 
@@ -146,11 +170,15 @@ func (s *sessionAnalyzer) synthesizeChunkSummaries(
 	ctx context.Context,
 	chunkSummaries []*summarizedSessionResult,
 ) (*schema.SessionAnalysis, error) {
-	prompt := createFinalSynthesisPrompt(chunkSummaries)
+	prompt, truncated := createFinalSynthesisPrompt(chunkSummaries)
 
 	response, err := s.provider.SummarizeMultipleCommands(ctx, s.sessionID, s.username, s.loginName, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err, "synthesizing final summary")
+	}
+
+	if truncated {
+		response.TooLarge = true
 	}
 
 	return response, nil
@@ -171,8 +199,9 @@ func (s *sessionAnalyzer) synthesizeChunk(
 }
 
 type summarizedSessionResult struct {
-	analysis *schema.SessionAnalysis
-	error    error
+	analysis              *schema.SessionAnalysis
+	error                 error
+	commandAnalysisFailed bool
 }
 
 func (s *sessionAnalyzer) summarizeChunksInParallel(
@@ -192,9 +221,17 @@ func (s *sessionAnalyzer) summarizeChunksInParallel(
 			defer s.pool.release()
 
 			result, err := s.synthesizeChunk(ctx, chunk)
+			var failed bool
+			for _, entry := range chunk.entries {
+				if entry.analysis != nil && entry.analysis.InferenceErrorMessage != "" {
+					failed = true
+					break
+				}
+			}
 			results[i] = &summarizedSessionResult{
-				analysis: result,
-				error:    err,
+				analysis:              result,
+				error:                 err,
+				commandAnalysisFailed: failed,
 			}
 		})
 	}
@@ -208,6 +245,17 @@ func formatEntryForPrompt(index int, entry *commandEntry) string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "%d. Command: %s\n", index, entry.command)
+
+	if entry.analysis != nil && entry.analysis.InferenceErrorMessage != "" {
+		sb.WriteString("   Analysis Error: this command failed to be analyzed individually.")
+
+		fmt.Fprintf(&sb, "   Error: %s\n", entry.analysis.InferenceErrorMessage)
+
+		sb.WriteString("\n")
+
+		return sb.String()
+	}
+
 	fmt.Fprintf(&sb, "   Summary: %s\n", entry.shortDescription)
 
 	if entry.analysis != nil {
@@ -256,7 +304,7 @@ func chunkSynthesisPromptHeader(entryCount int) string {
 	return sb.String()
 }
 
-func chunkSynthesisPromptFooter() string {
+func chunkSynthesisPromptFooter(hasFailedAnalysis bool) string {
 	var sb strings.Builder
 
 	sb.WriteString("SYNTHESIS REQUIREMENTS:\n")
@@ -264,6 +312,9 @@ func chunkSynthesisPromptFooter() string {
 	sb.WriteString("2. Set the risk level to the highest risk detected across all commands\n")
 	sb.WriteString("3. Merge and deduplicate all suspicious flags, patterns, IOCs, and sensitive items\n")
 	sb.WriteString("4. Identify any patterns or attack chains across commands\n")
+	if hasFailedAnalysis {
+		sb.WriteString("5. Some commands failed to be analyzed individually due to inference errors. Note this in the short_description and session_description, indicating the analysis may be incomplete. Be more cautious when assessing the remaining commands — the failed commands may have been part of a larger pattern that is not fully visible\n")
+	}
 
 	return sb.String()
 }
@@ -273,16 +324,20 @@ func createChunkSynthesisPrompt(chunk *commandChunk) string {
 
 	sb.WriteString(chunkSynthesisPromptHeader(len(chunk.entries)))
 
+	var hasFailedAnalysis bool
 	for i, entry := range chunk.entries {
 		sb.WriteString(formatEntryForPrompt(i+1, entry))
+		if entry.analysis != nil && entry.analysis.InferenceErrorMessage != "" {
+			hasFailedAnalysis = true
+		}
 	}
 
-	sb.WriteString(chunkSynthesisPromptFooter())
+	sb.WriteString(chunkSynthesisPromptFooter(hasFailedAnalysis))
 
 	return sb.String()
 }
 
-func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
+func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) (string, bool) {
 	var sb strings.Builder
 
 	sb.WriteString("You are analyzing a terminal session that was split into multiple chunks. ")
@@ -294,6 +349,7 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 	var allSuspiciousActivities []string
 	var allSecurityIncidents []string
 	var anyCompromiseIndicators bool
+	var anyCommandAnalysisFailed bool
 	highestRiskLevel := "none"
 
 	summaryTokenCount := 0
@@ -316,6 +372,10 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 			anyCompromiseIndicators = true
 		}
 
+		if s.commandAnalysisFailed {
+			anyCommandAnalysisFailed = true
+		}
+
 		if isHigherRisk(summary.RiskLevel, highestRiskLevel) {
 			highestRiskLevel = summary.RiskLevel
 		}
@@ -324,7 +384,7 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 			continue
 		}
 
-		chunkText := formatChunkSummary(i+1, len(summaries), summary)
+		chunkText := formatChunkSummary(i+1, len(summaries), summary, s.commandAnalysisFailed)
 		chunkTokens := tokenizer.CountTokens(chunkText)
 
 		if summaryTokenCount+chunkTokens > maxFinalSynthesisTokens {
@@ -341,7 +401,6 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 	if truncated {
 		sb.WriteString("WARNING: This session exceeded analysis limits. ")
 		fmt.Fprintf(&sb, "Only %d of %d chunks are shown above. ", includedChunks, len(summaries))
-		sb.WriteString("Mark this session as too_large in your response.\n\n")
 	}
 
 	sb.WriteString("SYNTHESIS REQUIREMENTS:\n")
@@ -350,8 +409,13 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 	sb.WriteString("3. Set the risk level to the highest risk detected\n")
 	sb.WriteString("4. Merge and deduplicate all findings\n")
 	sb.WriteString("5. Identify any attack patterns or chains across the session\n")
+	requirementNum := 6
 	if truncated {
-		sb.WriteString("6. Set too_large to true since this session was truncated\n")
+		fmt.Fprintf(&sb, "%d. This session was too large and was truncated — not all chunks are shown. Be more cautious in your assessment as the full picture is not visible\n", requirementNum)
+		requirementNum++
+	}
+	if anyCommandAnalysisFailed {
+		fmt.Fprintf(&sb, "%d. Some commands failed to be analyzed individually due to inference errors. Note this in the short_description and session_description, indicating the analysis may be incomplete. Be more cautious when assessing the remaining commands — the failed commands may have been part of a larger pattern that is not fully visible\n", requirementNum)
 	}
 	sb.WriteString("\n")
 
@@ -369,10 +433,10 @@ func createFinalSynthesisPrompt(summaries []*summarizedSessionResult) string {
 		fmt.Fprintf(&sb, "- Highest Risk Level: %s\n", highestRiskLevel)
 	}
 
-	return sb.String()
+	return sb.String(), truncated
 }
 
-func formatChunkSummary(index, total int, summary *schema.SessionAnalysis) string {
+func formatChunkSummary(index, total int, summary *schema.SessionAnalysis, commandAnalysisFailed bool) string {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "Chunk %d/%d:\n", index, total)
@@ -380,6 +444,9 @@ func formatChunkSummary(index, total int, summary *schema.SessionAnalysis) strin
 	fmt.Fprintf(&sb, "- Risk Level: %s\n", summary.RiskLevel)
 	fmt.Fprintf(&sb, "- Risk Score: %d\n", summary.RiskScore)
 
+	if commandAnalysisFailed {
+		sb.WriteString("- Command Analysis Failed: some commands in this chunk could not be analyzed due to inference errors\n")
+	}
 	if len(summary.SuspiciousActivities) > 0 {
 		fmt.Fprintf(&sb, "- Suspicious Activities: %v\n", summary.SuspiciousActivities)
 	}

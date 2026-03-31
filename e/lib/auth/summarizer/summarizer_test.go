@@ -389,7 +389,7 @@ func (m fakeOpenAIClient) NewChatCompletion(
 }
 
 func (m fakeOpenAIClient) handleCommandAnalysis(content string) (*openai.ChatCompletion, error) {
-	if strings.Contains(content, "trigger enhanced error") {
+	if strings.Contains(content, "trigger enhanced error") || strings.Contains(content, "trigger command error") {
 		return nil, errors.New("enhanced command analysis error")
 	}
 
@@ -1045,9 +1045,20 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 
 			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, summary.State)
 			require.Equal(t, providerName+"-model", summary.ModelName)
-			require.Contains(t, summary.ErrorMessage, "enhanced command analysis error")
+			require.Contains(t, summary.ErrorMessage, "enhanced session analysis error")
 			require.Empty(t, summary.Content)
 			require.Nil(t, summary.EnhancedSummary)
+		})
+
+		t.Run(providerName+" command analysis failure is graceful", func(t *testing.T) {
+			summary := ingestEnhancedSession(t, providerName+"-cluster", "trigger command error")
+
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
+			require.Equal(t, providerName+"-model", summary.ModelName)
+			require.Empty(t, summary.ErrorMessage)
+			require.NotNil(t, summary.EnhancedSummary)
+			require.NotNil(t, summary.EnhancedSummary.NeedsFurtherReview)
+			require.Equal(t, summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED, *summary.EnhancedSummary.NeedsFurtherReview)
 		})
 	}
 }

@@ -66,7 +66,7 @@ export function SessionRecordingTimeline({
             position="absolute"
             top="12px"
             bottom="12px"
-            left="31px"
+            left="35px"
             width="2px"
             backgroundColor="spotBackground.2"
           />
@@ -112,7 +112,7 @@ function StartMarker({
         position="absolute"
         top="14px"
         bottom="-28px"
-        left="61px"
+        left="65px"
         width="2px"
         backgroundImage={`linear-gradient(to bottom, ${noneColor}, ${riskLevelColor})`}
         zIndex={1}
@@ -135,7 +135,7 @@ function StartEndMarker({
   const timestamp = typeof offset !== 'undefined' ? formatOffset(offset) : '';
 
   return (
-    <Flex alignItems="center" position="relative" zIndex={2}>
+    <Flex alignItems="center" position="relative" zIndex={2} gap={1}>
       <Flex
         fontFamily="mono"
         fontSize="11px"

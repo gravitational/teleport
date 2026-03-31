@@ -1,9 +1,35 @@
 import {
+  type CommandAnalysis,
   CommandCategory,
   ThreatCategory,
-  type CommandAnalysis,
 } from 'e-teleport/services/recordings/types';
 import { RiskLevel } from 'teleport/services/recordings';
+
+export const MOCK_FAILED_COMMAND: CommandAnalysis = {
+  command: 'whoami && id',
+  category: CommandCategory.Other,
+  success: false,
+  riskLevel: RiskLevel.Medium,
+  riskScore: 50,
+  threatCategory: ThreatCategory.Discovery,
+  timelineTitle: '',
+  shortDescription:
+    'Command analysis failed: temporary fake error for UI testing',
+  detailedDescription:
+    'The inference provider failed to analyze this command: temporary fake error for UI testing',
+  errorMessages: [],
+  suspiciousFlags: [],
+  sensitiveItems: [],
+  suspiciousPatterns: [],
+  indicatorOfCompromise: [],
+  hasSensitiveData: false,
+  privilegeEscalation: false,
+  dataExfiltration: false,
+  persistence: false,
+  startOffset: 1500,
+  endOffset: 2000,
+  inferenceErrorMessage: 'temporary fake error for UI testing',
+};
 
 export const MOCK_COMMANDS: CommandAnalysis[] = [
   {

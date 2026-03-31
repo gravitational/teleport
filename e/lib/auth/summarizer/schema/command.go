@@ -45,6 +45,8 @@ type CommandAnalysis struct {
 
 	StartOffset time.Duration
 	EndOffset   time.Duration
+
+	InferenceErrorMessage string
 }
 
 var CommandAnalysisSchema = generateSchema[CommandAnalysis]()

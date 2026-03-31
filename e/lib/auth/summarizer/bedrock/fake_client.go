@@ -272,7 +272,7 @@ func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutpu
 	}
 
 	// Check for error trigger in content.
-	if strings.Contains(content, "trigger enhanced error") {
+	if strings.Contains(content, "trigger enhanced error") || strings.Contains(content, "trigger command error") {
 		return nil, &smithy.OperationError{
 			ServiceID:     "Bedrock Runtime",
 			OperationName: "Converse",

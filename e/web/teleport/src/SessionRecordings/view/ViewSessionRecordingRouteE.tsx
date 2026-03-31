@@ -1,11 +1,9 @@
 import type { QueryObserverResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 import { Warning } from 'design/Icon';
-import Label from 'design/Label';
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
@@ -17,6 +15,7 @@ import {
   type SessionRecordingSummary,
 } from 'e-teleport/services/recordings/types';
 import { RiskLevel } from 'e-teleport/SessionRecordings/summary/RiskLevel';
+import { StyledBadge } from 'e-teleport/SessionRecordings/summary/TimelineItem';
 import {
   SessionRecordingEventType,
   type SessionRecordingRiskEvent,
@@ -162,16 +161,26 @@ function RecordingWithMetadataE({
           RiskLevelValue.Critical,
         ].includes(cmd.riskLevel)
       )
-      .map(
-        cmd =>
-          ({
+      .map(cmd => {
+        if (cmd.inferenceErrorMessage) {
+          return {
             type: SessionRecordingEventType.Risk,
-            description: cmd.timelineTitle,
+            description: 'Error analyzing command, review it further',
             riskLevel: cmd.riskLevel,
             startTime: cmd.startOffset,
             endTime: cmd.endOffset,
-          }) as SessionRecordingRiskEvent
-      );
+            isError: true,
+          } as SessionRecordingRiskEvent;
+        }
+
+        return {
+          type: SessionRecordingEventType.Risk,
+          description: cmd.timelineTitle,
+          riskLevel: cmd.riskLevel,
+          startTime: cmd.startOffset,
+          endTime: cmd.endOffset,
+        } as SessionRecordingRiskEvent;
+      });
 
     return [...(data.metadata?.events || []), ...riskyCommandEvents];
   }, [data.metadata, summary]);
@@ -213,7 +222,7 @@ function RecordingWithMetadataE({
                 <>
                   <InfoGridLabel>Risk Score</InfoGridLabel>
 
-                  <Flex alignItems="center">
+                  <Flex alignItems="center" flexWrap="wrap" gap={2}>
                     <RiskLevel riskLevel={summary.enhancedSummary.riskLevel} />
 
                     {summary.enhancedSummary.needsFurtherReview && (
@@ -222,10 +231,11 @@ function RecordingWithMetadataE({
                           summary.enhancedSummary.needsFurtherReview
                         )}
                       >
-                        <StyledLabel kind="secondary">
-                          <Warning size="small" />
-                          Needs further review
-                        </StyledLabel>
+                        <StyledBadge
+                          Icon={Warning}
+                          label="Needs further review"
+                          bordered
+                        />
                       </HoverTooltip>
                     )}
                   </Flex>
@@ -278,6 +288,8 @@ function getNeedsFurtherReviewTooltipContent(
   switch (needsFurtherReview) {
     case NeedsFurtherReview.TooLarge:
       return 'The recording was only partially analyzed due to its large size and needs further review.';
+    case NeedsFurtherReview.CommandAnalysisFailed:
+      return 'One or more commands in this recording could not be analyzed and the recording needs further review.';
     default:
       return 'This recording needs further review.';
   }
@@ -330,11 +342,3 @@ function RecordingWithSummaryE({
     </SessionRecordingGrid>
   );
 }
-
-const StyledLabel = styled(Label)`
-  display: inline-flex;
-  align-items: center;
-  gap: ${p => p.theme.space[1]}px;
-  text-transform: uppercase;
-  margin-left: ${p => p.theme.space[2]}px;
-`;

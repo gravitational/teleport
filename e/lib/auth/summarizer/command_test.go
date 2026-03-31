@@ -173,6 +173,13 @@ func (m *mockCommand) EndOffset() time.Duration {
 	return 0
 }
 
+func (m *mockCommand) RawInput() string {
+	if len(m.chunks) > 0 {
+		return m.chunks[0]
+	}
+	return ""
+}
+
 type mockInferenceProvider struct{}
 
 func (m *mockInferenceProvider) SummarizeCommand(
