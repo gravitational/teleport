@@ -2135,8 +2135,12 @@ func TestUnknownRequest(t *testing.T) {
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
-
-	_, err := apissh.Dial(t.Context(), "tcp", f.ssh.srv.Addr(), apissh.ClientConfig{})
+	config := &ssh.ClientConfig{ //nolint: forbidigo // Testing no auth methods.
+		User:            f.user,
+		Auth:            []ssh.AuthMethod{},
+		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+	}
+	_, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srv.Addr(), config) //nolint: forbidigo // Testing no auth methods.
 	require.Error(t, err)
 }
 
@@ -3020,11 +3024,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	)
 
 	defer pipeNetConn.Close()
-
-	// Open SSH connection via proxy subsystem's TCP tunnel
-	// conn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, pipeNetConn, f.ssh.srv.Addr(), f.SSHClientConfig())
-	// require.NoError(t, err)
-	// defer conn.Close()
 
 	// Run commands over this connection like regular SSH
 	client2, err := apissh.NewClientWithTimeout(t.Context(), pipeNetConn, f.ssh.srv.Addr(), f.SSHClientConfig())

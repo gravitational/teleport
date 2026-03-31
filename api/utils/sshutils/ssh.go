@@ -149,7 +149,6 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHos
 	}
 
 	cfg := apissh.ClientConfig{
-		User: "teleport-internal-proxy",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil

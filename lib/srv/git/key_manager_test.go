@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	apissh "github.com/gravitational/teleport/api/ssh"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -53,7 +54,10 @@ func TestKeyManager_verify_github(t *testing.T) {
 	// Prep mock servers and point things to them.
 	// If TELEPORT_GIT_TEST_REAL_GITHUB=true, use local SSH agent to connect
 	// against "github.com:22".
-	var targetAddress string
+	var (
+		targetAddress  string
+		signerCallback func() ([]ssh.Signer, error)
+	)
 	githubServerKeys := newGitHubKeyDownloader()
 	switch os.Getenv("TELEPORT_GIT_TEST_REAL_GITHUB") {
 	case "true", "1":
@@ -63,10 +67,15 @@ func TestKeyManager_verify_github(t *testing.T) {
 		sock, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 		require.NoError(t, err)
 		defer sock.Close()
+		agentClient := agent.NewClient(sock)
+		signerCallback = agentClient.Signers
 	default:
 		mockGitHubSSHServer := newMockGitHostingService(t, caSigner)
 		targetAddress = mockGitHubSSHServer.Addr()
 		githubServerKeys.apiEndpoint = newMockGitHubMetaAPIServer(t, mockGitHubSSHServer.hostKey).URL
+		signerCallback = func() ([]ssh.Signer, error) {
+			return []ssh.Signer{mockSigner{}}, nil
+		}
 	}
 
 	m, err := NewKeyManager(&KeyManagerConfig{
@@ -88,9 +97,7 @@ func TestKeyManager_verify_github(t *testing.T) {
 			conn, err := apissh.Dial(ctx, "tcp", targetAddress, apissh.ClientConfig{
 				User: "git",
 				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					Signers: func() ([]ssh.Signer, error) {
-						return []ssh.Signer{mockSigner{}}, nil
-					},
+					Signers: signerCallback,
 				},
 				HostKeyCallback: hostKeyCallback,
 			})
