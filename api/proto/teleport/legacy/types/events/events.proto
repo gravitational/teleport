@@ -3825,6 +3825,9 @@ message MFADeviceMetadata {
   string DeviceID = 2 [(gogoproto.jsontag) = "mfa_device_uuid"];
   // Type is the type of this MFA device.
   string DeviceType = 3 [(gogoproto.jsontag) = "mfa_device_type"];
+  // MFAViaBrowser is true when the user used the Browser MFA flow to MFA in the
+  // browser to authenticate a CLI session.
+  bool MFAViaBrowser = 4 [(gogoproto.jsontag) = "mfa_via_browser,omitempty"];
 }
 
 // MFADeviceAdd is emitted when a user adds an MFA device.
@@ -9700,6 +9703,12 @@ message WorkloadClusterCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // WorkloadClusterUpdate is emitted when a workload cluster is updated.
@@ -9737,6 +9746,12 @@ message WorkloadClusterUpdate {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the workload cluster data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
   ];
 }
 

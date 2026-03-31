@@ -140,6 +140,14 @@ onboarding:
     # key.
     static_key_path: ./path/to/secret
 
+  # kubernetes holds parameters specific to the "kubernetes" join methods.
+  kubernetes:
+    # token_path is the optional path that used to lookup the Kubernetes service account token for joining.
+    # When unset, tbot will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+    # "/var/run/secrets/kubernetes.io/serviceaccount/token".
+    #
+    # token_path: "./path/to/token"
+
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
 # destination you specify here can only be accessed by `tbot`.
@@ -569,7 +577,7 @@ connect to it.
 The output service generates the following artifacts:
 - `ssh_host-cert.pub`: an SSH certificate signed by the Teleport host certificate authority.
 - `ssh_host`: the private key associated with the SSH host certificate.
-- `ssh_host-user-ca.pub`: an export of the Teleport user certificate authority in an OpenSSH compatible format.
+- `ssh_host-user-ca.pub`: an export of the configured Teleport certificate authorities in an OpenSSH-compatible format.
 
 ```yaml
 # type specifies the type of the output. For the ssh host output, this will
@@ -579,6 +587,10 @@ type: ssh_host
 # These names should match the names that clients use to connect to the host.
 principals:
   - host.example.com
+# ca_type selects which CA type is exported to `ssh_host-user-ca.pub`.
+# Supported values are `user` and `openssh`. If unspecified, this defaults to
+# `user`.
+ca_type: user
 
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```

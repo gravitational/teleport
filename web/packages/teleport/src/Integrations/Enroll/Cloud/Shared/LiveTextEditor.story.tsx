@@ -20,8 +20,8 @@ import { Meta } from '@storybook/react-vite';
 
 import Flex from 'design/Flex';
 
+import { hcl } from '../terraform';
 import LiveTextEditor from './LiveTextEditor';
-import { hcl } from './terraform';
 
 type RegionCount = 'none' | '1' | '2' | '5';
 type TagsOption = 'none' | 'many';

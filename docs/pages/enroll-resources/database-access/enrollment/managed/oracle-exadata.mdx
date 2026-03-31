@@ -12,7 +12,12 @@ tags:
 
 ## How it works
 
-(!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Oracle"!)
+The Teleport Database Service authenticates to your Oracle Exadata
+database using mutual TLS. Oracle Exadata trusts the Teleport certificate authority
+for database clients, and presents a certificate signed by either the Teleport
+database CA or a custom CA. When a user initiates a database session, the
+Teleport Database Service presents a certificate signed by Teleport. The
+authenticated connection then proxies client traffic from the user.
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise (Self-Hosted)">

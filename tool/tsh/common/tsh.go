@@ -133,6 +133,8 @@ const (
 	mfaModeOTP = "otp"
 	// mfaModeSSO utilizes only SSO devices.
 	mfaModeSSO = "sso"
+	// mfaModeBrowser utilizes browser-based WebAuthn MFA via local server.
+	mfaModeBrowser = "browser"
 )
 
 const (
@@ -951,7 +953,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins.").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO, mfaModeBrowser}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v).", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
@@ -1469,7 +1471,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID.").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately.").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more Access Requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more Access Requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests).").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -4579,17 +4581,26 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
+		if err == nil {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
+
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-		if err != nil {
-			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+
+		// If we get a basic SSH exit error with no unexpected msg or signal,
+		// convert it to an exitCodeError and return.
+		var sshExitErr *ssh.ExitError
+		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
 		}
-		err = &common.ExitCodeError{Code: status}
-		return trace.Wrap(err)
+
+		// For unexpected errors, print the error message before converting to an exitCodeError.
+		fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+		return trace.Wrap(&common.ExitCodeError{Code: status})
 	}
 	return trace.Wrap(err)
 }
@@ -5080,6 +5091,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
 	c.PreferSSO = mfaOpts.PreferSSO
+	c.PreferBrowser = mfaOpts.PreferBrowser
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -5302,6 +5314,7 @@ type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
 	PreferSSO               bool
+	PreferBrowser           bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -5316,6 +5329,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.PreferOTP = true
 	case mfaModeSSO:
 		opts.PreferSSO = true
+	case mfaModeBrowser:
+		opts.PreferBrowser = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}

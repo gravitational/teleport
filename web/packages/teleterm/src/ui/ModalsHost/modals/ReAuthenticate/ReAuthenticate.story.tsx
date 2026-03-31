@@ -55,6 +55,7 @@ export const WithWebauthn = () => (
           'You somehow submitted a form while only Webauthn was available.'
         );
       }}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -69,6 +70,7 @@ export const WithTotp = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -83,6 +85,7 @@ export const WithTotpPerSessionMfa = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -106,6 +109,28 @@ export const WithSso = () => (
           'You somehow submitted a form while only SSO was available.'
         );
       }}
+      onBrowserMfaContinue={() => {}}
+    />
+  </MockAppContextProvider>
+);
+
+export const WithBrowserMfa = () => (
+  <MockAppContextProvider>
+    <ReAuthenticate
+      promptMfaRequest={{
+        ...loginMfaRequest,
+        browser: {
+          requestId: 'request-id',
+        },
+      }}
+      onSsoContinue={() => {}}
+      onCancel={() => {}}
+      onOtpSubmit={() => {
+        window.alert(
+          'You somehow submitted a form while only Browser MFA was available.'
+        );
+      }}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -127,6 +152,7 @@ export const WithWebauthnAndTotpAndSSO = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -148,6 +174,26 @@ export const WithWebauthnAndTotpAndSSOPerSessionMfa = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
+    />
+  </MockAppContextProvider>
+);
+
+export const WithWebauthnAndTotpAndBrowserMfa = () => (
+  <MockAppContextProvider>
+    <ReAuthenticate
+      promptMfaRequest={{
+        ...loginMfaRequest,
+        webauthn: true,
+        totp: true,
+        browser: {
+          requestId: 'request-id',
+        },
+      }}
+      onSsoContinue={() => {}}
+      onCancel={() => {}}
+      onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -165,6 +211,7 @@ export const MultilineTitle = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );
@@ -181,6 +228,7 @@ export const ForLeafCluster = () => (
       onSsoContinue={() => {}}
       onCancel={() => {}}
       onOtpSubmit={showToken}
+      onBrowserMfaContinue={() => {}}
     />
   </MockAppContextProvider>
 );

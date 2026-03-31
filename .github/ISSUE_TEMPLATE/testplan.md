@@ -686,7 +686,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-1
-  namespace: foo
 spec:
   glSpec: "* * * * */5"
   glImage: my-awesome-gl-image
@@ -696,7 +695,6 @@ apiVersion: "stable.example.com/v1"
 kind: Global
 metadata:
   name: my-new-global-object-2
-  namespace: foo
 spec:
   glSpec: "* * * * */2"
   glImage: my-awesome-gl-image-2
@@ -769,23 +767,13 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify access denied
     * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
     * [ ] Verify access denied
-* [ ] Verify support for Teleport v17
-  * [ ] Start a v17 kubernetes_service
+* [ ] Verify support for Teleport v18
+  * [ ] Start a v18 kubernetes_service
   * [ ] Verify happy path
     * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
-          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
-    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deployments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v18 cluster
     * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
-  * [ ] Verify incomptible role, CRD
-    * [ ] Create a role v8 with access to pods and a crd.
-         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
-    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
-  * [ ] Verify incompatible role, namespace
-    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
-    * [ ] Verify access denied to the namespace and any other resources
-  * [ ] Verify incompatible role, wildcard kind - cluster-wide
-    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
-    * [ ] Verify access denied to any resource
 
 ### Kubernetes Access Request
 
@@ -829,10 +817,6 @@ NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` sche
     * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
     * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
     * [ ] Verify you can't request access to `configmaps` or `services`
-* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
-  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
-  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
-    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 
@@ -1198,6 +1182,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] App Access
     - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")
@@ -1396,6 +1381,11 @@ For all performance tests
 
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
+
+
+Where applicable nodes used should be configured as follows:
+
+ 1) [Transparent hugepages](https://docs.kernel.org/admin-guide/mm/transhuge.html#global-thp-controls) disabled.
 
 ### Ansible-like Test
 

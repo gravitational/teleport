@@ -188,6 +188,57 @@ func TestSearchEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "query with search terms",
+			searchParams: &events.SearchEventsRequest{
+				From:   fromUTC,
+				To:     toUTC,
+				Limit:  100,
+				Search: "Root ALICE",
+			},
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				t.Helper()
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'root'", "'alice'")...)
+			},
+		},
+		{
+			name: "query with apostrophe in search term",
+			searchParams: &events.SearchEventsRequest{
+				From:   fromUTC,
+				To:     toUTC,
+				Limit:  100,
+				Search: "O'Connor",
+			},
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				t.Helper()
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'o''connor'")...)
+			},
+		},
+		{
+			name: "query with wildcard characters in search term",
+			searchParams: &events.SearchEventsRequest{
+				From:   fromUTC,
+				To:     toUTC,
+				Limit:  100,
+				Search: "alice_admin svc%prod",
+			},
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				t.Helper()
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'alice_admin'", "'svc%prod'")...)
+			},
+		},
+		{
 			name: "session id",
 			searchSessionParams: &events.SearchSessionEventsRequest{
 				From:      fromUTC,

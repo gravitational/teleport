@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -481,7 +482,16 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
+	mustSelfSignedCA := func() *x509.Certificate {
+		ca, err := testenv.NewSelfSignedCA(&testenv.CAParams{})
+		if err != nil {
+			panic(err)
+		}
+		return ca.Cert
+	}
+
 	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+
 		return &WindowsService{
 			cfg: WindowsServiceConfig{
 				Clock:      clock,
@@ -491,11 +501,23 @@ func TestLoadTLSConfigForLDAP(t *testing.T) {
 					Domain:   "test.example.com",
 					Username: "test-user",
 					Addr:     "ldap.example.com:389",
+					CAs:      []*x509.Certificate{mustSelfSignedCA(), mustSelfSignedCA()},
 				},
 			},
 			closeCtx: context.Background(),
 		}
 	}
+
+	t.Run("issued cert supports multiple CAs", func(t *testing.T) {
+		s := newWindowsService(clockwork.NewFakeClock(), client)
+
+		config, err := s.issueNewTLSConfigForLDAP()
+		require.NoError(t, err)
+		// Validate that both configured CAs made it into
+		// the TLS config's cert pool.
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[0])
+		assertCertInPool(t, config.RootCAs, *s.cfg.CAs[1])
+	})
 
 	t.Run("returns cached config when not expired", func(t *testing.T) {
 		clock := clockwork.NewFakeClock()
@@ -827,5 +849,12 @@ func (c *mockCertificateStoreClient) WaitForUpdate(t *testing.T, wantCalls int) 
 		case <-ch:
 			continue
 		}
+	}
+}
+
+func assertCertInPool(t *testing.T, pool *x509.CertPool, cert x509.Certificate) {
+	t.Helper()
+	if _, err := cert.Verify(x509.VerifyOptions{Roots: pool}); err != nil {
+		t.Fatalf("cert not found/trusted in pool: %v", err)
 	}
 }

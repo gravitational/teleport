@@ -983,7 +983,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"login-a"},
 				},
 			},
@@ -997,7 +997,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"login-b"},
 				},
 			},
@@ -1011,7 +1011,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"login-c"},
 				},
 			},
@@ -1025,7 +1025,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{"login-x"},
 				},
 			},
@@ -1727,7 +1727,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		// proxyClient.AuthenticateSSHUser to something else (eg,
 		// proxyClient.AuthenticateWebUser).
 		// Optional.
-		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error)
+		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error)
 	}{
 		{
 			name: "OTP",
@@ -1749,7 +1749,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		{
 			name:            "AuthenticateWeb",
 			setSecondFactor: solveWebauthn,
-			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 				// We only care about the error here, it's OK to swallow the session.
 				_, err := proxyClient.AuthenticateWebUser(ctx, req.AuthenticateUserRequest)
 				return nil, err

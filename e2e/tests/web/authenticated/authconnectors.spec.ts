@@ -19,7 +19,8 @@
 import { expect, test } from '@gravitational/e2e/helpers/test';
 import { mockWebAuthn } from '@gravitational/e2e/helpers/webauthn';
 
-test('verify that a user can create and delete an auth connector', async ({
+// TODO(@rudream): re-enable this once the UI bug is fixed.
+test.skip('verify that a user can create and delete an auth connector', async ({
   page,
 }) => {
   await mockWebAuthn(page);

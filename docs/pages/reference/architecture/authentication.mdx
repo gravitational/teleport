@@ -9,7 +9,8 @@ tags:
 
 Teleport handles both authentication and authorization.
 
-- Authentication is about proving an identity of a user or a service.
+- Authentication is about proving an identity of an AI agent, human user, or
+  service.
 - Authorization is proving access rights to something.
 
 This guide explains how Teleport handles authentication with short-lived
@@ -115,9 +116,9 @@ within a cluster. To join services to the cluster and receive certificates, admi
 
 Unlike users and services, internal services receive long-lived certificates.
 
-To renew these certificates, admins should use certificate authority rotation, the process of invalidating all
-previously-issued certificates for nodes or users regardless of expiry and issuing a new ones,
-using a new certificate authority.
+To renew these certificates, admins should use certificate authority rotation.
+This is the process of invalidating all previously-issued certificates for nodes
+or users regardless of expiry, and issuing new ones using a new certificate authority.
 
 Take a look at the [Certificate Rotation Guide](../../zero-trust-access/management/security/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.

@@ -22,10 +22,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // TestValidateRole verifies basic functionality of strong and weak role validation functions.
@@ -250,6 +254,44 @@ func TestValidateRole(t *testing.T) {
 				Scope: "/foo/bar",
 				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo"},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid ssh.client_idle_timeout",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						ClientIdleTimeout: "not-a-duration",
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid defaults.client_idle_timeout",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						ClientIdleTimeout: "not-a-duration",
+					},
 				},
 				Version: types.V1,
 			},
@@ -793,4 +835,116 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			require.Equal(t, tt.expect, result)
 		})
 	}
+}
+
+// requireAllFieldsHavePresence recursively verifies that all non-sequence fileds in a proto message have
+// presence enabled (for proto3 this typically means that scalar fields are marked optional).
+func requireAllFieldsHavePresence(t *testing.T, msg proto.Message) {
+	requireAllFieldsHavePresenceRecursive(t, msg.ProtoReflect().Descriptor())
+}
+
+func requireAllFieldsHavePresenceRecursive(t *testing.T, descriptor protoreflect.MessageDescriptor) {
+	fields := descriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+
+		// recursively check nested fields.
+		if field.Kind() == protoreflect.MessageKind {
+			// note: MessageKind fields covers both singular and repeated messages
+			requireAllFieldsHavePresenceRecursive(t, field.Message())
+		}
+		if field.IsMap() && field.MapValue().Kind() == protoreflect.MessageKind {
+			requireAllFieldsHavePresenceRecursive(t, field.MapValue().Message())
+		}
+
+		// skip lists/strings/bytes since empty sequences aren't as concerning as false/0 when it comes to distinguishing
+		// unset vs set to zero value.
+		if field.IsList() || field.Kind() == protoreflect.StringKind || field.Kind() == protoreflect.BytesKind {
+			continue
+		}
+
+		// require that presence is enabled. if you are adding a new field to scoped roles and run into this check failing,
+		// you likely need to make the field optional.
+		require.True(t, field.HasPresence(),
+			"field %s.%s must have presence enabled (use optional for scalar fields)",
+			descriptor.FullName(), field.Name())
+	}
+}
+
+// TestScopedRoleSpecFieldsHavePresence verifies that the scoped role spec and its members
+// have presence enabled for all non-sequence fields.
+// See proto comments for the ScopedRoleSpec type for discussion of this policy.
+func TestScopedRoleSpecFieldsHavePresence(t *testing.T) {
+	t.Parallel()
+	requireAllFieldsHavePresence(t, (*scopedaccessv1.ScopedRoleSpec)(nil))
+}
+
+// TestScopedRoleSpecTopLevelFieldsAreMessages verifies that all top-level fields of ScopedRoleSpec
+// are message types (singular or repeated), with the exception of assignable_scopes which is
+// grandfathered in. This policy exists to ensure that top-level spec fields remain extensible and
+// composable over time. Scalar and enum fields added at the top level cannot be grouped or namespaced
+// after the fact without breaking changes, whereas message fields can always grow new sub-fields.
+// If you are adding a new top-level field to ScopedRoleSpec and this test fails, wrap it in a message.
+func TestScopedRoleSpecTopLevelFieldsAreMessages(t *testing.T) {
+	t.Parallel()
+
+	// grandfathered fields that predate this policy and are exempt from the requirement.
+	grandfathered := map[protoreflect.Name]bool{
+		"assignable_scopes": true,
+	}
+
+	descriptor := (*scopedaccessv1.ScopedRoleSpec)(nil).ProtoReflect().Descriptor()
+	fields := descriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+		if grandfathered[field.Name()] {
+			continue
+		}
+		require.Equal(t, protoreflect.MessageKind, field.Kind(),
+			"top-level field %s.%s must be a message type (singular or repeated), not a scalar or enum; wrap it in a message or add it to an existing one",
+			descriptor.FullName(), field.Name())
+	}
+}
+
+// TestStrongValidateRoleSpecAllFieldsValidated verifies that a maximally-populated valid ScopedRoleSpec
+// passes StrongValidateRole. The ExhaustiveNonEmpty assertion acts as a coverage guard: if you add a new
+// field to ScopedRoleSpec (or any of its nested message types) and this test begins failing, you must set
+// that field to a valid non-zero value in the spec below. Once you've done that, consider whether
+// StrongValidateRole needs to validate the new field and add coverage to TestValidateRole if so.
+func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
+	t.Parallel()
+
+	spec := &scopedaccessv1.ScopedRoleSpec{
+		AssignableScopes: []string{"/foo"},
+		Defaults: &scopedaccessv1.ScopedRoleDefaults{
+			ClientIdleTimeout: "30m",
+		},
+		Rules: []*scopedaccessv1.ScopedRule{
+			{
+				Resources: []string{KindScopedRole},
+				Verbs:     []string{types.VerbReadNoSecrets},
+			},
+		},
+		Ssh: &scopedaccessv1.ScopedRoleSSH{
+			Logins: []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout: "1h",
+		},
+	}
+
+	require.True(t, testutils.ExhaustiveNonEmpty(spec),
+		"spec is not exhaustively non-empty; if you added a new field, set it to a valid non-zero value here AND evaluate whether StrongValidateRole needs to validate it (adding test cases to TestValidateRole if so) — empty fields: %v",
+		testutils.FindAllEmpty(spec),
+	)
+
+	role := &scopedaccessv1.ScopedRole{
+		Kind:     KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    "/",
+		Spec:     spec,
+		Version:  types.V1,
+	}
+	require.NoError(t, StrongValidateRole(role))
 }

@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
 // vnetAdminSetupCommand is the fallback command ran as root when there is no
@@ -63,5 +65,22 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 }
 
 func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
-	return trace.NotImplemented("diagnostics not implemented")
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+		VnetIfaceName: nsi.InterfaceName,
+		Routing:       &diag.LinuxRouting{},
+		Interfaces:    &diag.NetInterfaces{},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rcs, err := routeConflictDiag.Run(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, rc := range rcs.GetRouteConflictReport().RouteConflicts {
+		fmt.Printf("Found a conflicting route: %+v\n", rc)
+	}
+
+	return nil
 }

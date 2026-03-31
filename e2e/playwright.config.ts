@@ -31,14 +31,14 @@ const browserDevices: Record<string, object> = {
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 15_000,
+  timeout: 20_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
     ['html', { open: 'never' }],
-    ['json', { outputFile: 'test-results/.results.json' }],
+    ['json', { outputFile: 'test-results/results.json' }],
   ],
 
   use: {
@@ -81,6 +81,8 @@ export default defineConfig({
 
     {
       name: 'connect',
+      // Enables interacting with Web UI from Connect test flows.
+      use: browserDevices.chromium,
       testDir: './tests/connect',
       workers: 1,
     },

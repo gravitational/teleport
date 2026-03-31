@@ -49,10 +49,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+
 	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
 		os.Exit(1)
+	}
+
+	if mode == modeGitHubReport {
+		if err := writeGitHubReport(resultsPath); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	if mode == modeReport || mode == modeTestResults {
@@ -64,6 +74,7 @@ func main() {
 		cfg := &reportConfig{
 			prNumber:  flags.reportPR,
 			repo:      repo,
+			sha:       flags.reportSHA,
 			e2eDir:    e2eDir,
 			tracePath: flags.tracePath,
 		}
@@ -82,7 +93,7 @@ func main() {
 		return
 	}
 
-	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+	_ = os.Remove(resultsPath)
 
 	isCI := os.Getenv("CI") != ""
 	runErr := run(flags, mode, e2eDir, isCI)
@@ -97,14 +108,8 @@ func main() {
 		tty.Close()
 	}
 
-	if isCI {
-		if err := writeGitHubReport(e2eDir); err != nil {
-			slog.Error("failed to write GitHub report", "error", err)
-		}
-	}
-
 	if !flags.quiet {
-		printTestSummary(e2eDir)
+		printTestSummary(e2eDir, resultsPath)
 	}
 
 	if runErr != nil {
@@ -124,13 +129,17 @@ type e2eConfig struct {
 	teleportConfigTemplate string
 	stateTemplate          string
 
+	// teleportBuildDir is the directory in which to run `make build/teleport`.
+	// Empty when the teleport binary is overridden and no build is needed.
+	teleportBuildDir string
+
 	connectAppDir     string
 	connectTshBinPath string
 
 	creds *credentials
 
-	instances        []*browserInstance
-	connectInstance  *browserInstance
+	instances       []*browserInstance
+	connectInstance *browserInstance
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -150,6 +159,13 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
 		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
 		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
+	}
+
+	switch config.teleportBin {
+	case filepath.Join(config.repoRoot, "build", "teleport"):
+		config.teleportBuildDir = config.repoRoot
+	case filepath.Join(config.repoRoot, "e", "build", "teleport"):
+		config.teleportBuildDir = filepath.Join(config.repoRoot, "e")
 	}
 
 	if flags.browsers == nil {
@@ -325,9 +341,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			nodeBin := config.teleportBin
 			if runtime.GOOS != "linux" {
-				buildDir := config.repoRoot
-				if config.teleportBin == filepath.Join(config.repoRoot, "e", "build", "teleport") {
-					buildDir = filepath.Join(config.repoRoot, "e")
+				buildDir := config.teleportBuildDir
+				if buildDir == "" {
+					buildDir = config.repoRoot
 				}
 				nodeBin = filepath.Join(buildDir, "build", "teleport-node")
 			}

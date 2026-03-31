@@ -28,10 +28,26 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
-// scopedRoleConditionsToRoleConditions converts scoped role conditions to classic role conditions.
-func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditions) types.RoleConditions {
-	var rules []types.Rule
-	for _, r := range src.GetRules() {
+// applySSHBlock writes/converts the relevant subset of the scoped role's ssh block into the provided
+// classic role allow block. This helper only writes fields relevant to initial ssh access *checks*. We
+// reuse the initial access check logic from classic RBAC when performing access checks for scoped
+// identities. Secondary protocol-level controls such as client idle timeout are not converted, and
+// are pulled directly from the scoped role.
+func applySSHBlock(src *scopedaccessv1.ScopedRoleSSH, dst *types.RoleConditions) {
+	dst.Logins = src.GetLogins()
+	for _, label := range src.GetLabels() {
+		if dst.NodeLabels == nil {
+			dst.NodeLabels = make(types.Labels)
+		}
+		dst.NodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+}
+
+// applyRules merges the rules of a scoped role into the provided classic role
+// conditions. It is one of several per-protocol helpers that each contribute their fields to a
+// shared allow block; no single block has structural primacy over the others.
+func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
+	for _, r := range src {
 		// as part of this conversion we expand multi-resource rules into multiple single-resource rules.
 		// this is because we need to filter out unsupported resource:verb combinations, which may not be
 		// sound if multiple resources are combined in a single rule.
@@ -57,25 +73,11 @@ func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditio
 				// skip rules that have no allowed verbs.
 				continue
 			}
-			rules = append(rules, types.Rule{
+			dst.Rules = append(dst.Rules, types.Rule{
 				Resources: []string{resource},
 				Verbs:     verbs,
 			})
 		}
-	}
-
-	var nodeLabels types.Labels
-	for _, label := range src.GetNodeLabels() {
-		if nodeLabels == nil {
-			nodeLabels = make(types.Labels)
-		}
-		nodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
-	}
-
-	return types.RoleConditions{
-		Rules:      rules,
-		Logins:     src.GetLogins(),
-		NodeLabels: nodeLabels,
 	}
 }
 
@@ -85,10 +87,14 @@ func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditio
 // format converted role names as "<role-name>@<assigned-scope>" to help ensure reasonable error messages from
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+	var conditions types.RoleConditions
+	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
+	applyRules(sr.GetSpec().GetRules(), &conditions)
+
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{
 		// scoped roles support allow blocks, but not deny blocks.
-		Allow: scopedRoleConditionsToRoleConditions(sr.GetSpec().GetAllow()),
-		// no scoped role options have been implemented yet. all options blocks are default/placeholder values.
+		Allow: conditions,
+		// many scoped role options have not been implemented yet. some of options have been deliberately seeded with conservative defaults.
 		Options: types.RoleOptions{
 			// CertificateFormat is always set to "standard" for scoped roles. We don't anticipate needing to change
 			// this in the future, but if we did alternative options for controlling the parameter via some other
@@ -137,14 +143,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// per-access lock evaluation specialization possible, but its likely that cert-creation locking behavior will
 			// need special handling of some kind.
 			Lock: "",
-			// ClientIdleTimeout is disabled until we can decide how to handle the cases where client idle timeout is
-			// being used independently of an access check (and therefore independent of a known target scope). It is possible
-			// that the correct way to handle this will be to break compatibility with classic roles and introduce separate
-			// per-protocol idle timeouts, with the global timeout always applying for operations that are not tied to a
-			// specific access check. By setting this value to zero we effectively make the default behavior one where we
-			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
-			// whatever solution we eventually land on.
-			ClientIdleTimeout: types.NewDuration(0),
+			// ClientIdleTimeout is intentionally not set here. ScopedAccessChecker reads client_idle_timeout directly from the scoped role's ssh/defaults blocks rather than relying on classic role conversion.
 
 			// DisconnectExpiredCert is disabled until we can decide how to handle the cases where disconnect on expired cert is
 			// being used independently of an access check (and therefore independent of a known target scope). It is possible

@@ -8,6 +8,10 @@ version: v3
 teleport:
   # nodename allows one to assign an alternative name this node can be
   # reached by. By default it's equal to hostname.
+  #
+  # For Teleport-protected SSH servers, nodename must begin with an alphanumeric
+  # character and contain only alphanumeric characters, dots, and hyphens.
+  # Teleport replaces servers with invalid hostnames with random UUIDs.
   nodename: graviton
 
   # Data directory where Teleport daemon keeps its data.
@@ -118,7 +122,7 @@ teleport:
     max_connections: 1000
 
   # Auth Service connection configuration.
-  # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
+  # These settings can be tweaked to control how aggressively the Proxy or Agent instances will retry to connect. In addition
   # each instance will apply jitter.
   # auth_connection_config:
   #   upper_limit_between_retries: "90s"  # Cannot be lower than 10s

@@ -19,6 +19,7 @@ package access
 import (
 	"iter"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -50,18 +51,22 @@ const (
 	maxAssignableScopes = 16
 )
 
-// RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect.
-func RoleIsAssignableToScopeOfEffect(role *scopedaccessv1.ScopedRole, scope string) bool {
+// RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
+// a given assignment can attempt to assign a role at any given scope, but the role's resource scope and assignable
+// scope globs must permit such an assignment for privileges to be effective.
+func RoleIsAssignableToScopeOfEffect(role *scopedaccessv1.ScopedRole, scopeOfEffect string) bool {
 	if scopes.WeakValidate(role.GetScope()) != nil {
 		return false
 	}
 
-	if !scopes.PolicyAssignmentScope(scope).IsSubjectToPolicyResourceScope(role.GetScope()) {
+	// The scope of effect must be assignable from the role's origin scope (cannot reach up)
+	if !scopes.ScopeOfOrigin(role.GetScope()).IsAssignableToScopeOfEffect(scopeOfEffect) {
 		return false
 	}
 
+	// The scope of effect must match one of the role's assignable scope globs
 	for assignableScope := range WeakValidatedAssignableScopes(role) {
-		if scopes.Glob(assignableScope).Matches(scope) {
+		if scopes.ScopeOfEffectGlob(assignableScope).MatchesScopeOfEffectLiteral(scopeOfEffect) {
 			return true
 		}
 	}
@@ -69,13 +74,18 @@ func RoleIsAssignableToScopeOfEffect(role *scopedaccessv1.ScopedRole, scope stri
 	return false
 }
 
-// RoleIsAssignableFromScopeOfOrigin checks if the given role is assignable from the given scope of origin.
-func RoleIsAssignableFromScopeOfOrigin(role *scopedaccessv1.ScopedRole, scope string) bool {
+// RoleIsAssignableFromScopeOfOrigin checks if the given role is assignable from the given scope of origin. For example,
+// assignment resources at a given scope can only assign roles that are assignable *from* that scope. In such a scenario,
+// the resource scope of the assignment resource is the origin scope of the actual assignment.
+func RoleIsAssignableFromScopeOfOrigin(role *scopedaccessv1.ScopedRole, scopeOfOrigin string) bool {
 	if scopes.WeakValidate(role.GetScope()) != nil {
 		return false
 	}
 
-	return scopes.PolicyAssignmentScope(scope).IsSubjectToPolicyResourceScope(role.GetScope())
+	// conceptually, we think of the role and assignment scopes as both being policy resource scopes. when dealing
+	// with interdependence between policy resources, we need to ensure that the dependence does not open a hole by
+	// which edits can cause changes to policies outside of the editing admin's scope of authority.
+	return scopes.PolicyResourceScope(scopeOfOrigin).CanDependOnStateFromPolicyResourceAtScope(role.GetScope())
 }
 
 // WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.
@@ -87,7 +97,7 @@ func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[str
 				continue
 			}
 
-			if !scopes.Glob(assignableScope).IsSubjectToPolicyResourceScope(role.GetScope()) {
+			if !scopes.ScopeOfEffectGlob(assignableScope).IsAlwaysAssignableFromScopeOfOrigin(role.GetScope()) {
 				// ignore assignable scopes that do not conform to assignment subjugation rules
 				continue
 			}
@@ -148,13 +158,13 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid assignable scope %q: %v", role.GetMetadata().GetName(), scopeGlob, err)
 		}
 
-		if !scopes.Glob(scopeGlob).IsSubjectToPolicyResourceScope(role.GetScope()) {
+		if !scopes.ScopeOfEffectGlob(scopeGlob).IsAlwaysAssignableFromScopeOfOrigin(role.GetScope()) {
 			return trace.BadParameter("scoped role %q has assignable scope %q that is not a sub-scope of the role's scope %q", role.GetMetadata().GetName(), scopeGlob, role.GetScope())
 		}
 	}
 
 	// verify that all rules are allowed for scoped roles
-	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+	for _, rule := range role.GetSpec().GetRules() {
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
@@ -167,8 +177,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that logins are well-formed
-	for _, login := range role.GetSpec().GetAllow().GetLogins() {
+	// verify that ssh logins are well-formed
+	for _, login := range role.GetSpec().GetSsh().GetLogins() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// logins. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
@@ -177,8 +187,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that node labels are well-formed
-	for _, label := range role.GetSpec().GetAllow().GetNodeLabels() {
+	// verify that ssh node labels are well-formed
+	for _, label := range role.GetSpec().GetSsh().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// node labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
@@ -190,6 +200,18 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			if strings.ContainsAny(value, "{}^$") {
 				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 			}
+		}
+	}
+
+	// verify that client_idle_timeout fields are valid Go duration strings
+	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
 		}
 	}
 
@@ -260,7 +282,7 @@ func WeakValidatedSubAssignments(assignment *scopedaccessv1.ScopedRoleAssignment
 				continue
 			}
 
-			if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetScope()) {
+			if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 				// ignore sub-assignments with scopes that do not conform to assignment subjugation rules
 				continue
 			}
@@ -328,7 +350,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			return trace.BadParameter("scoped role assignment %q has invalid scope in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
 		}
 
-		if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetScope()) {
+		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, subAssignment.GetScope(), assignment.GetScope())
 		}
 	}
