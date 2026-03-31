@@ -87,8 +87,9 @@ type Modules struct {
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn  func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateLongTermResourceGroupingFn func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
+	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -135,6 +136,14 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 		return m.GenerateAccessRequestPromotionsFn(ctx, getter, request)
 	}
 	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
+// GenerateAccessRequestSuggestedReviewers implements modules.Modules.
+func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) ([]string, error) {
+	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
+		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
+	}
+	return []string{}, nil
 }
 
 // GetSuggestedAccessLists implements modules.Modules.
