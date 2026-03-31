@@ -505,19 +505,16 @@ func (c *Connector) ClientGetPool() (*x509.CertPool, error) {
 	return roots, nil
 }
 
-// ClientAuthMethods returns the [ssh.AuthMethod]s that should be used for
+// ClientSigners returns the [ssh.Signer]s that should be used for
 // outgoing SSH connections to other cluster components (the Proxy Service,
 // almost surely).
-func (c *Connector) ClientAuthMethods() []ssh.AuthMethod {
-	return []ssh.AuthMethod{
-		ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
-			sshCertSigner := c.clientState.Load().sshCertSigner
-			if sshCertSigner == nil {
-				return nil, nil
-			}
-			return []ssh.Signer{sshCertSigner}, nil
-		}),
+func (c *Connector) ClientSigners() []ssh.Signer {
+	sshCertSigner := c.clientState.Load().sshCertSigner
+	if sshCertSigner == nil {
+		return nil
 	}
+
+	return []ssh.Signer{sshCertSigner}
 }
 
 func (c *Connector) clientIdentityString() string {
@@ -539,7 +536,12 @@ func (c *Connector) clientSSHClientConfig(fips bool) (apissh.ClientConfig, error
 		User: c.hostID,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
+				signer := c.clientState.Load().sshCertSigner
+				if signer == nil {
+					return nil, trace.NotFound("no SSH credentials setup for this identity")
+				}
+
+				return []ssh.Signer{signer}, nil
 			},
 		},
 		HostKeyCallback: hostKeyCallback,
@@ -3730,7 +3732,7 @@ func (process *TeleportProcess) initSSH() error {
 					AccessPoint:  authClient,
 					PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
 						Signers: func() ([]ssh.Signer, error) {
-							return conn.ServerGetHostSigners(), nil
+							return conn.ClientSigners(), nil
 						},
 					},
 					Cluster:                  conn.ClusterName(),
@@ -5890,7 +5892,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:  accessPoint,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
-				return conn.ServerGetHostSigners(), nil
+				return conn.ClientSigners(), nil
 			},
 		},
 		LocalCluster:        clusterName,
@@ -6917,7 +6919,7 @@ func (process *TeleportProcess) initApps() {
 				AccessPoint:  accessPoint,
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
 					Signers: func() ([]ssh.Signer, error) {
-						return conn.ServerGetHostSigners(), nil
+						return conn.ClientSigners(), nil
 					},
 				},
 				Cluster:                  clusterName,

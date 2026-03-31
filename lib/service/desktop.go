@@ -128,7 +128,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 				AccessPoint:  accessPoint,
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
 					Signers: func() ([]ssh.Signer, error) {
-						return conn.ServerGetHostSigners(), nil
+						return conn.ClientSigners(), nil
 					},
 				},
 				Cluster:                  conn.ClusterName(),

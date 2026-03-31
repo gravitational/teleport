@@ -234,18 +234,7 @@ func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
 			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
 				Signers: func() ([]ssh.Signer, error) {
-					// This is a dummy signer to get through the authentication phase i.e., it is not used for the test.
-					_, key, err := ed25519.GenerateKey(nil)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					signer, err := ssh.NewSignerFromKey(key)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					return []ssh.Signer{signer}, nil
+					return []ssh.Signer{mockSigner{}}, nil
 				},
 			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
