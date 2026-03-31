@@ -840,6 +840,107 @@ func TestMaterializerDiamond(t *testing.T) {
 	})
 }
 
+func TestMaterializerDiamondExpiry(t *testing.T) {
+	// The initial condition will look like this, we'll then break the
+	// membership path through left, then break the membership path through
+	// right, then restore the membership path through left.
+	//
+	//       top
+	//       / \
+	//      /   \
+	//     /     \
+	//   left   right
+	//     \     /
+	//      \   /
+	//       \ /
+	//      bottom
+	//        |
+	//        v
+	//      tester
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+
+		testStart := time.Now()
+		leftExpires := testStart.Add(time.Minute)
+		rightExpires := testStart.Add(3 * time.Hour)
+
+		runMaterializerTestcase(t, materializerTestcase{
+			collection: accesslists.Collection{
+				AccessListsByName: map[string]*accesslist.AccessList{
+					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/aa",
+						Role:  "toprole",
+					}})),
+					"left":   newAccessList(t, "left"),
+					"right":  newAccessList(t, "right"),
+					"bottom": newAccessList(t, "bottom"),
+				},
+				MembersByAccessList: map[string][]*accesslist.AccessListMember{
+					"top": {
+						newAccessListMember(t, "top", "left", accesslist.MembershipKindList, withExpires(leftExpires)),
+						newAccessListMember(t, "top", "right", accesslist.MembershipKindList, withExpires(rightExpires)),
+					},
+					"left": {
+						newAccessListMember(t, "left", "bottom", accesslist.MembershipKindList),
+					},
+					"right": {
+						newAccessListMember(t, "right", "bottom", accesslist.MembershipKindList),
+					},
+					"bottom": {
+						newAccessListMember(t, "bottom", "tester", accesslist.MembershipKindUser),
+					},
+				},
+			},
+			// Initially the user is a valid member of the top list by 2 paths.
+			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+					Role:  "toprole",
+					Scope: "/aa",
+				}}),
+			},
+			steps: []materializerTestcaseStep{
+				{
+					// Sleep until the left membership path expires, the
+					// assignment should stay via the right list.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+							Role:  "toprole",
+							Scope: "/aa",
+						}}),
+					},
+				},
+				{
+					// Sleep until the right membership path expires, the
+					// assignment should be deleted as there is no more path.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						synctest.Wait()
+						time.Sleep(3 * time.Hour)
+					},
+					expectedAssignments: nil,
+				},
+				{
+					// Upsert the left membership with a future expiry, the assignment should come back.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						member := newAccessListMember(t, "top", "left", accesslist.MembershipKindList, withExpires(time.Now().Add(time.Minute)))
+						_, err := aclService.UpsertAccessListMember(t.Context(), member)
+						require.NoError(t, err)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+							Role:  "toprole",
+							Scope: "/aa",
+						}}),
+					},
+				},
+			},
+		})
+	})
+}
+
 func BenchmarkMaterializerInit(b *testing.B) {
 	for _, tc := range []struct {
 		listCount      int
@@ -1084,6 +1185,12 @@ func newAccessList(t require.TestingT, name string, opts ...aclOption) *accessli
 }
 
 type memberOption func(*accesslist.AccessListMember)
+
+func withExpires(expires time.Time) memberOption {
+	return func(member *accesslist.AccessListMember) {
+		member.Spec.Expires = expires
+	}
+}
 
 func newAccessListMember(t require.TestingT, parent, member, membershipKind string, opts ...memberOption) *accesslist.AccessListMember {
 	memberResource, err := accesslist.NewAccessListMember(header.Metadata{
