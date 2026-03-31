@@ -1188,8 +1188,8 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
 		ctx,
 		scopes.Root,
-		func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, kind.Kind, verb)
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
 		},
 	)
 }
