@@ -788,6 +788,8 @@ func botIdentityFromToken(
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
+	case types.JoinMethodKubernetes:
+		params.KubernetesTokenPath = cfg.Onboarding.Kubernetes.TokenPath
 	}
 
 	result, err := joinclient.Join(ctx, params)
