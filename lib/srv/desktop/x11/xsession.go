@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
@@ -88,7 +87,6 @@ type XSessionConfig struct {
 	Display string
 	// AuthorityFile is XAuthority file used to secure connection to X11 server.
 	AuthorityFile string
-	RemoteAddr    utils.NetAddr
 }
 
 // StartTeleportExecXSession reexecs the current Teleport binary using
@@ -172,9 +170,6 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		Username:        cfg.Username,
 		Environment:     env,
 		LogConfig:       logCfg.ExecLogConfig,
-		UaccMetadata: srv.UaccMetadata{
-			RemoteAddr: cfg.RemoteAddr,
-		},
 	}
 
 	cmd := exec.CommandContext(ctx, executable, teleport.ExecSubCommand)
@@ -185,7 +180,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*exec.
 		readyw,
 		killr,
 	}
-	
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -412,7 +412,6 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				Login:          m.Username,
 				ChildLogConfig: s.cfg.ChildLogConfig,
 				Display:        backend.Display,
-				RemoteAddr:     utils.FromAddr(proxyConn.RemoteAddr()),
 				AuthorityFile:  backend.AuthorityFile.Name(),
 			})
 			go func() {
