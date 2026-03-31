@@ -203,18 +203,8 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 				Force:   rc.force,
 				Confirm: rc.confirm,
 			}
-			if err := resourceHandler.Update(ctx, client, newResource, opts); err != nil {
-				// TODO(tross) remove the fallback to CreateHandlers once all the resources
-				// have been updated to implement an UpdateHandler.
-				if trace.IsNotImplemented(err) {
-					if err := resourceHandler.Create(ctx, client, newResource, opts); err != nil {
-						if trace.IsNotImplemented(err) {
-							return trace.BadParameter("updating resources of type %q is not supported", newResource.Kind)
-						}
-						return trace.Wrap(err)
-					}
-					return nil
-				}
+			if err := editUpdateWithFallback(
+				ctx, client, resourceHandler, newResource, opts); err != nil {
 				return trace.Wrap(err)
 			}
 			continue
@@ -245,6 +235,27 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	return nil
+}
+
+func editUpdateWithFallback(
+	ctx context.Context,
+	client *authclient.Client,
+	resourceHandler resources.Handler,
+	resource services.UnknownResource,
+	opts resources.CreateOpts,
+) error {
+	err := resourceHandler.Update(ctx, client, resource, opts)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	// TODO(tross) remove the fallback to CreateHandlers once all the resources
+	// have been updated to implement an UpdateHandler.
+	if err := resourceHandler.Create(ctx, client, resource, opts); trace.IsNotImplemented(err) {
+		return trace.BadParameter("updating resources of type %q is not supported", resource.Kind)
+	} else {
+		return trace.Wrap(err)
+	}
 }
 
 // getTextEditor returns the text editor to be used for editing the resource.
