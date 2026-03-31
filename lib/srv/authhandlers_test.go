@@ -1343,8 +1343,11 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, mfaCert, inPerms, "")
-		require.Error(t, err)
-		require.ErrorContains(t, err, `legacy public key authentication is forbidden`)
+		require.ErrorContains(
+			t,
+			err,
+			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
+		)
 		require.Nil(t, outPerms)
 	})
 

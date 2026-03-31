@@ -799,7 +799,9 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 
 	case forceInBandMFA && isLegacyClient:
 		// In-band MFA is required and is a legacy client that doesn't support in-band MFA, deny.
-		return nil, trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
+		return nil, trace.AccessDenied(
+			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
+		)
 	}
 
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
