@@ -141,22 +141,16 @@ func TestCreateBot(t *testing.T) {
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Verbs:     []string{types.VerbCreate},
-							Resources: []string{types.KindBot},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbCreate},
+						Resources: []string{types.KindBot},
 					},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
@@ -179,12 +173,6 @@ func TestCreateBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	// Wait for assignment cache propagation.
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	tests := []struct {
 		name     string
@@ -1258,22 +1246,16 @@ func TestUpsertBot(t *testing.T) {
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Verbs:     []string{types.VerbCreate, types.VerbUpdate},
-							Resources: []string{types.KindBot},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+						Resources: []string{types.KindBot},
 					},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
@@ -1295,10 +1277,6 @@ func TestUpsertBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	// Pre-existing scoped bot for scope-transition tests.
 	_, err = client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
@@ -2054,22 +2032,16 @@ func TestGetBot(t *testing.T) {
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Verbs:     []string{types.VerbReadNoSecrets},
-							Resources: []string{types.KindBot},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbReadNoSecrets},
+						Resources: []string{types.KindBot},
 					},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
@@ -2091,10 +2063,6 @@ func TestGetBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	scopedPreExisting, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -2351,22 +2319,16 @@ func TestListBots(t *testing.T) {
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Verbs:     []string{types.VerbList},
-							Resources: []string{types.KindBot},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbList},
+						Resources: []string{types.KindBot},
 					},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
@@ -2388,10 +2350,6 @@ func TestListBots(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	// Create a 2nd scoped user with assignment at /scopes/ungranted (where no bots exist).
 	scopedUser2, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user-2")
@@ -2413,10 +2371,6 @@ func TestListBots(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 2
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment 2 cache to sync")
 
 	scopedPreExisting, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
@@ -2644,22 +2598,16 @@ func TestDeleteBot(t *testing.T) {
 			Scope: "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Verbs:     []string{types.VerbDelete},
-							Resources: []string{types.KindBot},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbDelete},
+						Resources: []string{types.KindBot},
 					},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
-		return err == nil && len(rsp.GetRoles()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped role cache to sync")
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
 	require.NoError(t, err)
@@ -2682,12 +2630,6 @@ func TestDeleteBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	// Wait for assignment cache propagation.
-	require.Eventually(t, func() bool {
-		rsp, err := srv.Auth().ScopedAccessCache.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
-		return err == nil && len(rsp.GetAssignments()) >= 1
-	}, 10*time.Second, 100*time.Millisecond, "timed out waiting for scoped assignment cache to sync")
 
 	// Create scoped bots for delete tests.
 	// Note: scoped bots cannot have roles set.

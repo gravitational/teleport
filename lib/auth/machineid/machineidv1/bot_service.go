@@ -210,8 +210,8 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
-		ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbRead)
+		ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbRead)
 		},
 	); err != nil {
 		// Return NotFound rather than Forbidden to avoid leaking existence of
@@ -233,8 +233,8 @@ func (bs *BotService) getBotScoped(
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
-		ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
+		ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
 		},
 	); err != nil {
 		return nil, trace.NotFound("bot %q not found", bot.Metadata.Name)
@@ -319,8 +319,8 @@ func (bs *BotService) ListBots(
 		// Check if user can access this specific Bot.
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = bot
-		if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbList)
+		if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbList)
 		}); err != nil {
 			// Ignore resources the user cannot access.
 			continue
@@ -356,8 +356,8 @@ func (bs *BotService) CreateBot(
 
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.Bot
-	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(req.Bot.Scope, scopes.Root), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbCreate)
+	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(req.Bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbCreate)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -494,7 +494,7 @@ func UpsertBot(
 	if err != nil && !trace.IsNotFound(err) {
 		// We'll happily ignore a not-found error, in this case, we have an
 		// upsert for a non-existent bot. If we have any other kind of error,
-		// we want to propagae this up.
+		// we want to propagate this up.
 		return nil, trace.Wrap(err, "fetching existing bot user")
 	}
 	if existingUser != nil {
@@ -588,8 +588,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
 		cmp.Or(req.Bot.Scope, scopes.Root),
-		func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
 				&ruleCtx, types.KindBot, types.VerbCreate, types.VerbUpdate,
 			)
 		},
@@ -839,8 +839,8 @@ func (bs *BotService) DeleteBot(
 	scope := user.GetMetadata().Labels[types.BotScopeLabel]
 
 	ruleCtx.Resource153 = dummyBotWithName(req.BotName)
-	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(scope, scopes.Root), func(checker *services.SplitAccessChecker) error {
-		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbDelete)
+	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbDelete)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
