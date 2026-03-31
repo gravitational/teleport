@@ -25,6 +25,8 @@ const (
 type contextTrailEntry struct {
 	index      int
 	riskScore  int
+	riskLevel  string
+	summary    string
 	tokenCount int
 	text       string
 }
@@ -51,6 +53,8 @@ func (c *contextTrail) add(index int, entry *commandEntry) {
 	e := contextTrailEntry{
 		index:      index,
 		riskScore:  riskScore,
+		riskLevel:  riskLevel,
+		summary:    entry.shortDescription,
 		tokenCount: tokenizer.CountTokens(text),
 		text:       text,
 	}
@@ -69,7 +73,7 @@ func (c *contextTrail) add(index int, entry *commandEntry) {
 		}
 	}
 
-	c.trimRisky()
+	c.trim()
 }
 
 func (c *contextTrail) buildContextPrompt() string {
@@ -107,8 +111,10 @@ func (c *contextTrail) selectEntries() []contextTrailEntry {
 	return selected
 }
 
-// trimRisky evicts the oldest risky entries until the combined token count of both slices fits within maxContextTrailTokens.
-func (c *contextTrail) trimRisky() {
+// trim evicts entries until the combined token count fits within maxContextTrailTokens.
+// It evicts benign entries first (oldest first), then risky entries (oldest first),
+// always preserving at least the newest risky entry.
+func (c *contextTrail) trim() {
 	var total int
 	for _, e := range c.risky {
 		total += e.tokenCount
@@ -121,17 +127,52 @@ func (c *contextTrail) trimRisky() {
 		return
 	}
 
-	var i int
-	for i < len(c.risky) && total > maxContextTrailTokens {
-		total -= c.risky[i].tokenCount
-		i++
+	// Evict benign entries first (oldest first).
+	var bi int
+	for bi < len(c.benign) && total > maxContextTrailTokens {
+		total -= c.benign[bi].tokenCount
+		bi++
 	}
 
-	trimmed := make([]contextTrailEntry, len(c.risky)-i)
+	if bi > 0 {
+		trimmed := make([]contextTrailEntry, len(c.benign)-bi)
+		copy(trimmed, c.benign[bi:])
+		c.benign = trimmed
+	}
 
-	copy(trimmed, c.risky[i:])
+	if total <= maxContextTrailTokens {
+		return
+	}
 
-	c.risky = trimmed
+	// Evict risky entries (oldest first), but always keep the newest one.
+	maxEvictable := len(c.risky) - 1
+
+	var ri int
+	for ri < maxEvictable && total > maxContextTrailTokens {
+		total -= c.risky[ri].tokenCount
+		ri++
+	}
+
+	if ri > 0 {
+		trimmed := make([]contextTrailEntry, len(c.risky)-ri)
+		copy(trimmed, c.risky[ri:])
+		c.risky = trimmed
+	}
+
+	// If the newest risky entry alone exceeds the budget, replace the raw command with a placeholder
+	// to avoid resending potentially sensitive content (credentials, base64 payloads, etc.) while
+	// preserving the risk metadata (summary, risk level, risk score).
+	if total > maxContextTrailTokens && len(c.risky) > 0 {
+		last := &c.risky[len(c.risky)-1]
+		last.text = formatTrailEntry(
+			last.index,
+			"[TRUNCATED - command was unusually large, which may itself be a risk indicator]",
+			last.summary,
+			last.riskLevel,
+			last.riskScore,
+		)
+		last.tokenCount = tokenizer.CountTokens(last.text)
+	}
 }
 
 func formatTrailEntry(index int, command, summary, riskLevel string, riskScore int) string {
