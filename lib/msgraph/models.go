@@ -49,6 +49,18 @@ type Group struct {
 	Owners []*User `json:"owners,omitempty"`
 }
 
+type ListGroupsDeltaResponse struct {
+	Group
+	Owners  []Delta        `json:"owners@delta,omitempty"`
+	Members []Delta        `json:"members@delta,omitempty"`
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+type ListUsersDeltaResponse struct {
+	User
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
 func (g *Group) IsOffice365Group() bool {
 	const office365Group = "Unified"
 	return slices.Contains(g.GroupTypes, office365Group)
@@ -65,6 +77,26 @@ type User struct {
 	UserPrincipalName        *string `json:"userPrincipalName,omitempty"`
 	Surname                  *string `json:"surname,omitempty"`
 	GivenName                *string `json:"givenName,omitempty"`
+}
+
+type Delta struct {
+	DirectoryObject
+	Type    string         `json:"@odata.type,omitempty"`
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+func (d *Delta) GetID() *string { return d.ID }
+func (g *Delta) isGroupMember() {}
+
+type MemberDelta struct {
+	User
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+type RemovedReason struct {
+	// value can be "changed" or "deleted".
+	// "changed" implies soft delete that could be restored.
+	Reason *string `json:"reason,omitempty"`
 }
 
 func (g *User) isGroupMember() {}
@@ -161,7 +193,7 @@ type AppRoleAssignment struct {
 	ResourceID  *string `json:"resourceId,omitempty"`
 }
 
-func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
+func DecodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 	var temp struct {
 		Type string `json:"@odata.type"`
 	}

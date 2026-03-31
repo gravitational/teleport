@@ -152,6 +152,9 @@ type Client struct {
 	pageSize      int
 	logger        *slog.Logger
 	metrics       *clientMetrics
+	// deltaCache is used to store delta token state URL.
+	// key should hold endpoint used for request.
+	deltaCache map[string]string
 }
 
 // NewClient returns a new client for the given config.
@@ -180,6 +183,7 @@ func NewClient(cfg Config) (*Client, error) {
 		pageSize:      cfg.PageSize,
 		logger:        cfg.Logger,
 		metrics:       m,
+		deltaCache:    make(map[string]string),
 	}, nil
 }
 

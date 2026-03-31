@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"iter"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -47,7 +48,9 @@ type iterateConfig struct {
 	header http.Header
 	// count is the $count query param.
 	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
-	count bool
+	count      bool
+	deltaToken string
+	useDelta   bool
 }
 
 func (ic *iterateConfig) query() url.Values {
@@ -64,6 +67,9 @@ func (ic *iterateConfig) query() url.Values {
 	if ic.count {
 		q.Set("$count", "true")
 	}
+	if ic.deltaToken != "" {
+		q.Set("$deltatoken", ic.deltaToken)
+	}
 	return q
 }
 
@@ -76,6 +82,20 @@ func (c *Client) newIterateConfig() *iterateConfig {
 
 // IterateOpt is a function that can be passed to [Client] methods that iterate over API results.
 type IterateOpt func(*iterateConfig)
+
+// WithFilter sets the $filter query param.
+// https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
+func WithDelta(d string) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.deltaToken = d
+	}
+}
+
+func WithUseDelta(d bool) IterateOpt {
+	return func(ic *iterateConfig) {
+		ic.useDelta = d
+	}
+}
 
 // WithFilter sets the $filter query param.
 // https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
@@ -213,6 +233,120 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*User) bool, opts ...I
 	return iterateSimple(c, ctx, "users", f, opts...)
 }
 
+// iterateSeq implements pagination for "list" endpoints and yields pages as a sequence.
+func (c *Client) iterateSeq(ctx context.Context, endpoint string, iterateOpts ...IterateOpt) iter.Seq2[json.RawMessage, error] {
+	ic := c.newIterateConfig()
+	for _, opt := range iterateOpts {
+		opt(ic)
+	}
+
+	var uriString string
+	if ic.useDelta {
+		uriString = c.deltaCache[endpoint]
+	} else {
+		uri := *c.baseURL
+		uri.Path = path.Join(uri.Path, endpoint)
+
+		uri.RawQuery = ic.query().Encode()
+
+		uriString = uri.String()
+	}
+	return func(yield func(json.RawMessage, error) bool) {
+		var deltaLink string
+
+		for uriString != "" {
+			resp, err := c.request(ctx, http.MethodGet, uriString, ic.header, nil /* payload */)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			var page oDataPage
+			if err := jsoniter.ConfigFastest.NewDecoder(resp.Body).Decode(&page); err != nil {
+				resp.Body.Close()
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			resp.Body.Close()
+			uriString = page.NextLink
+
+			if page.DeltaLink != "" {
+				deltaLink = page.DeltaLink
+			}
+
+			if !yield(page.Value, nil) {
+				return
+			}
+		}
+
+		if deltaLink != "" {
+			c.deltaCache[endpoint] = deltaLink
+		}
+	}
+}
+
+// IterateUsersDelta
+func (c *Client) IterateUsersDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListUsersDeltaResponse, error] {
+	// ensure these fields are always included
+	opts = append(opts, WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"))
+
+	endpoint := path.Join("users", "delta")
+	if c.deltaCache[endpoint] != "" {
+		opts = append(opts, WithUseDelta(true))
+
+	}
+	return func(yield func(*ListUsersDeltaResponse, error) bool) {
+		for msg, itErr := range c.iterateSeq(ctx, endpoint, opts...) {
+			if itErr != nil {
+				yield(nil, trace.Wrap(itErr))
+				return
+			}
+			var page []ListUsersDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				if !yield(&item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// IterateGroupsDelta
+func (c *Client) IterateGroupsDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListGroupsDeltaResponse, error] {
+	// ensure these fields are always included
+	opts = append(opts, WithSelect("id,displayName,description,members,owners"))
+
+	endpoint := path.Join("groups", "delta")
+	if c.deltaCache[endpoint] != "" {
+		opts = append(opts, WithUseDelta(true))
+
+	}
+
+	return func(yield func(*ListGroupsDeltaResponse, error) bool) {
+		for msg, itErr := range c.iterateSeq(ctx, endpoint, opts...) {
+			if itErr != nil {
+				yield(nil, trace.Wrap(itErr))
+				return
+			}
+			var page []ListGroupsDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				if !yield(&item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
 // IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
@@ -234,7 +368,7 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 		}
 		for _, entry := range page {
 			var member GroupMember
-			member, err = decodeGroupMember(entry)
+			member, err = DecodeGroupMember(entry)
 			if err != nil {
 				var gmErr *unsupportedGroupMember
 				if errors.As(err, &gmErr) {
