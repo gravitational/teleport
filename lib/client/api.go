@@ -3432,12 +3432,6 @@ func (g *proxyClusterGuesser) clusterName() string {
 	return ""
 }
 
-func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
-	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-		return g.signersForCluster(ctx, g.clusterName())
-	})
-}
-
 // WithoutJumpHosts executes the given function with a Teleport client that has
 // no JumpHosts set, i.e. presumably falling back to the proxy specified in the
 // profile.
