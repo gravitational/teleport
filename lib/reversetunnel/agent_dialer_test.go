@@ -89,7 +89,8 @@ func TestAgentCertChecker(t *testing.T) {
 			require.NoError(t, err)
 
 			dialer := agentDialer{
-				client: &fakeClient{caKey: ca.PublicKey()},
+				client:   &fakeClient{caKey: ca.PublicKey()},
+				username: "alice",
 				publicKeyAuthConfig: apissh.PublicKeyAuthConfig{
 					GetSigners: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{signer}, nil
