@@ -21,8 +21,6 @@ does not generate a config for clusterrole.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -36,6 +34,8 @@ does not generate a config for clusterrole.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -63,8 +63,6 @@ does not generate a config for pdb.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -78,6 +76,8 @@ does not generate a config for pdb.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -105,8 +105,6 @@ matches snapshot and tests for annotations.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -120,6 +118,8 @@ matches snapshot and tests for annotations.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       annotations:
@@ -150,8 +150,6 @@ matches snapshot and tests for extra-labels.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -165,6 +163,8 @@ matches snapshot and tests for extra-labels.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       labels:
@@ -195,8 +195,6 @@ matches snapshot for affinity.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -210,6 +208,8 @@ matches snapshot for affinity.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -254,8 +254,6 @@ matches snapshot for all-v6.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -269,7 +267,9 @@ matches snapshot for all-v6.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
           relay_server: relay.example.com:3024
+        version: v3
     kind: ConfigMap
     metadata:
       annotations:
@@ -318,8 +318,6 @@ matches snapshot for app-discovery-full.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - teleport.example.com
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -333,6 +331,8 @@ matches snapshot for app-discovery-full.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: teleport.example.com
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -372,8 +372,6 @@ matches snapshot for app-discovery-minimal.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -387,6 +385,8 @@ matches snapshot for app-discovery-minimal.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -426,8 +426,6 @@ matches snapshot for aws-databases.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -441,6 +439,8 @@ matches snapshot for aws-databases.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -489,8 +489,6 @@ matches snapshot for azure-databases.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -504,6 +502,8 @@ matches snapshot for azure-databases.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -531,8 +531,6 @@ matches snapshot for backwards-compatibility.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -546,6 +544,8 @@ matches snapshot for backwards-compatibility.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -573,8 +573,6 @@ matches snapshot for ca-pin.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           ca_pin:
           - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
           join_params:
@@ -590,6 +588,8 @@ matches snapshot for ca-pin.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -622,8 +622,6 @@ matches snapshot for db.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -637,6 +635,8 @@ matches snapshot for db.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -666,8 +666,6 @@ matches snapshot for dynamic-app.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -681,6 +679,8 @@ matches snapshot for dynamic-app.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -710,8 +710,6 @@ matches snapshot for dynamic-db.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -725,6 +723,8 @@ matches snapshot for dynamic-db.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -752,8 +752,6 @@ matches snapshot for imagepullsecrets.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -767,6 +765,8 @@ matches snapshot for imagepullsecrets.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -794,8 +794,6 @@ matches snapshot for initcontainers.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -809,6 +807,8 @@ matches snapshot for initcontainers.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -838,8 +838,6 @@ matches snapshot for jamf-service-existing-secret.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -853,6 +851,8 @@ matches snapshot for jamf-service-existing-secret.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -882,8 +882,6 @@ matches snapshot for jamf-service.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -897,6 +895,8 @@ matches snapshot for jamf-service.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -924,8 +924,6 @@ matches snapshot for join-params-iam.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: iam
             token_name: /etc/teleport-secrets/auth-token
@@ -939,6 +937,8 @@ matches snapshot for join-params-iam.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -966,8 +966,6 @@ matches snapshot for join-params-token.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -981,6 +979,8 @@ matches snapshot for join-params-token.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1008,8 +1008,6 @@ matches snapshot for log-basic.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1023,6 +1021,8 @@ matches snapshot for log-basic.yaml:
               output: json
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1050,8 +1050,6 @@ matches snapshot for log-extra.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1065,6 +1063,8 @@ matches snapshot for log-extra.yaml:
               output: json
             output: /var/lib/teleport/test.log
             severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1092,8 +1092,6 @@ matches snapshot for log-legacy.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1107,6 +1105,8 @@ matches snapshot for log-legacy.yaml:
               output: text
             output: stderr
             severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1134,8 +1134,6 @@ matches snapshot for node-selector.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1149,6 +1147,8 @@ matches snapshot for node-selector.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1176,8 +1176,6 @@ matches snapshot for pdb.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1191,6 +1189,8 @@ matches snapshot for pdb.yaml:
               output: json
             output: /var/lib/teleport/test.log
             severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1218,8 +1218,6 @@ matches snapshot for resources.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1233,6 +1231,8 @@ matches snapshot for resources.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1260,8 +1260,6 @@ matches snapshot for stateful.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1275,6 +1273,8 @@ matches snapshot for stateful.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1302,8 +1302,6 @@ matches snapshot for tolerations.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1317,6 +1315,8 @@ matches snapshot for tolerations.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1428,8 +1428,6 @@ matches snapshot for volumes.yaml:
         ssh_service:
           enabled: false
         teleport:
-          auth_servers:
-          - proxy.example.com:3080
           join_params:
             method: token
             token_name: /etc/teleport-secrets/auth-token
@@ -1443,6 +1441,8 @@ matches snapshot for volumes.yaml:
               output: text
             output: stderr
             severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
