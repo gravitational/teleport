@@ -663,20 +663,21 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			urlPath = append(urlPath, req.clusterName, req.publicAddr)
 
 			if req.arn != "" {
-				urlPath = append(urlPath, url.PathEscape(req.arn))
+				urlPath = append(urlPath, req.arn)
 			}
 		}
 
-		// Use strings.Join instead of path.Join to preserve
-		// percent-encoded segments like %2F in ARNs.
-		u.RawPath = "/" + strings.Join(urlPath, "/")
-		// Fall back to RawPath if PathUnescape fails, which can
-		// only happen if a non-ARN segment contains a bare percent.
-		var err error
-		u.Path, err = url.PathUnescape(u.RawPath)
-		if err != nil {
-			u.Path = u.RawPath
+		// Percent-encode every segment so that slashes in ARNs
+		// are not interpreted as path separators during URL
+		// serialization. Use strings.Join instead of path.Join
+		// to preserve the percent-encoded segments.
+		for i, s := range urlPath {
+			urlPath[i] = url.PathEscape(s)
 		}
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Error is unreachable: RawPath was built from
+		// PathEscape output above.
+		u.Path, _ = url.PathUnescape(u.RawPath)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly

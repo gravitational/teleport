@@ -20,8 +20,7 @@ import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
-import cfg from 'teleport/config';
-import { UrlLauncherParams } from 'teleport/config';
+import cfg, { UrlLauncherParams } from 'teleport/config';
 import api from 'teleport/services/api';
 import service from 'teleport/services/apps';
 
