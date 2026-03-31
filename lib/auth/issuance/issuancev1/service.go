@@ -130,13 +130,8 @@ func (s *Service) IssueScopedBotCerts(
 		ctx, requestedScope, user, []types.ResourceAccessID{},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "build access checker")
+		return nil, trace.Wrap(err, "building access checker")
 	}
-	accessInfo := services.AccessInfoFromUserState(user)
-	// As per RFD, today we do not support traits for scoped Bots. Explicitly
-	// prevent this in case user has been manually modified to add traits and
-	// circumvent standard bot validation.
-	accessInfo.Traits = nil
 
 	certReq := cert.Request{
 		User:           user,
@@ -153,10 +148,12 @@ func (s *Service) IssueScopedBotCerts(
 		// Explicitly reject use for further issuance
 		DisallowReissue: true,
 
-		// TODO(strideynet): Propagate following:
-		JoinAttributes: nil,
-		BotName:        "",
-		BotInstanceID:  "",
+		// Propagate certain attributes from current identity to generated
+		// certificates
+		JoinAttributes: currentIdentity.JoinAttributes,
+		LoginIP:        currentIdentity.LoginIP,
+		BotName:        currentIdentity.BotName,
+		BotInstanceID:  currentIdentity.BotInstanceID,
 	}
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around
