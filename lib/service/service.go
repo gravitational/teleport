@@ -538,7 +538,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (apissh.ClientConfig, error
 	return apissh.ClientConfig{
 		User: c.hostID,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
 			},
 		},
@@ -3729,7 +3729,7 @@ func (process *TeleportProcess) initSSH() error {
 					Client:       conn.Client,
 					AccessPoint:  authClient,
 					PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-						GetSigners: func() ([]ssh.Signer, error) {
+						Signers: func() ([]ssh.Signer, error) {
 							return conn.ServerGetHostSigners(), nil
 						},
 					},
@@ -5889,7 +5889,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AuthClient:   conn.Client,
 		AccessPoint:  accessPoint,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return conn.ServerGetHostSigners(), nil
 			},
 		},
@@ -6916,7 +6916,7 @@ func (process *TeleportProcess) initApps() {
 				Server:       appServer,
 				AccessPoint:  accessPoint,
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return conn.ServerGetHostSigners(), nil
 					},
 				},

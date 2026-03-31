@@ -226,7 +226,7 @@ func (p *sshProvider) sessionSSHConfig(
 	}
 	return apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{certSigner}, nil
 			},
 		},

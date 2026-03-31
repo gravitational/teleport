@@ -280,7 +280,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	sshConfig.PublicKeyAuth = apissh.PublicKeyAuthConfig{
-		GetSigners: func() ([]ssh.Signer, error) {
+		Signers: func() ([]ssh.Signer, error) {
 			sshSigner, err := newKeyRing.SSHSigner()
 			if err != nil {
 				return nil, trace.Wrap(err)

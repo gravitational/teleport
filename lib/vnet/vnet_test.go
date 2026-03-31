@@ -1489,7 +1489,7 @@ func TestSSH(t *testing.T) {
 			clientConfig := apissh.ClientConfig{
 				User: tc.sshUser,
 				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{tc.sshUserSigner}, nil
 					},
 				},
@@ -1521,7 +1521,7 @@ func TestSSH(t *testing.T) {
 		clientConfig := apissh.ClientConfig{
 			User: "testuser",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{sshUserSigner}, nil
 				},
 			},
@@ -1694,7 +1694,7 @@ func TestPriority(t *testing.T) {
 		}
 		clientConfig := apissh.ClientConfig{
 			User:            "testuser",
-			PublicKeyAuth:   apissh.PublicKeyAuthConfig{GetSigners: func() ([]ssh.Signer, error) { return []ssh.Signer{sshUserSigner}, nil }},
+			PublicKeyAuth:   apissh.PublicKeyAuthConfig{Signers: func() ([]ssh.Signer, error) { return []ssh.Signer{sshUserSigner}, nil }},
 			HostKeyCallback: certChecker.CheckHostKey,
 		}
 

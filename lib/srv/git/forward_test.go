@@ -256,7 +256,7 @@ func TestForwardServer(t *testing.T) {
 				apissh.ClientConfig{
 					User: test.clientLogin,
 					PublicKeyAuth: apissh.PublicKeyAuthConfig{
-						GetSigners: func() ([]ssh.Signer, error) {
+						Signers: func() ([]ssh.Signer, error) {
 							return []ssh.Signer{userCert}, nil
 						},
 					},

@@ -9248,7 +9248,7 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 	config := apissh.ClientConfig{
 		User: suite.Me.Username,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},

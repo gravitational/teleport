@@ -570,7 +570,7 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	config := apissh.ClientConfig{
 		User: sshUser,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},

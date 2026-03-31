@@ -189,7 +189,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf := &client.Config{}
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
 	clientConf.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
-		GetSigners: func() ([]ssh.Signer, error) {
+		Signers: func() ([]ssh.Signer, error) {
 			return []ssh.Signer{signer}, nil
 		},
 	}

@@ -233,7 +233,7 @@ func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
 		apissh.ClientConfig{
 			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					// This is a dummy signer to get through the authentication phase i.e., it is not used for the test.
 					_, key, err := ed25519.GenerateKey(nil)
 					if err != nil {

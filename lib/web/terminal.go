@@ -997,7 +997,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(
 	sshConfig := apissh.ClientConfig{
 		User: tc.HostLogin,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return signers, nil
 			},
 		},

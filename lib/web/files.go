@@ -351,7 +351,7 @@ func (f *fileTransfer) issueSingleUseCert(mfaResponse *proto.MFAAuthenticateResp
 	}
 
 	tc.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
-		GetSigners: func() ([]ssh.Signer, error) {
+		Signers: func() ([]ssh.Signer, error) {
 			return []ssh.Signer{signer}, nil
 		},
 	}

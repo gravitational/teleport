@@ -3285,7 +3285,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	// If PublicKeyAuthConfig is not empty, use it to get signers. Additional signers may be added later from the local
 	// agent or jump host logic, but this ensures that any explicitly configured public key signers are included.
 	if !tc.PublicKeyAuthConfig.IsEmpty() {
-		signers, err = tc.PublicKeyAuthConfig.GetSigners()
+		signers, err = tc.PublicKeyAuthConfig.Signers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3349,7 +3349,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return signers, nil
 				},
 			},

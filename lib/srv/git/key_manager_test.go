@@ -88,8 +88,8 @@ func TestKeyManager_verify_github(t *testing.T) {
 			conn, err := apissh.Dial(ctx, "tcp", targetAddress, apissh.ClientConfig{
 				User: "git",
 				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
-						return []ssh.Signer{&mockSigner{}}, nil
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{mockSigner{}}, nil
 					},
 				},
 				HostKeyCallback: hostKeyCallback,

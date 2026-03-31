@@ -776,7 +776,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	clientConfig := apissh.ClientConfig{
 		User: systemLogin,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: signersWithSHA1Fallback(signers),
+			Signers: signersWithSHA1Fallback(signers),
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),

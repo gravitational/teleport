@@ -1173,7 +1173,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.NoError(t, err)
 			sshConfig := apissh.ClientConfig{
 				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return agentClient.Signers()
 					},
 				},

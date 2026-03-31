@@ -206,7 +206,7 @@ func (i *Identity) SSHClientConfig(fips bool) (apissh.ClientConfig, error) {
 	return apissh.ClientConfig{
 		User: i.ID.HostUUID,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{i.KeySigner}, nil
 			},
 		},
