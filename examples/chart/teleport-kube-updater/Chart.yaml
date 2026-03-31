@@ -1,4 +1,4 @@
-.version: &version "19.0.0-prealpha.2"
+.version: &version "19.0.0-dev.dustinwc.1"
 
 name: teleport-kube-updater
 apiVersion: v2

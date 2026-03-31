@@ -21,7 +21,7 @@ should match the snapshot (full):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot-spiffe-daemon-set
-            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-prealpha.2
+            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-dev.dustinwc.1
         spec:
           containers:
           - args:
@@ -38,7 +38,7 @@ should match the snapshot (full):
                   fieldPath: spec.nodeName
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/tokens/join-sa-token
-            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
+            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-dev.dustinwc.1
             imagePullPolicy: IfNotPresent
             name: tbot
             securityContext:
@@ -94,7 +94,7 @@ should match the snapshot (simple):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: tbot-spiffe-daemon-set
-            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-prealpha.2
+            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-dev.dustinwc.1
         spec:
           containers:
           - args:
@@ -110,7 +110,7 @@ should match the snapshot (simple):
                   fieldPath: spec.nodeName
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/tokens/join-sa-token
-            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
+            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-dev.dustinwc.1
             imagePullPolicy: IfNotPresent
             name: tbot
             securityContext:
