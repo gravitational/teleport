@@ -2445,7 +2445,11 @@ type SignForDBRequest struct {
 	// database from a previous successful call to ReissueDBCert.
 	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
 	// Sign holds signature request details.
-	Sign          *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
+	Sign *SignRequest `protobuf:"bytes,2,opt,name=sign,proto3" json:"sign,omitempty"`
+	// Username is the database user for which the cert was issued. Required
+	// because different users connecting to the same database get different
+	// certs and signers.
+	Username      string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2492,6 +2496,13 @@ func (x *SignForDBRequest) GetSign() *SignRequest {
 		return x.Sign
 	}
 	return nil
+}
+
+func (x *SignForDBRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
 }
 
 // SignForDBResponse is a response for SignForDB.
@@ -2755,10 +2766,11 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x14ReissueDBCertRequest\x12G\n" +
 	"\rdatabase_info\x18\x01 \x01(\v2\".teleport.lib.vnet.v1.DatabaseInfoR\fdatabaseInfo\"+\n" +
 	"\x15ReissueDBCertResponse\x12\x12\n" +
-	"\x04cert\x18\x01 \x01(\fR\x04cert\"\x8f\x01\n" +
+	"\x04cert\x18\x01 \x01(\fR\x04cert\"\xab\x01\n" +
 	"\x10SignForDBRequest\x12D\n" +
 	"\fdatabase_key\x18\x01 \x01(\v2!.teleport.lib.vnet.v1.DatabaseKeyR\vdatabaseKey\x125\n" +
-	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\"1\n" +
+	"\x04sign\x18\x02 \x01(\v2!.teleport.lib.vnet.v1.SignRequestR\x04sign\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\"1\n" +
 	"\x11SignForDBResponse\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\"`\n" +
 	"\x18OnNewDBConnectionRequest\x12D\n" +
