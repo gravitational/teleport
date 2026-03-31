@@ -175,7 +175,7 @@ func (r *Handler) Update(ctx context.Context, clt *authclient.Client, raw servic
 // in Teleport.
 func (r *Handler) Delete(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
 	if r.deleteHandler == nil {
-		return trace.NotImplemented("resource does not support 'tctl delete'")
+		return trace.NotImplemented("resource does not support 'tctl rm'")
 	}
 	if ref.Name == "" && !r.singleton {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
