@@ -406,7 +406,8 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 			"valid_principals", cert.ValidPrincipals,
 			"valid_after", cert.ValidAfter,
 			"valid_before", cert.ValidBefore,
-			"permissions", cert.Permissions,
+			"critical_options", cert.CriticalOptions,
+			"extensions", cert.Extensions,
 			"reserved", cert.Reserved,
 		),
 	)
