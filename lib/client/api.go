@@ -3277,18 +3277,23 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 
 	hostKeyCallback := tc.HostKeyCallback
 
+	// Collect static and dynamic signers. Static signers are loaded once and do not change based on the target cluster.
+	// Dynamic signers are loaded on demand and can change based on the target cluster (e.g. when connecting through a
+	// jump host and using host certificates to infer the target cluster). They will be combined at the time of
+	// connection to provide the full set of signers to use for authentication.
 	var (
-		signers []ssh.Signer
-		err     error
+		staticSigners  []ssh.Signer
+		dynamicSigners []func() ([]ssh.Signer, error)
 	)
 
-	// If PublicKeyAuthConfig is not empty, use it to get signers. Additional signers may be added later from the local
-	// agent or jump host logic, but this ensures that any explicitly configured public key signers are included.
+	// Add any configured public key signers to the static list. These do not change based on the target cluster.
 	if !tc.PublicKeyAuthConfig.IsEmpty() {
-		signers, err = tc.PublicKeyAuthConfig.Signers()
+		signers, err := tc.PublicKeyAuthConfig.Signers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		staticSigners = append(staticSigners, signers...)
 	}
 
 	clusterName := func() string { return tc.SiteName }
@@ -3297,18 +3302,18 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
-			// Wrap host key and auth callbacks using clusterGuesser.
+			// Wrap host key and signer callbacks using clusterGuesser.
 			//
-			// clusterGuesser will use the host key callback to guess the target
-			// cluster based on the host certificate. It will then use the auth
-			// callback to load the appropriate SSH certificate for that cluster.
+			// clusterGuesser will use the host key callback to guess the target cluster based on the host certificate.
+			// It will then use the signer callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-			clusterSigners, err := clusterGuesser.signersForCluster(ctx, clusterName())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			signers = append(signers, clusterSigners...)
+			dynamicSigners = append(
+				dynamicSigners,
+				func() ([]ssh.Signer, error) {
+					return clusterGuesser.signers(ctx, tc.localAgent.Signers)
+				},
+			)
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3336,12 +3341,27 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			return nil, trace.Wrap(err)
 		}
 		if len(localSigners) > 0 {
-			signers = append(signers, localSigners...)
+			staticSigners = append(staticSigners, localSigners...)
 		}
 	}
 
-	if len(signers) == 0 {
+	if len(staticSigners) == 0 && len(dynamicSigners) == 0 {
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
+	}
+
+	collectSigners := func() ([]ssh.Signer, error) {
+		allSigners := slices.Clone(staticSigners)
+
+		for _, getSigner := range dynamicSigners {
+			dynamicSigner, err := getSigner()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			allSigners = append(allSigners, dynamicSigner...)
+		}
+
+		return allSigners, nil
 	}
 
 	return &clientConfig{
@@ -3349,9 +3369,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return signers, nil
-				},
+				Signers: collectSigners,
 			},
 			Timeout: tc.SSHDialTimeout,
 		},
@@ -3439,6 +3457,14 @@ func (g *proxyClusterGuesser) clusterName() string {
 		return *name
 	}
 	return ""
+}
+
+func (g *proxyClusterGuesser) signers(ctx context.Context, allSigners func() ([]ssh.Signer, error)) ([]ssh.Signer, error) {
+	if clusterName := g.clusterName(); clusterName != "" {
+		return g.signersForCluster(ctx, clusterName)
+	}
+
+	return allSigners()
 }
 
 // WithoutJumpHosts executes the given function with a Teleport client that has
