@@ -131,7 +131,9 @@ describe('parseDeepLink', () => {
         output: {
           status: 'error',
           reason: 'malformed-url',
-          error: expect.any(TypeError),
+          error: expect.objectContaining({
+            code: 'ERR_INVALID_URL',
+          }),
         },
       },
       {
