@@ -180,7 +180,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	// Check if it's feasible that user has access before hitting the database.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBot, types.VerbRead,
+		&ruleCtx, types.KindBot, types.VerbReadNoSecrets,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1055,8 +1055,6 @@ func scopedBotFromUser(user types.User) (*pb.Bot, error) {
 		b.Metadata.Labels[k] = v
 	}
 
-	// TODO(noah): Should we weak validate here? We do not currently validate
-	// on read for unscoped Bots.
 	return b, nil
 }
 
