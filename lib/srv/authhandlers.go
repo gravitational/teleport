@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -745,17 +744,6 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
 	if err := ensureSupportedPreconditions(permit.GetPreconditions()); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	mfaRequired := slices.ContainsFunc(
-		permit.GetPreconditions(),
-		func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		},
-	)
-	if !mfaRequired {
-		// MFA not required, grant access.
-		return perms, nil
 	}
 
 	cert, ok := key.(*ssh.Certificate)

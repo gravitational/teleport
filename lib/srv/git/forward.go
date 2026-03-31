@@ -321,7 +321,7 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
+	// Use auth.PublicKeyCallback to verify user cert is signed by UserCA and to evaluate
 	// RBAC permissions.
 	permissions, err := s.auth.PublicKeyCallback(conn, key)
 	if err != nil {
