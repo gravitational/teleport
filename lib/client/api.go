@@ -3277,9 +3277,18 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 
 	hostKeyCallback := tc.HostKeyCallback
 
-	signers, err := tc.PublicKeyAuthConfig.GetSigners()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var (
+		signers []ssh.Signer
+		err     error
+	)
+
+	// If PublicKeyAuthConfig is not empty, use it to get signers. Additional signers may be added later from the local
+	// agent or jump host logic, but this ensures that any explicitly configured public key signers are included.
+	if !tc.PublicKeyAuthConfig.IsEmpty() {
+		signers, err = tc.PublicKeyAuthConfig.GetSigners()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName := func() string { return tc.SiteName }
@@ -3326,7 +3335,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		if len(signers) > 0 {
+		if len(localSigners) > 0 {
 			signers = append(signers, localSigners...)
 		}
 	}
