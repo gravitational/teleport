@@ -113,7 +113,8 @@ func (s *Service) IssueScopedBotCerts(
 
 	accessInfo := services.AccessInfoFromUserState(user)
 	// As per RFD, today we do not support traits for scoped Bots. Explicitly
-	// prevent this.
+	// prevent this in case user has been manually modified to add traits and
+	// circumvent standard bot validation.
 	accessInfo.Traits = nil
 
 	certReq := cert.Request{
