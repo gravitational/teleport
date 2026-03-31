@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/pem"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -164,7 +165,14 @@ func (s *licenseUpdateService) Run(ctx context.Context) {
 		// This ensures that deployments where Teleport can't save the new license to disk won't run
 		// for long with stale features until an updated license is received.
 		if err := s.fetchAndUpdateLicense(ctx); err != nil {
-			s.log.WarnContext(ctx, "error updating license", "error", err)
+			if trace.IsConnectionProblem(err) {
+				s.log.InfoContext(ctx,
+					"automatic license update failed, Teleport will continue to run "+
+						"but changes to your account will require a manual license update",
+					"error", err)
+			} else {
+				s.log.WarnContext(ctx, "error updating license", "error", err)
+			}
 		}
 		select {
 		case <-ticker.C:
@@ -187,7 +195,9 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 	})
 	if err != nil {
 		if code := status.Code(err); code == codes.Unavailable || code == codes.DeadlineExceeded {
-			return trace.ConnectionProblem(err, "could not fetch updated license, please ensure that Teleport has connectivity to %v", s.client.Hostname())
+			return &trace.ConnectionProblemError{
+				Message: fmt.Sprintf("could not connect to %s", s.client.Hostname()),
+			}
 		}
 		return trace.Wrap(err, "error fetching updated license")
 	}
