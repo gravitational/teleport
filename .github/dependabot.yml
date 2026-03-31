@@ -342,8 +342,8 @@ updates:
           - 'electron*'
           - node-gyp
           - node-pty
-      ui:
-        dependency-type: production
+      ui-tooling:
+        dependency-type: development
         update-types:
           - 'minor'
           - 'patch'
@@ -355,8 +355,9 @@ updates:
           - 'electron*'
           - node-gyp
           - node-pty
-      ui-tooling:
-        dependency-type: development
+          # Exclude type packages; they need to be updated together with the corresponding app deps.
+          - '@types/*'
+      ui:
         update-types:
           - 'minor'
           - 'patch'
