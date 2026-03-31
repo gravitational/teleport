@@ -35,7 +35,6 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -119,7 +118,6 @@ func TestTerraformJoin(t *testing.T) {
 	tempDir := t.TempDir()
 	jwtPath := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
-	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
 
 	// Test setup: craft a Terraform provider configuration
 	terraformConfig := fmt.Sprintf(`
@@ -130,8 +128,9 @@ func TestTerraformJoin(t *testing.T) {
 			retry_base_duration = "900ms"
 			retry_cap_duration = "4s"
 			retry_max_tries = "12"
+			kubernetes_token_path = %q
 		}
-	`, authHelper.ServerAddr(), testTokenName, types.JoinMethodKubernetes)
+	`, authHelper.ServerAddr(), testTokenName, types.JoinMethodKubernetes, jwtPath)
 
 	terraformProvider := provider.New()
 	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))
@@ -247,7 +246,6 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 	tempDir := t.TempDir()
 	jwtPath := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
-	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
 
 	// Test setup: craft a Terraform provider configuration
 	proxyAddr, err := process.ProxyTunnelAddr()
@@ -262,8 +260,9 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 			retry_base_duration = "900ms"
 			retry_cap_duration = "4s"
 			retry_max_tries = "12"
+			kubernetes_token_path = %q
 		}
-	`, proxyAddr, testTokenName, types.JoinMethodKubernetes)
+	`, proxyAddr, testTokenName, types.JoinMethodKubernetes, jwtPath)
 
 	terraformProvider := provider.New()
 	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

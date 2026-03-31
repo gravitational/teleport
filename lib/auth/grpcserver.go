@@ -4903,7 +4903,7 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 			return nil, trace.BadParameter("unable to find peer")
 		}
 
-		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
+		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 	}

@@ -4756,6 +4756,12 @@ func TestCustomRateLimiting(t *testing.T) {
 			},
 		},
 		{
+			name: "RPC ChangePassword",
+			fn: func(ctx context.Context, clt *authclient.Client) error {
+				return clt.ChangePassword(ctx, &proto.ChangePasswordRequest{})
+			},
+		},
+		{
 			name: "RPC GetAccountRecoveryToken",
 			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})

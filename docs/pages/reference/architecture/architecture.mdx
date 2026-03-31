@@ -75,10 +75,10 @@ infrastructure resources with a Teleport cluster:
 
 ### Teleport Agents
 
-Teleport Agents proxy traffic from users, human or machine, to resources in your infrastructure.
-Agents are instances of the `teleport` binary configured to run certain
-services, e.g., the Teleport SSH Service and Teleport Kubernetes Service, and
-administrators deploy Agents on their own infrastructure.
+Teleport Agents proxy traffic from humans, machines, and AI agents to resources
+in your infrastructure. Agents are instances of the `teleport` binary configured
+to run certain services, e.g., the Teleport SSH Service and Teleport Kubernetes
+Service, and administrators deploy Agents on their own infrastructure.
 
 Agents verify a user's certificate against a certificate authority maintained by
 the Teleport Auth Service. Since a user's Teleport roles are encoded in their
@@ -107,8 +107,8 @@ about the architecture of Teleport Agent features:
 
 Machine & Workload Identity is a Teleport product that enables automated
 services to access Teleport-protected infrastructure with regularly updated
-credentials. Administrators register a Bot user with Teleport that, like a human
-user, is assigned Teleport roles.
+credentials. Administrators register a Bot user with Teleport that, like a local
+or SSO user, is assigned Teleport roles.
 
 Instances of the `tbot` binary communicate with the Teleport Auth Service to
 continuously refresh credentials. As with Agents, administrators must deploy

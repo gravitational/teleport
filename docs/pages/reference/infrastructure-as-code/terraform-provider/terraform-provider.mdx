@@ -187,6 +187,7 @@ This auth method has the following limitations:
 - `join_token` (String) Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `TF_TELEPORT_JOIN_TOKEN`.
 - `key_base64` (String, Sensitive) Base64 encoded TLS auth key. This can also be set with the environment variable `TF_TELEPORT_KEY_BASE64`.
 - `key_path` (String) Path to Teleport auth key file. This can also be set with the environment variable `TF_TELEPORT_KEY`.
+- `kubernetes_token_path` (String) KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.
 - `profile_dir` (String) Teleport profile path. This can also be set with the environment variable `TF_TELEPORT_PROFILE_PATH`.
 - `profile_name` (String) Teleport profile name. This can also be set with the environment variable `TF_TELEPORT_PROFILE_NAME`.
 - `retry_base_duration` (String) Retry algorithm when the API returns 'not found': base duration between retries (https://pkg.go.dev/time#ParseDuration). This can also be set with the environment variable `TF_TELEPORT_RETRY_BASE_DURATION`.
