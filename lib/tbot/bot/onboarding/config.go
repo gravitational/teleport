@@ -189,6 +189,14 @@ func (c *BoundKeypairOnboardingConfig) StaticPrivateKeyBytes() ([]byte, error) {
 	return nil, nil
 }
 
+// KubernetesOnboardingConfig holds configuration relevant to the `kubernetes` join method.
+type KubernetesOnboardingConfig struct {
+	// TokenPath is the optional path that tbot uses to lookup the Kubernetes service account token used to join.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	TokenPath string `yaml:"token_path,omitempty"`
+}
+
 // Config contains values relevant to how the bot authenticates with
 // and joins the Teleport cluster.
 type Config struct {
@@ -219,8 +227,11 @@ type Config struct {
 	// Gitlab holds configuration relevant to the `gitlab` join method.
 	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
 
-	// BoundKeypair holds configuration relevant to the `bound_keypair` join method
+	// BoundKeypair holds configuration relevant to the `bound_keypair` join method.
 	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
+
+	// Kubernetes holds the configuration relevant to the `kubernetes` join method.
+	Kubernetes KubernetesOnboardingConfig `yaml:"kubernetes,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
