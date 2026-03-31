@@ -137,8 +137,11 @@ func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (b
 	if _, exists := demoModePaths[requestedPath]; !exists {
 		return false, nil
 	}
+	demoEnabled := false
 	p.mu.Lock()
-	demoEnabled := p.AccessGraph.DemoMode
+	if p.AccessGraph != nil {
+		demoEnabled = p.AccessGraph.DemoMode
+	}
 	p.mu.Unlock()
 
 	// if either of these are true, we can shortcut any extra checks
@@ -164,8 +167,10 @@ func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (b
 	}
 
 	p.mu.Lock()
-	p.AccessGraph.DemoMode = accessGraphSettings.GetSpec().GetDemoMode() == clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
-	demoEnabled = p.AccessGraph.DemoMode
+	if p.AccessGraph != nil {
+		p.AccessGraph.DemoMode = accessGraphSettings.GetSpec().GetDemoMode() == clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
+		demoEnabled = p.AccessGraph.DemoMode
+	}
 	p.mu.Unlock()
 	return demoEnabled, nil
 }
@@ -186,8 +191,7 @@ func (p *Plugin) getAccessGraphUsingHTTPWithAuth(w http.ResponseWriter, r *http.
 		return nil, trace.AccessDenied("not authorized to use access graph")
 	}
 
-	requiredVerb := ""
-
+	var requiredVerb string
 	switch r.Method {
 	case http.MethodGet, http.MethodOptions, http.MethodHead:
 		requiredVerb = types.VerbRead
@@ -219,10 +223,52 @@ func (p *Plugin) getAccessGraphUsingHTTPWithAuth(w http.ResponseWriter, r *http.
 	return rsp, err
 }
 
+// accessGraphCertHandler returns an http.Handler that serves Access Graph API
+// requests authenticated via mTLS client certificate (RouteToApp.AccessGraph=true).
+func (p *Plugin) accessGraphCertHandler(prefix string) http.Handler {
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sCtx, err := p.h.AuthenticateReqForAccessGraphAPI(r)
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
+
+		if strings.HasPrefix(r.URL.Path, "/v1/") {
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/v1")
+		}
+
+		if !strings.HasPrefix(r.URL.Path, prefix) {
+			trace.WriteError(w, trace.BadParameter("invalid path for access graph API"))
+			return
+		}
+
+		// Build params with "path" key so getAccessGraphUsingHTTPUnauthenticated
+		// (called inside serveAccessGraphHTTP) can rewrite the URL correctly.
+		params := httprouter.Params{
+			httprouter.Param{
+				Key:   "path",
+				Value: r.URL.Path[len(prefix)-1:],
+			},
+		}
+
+		_, err = p.getAccessGraphUsingHTTPWithAuth(w, r, params, sCtx)
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
+	})
+}
+
 // getAccessGraphUsingHTTPUnauthenticated is a handler for the /v1/accessgraph/:path which
 // does not require authentication to access the access graph.
 func (p *Plugin) getAccessGraphUsingHTTPUnauthenticated(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
 	forwarder := p.getAccessGraphHTTPForwarder()
+	if forwarder == nil {
+		return nil, trace.NotFound("access graph service is not available")
+	}
 	urlPath := params.ByName("path")
 	r = r.Clone(r.Context())
 	r.URL.Scheme = "https"

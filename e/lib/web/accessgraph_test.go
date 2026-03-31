@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	_ "embed"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -11,17 +13,25 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/keys"
 	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestGetAccessGraph(t *testing.T) {
@@ -431,6 +441,139 @@ func TestAccessGraphSettings(t *testing.T) {
 				got = unmarshal(t, resp)
 				require.Equal(t, tt.want, got)
 			}, 5*time.Second, 1*time.Second)
+		})
+	}
+}
+
+// TestAccessGraphCertAuth verifies the mTLS certificate-based authentication
+// flow for the Access Graph API (Usage=usage:access_graph_api certs).
+func TestAccessGraphCertAuth(t *testing.T) {
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				entitlements.App:    {Enabled: true},
+			},
+		},
+	}
+	modulestest.SetTestModules(t, *testModules)
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
+
+	privateKeyPem, err := keys.MarshalPrivateKey(key)
+	require.NoError(t, err, "MarshalPrivateKey failed")
+
+	const username = "certuser"
+	tests := []struct {
+		name                   string
+		pathPrefix             string
+		extraRules             []types.Rule
+		wantCode               int
+		certUsage              proto.UserCertsRequest_CertUsage
+		validate               func(*testing.T, *http.Request)
+		generateCertAssertFunc require.ErrorAssertionFunc
+		errorMessage           string
+	}{
+		{
+			name: "authorized user request is forwarded with username header",
+			extraRules: []types.Rule{
+				{Resources: []string{types.KindAccessGraph}, Verbs: []string{types.VerbRead}},
+			},
+			certUsage:              proto.UserCertsRequest_AccessGraphAPI,
+			wantCode:               http.StatusOK,
+			generateCertAssertFunc: require.NoError,
+			validate: func(t *testing.T, r *http.Request) {
+				assert.Equal(t, username, r.Header.Get(teleport.XTeleportUsernameHeader))
+			},
+		},
+		{
+			name:       "v1-prefixed path is accepted and forwarded",
+			pathPrefix: "/v1",
+			extraRules: []types.Rule{
+				{Resources: []string{types.KindAccessGraph}, Verbs: []string{types.VerbRead}},
+			},
+			certUsage:              proto.UserCertsRequest_AccessGraphAPI,
+			wantCode:               http.StatusOK,
+			generateCertAssertFunc: require.NoError,
+			validate: func(t *testing.T, r *http.Request) {
+				assert.Equal(t, username, r.Header.Get(teleport.XTeleportUsernameHeader))
+			},
+		},
+		{
+			name:                   "user without KindAccessGraph/read is denied",
+			certUsage:              proto.UserCertsRequest_AccessGraphAPI,
+			generateCertAssertFunc: require.Error,
+		},
+		{
+			name: "cert with incorrect usage fallback to app",
+			extraRules: []types.Rule{
+				{Resources: []string{types.KindAccessGraph}, Verbs: []string{types.VerbRead}},
+			},
+			generateCertAssertFunc: require.NoError,
+			errorMessage:           "invalid session",
+			wantCode:               http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := clockwork.NewRealClock()
+			s := newWebSuite(t,
+				withClock(clock),
+				withAccessGraphFeatures(features),
+				withModules(testModules),
+				withAccessGraphValidation(tt.validate),
+			)
+
+			// Create a user with the requested RBAC rules.
+			s.createUser(t, username, s.user, s.testPassword(), s.testOtpSecret(), tt.extraRules...)
+
+			u := authtest.TestUser(username)
+
+			userClient, err := s.testAuthServer.NewClient(u)
+			require.NoError(t, err, "NewClient failed")
+
+			signResp, err := userClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
+				TLSPublicKey: publicKeyPEM,
+				Username:     username,
+				Expires:      clock.Now().Add(1 * time.Hour),
+				Usage:        tt.certUsage,
+			})
+			tt.generateCertAssertFunc(t, err)
+			if err != nil {
+				return
+			}
+
+			cert, err := tls.X509KeyPair(signResp.TLS, privateKeyPem)
+			require.NoError(t, err)
+
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						GetClientCertificate: func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+							return &cert, nil
+						},
+						InsecureSkipVerify: true,
+					},
+				},
+			}
+
+			resp, err := httpClient.Get(s.webServerURL.String() + tt.pathPrefix + "/enterprise/accessgraph/graph/test")
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, tt.wantCode, resp.StatusCode)
+			if tt.wantCode == http.StatusOK {
+				return
+			}
+			data, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(data), tt.errorMessage)
 		})
 	}
 }

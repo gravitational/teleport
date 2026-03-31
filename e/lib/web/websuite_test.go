@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
@@ -326,6 +327,22 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	require.NoError(t, err)
 
 	s.webServer.Config.Handler = handler
+
+	pool := x509.NewCertPool()
+
+	cAs, err := s.testAuthServer.AuthServer.AuthServer.GetCertAuthorities(ctx, types.UserCA, false)
+	require.NoError(t, err)
+	for _, cA := range cAs {
+		for _, cert := range cA.GetTrustedTLSKeyPairs() {
+			pool.AppendCertsFromPEM(cert.Cert)
+		}
+	}
+
+	s.webServer.TLS = &tls.Config{
+		ClientAuth: tls.VerifyClientCertIfGiven,
+		ClientCAs:  pool,
+	}
+
 	s.webServer.StartTLS()
 
 	serverURL, err := url.Parse("https://" + s.webServer.Listener.Addr().String())

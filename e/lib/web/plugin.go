@@ -402,15 +402,18 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.DELETE("/webapi/sites/:site/integration/externalauditstorage/draft", h.WithClusterAuth(p.externalAuditStorageDeleteDraft))
 
 	// Access graph
-	h.GET("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.POST("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.PATCH("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.OPTIONS("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.PUT("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.HEAD("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
-	h.DELETE("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	const accessGraphPrefix = "/enterprise/accessgraph"
+	h.GET(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.POST(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.PATCH(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.OPTIONS(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.PUT(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.HEAD(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
+	h.DELETE(accessGraphPrefix+"/*path", p.accessGraphHandler(h))
 	h.GET("/enterprise/accessgraphsettings", h.WithAuth(p.getAccessGraphSettings))
 	h.POST("/enterprise/accessgraphsettings", h.WithAuth(p.updateAccessGraphSettings))
+	// wire up the cert-based Access Graph handler for mTLS app-cert requests.
+	h.SetAccessGraphHandler(p.accessGraphCertHandler(accessGraphPrefix))
 
 	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
