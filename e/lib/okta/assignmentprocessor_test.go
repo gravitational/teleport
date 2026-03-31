@@ -3,6 +3,8 @@ package okta
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,8 +20,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -557,6 +561,107 @@ func TestProcessAssignments(t *testing.T) {
 	}
 }
 
+// This test checks if assignments are processed in order from the highest to lowest priority.
+func Test_assignmentProcessor_processAssignments_priority(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewRealClock()
+	ap := newTestAccessPoint(t, clock)
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+	svc, _ := newTestService(t, ap, oktaClient, withClock(clock))
+
+	const user1, uid1, user2, uid2 = "user1", "user_id_1", "user2", "user_id_2"
+	const application1, group1 = "application_id_1", "group_id_1"
+	oktaData.UpsertUserForId(user1, uid1)
+	oktaData.UpsertUserForId(user2, uid2)
+	oktaData.UpsertAppForId(application1)
+	oktaData.UpsertGroupForId(group1)
+
+	now := clock.Now()
+
+	cleanupTimeZero := time.Time{}
+	cleanupTimePast1 := now.Add(-2 * time.Hour)
+	cleanupTimePast2 := now.Add(-1 * time.Hour)
+	cleanupTimeFuture1 := now.Add(1 * time.Hour)
+	cleanupTimeFuture2 := now.Add(2 * time.Hour)
+	lastProcessedT1 := now.Add(-4*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
+	lastProcessedT2 := now.Add(-3*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
+	lastProcessedT3 := now.Add(-2*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
+	lastProcessedT4 := now.Add(-1*time.Minute - max(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops, processingTimeout))
+
+	assignmentDescs := []struct {
+		cleanupTime   time.Time
+		status        string
+		lastProcessed time.Time
+	}{
+		//  1. Assignments to clean up, then by CleanupTime, then by LastTransitionTime.
+		{cleanupTimePast1, constants.OktaAssignmentStatusSuccessful, lastProcessedT2}, // 01
+		{cleanupTimePast1, constants.OktaAssignmentStatusSuccessful, lastProcessedT4}, // 02
+		{cleanupTimePast2, constants.OktaAssignmentStatusFailed, lastProcessedT1},     // 03
+		{cleanupTimePast2, constants.OktaAssignmentStatusPending, lastProcessedT3},    // 04
+		//  2. Pending assignments, then by LastTransitionTime.
+		{cleanupTimeZero, constants.OktaAssignmentStatusPending, lastProcessedT1},    // 05
+		{cleanupTimeFuture2, constants.OktaAssignmentStatusPending, lastProcessedT2}, // 06
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusPending, lastProcessedT3}, // 07
+		{cleanupTimeZero, constants.OktaAssignmentStatusPending, lastProcessedT4},    // 08
+		//  3. Assignments stuck in processing, then by LastTransitionTime.
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusProcessing, lastProcessedT1}, // 09
+		{cleanupTimeFuture2, constants.OktaAssignmentStatusProcessing, lastProcessedT2}, // 10
+		{cleanupTimeZero, constants.OktaAssignmentStatusProcessing, lastProcessedT3},    // 11
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusProcessing, lastProcessedT4}, // 12
+		//  4. Failed assignments, then by LastTransitionTime.
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusFailed, lastProcessedT1}, // 13
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusFailed, lastProcessedT2}, // 14
+		{cleanupTimeZero, constants.OktaAssignmentStatusFailed, lastProcessedT3},    // 15
+		{cleanupTimeZero, constants.OktaAssignmentStatusFailed, lastProcessedT4},    // 16
+		//  5. LastTransitionTime.
+		{cleanupTimeZero, constants.OktaAssignmentStatusSuccessful, lastProcessedT1},    // 17
+		{cleanupTimeFuture2, constants.OktaAssignmentStatusSuccessful, lastProcessedT2}, // 18
+		{cleanupTimeFuture1, constants.OktaAssignmentStatusSuccessful, lastProcessedT3}, // 19
+		{cleanupTimeFuture2, constants.OktaAssignmentStatusSuccessful, lastProcessedT4}, // 20
+	}
+
+	var expectedAssignments []types.OktaAssignment
+	for i, desc := range assignmentDescs {
+		name := fmt.Sprintf("assignment%02d-%s", i+1, uuid.NewString())
+		const notFinalized = false
+		a, err := ap.CreateOktaAssignment(ctx, assignment(t, name, user1, desc.cleanupTime, desc.status, desc.lastProcessed, notFinalized,
+			target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, application1, oktaapitest.TestLink1Name)),
+			target(types.OktaAssignmentTargetV1_GROUP, group1),
+		))
+		require.NoError(t, err)
+		expectedAssignments = append(expectedAssignments, a)
+	}
+
+	// First let's see if sortAssignmentsByProcessingPriority works as expected.
+	// Iterate 10 times to increase the chances to find an edge case.
+	for range 10 {
+		shuffled := slices.Clone(expectedAssignments)
+		rand.Shuffle(len(shuffled), func(i, j int) {
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		})
+
+		sortAssignmentsByProcessingPriority(now, shuffled)
+		requireEqualOktaAssignments(t, expectedAssignments, shuffled)
+	}
+
+	// Now let's check if sortAssignmentsByProcessingPriority is used during processing.
+	svc.assignmentReconciler.assignmentProcessor.assignmentGetter = func() types.OktaAssignments {
+		assignments := mustGetAllOktaAssignments(t, ap)
+		rand.Shuffle(len(assignments), func(i, j int) {
+			assignments[i], assignments[j] = assignments[j], assignments[i]
+		})
+		return assignments
+	}
+	svc.assignmentReconciler.assignmentProcessor.emitter = dummyEmitter{}
+	svc.assignmentReconciler.assignmentProcessor.processAllAssignments(ctx)
+	sortedProcessedAssignments := mustGetAllOktaAssignments(t, ap)
+	sortByLastTransition(sortedProcessedAssignments) // oldest LastTransition was processed first
+	require.Equal(t, getOktaAssignmentNames(expectedAssignments), getOktaAssignmentNames(sortedProcessedAssignments))
+}
+
 // This test makes sure we don't skip Okta-side cleanup of okta_assignment resources that expired
 // during plugin restart. This may happen due to race conditions and/or proper reconcilers seeding.
 func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
@@ -638,4 +743,43 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	// Okta-side.
 	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
 	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
+
 }
+
+func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {
+	var res []string
+	for _, r := range assignments {
+		res = append(res, r.GetName())
+	}
+	return res
+}
+
+func mustGetAllOktaAssignments(t *testing.T, ap *testAccessPoint) []types.OktaAssignment {
+	t.Helper()
+	ctx := t.Context()
+
+	var res []types.OktaAssignment
+	for oa, err := range clientutils.Resources(ctx, ap.ListOktaAssignments) {
+		require.NoError(t, err)
+		res = append(res, oa)
+	}
+	return res
+}
+
+func sortByLastTransition(oktaAssignments []types.OktaAssignment) {
+	slices.SortFunc(oktaAssignments, func(a, b types.OktaAssignment) int {
+		return a.GetLastTransition().Compare(b.GetLastTransition())
+	})
+}
+
+func requireEqualOktaAssignments(t *testing.T, expected, actual []types.OktaAssignment) {
+	t.Helper()
+	require.Len(t, actual, len(expected))
+	for i := range len(expected) {
+		require.Empty(t, cmp.Diff(expected[i], actual[i]), "element[%d]", i)
+	}
+}
+
+type dummyEmitter struct{}
+
+func (dummyEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error { return nil }

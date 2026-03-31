@@ -1,9 +1,11 @@
 package okta
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type isLeaderGetter interface {
@@ -38,6 +41,23 @@ const (
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
 	processAssignmentTimeout time.Duration = 5 * time.Minute
+
+	// processAssignmentsLoopTimeout is the amount of time before giving up to process all
+	// assignments in a single processing loop. If we are exceeding this time we most likely
+	// have drained Okta limits anyway. The assignments are sorted by processing priority on
+	// each loop (see [sortAssignmentsByProcessingPriority]) so it's better to timeout early,
+	// give the system some breathing room (timeBetweenAssignmentProcessLoops) and re-attempt
+	// processing starting the assignments with the highest priority at the time the new loops
+	// starts.
+	//
+	// NOTE: Setting a timeout for individual assignment processing is not practical because
+	// for the [sourceTimer] we invalidate the cached [assignmentClient]. When that happens it
+	// can take a long time (potentially minutes) to refresh the cache and process the first
+	// assignment while it's expected to take seconds to process subsequent assignments.
+	// TODO(kopiczko): Warm up [assignmentClient] before processing the first assignment and
+	// create set a per-assignment or per-target timeout. Create a metric for the total
+	// processing and assignmentClient warming up time.
+	processAssignmentsLoopTimeout time.Duration = 10 * time.Minute
 )
 
 type assignmentProcessorAccessPoint struct {
@@ -160,11 +180,20 @@ func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
 	loopID := newLoopID(sourceTimer, a.clock.Now())
 	assignments := a.assignmentGetter()
 
+	start := time.Now()
 	a.logger.DebugContext(ctx, "Started processing Okta assignments", "loop_id", loopID)
-	defer a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID)
+	defer func() {
+		took := time.Since(start)
+		a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID, "took", logutils.StringerAttr(took))
+	}()
 
 	// Rebuild the target counter in a fresh loop.
 	a.rebuildTargetCounter(assignments)
+
+	sortAssignmentsByProcessingPriority(a.clock.Now(), assignments)
+
+	ctx, cancel := context.WithTimeout(ctx, processAssignmentsLoopTimeout)
+	defer cancel()
 
 	for _, assignment := range assignments {
 		// processAssignment does not return error, it only returns a
@@ -201,8 +230,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, loopID stri
 		"user", assignment.GetUser(),
 	)
 
-	cleanupTime := assignment.GetCleanupTime()
-	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
+	needsCleanup := getNeedsCleanup(assignment, a.clock.Now())
 	needsReprovision := assignment.IsFinalized() && !needsCleanup
 
 	// If the assignment was Finalized (Successfully processed in needCleanupState) delete Okta
@@ -660,6 +688,43 @@ const (
 
 func newLoopID(source processorSource, time time.Time) string {
 	return string(source) + ":" + time.UTC().Format("02150405") // ddhhmmss
+}
+
+// sortAssignmentsByProcessingPriority following rules below:
+//  1. Assignments to clean up, then by CleanupTime, then by LastTransitionTime.
+//  2. Pending assignments, then by LastTransitionTime.
+//  3. Assignments stuck in processing, then by LastTransitionTime.
+//  4. Failed assignments, then by LastTransitionTime.
+//  5. LastTransitionTime.
+func sortAssignmentsByProcessingPriority(now time.Time, assignments []types.OktaAssignment) {
+	statusPriority := func(assignment types.OktaAssignment) int {
+		if getNeedsCleanup(assignment, now) {
+			return 0
+		}
+		switch assignment.GetStatus() {
+		case constants.OktaAssignmentStatusPending:
+			return 1
+		case constants.OktaAssignmentStatusProcessing:
+			return 2
+		case constants.OktaAssignmentStatusFailed:
+			return 3
+		default:
+			return 4
+		}
+	}
+
+	slices.SortFunc(assignments, func(a, b types.OktaAssignment) int {
+		cmpLastTransition := a.GetLastTransition().Compare(b.GetLastTransition())
+		if getNeedsCleanup(a, now) && getNeedsCleanup(b, now) {
+			return cmp.Or(a.GetCleanupTime().Compare(b.GetCleanupTime()), cmpLastTransition)
+		}
+		return cmp.Or(cmp.Compare(statusPriority(a), statusPriority(b)), cmpLastTransition)
+	})
+}
+
+func getNeedsCleanup(a types.OktaAssignment, now time.Time) bool {
+	cleanupTime := a.GetCleanupTime()
+	return !cleanupTime.IsZero() && !cleanupTime.After(now)
 }
 
 // TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)
