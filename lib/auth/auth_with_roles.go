@@ -1132,15 +1132,9 @@ func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *type
 		return trace.AccessDenied("can't setup global watch")
 	}
 
-	hasWatchPermissionForKind := a.hasWatchPermissionForKind
-	// If scoped identity is available, leverage this for checks instead.
-	if a.scopedContext != nil {
-		hasWatchPermissionForKind = a.hasWatchPermissionForKindScoped
-	}
-
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		err := hasWatchPermissionForKind(ctx, kind)
+		err := a.hasWatchPermissionForKind(ctx, kind)
 		if err != nil {
 			if watch.AllowPartialSuccess {
 				continue
@@ -1198,9 +1192,14 @@ func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
 // For watching, most kinds of data just need a Read permission, but some
 // have more complicated logic.
 func (a *ServerWithRoles) hasWatchPermissionForKind(
-	_ context.Context,
+	ctx context.Context,
 	kind types.WatchKind,
 ) error {
+	// For scoped identities, we perform a different authz check.
+	if a.scopedContext != nil {
+		return trace.Wrap(a.hasWatchPermissionForKindScoped(ctx, kind))
+	}
+
 	verb := types.VerbRead
 	switch kind.Kind {
 	case types.KindCertAuthority:
