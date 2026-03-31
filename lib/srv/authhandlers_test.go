@@ -1132,7 +1132,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	modernClientConn := &mockConnMetadata{clientVersion: []byte(apissh.DefaultClientVersion + " " + apissh.InBandMFAFeature)}
+	modernClientConn := &mockConnMetadata{clientVersion: []byte(apissh.ClientVersionWithFeatures(apissh.InBandMFAFeature))}
 	legacyClientConn := &mockConnMetadata{clientVersion: []byte("SSH-2.0-Go")}
 
 	t.Run("no access permit returns original permissions", func(t *testing.T) {
