@@ -176,6 +176,131 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
   expect(screen.getByText('Hello')).not.toBeVisible();
 });
 
+describe('trapFocus', () => {
+  test('returns focus to the modal when an outside element steals it', () => {
+    render(<ModalWithOutsideButton trapFocus />);
+
+    const insideButton = screen.getByRole('button', { name: 'Inside' });
+    insideButton.focus();
+    expect(insideButton).toHaveFocus();
+
+    // Simulate programmatic focus theft from outside the modal.
+    screen.getByRole('button', { name: 'Outside' }).focus();
+    expect(insideButton).toHaveFocus();
+  });
+
+  test('remembers autoFocus target and restores it after focus theft', () => {
+    render(
+      <>
+        <button>Outside</button>
+        <Modal open={true} trapFocus>
+          <div>
+            <button>First</button>
+            <button autoFocus>Second</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const secondButton = screen.getByRole('button', { name: 'Second' });
+    expect(secondButton).toHaveFocus();
+
+    screen.getByRole('button', { name: 'Outside' }).focus();
+    expect(secondButton).toHaveFocus();
+  });
+
+  test('wraps focus from last to first element on Tab', () => {
+    render(
+      <>
+        <button>Outside</button>
+        <Modal open={true} trapFocus>
+          <div>
+            <button>First</button>
+            <button>Last</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const lastButton = screen.getByRole('button', { name: 'Last' });
+    lastButton.focus();
+    fireEvent.keyDown(lastButton, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+  });
+
+  test('wraps focus from first to last element on Shift+Tab', () => {
+    render(
+      <>
+        <button>Outside</button>
+        <Modal open={true} trapFocus>
+          <div>
+            <button>First</button>
+            <button>Last</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const firstButton = screen.getByRole('button', { name: 'First' });
+    firstButton.focus();
+    fireEvent.keyDown(firstButton, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+  });
+
+  test('does not trap focus when trapFocus is not set', () => {
+    render(<ModalWithOutsideButton />);
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+
+  test('cleans up focus trap listeners on close', () => {
+    // Use keepInDOMAfterClose so that the modal stays in the DOM when closed. Without it, the modal
+    // is fully unmounted and the focusin handler would early-return due to modalEl being null,
+    // making the test pass trivially.
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open={true} trapFocus keepInDOMAfterClose>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open={false} trapFocus keepInDOMAfterClose>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+});
+
+const ModalWithOutsideButton = (props: { trapFocus?: boolean }) => (
+  <>
+    <button>Outside</button>
+    <Modal open={true} trapFocus={props.trapFocus}>
+      <div>
+        <button>Inside</button>
+      </div>
+    </Modal>
+  </>
+);
+
 const ToggleableModal = () => {
   const [isOpen, setIsOpen] = useState(false);
 
