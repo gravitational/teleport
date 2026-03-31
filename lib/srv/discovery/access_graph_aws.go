@@ -107,6 +107,9 @@ func (s *Server) reconcileAccessGraph(
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
+	s.Log.InfoContext(ctx, "Access graph AWS discovery iteration started")
+	defer s.Log.InfoContext(ctx, "Access graph AWS discovery iteration finished")
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
