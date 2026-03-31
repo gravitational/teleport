@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -1102,6 +1103,21 @@ func TestPluginEntraIDValidation(t *testing.T) {
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}
+}
+
+func TestPluginEntraIDSyncIntervalsJSON(t *testing.T) {
+	intervals := PluginEntraIDSyncIntervals{
+		Delta: 2 * time.Minute,
+		Full:  2 * time.Hour,
+	}
+
+	payload, err := json.Marshal(intervals)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"delta":"2m0s","full":"2h0m0s"}`, string(payload))
+
+	var decoded PluginEntraIDSyncIntervals
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	require.Equal(t, intervals, decoded)
 }
 
 func TestPluginDatadogValidation(t *testing.T) {

@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/url"
 	"time"
 
@@ -1073,4 +1074,38 @@ func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
+}
+
+func (s *PluginEntraIDSyncIntervals) UnmarshalJSON(b []byte) error {
+	var payload struct {
+		Delta *Duration `json:"delta,omitempty"`
+		Full  *Duration `json:"full,omitempty"`
+	}
+	if err := json.Unmarshal(b, &payload); err == nil {
+		if payload.Delta != nil {
+			s.Delta = payload.Delta.Duration()
+		}
+		if payload.Full != nil {
+			s.Full = payload.Full.Duration()
+		}
+		return nil
+	}
+
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s PluginEntraIDSyncIntervals) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Delta Duration `json:"delta,omitempty"`
+		Full  Duration `json:"full,omitempty"`
+	}{
+		Delta: NewDuration(s.Delta),
+		Full:  NewDuration(s.Full),
+	})
 }
