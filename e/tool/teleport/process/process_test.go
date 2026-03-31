@@ -71,7 +71,7 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 	_, err = NewTeleport(config)
 	require.True(t, trace.IsBadParameter(err), "NewTeleport returned err = %T, want trace.BadParameterError", err)
 
-	require.Equal(t, modules.BuildEnterprise, modules.GetModules().BuildType())
+	require.Equal(t, modules.BuildEnterprise, config.Modules.BuildType())
 }
 
 func TestMissingLicenseError(t *testing.T) {
@@ -128,8 +128,8 @@ func TestFallbackFeaturesFromLicense(t *testing.T) {
 
 	_, err := NewTeleport(cfg)
 	require.NoError(t, err)
-	require.Equal(t, modules.BuildEnterprise, modules.GetModules().BuildType())
-	features := modules.GetModules().Features()
+	require.Equal(t, modules.BuildEnterprise, cfg.Modules.BuildType())
+	features := cfg.Modules.Features()
 	require.True(t, features.Cloud)
 }
 

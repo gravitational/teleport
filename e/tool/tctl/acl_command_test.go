@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
-	"os"
 	"testing"
 	"time"
 
@@ -29,18 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func TestMain(m *testing.M) {
-	modules.SetModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
-	os.Exit(m.Run())
-}
 
 // TestACLList tests access lists CLI for displaying access lists.
 func TestACLList(t *testing.T) {
@@ -122,10 +109,23 @@ func TestACLReviews(t *testing.T) {
 func setupACLSuite(t *testing.T) *authclient.Client {
 	t.Helper()
 
+	testModules := &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true},
+			},
+		},
+	}
+
+	// TODO(tross): remove once injected modules are consumed by all components.
+	modulestest.SetTestModules(t, *testModules)
+
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.PluginRegistry = plugin.NewRegistry()
+			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
 				License: authe.ValidLicense{},
 			})

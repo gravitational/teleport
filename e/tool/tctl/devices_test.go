@@ -18,19 +18,23 @@ import (
 )
 
 func TestDevicesFormat(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DeviceTrust: {Enabled: true},
 			},
 		},
-	})
+	}
+
+	// TODO(tross): remove once injected modules are consumed by all components.
+	modulestest.SetTestModules(t, *testModules)
 
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.PluginRegistry = plugin.NewRegistry()
+			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
 				License: authe.ValidLicense{},
 			})
