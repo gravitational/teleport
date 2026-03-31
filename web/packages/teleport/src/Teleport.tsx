@@ -226,7 +226,7 @@ export function getSharedPrivateRoutes() {
     <Route
       key="browserMFA"
       path={cfg.routes.browserMfa}
-      element={<BrowserMfa />}
+      component={BrowserMfa}
     />,
   ];
 }
