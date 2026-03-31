@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Button, ButtonPrimary, Flex } from 'design';
