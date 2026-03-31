@@ -114,7 +114,7 @@ func ParseClientVersion(clientVersion string) (string, []string, error) {
 	versionPart = strings.TrimPrefix(versionPart, "_")
 
 	// If there are no features, return the version.
-	if !hasFeatures {
+	if !hasFeatures || featuresPart == "" {
 		return versionPart, nil, nil
 	}
 

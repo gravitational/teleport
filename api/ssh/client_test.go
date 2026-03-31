@@ -83,6 +83,12 @@ func TestParseSSHClientVersion(t *testing.T) {
 			wantVersion:   "19.1.2-dev",
 			wantFeatures:  []string{"mfav1", "foov1=bar"},
 		},
+		{
+			name:          "prefix with a space after the prefix but no version or features",
+			clientVersion: VersionPrefix + " ",
+			wantVersion:   "",
+			wantFeatures:  nil,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			version, features, err := ParseClientVersion(tt.clientVersion)
