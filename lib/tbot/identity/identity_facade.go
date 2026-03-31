@@ -175,7 +175,7 @@ func (f *Facade) SSHClientConfig() (apissh.ClientConfig, error) {
 	// dynamically changing credentials and CAs.
 	cfg := apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				f.mu.RLock()
 				defer f.mu.RUnlock()
 

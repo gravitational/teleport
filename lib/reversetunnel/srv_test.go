@@ -486,7 +486,7 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		c, nc, r, err := apissh.NewClientConnWithTimeout(t.Context(), c2, "", apissh.ClientConfig{
 			User: "a",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{signer}, nil
 				},
 			},

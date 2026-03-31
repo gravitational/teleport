@@ -153,7 +153,7 @@ func (f *sshTestFixture) SSHClientConfig() apissh.ClientConfig {
 	return apissh.ClientConfig{
 		User: f.user,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.up.certSigner}, nil
 			},
 		},
@@ -177,7 +177,7 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 	cltConfig := apissh.ClientConfig{
 		User: user.Username,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{up.certSigner}, nil
 			},
 		},
@@ -312,7 +312,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 	cltConfig := apissh.ClientConfig{
 		User: u.Username,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{up.certSigner}, nil
 			},
 		},
@@ -1326,7 +1326,7 @@ func TestAgentForward(t *testing.T) {
 	sshConfig := apissh.ClientConfig{
 		User: f.user,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return clientAgent.Signers()
 			},
 		},
@@ -1573,7 +1573,7 @@ func TestAllowedUsers(t *testing.T) {
 	sshConfig = apissh.ClientConfig{
 		User: f.user,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{up.certSigner}, nil
 			},
 		},
@@ -1638,7 +1638,7 @@ func TestAllowedLabels(t *testing.T) {
 			sshConfig := apissh.ClientConfig{
 				User: f.user,
 				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{up.certSigner}, nil
 					},
 				},
@@ -1698,7 +1698,7 @@ func TestSessionHijack(t *testing.T) {
 	sshConfig2 := apissh.ClientConfig{
 		User: teleportTestUser,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{up2.certSigner}, nil
 			},
 		},
@@ -1895,7 +1895,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},
 		},
@@ -1913,7 +1913,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},
 		},

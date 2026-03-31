@@ -49,8 +49,8 @@ func TestChConn(t *testing.T) {
 	client, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{&mockSigner{}}, nil
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{mockSigner{}}, nil
 			},
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),

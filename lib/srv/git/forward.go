@@ -626,7 +626,7 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	clientConfig := apissh.ClientConfig{
 		User: gitUser,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},

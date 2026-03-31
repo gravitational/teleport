@@ -137,20 +137,6 @@ func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, clus
 	return conn, details, nil
 }
 
-// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
-type ceremonyFailedErr struct {
-	err error
-}
-
-// Error returns the error string of the wrapped error if one exists.
-func (c ceremonyFailedErr) Error() string {
-	if c.err == nil {
-		return ""
-	}
-
-	return c.err.Error()
-}
-
 // ReissueUserCerts generates a new set of certificates for the user.
 func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
 	ctx, span := c.Tracer.Start(
@@ -294,7 +280,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	sshConfig.PublicKeyAuth = apissh.PublicKeyAuthConfig{
-		GetSigners: func() ([]ssh.Signer, error) {
+		Signers: func() ([]ssh.Signer, error) {
 			sshSigner, err := newKeyRing.SSHSigner()
 			if err != nil {
 				return nil, trace.Wrap(err)

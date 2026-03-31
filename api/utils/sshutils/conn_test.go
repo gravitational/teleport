@@ -75,9 +75,9 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	require.NoError(t, err)
 
 	sconn, nc, r, err := apissh.NewClientConnWithTimeout(t.Context(), conn, "", apissh.ClientConfig{
-		User: "teleport-test",
+		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{s.cSigner}, nil
 			},
 		},

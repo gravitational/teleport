@@ -5672,7 +5672,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 		NonInteractive: true,
 		TLS:            tlsConfig,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return signers, nil
 			},
 		},

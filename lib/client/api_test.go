@@ -656,7 +656,7 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				ProxySSHPrincipal: "proxy_ssh_principal_override",
 				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
 					},
 				},
@@ -671,7 +671,7 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
 					},
 				},
@@ -686,7 +686,7 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ /* no agent key principals */ },
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
 					},
 				},
@@ -706,7 +706,7 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				},
 				Agent: &mockAgent{ /* no agent key principals */ },
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
 					},
 				},
@@ -1206,12 +1206,11 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 func TestConnectToProxyCancelledContext(t *testing.T) {
 	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
-	// cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
 	cfg.TLSRoutingEnabled = true
 	cfg.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
-		GetSigners: func() ([]ssh.Signer, error) {
+		Signers: func() ([]ssh.Signer, error) {
 			return []ssh.Signer{&mockSigner{}}, nil
 		},
 	}

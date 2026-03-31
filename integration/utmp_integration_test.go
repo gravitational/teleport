@@ -110,7 +110,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		sshConfig := apissh.ClientConfig{
 			User: teleportTestUser,
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{up.certSigner}, nil
 				},
 			},
@@ -154,7 +154,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		sshConfig := apissh.ClientConfig{
 			User: teleportFakeUser,
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{up.certSigner}, nil
 				},
 			},

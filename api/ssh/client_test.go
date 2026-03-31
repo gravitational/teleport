@@ -32,14 +32,14 @@ func TestClientVersionWithFeatures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("no features", func(t *testing.T) {
-		require.Equal(t, DefaultClientVersion, clientVersionWithFeatures())
+		require.Equal(t, DefaultClientVersion, ClientVersionWithFeatures())
 	})
 
 	t.Run("with features", func(t *testing.T) {
 		require.Equal(
 			t,
 			DefaultClientVersion+" "+InBandMFAFeature+",foov1",
-			clientVersionWithFeatures(InBandMFAFeature, "foov1"),
+			ClientVersionWithFeatures(InBandMFAFeature, "foov1"),
 		)
 	})
 }
@@ -204,7 +204,7 @@ func TestPublicKeyAuthConfigAuthMethod(t *testing.T) {
 		t.Parallel()
 
 		config := PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		}
@@ -224,9 +224,9 @@ func TestPublicKeyAuthConfigAuthMethodErrors(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:    "missing GetSigners callback",
+			name:    "missing Signers callback",
 			config:  PublicKeyAuthConfig{},
-			wantErr: trace.BadParameter("public key auth requires GetSigners"),
+			wantErr: trace.BadParameter("public key auth requires Signers"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -246,16 +246,16 @@ func TestPublicKeyAuthConfigIsEmpty(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "explicit nil GetSigners callback",
+			name: "explicit nil Signers callback",
 			config: PublicKeyAuthConfig{
-				GetSigners: nil,
+				Signers: nil,
 			},
 			want: true,
 		},
 		{
-			name: "GetSigners callback set",
+			name: "Signers callback set",
 			config: PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return nil, nil
 				},
 			},
@@ -292,7 +292,7 @@ func TestClientConfigIsEmpty(t *testing.T) {
 			name: "PublicKeyAuth set",
 			config: ClientConfig{
 				PublicKeyAuth: PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
+					Signers: func() ([]ssh.Signer, error) {
 						return nil, nil
 					},
 				},
@@ -356,7 +356,7 @@ func TestClientConfigSSHClientConfigSetsDefaults(t *testing.T) {
 	cfg := ClientConfig{
 		User: "alice",
 		PublicKeyAuth: PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -387,7 +387,7 @@ func TestClientConfigSSHClientConfigClonesAlgorithmsAndPreservesFields(t *testin
 		},
 		User: "alice",
 		PublicKeyAuth: PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -429,7 +429,7 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 			config: func() ClientConfig {
 				return ClientConfig{
 					PublicKeyAuth: PublicKeyAuthConfig{
-						GetSigners: func() ([]ssh.Signer, error) {
+						Signers: func() ([]ssh.Signer, error) {
 							return []ssh.Signer{signer}, nil
 						},
 					},
@@ -444,7 +444,7 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 				return ClientConfig{
 					User: "alice",
 					PublicKeyAuth: PublicKeyAuthConfig{
-						GetSigners: func() ([]ssh.Signer, error) {
+						Signers: func() ([]ssh.Signer, error) {
 							return []ssh.Signer{signer}, nil
 						},
 					},
@@ -460,7 +460,7 @@ func TestClientConfigSSHClientConfigReturnsValidationErrors(t *testing.T) {
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
 				}
 			},
-			wantErr: trace.BadParameter("public key auth requires GetSigners"),
+			wantErr: trace.BadParameter("public key auth requires Signers"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

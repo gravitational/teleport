@@ -42,9 +42,9 @@ const (
 	InBandMFAFeature = "mfav1"
 )
 
-// clientVersionWithFeatures returns a client version string that includes the specified features. If no features are
+// ClientVersionWithFeatures returns a client version string that includes the specified features. If no features are
 // provided, it returns the default client version string.
-func clientVersionWithFeatures(features ...string) string {
+func ClientVersionWithFeatures(features ...string) string {
 	if len(features) == 0 {
 		return DefaultClientVersion
 	}
@@ -136,21 +136,21 @@ func IsFeatureSupported(clientVersion, feature string) (bool, error) {
 
 // PublicKeyAuthConfig configures the public-key authentication method used by a Teleport SSH client.
 type PublicKeyAuthConfig struct {
-	// GetSigners dynamically returns signers for public-key authentication.
-	GetSigners func() ([]ssh.Signer, error)
+	// Signers dynamically returns signers for public-key authentication.
+	Signers func() ([]ssh.Signer, error)
 }
 
-// IsEmpty returns true if the PublicKeyAuthConfig does not have an effective GetSigners function set.
+// IsEmpty returns true if the PublicKeyAuthConfig does not have an effective Signers function set.
 func (c PublicKeyAuthConfig) IsEmpty() bool {
-	return c.GetSigners == nil
+	return c.Signers == nil
 }
 
 func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
 	if c.IsEmpty() {
-		return nil, trace.BadParameter("public key auth requires GetSigners")
+		return nil, trace.BadParameter("public key auth requires Signers")
 	}
 
-	return ssh.PublicKeysCallback(c.GetSigners), nil
+	return ssh.PublicKeysCallback(c.Signers), nil
 }
 
 // ClientConfig configures a Teleport SSH client wrapper around tracessh.

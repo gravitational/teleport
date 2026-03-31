@@ -107,8 +107,8 @@ func TestFixedHeader(t *testing.T) {
 	sshClient, err := apissh.Dial(t.Context(), listener.Addr().Network(), listener.Addr().String(), apissh.ClientConfig{
 		User: "bob",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{&mockSigner{}}, nil
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{mockSigner{}}, nil
 			},
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),

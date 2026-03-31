@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -212,7 +213,15 @@ func newFakeProxy(t *testing.T, transportService transportv1pb.TransportServiceS
 func (f *fakeProxy) clientConfig(t *testing.T) ClientConfig {
 	return ClientConfig{
 		ProxyAddress: "127.0.0.1",
-		SSHConfig:    apissh.ClientConfig{},
+		SSHConfig: apissh.ClientConfig{
+			User: "test-user",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
 		DialOpts: []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 			return f.fakeGRPCServer.DialContext(ctx)
 		})},
@@ -567,9 +576,8 @@ func TestClient_SSHConfig(t *testing.T) {
 
 	const user = "test-user"
 	sshConfig := clt.SSHConfig(user)
-	require.Equal(t, user, sshConfig.User)
 	require.Empty(
-		t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(apissh.ClientConfig{}, "User")),
+		t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(apissh.ClientConfig{}, "PublicKeyAuth", "HostKeyCallback")),
 	)
 }
 
@@ -735,4 +743,8 @@ func TestNewDialerForGRPCClient(t *testing.T) {
 			require.Fail(t, "Timed out waiting for connection")
 		}
 	})
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

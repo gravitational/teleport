@@ -595,7 +595,7 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (apissh.ClientConfig, error
 	// dynamically changing credentials and CAs.
 	cfg := apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				d.mu.RLock()
 				defer d.mu.RUnlock()
 

@@ -97,9 +97,6 @@ func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
 	}
-	// if c.SSHConfig == nil {
-	// 	return trace.BadParameter("missing required parameter SSHConfig")
-	// }
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}

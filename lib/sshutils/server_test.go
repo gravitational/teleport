@@ -79,7 +79,7 @@ func TestStartStop(t *testing.T) {
 	clientConfig := apissh.ClientConfig{
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -130,7 +130,7 @@ func TestShutdown(t *testing.T) {
 	clientConfig := apissh.ClientConfig{
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -191,7 +191,7 @@ func TestConfigureCiphers(t *testing.T) {
 		},
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -207,7 +207,7 @@ func TestConfigureCiphers(t *testing.T) {
 		},
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
+			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},
 		},
@@ -337,7 +337,7 @@ func TestDynamicHostSigners(t *testing.T) {
 		clt, err := apissh.Dial(t.Context(), "tcp", srv.Addr(), apissh.ClientConfig{
 			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
+				Signers: func() ([]ssh.Signer, error) {
 					return []ssh.Signer{signerFoo}, nil
 				},
 			},

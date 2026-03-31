@@ -79,8 +79,8 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 		Client:      client,
 		AccessPoint: client,
 		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-			GetSigners: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{&mockSigner{}}, nil
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{mockSigner{}}, nil
 			},
 		},
 		HostUUID:     "test-uuid",

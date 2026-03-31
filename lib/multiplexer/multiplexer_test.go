@@ -97,9 +97,10 @@ func TestMux(t *testing.T) {
 		go startSSHServer(t, mux.SSH())
 
 		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{&mockSigner{}}, nil
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
 				},
 			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -492,9 +493,10 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		_, err = apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{&mockSigner{}}, nil
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
 				},
 			},
 			Timeout:         time.Second,
@@ -553,8 +555,8 @@ func TestMux(t *testing.T) {
 		clt, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
 			User: "alice",
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				GetSigners: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{&mockSigner{}}, nil
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
 				},
 			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),

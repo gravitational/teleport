@@ -141,8 +141,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 				Client:       conn.Client,
 				AccessPoint:  accessPoint,
 				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
-					GetSigners: func() ([]ssh.Signer, error) {
-						return conn.ServerGetHostSigners(), nil
+					Signers: func() ([]ssh.Signer, error) {
+						return conn.ClientSigners(), nil
 					},
 				},
 				Cluster:                  teleportClusterName,
