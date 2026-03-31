@@ -188,6 +188,10 @@ func (r resourceTeleportUIConfig) Read(ctx context.Context, req tfsdk.ReadResour
 	}
 
 	uiConfigI, err := r.p.Client.GetUIConfig(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(err), "ui_config"))
 		return

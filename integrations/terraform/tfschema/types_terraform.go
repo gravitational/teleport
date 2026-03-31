@@ -5343,7 +5343,7 @@ func GenSchemaUIConfigV1(ctx context.Context) (github_com_hashicorp_terraform_pl
 		},
 		"version": {
 			Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
-			Optional:    true,
+			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(1, 1)},
 		},

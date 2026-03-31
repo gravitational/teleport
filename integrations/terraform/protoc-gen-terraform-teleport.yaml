@@ -417,7 +417,7 @@ required_fields:
     - "TrustedClusterV2.Spec"
 
     # UI config
-    - "UIConfigV1.Metadata.Version"
+    - "UIConfigV1.Version"
 
     # User
     - "UserV2.Metadata.Name"
