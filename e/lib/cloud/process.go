@@ -89,6 +89,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 			Interval:                 jitteredQueryInterval,
 			RequestTimeout:           defaultFeatureQueryTimeout,
 			OnAnonymizationKeyUpdate: process.GetAuthServer().SetAnonymizationKey,
+			Modules:                  process.Config.Modules,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

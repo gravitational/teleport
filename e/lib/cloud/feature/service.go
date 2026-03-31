@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/api/cloud"
@@ -25,18 +24,21 @@ type Config struct {
 	Logger *slog.Logger
 	// Interval is the interval Cloud should be queried for features updates
 	Interval time.Duration
-	// Clock is a clock for time-related operations
-	Clock clockwork.Clock
 	// RequestTimeout is the timeout of the Cloud request
 	RequestTimeout time.Duration
 	// OnAnonymizationKeyUpdate is an optional callback that runs when a new anonymization key is detected
 	OnAnonymizationKeyUpdate func([]byte)
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
 	if c.CloudClient == nil {
 		return trace.BadParameter("missing Cloud Client")
+	}
+	if c.Modules == nil {
+		return trace.BadParameter("missing Modules")
 	}
 
 	if c.Interval <= 0 {
@@ -51,10 +53,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = slog.With(teleport.ComponentKey, "cloud.feature")
 	}
 
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-
 	return nil
 }
 
@@ -66,8 +64,8 @@ type Service struct {
 	logger                   *slog.Logger
 	interval                 time.Duration
 	requestTimeout           time.Duration
-	clock                    clockwork.Clock
 	onAnonymizationKeyUpdate func([]byte)
+	modules                  modules.Modules
 }
 
 // NewService returns a new service that periodically fetches
@@ -83,8 +81,8 @@ func NewService(cfg Config) (*Service, error) {
 		logger:                   cfg.Logger,
 		interval:                 cfg.Interval,
 		requestTimeout:           cfg.RequestTimeout,
-		clock:                    cfg.Clock,
 		onAnonymizationKeyUpdate: cfg.OnAnonymizationKeyUpdate,
+		modules:                  cfg.Modules,
 	}, nil
 }
 
@@ -92,14 +90,14 @@ func NewService(cfg Config) (*Service, error) {
 // when they change. Blocks the thread.
 func (s *Service) Run(ctx context.Context) error {
 	s.logger.InfoContext(ctx, "Feature service has started", "update_interval", s.interval)
-	ticker := s.clock.NewTicker(s.interval)
+	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
-	currentAnonymizationKey := modules.GetModules().Features().CloudAnonymizationKey
+	currentAnonymizationKey := s.modules.Features().CloudAnonymizationKey
 
 	for {
 		select {
-		case <-ticker.Chan():
+		case <-ticker.C:
 			// fetch
 			s.logger.InfoContext(ctx, "Fetching Cloud features")
 			f, err := s.getFeatures(ctx)
@@ -109,7 +107,7 @@ func (s *Service) Run(ctx context.Context) error {
 			}
 
 			// update cluster features
-			modules.GetModules().SetFeatures(*f)
+			s.modules.SetFeatures(*f)
 
 			// call anonymization key callback if provided
 			if s.onAnonymizationKeyUpdate != nil && !bytes.Equal(currentAnonymizationKey, f.CloudAnonymizationKey) {
