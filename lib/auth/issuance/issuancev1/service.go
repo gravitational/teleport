@@ -132,7 +132,6 @@ func (s *Service) IssueScopedBotCerts(
 	if err != nil {
 		return nil, trace.Wrap(err, "building access checker")
 	}
-
 	certReq := cert.Request{
 		User:           user,
 		CheckerContext: checker,

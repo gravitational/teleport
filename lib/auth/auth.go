@@ -3785,7 +3785,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				GitHubUsername:           githubUsername,
 			},
 		}
-		signedSSHCert, err = a.GenerateUserCert(params)
+		signedSSHCert, err = a.Authority.GenerateUserCert(params)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
