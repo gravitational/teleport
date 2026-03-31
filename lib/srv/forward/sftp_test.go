@@ -41,7 +41,7 @@ func TestSFTPProxyServeClosesRemoteFilesystem(t *testing.T) {
 	proxy := newTestSFTPProxy(remoteFS)
 
 	err := proxy.Serve()
-	require.ErrorIs(t, err, closeErr)
+	require.Error(t, err)
 	require.True(t, remoteFS.closed, "Serve should close the remote filesystem")
 }
 

@@ -58,7 +58,8 @@ func NewSFTPProxy(
 		logger = slog.With(teleport.ComponentKey, "SFTP")
 	}
 
-	remoteFS, err := sftputils.OpenRemoteFilesystem(scx.CancelContext(), scx.RemoteClient, "" /*moderatedSessionID*/)
+	const moderatedSessionID = ""
+	remoteFS, err := sftputils.OpenRemoteFilesystem(scx.CancelContext(), scx.RemoteClient, moderatedSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

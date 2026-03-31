@@ -8443,7 +8443,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 		t.Parallel()
 		homePath := userMissingLoginHomePath
 
-		unkownUserReexecError := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+		unknownUserReexecError := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -8455,7 +8455,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
 
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, unkownUserReexecError, stdout)
+				require.Equal(t, unknownUserReexecError, stdout)
 			})
 		}
 
@@ -8479,7 +8479,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 			)
 			require.Error(t, err)
 			// Check for exact match to catch regressions with new lines.
-			require.Equal(t, strings.ReplaceAll(unkownUserReexecError, "\r\n", "\n"), err.Error())
+			require.Equal(t, strings.ReplaceAll(unknownUserReexecError, "\r\n", "\n"), err.Error())
 		})
 	})
 

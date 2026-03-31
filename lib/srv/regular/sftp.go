@@ -255,7 +255,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
 	waitErr := s.sftpCmd.Wait()
-	s.waitForOutputStreams.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
@@ -263,5 +262,6 @@ func (s *sftpSubsys) Wait() error {
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
 	})
 
+	s.waitForOutputStreams.Wait()
 	return trace.Wrap(waitErr)
 }
