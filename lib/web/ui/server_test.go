@@ -410,7 +410,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, false, nil)
+				server := MakeServer(srv, MakeServerConfig{ClusterName: tc.clusterName, RequiresRequest: false})
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -588,7 +588,7 @@ func TestSortedLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, false, nil)
+				server := MakeServer(srv, MakeServerConfig{ClusterName: tc.clusterName, RequiresRequest: false})
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -607,7 +607,12 @@ func TestMakeServer_SSHLoginsGrantedVsRequestable(t *testing.T) {
 	allLogins := set.New("root", "ubuntu", "admin")
 	grantedLogins := set.New("ubuntu")
 
-	server := MakeServer("cluster", srv, &PrincipalSet{All: allLogins, Granted: grantedLogins}, false, nil)
+	server := MakeServer(srv, MakeServerConfig{
+		ClusterName:       "cluster",
+		Logins:            &PrincipalSet{All: allLogins, Granted: grantedLogins},
+		RequiresRequest:   false,
+		SupportedFeatures: nil,
+	})
 
 	// SSHLogins should still contain all logins for backwards compatibility.
 	require.ElementsMatch(t, []string{"root", "ubuntu", "admin"}, server.SSHLogins)
@@ -636,13 +641,13 @@ func TestMakeServer_SupportedFeatureIDs(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("nil features yields empty SupportedFeatureIDs", func(t *testing.T) {
-		server := MakeServer("cluster", srv, nil, false, nil)
+		server := MakeServer(srv, MakeServerConfig{ClusterName: "cluster", RequiresRequest: false})
 		require.Empty(t, server.SupportedFeatureIDs)
 	})
 
 	t.Run("features are converted to SupportedFeatureIDs", func(t *testing.T) {
 		features := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
-		server := MakeServer("cluster", srv, nil, false, features)
+		server := MakeServer(srv, MakeServerConfig{ClusterName: "cluster", RequiresRequest: false, SupportedFeatures: features})
 		require.ElementsMatch(t, features.GetFeatures(), server.SupportedFeatureIDs)
 	})
 }
@@ -659,7 +664,12 @@ func TestMakeServer_AllLoginsRequireRequest(t *testing.T) {
 	allLogins := set.New("root", "ubuntu")
 	grantedLogins := set.New[string]() // empty: all logins require a request
 
-	server := MakeServer("cluster", srv, &PrincipalSet{All: allLogins, Granted: grantedLogins}, false, nil)
+	server := MakeServer(srv, MakeServerConfig{
+		ClusterName:       "cluster",
+		RequiresRequest:   false,
+		Logins:            &PrincipalSet{All: allLogins, Granted: grantedLogins},
+		SupportedFeatures: nil,
+	})
 
 	require.ElementsMatch(t, []string{"root", "ubuntu"}, server.SSHLogins)
 	require.Len(t, server.SSHLoginDetails, 2)

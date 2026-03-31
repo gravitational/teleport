@@ -26,7 +26,6 @@ import (
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -86,7 +85,7 @@ type App struct {
 	MCP *MCP `json:"mcp,omitempty"`
 
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
-	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -195,7 +194,10 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
-		SupportedFeatureIDs:   componentfeatures.ToIntegers(c.SupportedFeatures),
+	}
+
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
+		resultApp.SupportedFeatureIDs = f
 	}
 
 	if app.IsAWSConsole() && c.AWSRoles != nil {

@@ -483,5 +483,11 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	loginSet := set.New(logins...)
-	return webui.MakeServer(cluster.GetName(), server, &webui.PrincipalSet{All: loginSet, Granted: loginSet}, false /* requiresRequest */, nil), nil
+
+	return webui.MakeServer(server, webui.MakeServerConfig{
+		ClusterName:       cluster.GetName(),
+		Logins:            &webui.PrincipalSet{All: loginSet, Granted: loginSet},
+		RequiresRequest:   false,
+		SupportedFeatures: nil,
+	}), nil
 }

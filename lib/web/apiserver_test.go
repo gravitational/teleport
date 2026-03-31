@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -1462,7 +1463,9 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	app := resp.Items[0]
 	require.True(t, app.AWSConsole)
 
-	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
+	require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{
+		componentfeaturesv1.ComponentFeatureID(feature1),
+	}, app.SupportedFeatureIDs)
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {

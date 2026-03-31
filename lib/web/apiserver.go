@@ -3505,7 +3505,12 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				}
 
 				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, principals.Logins, enriched.RequiresRequest, nodeComponentFeatures))
+				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
+					ClusterName:       cluster.GetName(),
+					Logins:            principals.Logins,
+					RequiresRequest:   enriched.RequiresRequest,
+					SupportedFeatures: nodeComponentFeatures,
+				}))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
@@ -3618,7 +3623,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		}
 
 		loginSet := set.New(logins...)
-		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, &ui.PrincipalSet{All: loginSet, Granted: loginSet}, false /* requiresRequest */, nil))
+
+		uiServers = append(uiServers, ui.MakeServer(server, ui.MakeServerConfig{
+			ClusterName:       cluster.GetName(),
+			Logins:            &ui.PrincipalSet{All: loginSet, Granted: loginSet},
+			RequiresRequest:   false,
+			SupportedFeatures: nil,
+		}))
 	}
 
 	return listResourcesGetResponse{

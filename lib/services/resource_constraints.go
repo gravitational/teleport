@@ -108,7 +108,7 @@ func buildStringConstraintTransform(
 			return m // non-principal-bearing matcher; no-op
 		}
 		return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
-			if _, ok := allowedSet[principal]; !ok {
+			if !allowedSet.Contains(principal) {
 				return false, nil
 			}
 			return m.Match(role, cond)

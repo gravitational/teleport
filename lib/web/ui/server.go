@@ -60,6 +60,8 @@ type Server struct {
 	Labels []ui.Label `json:"tags"`
 	// SSHLogins is the list of logins this user can use on this server.
 	// Kept as []string for backwards compatibility with older web UIs.
+	//
+	// TODO(kiosion): DELETE IN 20.0.0
 	SSHLogins []string `json:"sshLogins"`
 	// SSHLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
 	// Only populated when the handler has requestable login info.
@@ -83,33 +85,45 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
+// MakeServerConfig contains parameters for converting Servers to UI representation.
+type MakeServerConfig struct {
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+	// Logins is the set of granted and/or requestable logins.
+	Logins *PrincipalSet
+	// RequiresRequest is whether the Server resource requires an Access Request to be usable.
+	RequiresRequest bool
+	// SupportedFeatures contains FeatureIDs supported by the Server.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+}
+
 // MakeServer creates a server object for the web ui.
 // logins contains the full set of visible logins and the granted subset.
 // SSHLoginDetails is populated with per-login requiresRequest metadata derived
 // from the difference between logins.All and logins.Granted.
-func MakeServer(clusterName string, server types.Server, logins *PrincipalSet, requiresRequest bool, supportedFeatures *componentfeaturesv1.ComponentFeatures) Server {
+func MakeServer(server types.Server, c MakeServerConfig) Server {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	var sshLogins []string
-	if logins != nil {
-		sshLogins = logins.All.Elements()
+	if c.Logins != nil {
+		sshLogins = c.Logins.All.Elements()
 	}
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
-		ClusterName:     clusterName,
+		ClusterName:     c.ClusterName,
 		Labels:          uiLabels,
 		Name:            server.GetName(),
 		Hostname:        server.GetHostname(),
 		Addr:            server.GetAddr(),
 		Tunnel:          server.GetUseTunnel(),
 		SubKind:         server.GetSubKind(),
-		RequiresRequest: requiresRequest,
+		RequiresRequest: c.RequiresRequest,
 		SSHLogins:       sshLogins,
-		SSHLoginDetails: buildSSHLoginDetails(logins),
+		SSHLoginDetails: buildSSHLoginDetails(c.Logins),
 	}
 
-	if f := supportedFeatures.GetFeatures(); len(f) > 0 {
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
 		uiServer.SupportedFeatureIDs = f
 	}
 
