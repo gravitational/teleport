@@ -2116,51 +2116,42 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
-		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
 		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
+		log.DebugContext(ctx, "Failed to connect to node, returning MFA ceremony error and ignoring direct connection error", "direct_error", directErr)
 		return nil, trace.Wrap(mfaErr)
 	default:
+		log.DebugContext(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error", "mfa_error", mfaErr)
 		return nil, trace.Wrap(directErr)
 	}
 }
 
-// MFARequiredUnknownErr indicates that connections to an instance failed
-// due to being unable to determine if mfa is required
-type MFARequiredUnknownErr struct {
+// MFARequiredUnknownError indicates that connections to an instance failed due
+// to being unable to determine if MFA is required.
+type MFARequiredUnknownError struct {
 	err error
 }
 
-// MFARequiredUnknown creates a new MFARequiredUnknownErr that wraps the
-// error encountered attempting to determine if the mfa ceremony should proceed.
+// MFARequiredUnknown creates a new MFARequiredUnknownError that wraps the error
+// encountered attempting to determine if the MFA ceremony should proceed.
 func MFARequiredUnknown(err error) error {
-	return MFARequiredUnknownErr{err: err}
+	return &MFARequiredUnknownError{err: err}
 }
 
 // Error returns the error string of the wrapped error if one exists.
-func (m MFARequiredUnknownErr) Error() string {
+func (m *MFARequiredUnknownError) Error() string {
+	const msg = "unable to determine if a MFA ceremony is required"
 	if m.err == nil {
-		return ""
+		return msg
 	}
 
-	return m.err.Error()
+	return msg + ": " + m.err.Error()
 }
 
-// Unwrap returns the underlying error from checking if an mfa
-// ceremony should have been performed.
-func (m MFARequiredUnknownErr) Unwrap() error {
+// Unwrap returns the underlying error from checking if an MFA ceremony should
+// have been performed.
+func (m *MFARequiredUnknownError) Unwrap() error {
 	return m.err
-}
-
-// Is determines if the provided error is an MFARequiredUnknownErr.
-func (m MFARequiredUnknownErr) Is(err error) bool {
-	switch err.(type) {
-	case MFARequiredUnknownErr:
-		return true
-	case *MFARequiredUnknownErr:
-		return true
-	default:
-		return false
-	}
 }
 
 // connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
