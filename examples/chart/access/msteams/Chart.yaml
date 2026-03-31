@@ -1,4 +1,4 @@
-.version: &version "18.7.2"
+.version: &version "18.7.2-dev.disceks.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
