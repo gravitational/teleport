@@ -425,7 +425,7 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 
 	require.NoError(t, databaseServer.initCACert(ctx, azureDB))
-	require.Equal(t, initialCA, azureDB.GetStatusCA())
+	require.Equal(t, string(initialCA), azureDB.GetStatusCA())
 }
 
 func generateDatabaseCA(t *testing.T) []byte {
