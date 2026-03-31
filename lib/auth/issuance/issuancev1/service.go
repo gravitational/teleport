@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -114,6 +115,25 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	}
 
+	// Validate requested TTL
+	ttl := req.Ttl.AsDuration()
+	if ttl <= 0 {
+		return nil, trace.BadParameter(
+			"ttl: must be provided and positive",
+		)
+	}
+	if ttl > defaults.MaxRenewableCertTTL {
+		return nil, trace.BadParameter(
+			"ttl: value (%s) exceeds maximum permitted value (%s)",
+			ttl,
+			defaults.MaxRenewableCertTTL,
+		)
+	}
+
+	// TODO(strideynet): See if we can make this more consistent/simpler as to
+	// whether we're sourcing information from current identity or fetched
+	// user. Perhaps we just validate one, and source all info from the other.
+
 	// Fetch Bot User to ensure it still exists and is coherent to the current
 	// identity
 	user, err := s.cache.GetUser(ctx, currentIdentity.Username, false)
@@ -124,11 +144,15 @@ func (s *Service) IssueScopedBotCerts(
 	// This really accounts for an awkward scenario where the Bot config has
 	// changed since the issuance of the current identity.
 	if !user.IsBot() {
-		return nil, trace.BadParameter("user %q is not a bot", user.GetName())
+		return nil, trace.BadParameter(
+			"user %q is not a bot", user.GetName(),
+		)
 	}
 	botScope, _ := user.GetLabel(types.BotScopeLabel)
 	if botScope == "" {
-		return nil, trace.BadParameter("user %q has no bot scope label", user.GetName())
+		return nil, trace.BadParameter(
+			"user %q has no bot scope label", user.GetName(),
+		)
 	}
 	if err := scopes.StrongValidate(botScope); err != nil {
 		return nil, trace.Wrap(err, "validating bot user scope")
@@ -159,10 +183,9 @@ func (s *Service) IssueScopedBotCerts(
 	certReq := cert.Request{
 		User:           user,
 		CheckerContext: checker,
-		// TODO-CRITICAL(strideynet): Validate TTL.
-		TTL:          req.Ttl.AsDuration(),
-		SSHPublicKey: req.SshPublicKey,
-		TLSPublicKey: req.TlsPublicKey,
+		TTL:            ttl,
+		SSHPublicKey:   req.SshPublicKey,
+		TLSPublicKey:   req.TlsPublicKey,
 
 		// Explicitly set BotInternal to false as these certs are intended for
 		// outputs/services and not use by the bot internally. This prevents
@@ -177,6 +200,7 @@ func (s *Service) IssueScopedBotCerts(
 		LoginIP:        currentIdentity.LoginIP,
 		BotName:        currentIdentity.BotName,
 		BotInstanceID:  currentIdentity.BotInstanceID,
+		JoinToken:      currentIdentity.JoinToken,
 	}
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around

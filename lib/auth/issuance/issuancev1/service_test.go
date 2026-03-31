@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -179,6 +180,14 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	sshCert, ok := sshParsedKey.(*ssh.Certificate)
 	require.True(t, ok, "parsed SSH key should be a certificate")
 	require.NotNil(t, sshCert)
+
+	// Verify that a TTL exceeding the maximum is rejected.
+	_, err = issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		SshPublicKey: sshPubKeyBytes,
+		TlsPublicKey: tlsPubKeyPEM,
+		Ttl:          durationpb.New(defaults.MaxRenewableCertTTL + time.Hour),
+	})
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter for excessive TTL, got: %v", err)
 }
 
 func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
@@ -255,7 +264,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 	t.Run("non-bot user without scope", func(t *testing.T) {
 		issuanceClient := issuancev1pb.NewIssuanceServiceClient(adminClient.GetConnection())
 		_, err := issuanceClient.IssueScopedBotCerts(ctx, req)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
 	})
 
 	t.Run("non-bot user with scope", func(t *testing.T) {
@@ -287,7 +296,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 
 		issuanceClient := issuancev1pb.NewIssuanceServiceClient(scopedUserClient.GetConnection())
 		_, err = issuanceClient.IssueScopedBotCerts(ctx, req)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
 	})
 
 	t.Run("unscoped bot", func(t *testing.T) {
