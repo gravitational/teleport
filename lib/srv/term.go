@@ -291,7 +291,6 @@ func (t *terminal) Wait() ExecResult {
 	result := ExecResult{
 		Code:    exitCode(exitErr),
 		Command: cmd,
-		Error:   exitErr,
 	}
 
 	if t.childStderr != "" {
@@ -643,17 +642,22 @@ func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 }
 
 func (t *remoteTerminal) Wait() ExecResult {
-	var execCmd string
+	var result ExecResult
+
 	if execRequest, err := t.ctx.GetExecRequest(); err == nil {
-		execCmd = execRequest.GetCommand()
+		result.Command = execRequest.GetCommand()
 	}
 
 	err := t.session.Wait()
-	return ExecResult{
-		Command: execCmd,
-		Code:    exitCode(err),
-		Error:   err,
+	var sshExitErr *ssh.ExitError
+	if errors.As(err, &sshExitErr) {
+		result.Code = sshExitErr.ExitStatus()
+	} else if err != nil {
+		result.Code = teleport.RemoteCommandFailure
+		result.Error = err
 	}
+
+	return result
 }
 
 func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {

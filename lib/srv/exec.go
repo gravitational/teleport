@@ -57,7 +57,7 @@ type ExecResult struct {
 	// Code is return code that execution of the command resulted in.
 	Code int
 
-	// Error is a launch error or exit error from the child process.
+	// Error is a launch error from the child process.
 	Error error
 }
 
@@ -284,7 +284,6 @@ func (e *localExec) Wait() ExecResult {
 	result := ExecResult{
 		Command: e.GetCommand(),
 		Code:    exitCode(exitErr),
-		Error:   exitErr,
 	}
 
 	if e.childStderr != "" {
@@ -484,8 +483,14 @@ func (e *remoteExec) Wait() ExecResult {
 
 	result := ExecResult{
 		Command: e.command,
-		Code:    exitCode(err),
-		Error:   err,
+	}
+
+	var sshExitErr *ssh.ExitError
+	if errors.As(err, &sshExitErr) {
+		result.Code = sshExitErr.ExitStatus()
+	} else if err != nil {
+		result.Code = teleport.RemoteCommandFailure
+		result.Error = err
 	}
 
 	// Emit the result of execution to the Audit Log.
