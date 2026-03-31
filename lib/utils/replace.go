@@ -77,12 +77,7 @@ func replaceRegexCached(expression string, config RegexpConfig) (*regexp.Regexp,
 		return expr, nil
 	}
 
-	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-		// replace glob-style wildcards with regexp wildcards
-		// for plain strings, and quote all characters that could
-		// be interpreted in regular expression
-		expression = "^" + GlobToRegexp(expression) + "$"
-	}
+	expression = expressionToRegexp(expression)
 	if config.IgnoreCase {
 		expression = "(?i)" + expression
 	}
@@ -197,7 +192,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, isClusterWideResou
 		// it doesn't match.
 		// When the resource has a wildcard verb, we only allow one verb in the
 		// resource input.
-		if !isVerbAllowed(resource.Verbs, verb) {
+		if !IsVerbAllowed(resource.Verbs, verb) {
 			continue
 		}
 		switch {
@@ -293,7 +288,7 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 		// it doesn't match.
 		// When the resource has a wildcard verb, we only allow one verb in the
 		// resource input.
-		if !isVerbAllowed(resource.Verbs, verb) {
+		if !IsVerbAllowed(resource.Verbs, verb) {
 			continue
 		}
 		switch {
@@ -362,10 +357,9 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 	return false, nil
 }
 
-// isVerbAllowed returns true if the verb is allowed in the resource.
-// If the resource has a wildcard verb, it matches all verbs, otherwise
-// the resource must have the verb we're looking for.
-func isVerbAllowed(allowedVerbs []string, verb string) bool {
+// IsVerbAllowed returns true if the verb is allowed in the resource.
+// It short-circuits on a wildcard in position 0, otherwise checks whether the verb appears in the list.
+func IsVerbAllowed(allowedVerbs []string, verb string) bool {
 	return len(allowedVerbs) != 0 && (allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
 }
 
@@ -420,16 +414,26 @@ func MatchString(input, expression string) (bool, error) {
 	return expr.MatchString(input), nil
 }
 
+// IsRegexp returns true if the expression is a raw regex pattern (starts with ^ and ends with $).
+func IsRegexp(expression string) bool {
+	return strings.HasPrefix(expression, "^") && strings.HasSuffix(expression, "$")
+}
+
+// expressionToRegexp converts a Teleport expression to a regexp string.
+func expressionToRegexp(expression string) string {
+	if IsRegexp(expression) {
+		return expression
+	}
+	// replace glob-style wildcards with regexp wildcards
+	// for plain strings, and quote all characters that could
+	// be interpreted in regular expression
+	return "^" + GlobToRegexp(expression) + "$"
+}
+
 // CompileExpression compiles the given regex expression with Teleport's custom globbing
 // and quoting logic.
 func CompileExpression(expression string) (*regexp.Regexp, error) {
-	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-		// replace glob-style wildcards with regexp wildcards
-		// for plain strings, and quote all characters that could
-		// be interpreted in regular expression
-		expression = "^" + GlobToRegexp(expression) + "$"
-	}
-
+	expression = expressionToRegexp(expression)
 	expr, err := regexp.Compile(expression)
 	if err != nil {
 		return nil, trace.BadParameter("%s", err)
