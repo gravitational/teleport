@@ -79,6 +79,11 @@ const bedrockSelfHostedDirectSchema = bedrockBaseSchema.extend({
   bedrockMode: z.literal('direct'),
 });
 
+// Matches the inference profile ARN pattern from the AWS Bedrock API Reference:
+// https://docs.aws.amazon.com/bedrock/latest/APIReference/API_GetInferenceProfile.html
+export const INFERENCE_PROFILE_ARN_REGEX =
+  /^arn:aws(|-us-gov|-cn|-iso|-iso-b):bedrock:(|[0-9a-z-]{0,20}):(|[0-9]{12}):(inference-profile|application-inference-profile)\/[a-zA-Z0-9-:.]+$/;
+
 // Bedrock connection using an Inference Profile ARN. Only supported for self-hosted since cloud does not support inference profiles.
 const bedrockSelfHostedInferenceProfileSchema = bedrockBaseSchema.extend({
   bedrockMode: z.literal('inference_profile'),
@@ -86,7 +91,7 @@ const bedrockSelfHostedInferenceProfileSchema = bedrockBaseSchema.extend({
     .string()
     .min(1, 'Inference Profile ARN is required')
     .regex(
-      /^arn:aws:bedrock:[a-z0-9-]+:\d{12}:inference-profile\/[a-zA-Z0-9-_]+$/,
+      INFERENCE_PROFILE_ARN_REGEX,
       'Must be a valid Bedrock Inference Profile ARN'
     ),
 });

@@ -202,12 +202,106 @@ describe('self hosted', () => {
         bedrockMode: 'inference_profile',
         region: 'ap-northeast-1',
         inferenceProfile:
-          'arn:aws:bedrock:us-west-2:123456789012:inference-profile/your-profile',
+          'arn:aws:bedrock:us-west-2:123456789012:inference-profile/us.anthropic.claude-opus-4-6-20250929-v1:0',
       };
 
       const result = selfHostedCredentials.safeParse(input);
 
       expect(result.success).toBe(true);
+    });
+
+    it('validates inference profile ARN with dots and colons in profile ID', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile:
+          'arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-6-20250929-v1:0',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('validates inference profile ARN with empty account ID', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile:
+          'arn:aws:bedrock:us-east-1::inference-profile/us.anthropic.claude-sonnet-4-6-20250929-v1:0',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects inference profile without ARN prefix', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile: 'us.meta.llama3-2-11b-instruct-v1:0',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(false);
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid Bedrock Inference Profile ARN'
+      );
+    });
+
+    it('rejects inference profile ARN with partial account ID', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile:
+          'arn:aws:bedrock:us-east-1:123:inference-profile/us.anthropic.claude-sonnet-4-6-20250929-v1:0',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(false);
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid Bedrock Inference Profile ARN'
+      );
+    });
+
+    it('rejects inference profile with invalid characters', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile: 'invalid profile with spaces!',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(false);
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid Bedrock Inference Profile ARN'
+      );
+    });
+
+    it('rejects inference profile ARN with wrong resource type', () => {
+      const input = {
+        accessMethod: 'bedrock',
+        bedrockMode: 'inference_profile',
+        region: 'us-east-1',
+        inferenceProfile:
+          'arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-4',
+      };
+
+      const result = selfHostedCredentials.safeParse(input);
+
+      expect(result.success).toBe(false);
+      expect(result.error.issues[0].message).toBe(
+        'Must be a valid Bedrock Inference Profile ARN'
+      );
     });
 
     it('rejects missing region for direct mode', () => {

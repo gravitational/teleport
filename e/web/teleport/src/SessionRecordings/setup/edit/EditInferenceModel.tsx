@@ -25,6 +25,7 @@ import {
 } from 'e-teleport/services/inference/hooks';
 import { Form } from 'e-teleport/SessionRecordings/setup/fields/Form';
 import { InferenceModelForm } from 'e-teleport/SessionRecordings/setup/forms/InferenceModelForm';
+import { INFERENCE_PROFILE_ARN_REGEX } from 'e-teleport/SessionRecordings/setup/schema/credentials';
 import {
   convertModelSchemaToApi,
   modelSchema,
@@ -115,9 +116,7 @@ function createDefaultValues(
       };
     }
 
-    const inferenceProfileRegex =
-      /^arn:aws:bedrock:[a-z0-9-]+:\d{12}:inference-profile\/[a-zA-Z0-9-_]+$/;
-    if (inferenceProfileRegex.test(model.bedrock.modelId)) {
+    if (INFERENCE_PROFILE_ARN_REGEX.test(model.bedrock.modelId)) {
       if (isCloud) {
         throw new Error(
           'Inference profiles are not supported in cloud environment.'
