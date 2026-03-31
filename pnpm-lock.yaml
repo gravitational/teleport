@@ -420,9 +420,6 @@ importers:
       '@grpc/grpc-js':
         specifier: 1.14.3
         version: 1.14.3
-      '@types/which':
-        specifier: ^3.0.4
-        version: 3.0.4
       node-forge:
         specifier: ^1.4.0
         version: 1.4.0
@@ -469,6 +466,9 @@ importers:
       '@types/whatwg-url':
         specifier: ^13.0.0
         version: 13.0.0
+      '@types/which':
+        specifier: ^3.0.4
+        version: 3.0.4
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
