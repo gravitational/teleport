@@ -6634,6 +6634,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Cache:            cfg.AuthServer.Cache,
+		AuthServer:       cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "instantiating issuancev1 service")
