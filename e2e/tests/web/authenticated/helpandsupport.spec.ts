@@ -28,110 +28,50 @@ test.describe('help and support page', () => {
   });
 
   test('contains support and resource links', async ({ page }) => {
-    const communityPromise = page.waitForEvent('popup');
-    await page
-      .getByRole('link', { name: 'Ask the Community Questions' })
-      .click();
-    const communityPage = await communityPromise;
-    await expect(communityPage).toHaveURL(
-      'https://github.com/gravitational/teleport/discussions'
+    const version = `oss_${env['E2E_TELEPORT_VERSION']}`;
+    const expectedFetchableUrls: Record<string, string> = {
+      'Ask the Community Questions':
+        'https://github.com/gravitational/teleport/discussions',
+      'Request a New Feature':
+        'https://github.com/gravitational/teleport/issues/new/choose',
+      'Get Started Guide': `https://goteleport.com/docs/get-started/?product=teleport&version=${version}`,
+      'tsh User Guide': `https://goteleport.com/docs/connect-your-client/tsh/?product=teleport&version=${version}`,
+      'Admin Guides': `https://goteleport.com/docs/admin-guides/management/admin/?product=teleport&version=${version}`,
+      'Troubleshooting Guide': `https://goteleport.com/docs/admin-guides/management/admin/troubleshooting/?product=teleport&version=${version}`,
+      'Download Page': `https://goteleport.com/download/`,
+      FAQ: `https://goteleport.com/docs/faq?product=teleport&version=${version}`,
+      'Product Changelog': `https://goteleport.com/docs/changelog?product=teleport&version=${version}`,
+      'Upcoming Releases': `https://goteleport.com/docs/upcoming-releases?product=teleport&version=${version}`,
+      'Teleport Blog': `https://goteleport.com/blog/`,
+    };
+
+    const expectedUrls: Record<string, string> = {
+      ...expectedFetchableUrls,
+      'Send Product Feedback': 'mailto:support@goteleport.com',
+    };
+
+    // Start fetching links that can be fetched; we'll need it later.
+    const fetchPromises = Object.values(expectedFetchableUrls).map(url =>
+      fetch(url)
     );
-    await communityPage.close();
 
-    // The new feature link leads to a GitHub URL that requires login. To avoid
-    // breaking the test if GitHub subtly changes the behavior here, fall back to
-    // checking the href attribute and checking actionability.
-    const newFeatureLink = await page.getByRole('link', {
-      name: 'Request a New Feature',
-    });
-    await expect(newFeatureLink).toHaveAttribute(
-      'href',
-      'https://github.com/gravitational/teleport/issues/new/choose'
-    );
-    await newFeatureLink.click({ trial: true });
+    // The links are all external, so to make sure our tests are not brittle,
+    // we don't perform any assertions on the pages that they lead to. Instead,
+    // just verify that the link href is as expected and perform a "dry run"
+    // link actionability test.
+    for (const name in expectedUrls) {
+      const link = page.getByRole('link', { name });
+      await expect(link).toHaveAttribute('href', expectedUrls[name]);
+      await link.click({ trial: true });
+    }
 
-    // Playwright doesn't allow capturing an e-mail third-party tool launch. Fall
-    // back to checking the href attribute and checking actionability.
-    const feedbackLink = await page.getByRole('link', {
-      name: 'Send Product Feedback',
-    });
-    await expect(feedbackLink).toHaveAttribute(
-      'href',
-      'mailto:support@goteleport.com'
-    );
-    await feedbackLink.click({ trial: true });
-
-    const gettingStartedPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Get Started Guide' }).click();
-    const gettingStartedPage = await gettingStartedPromise;
-    await expect(
-      gettingStartedPage.getByRole('heading', { level: 1 })
-    ).toContainText('Get Started with Teleport');
-    await gettingStartedPage.close();
-
-    const tshGuidePromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'tsh User Guide' }).click();
-    const tshGuidePage = await tshGuidePromise;
-    await expect(tshGuidePage.getByRole('heading', { level: 1 })).toContainText(
-      'Using the tsh Command Line Tool'
-    );
-    await tshGuidePage.close();
-
-    const adminGuidesPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Admin Guides' }).click();
-    const adminGuidesPage = await adminGuidesPromise;
-    await expect(
-      adminGuidesPage.getByRole('heading', { level: 1 })
-    ).toContainText('Cluster Management');
-    await adminGuidesPage.close();
-
-    const troubleshootingPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Troubleshooting Guide' }).click();
-    const troubleshootingPage = await troubleshootingPromise;
-    await expect(
-      troubleshootingPage.getByRole('heading', { level: 1 })
-    ).toContainText('Troubleshooting');
-    await troubleshootingPage.close();
-
-    const downloadsPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Download Page' }).click();
-    const downloadsPage = await downloadsPromise;
-    await expect(
-      downloadsPage.getByRole('heading', { level: 1 })
-    ).toContainText('Download and Deployment Options');
-    await downloadsPage.close();
-
-    const faqPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'FAQ' }).click();
-    const faqPage = await faqPromise;
-    await expect(faqPage.getByRole('heading', { level: 1 })).toContainText(
-      'Teleport FAQ'
-    );
-    await faqPage.close();
-
-    const changelogPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Product Changelog' }).click();
-    const changelogPage = await changelogPromise;
-    await expect(
-      changelogPage.getByRole('heading', { level: 1 })
-    ).toContainText('Teleport Changelog');
-    await changelogPage.close();
-
-    const upcomingReleasesPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Upcoming Releases' }).click();
-    const upcomingReleasesPage = await upcomingReleasesPromise;
-    await expect(
-      upcomingReleasesPage.getByRole('heading', { level: 1 })
-    ).toContainText('Teleport Upcoming Releases');
-    await upcomingReleasesPage.close();
-
-    const blogPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: 'Teleport Blog' }).click();
-    const blogPage = await blogPromise;
-    await expect(blogPage.getByRole('heading', { level: 1 })).toContainText(
-      'Teleport Blog'
-    );
-    await blogPage.close();
+    // Make sure that all fetchable URLs are actually reachable.
+    const responses = await Promise.all(fetchPromises);
+    for (const resp of responses) {
+      expect(resp.ok, `Expecting a successful response for ${resp.url}`).toBe(
+        true
+      );
+    }
   });
 
   test('contains cluster information', async ({ page }) => {
