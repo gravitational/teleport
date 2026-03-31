@@ -7531,6 +7531,26 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
+
+  // Sync intervals.
+  PluginEntraIDSyncIntervals sync_intervals = 8;
+}
+
+// PluginEntraIDSyncIntervals defines delta or full sync.
+message PluginEntraIDSyncIntervals {
+  option (gogoproto.equal) = true;
+
+  google.protobuf.Duration delta = 1 [
+    (gogoproto.jsontag) = "delta,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+
+  google.protobuf.Duration full = 2 [
+    (gogoproto.jsontag) = "full,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
