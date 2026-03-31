@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
@@ -167,7 +167,8 @@ func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, u
 	if err != nil {
 		return nil, trace.Wrap(err, "building SSH client config")
 	}
-	clientConn, clientChans, clientReqs, err := tracessh.NewClientConnWithTimeout(ctx, targetConn, target.addr, clientConfig)
+
+	clientConn, clientChans, clientReqs, err := apissh.NewClientConnWithTimeout(ctx, targetConn, target.addr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "initiating SSH connection to %s@%s", user, target.addr)
 	}

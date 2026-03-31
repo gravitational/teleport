@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1171,9 +1171,11 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			agentClient := agent.NewClient(agentConn)
 			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 			require.NoError(t, err)
-			sshConfig := &ssh.ClientConfig{
-				Auth: []ssh.AuthMethod{
-					ssh.PublicKeysCallback(agentClient.Signers),
+			sshConfig := apissh.ClientConfig{
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return agentClient.Signers()
+					},
 				},
 				User:            currentUser.Username,
 				HostKeyCallback: callback,
@@ -1185,19 +1187,19 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			})
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
-			sshConn, sshChan, sshReq, err := tracessh.NewClientConnWithTimeout(t.Context(), conn, "server01.root:22", sshConfig)
-			require.NoError(t, err)
-			sshClient, err := tracessh.NewClient(sshConn, sshChan, sshReq)
+
+			sshClient, err := apissh.NewClientWithTimeout(ctx, conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})
-			sshSess, err := sshClient.NewSession(t.Context())
+
+			sshSess, err := sshClient.NewSession(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshSess.Close()
 			})
-			out, err := sshSess.CombinedOutput(t.Context(), "echo hello")
+			out, err := sshSess.CombinedOutput(ctx, "echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
 

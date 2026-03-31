@@ -132,10 +132,10 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
-	// GetAllowBrowserAuthentication returns if browser authentication is allowed by cluster settings.
-	GetAllowBrowserAuthentication() bool
-	// SetAllowBrowserAuthentication sets the value of the allow browser authentication setting.
-	SetAllowBrowserAuthentication(b bool)
+	// GetAllowCLIAuthViaBrowser returns if cli auth via browser is allowed by cluster settings.
+	GetAllowCLIAuthViaBrowser() bool
+	// SetAllowCLIAuthViaBrowser sets the value of the allow cli auth via browser setting.
+	SetAllowCLIAuthViaBrowser(b bool)
 
 	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
 	SetRequireMFAType(RequireMFAType)
@@ -472,20 +472,20 @@ func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
 }
 
-// GetAllowBrowserAuthentication returns whether browser authentication is
+// GetAllowCLIAuthViaBrowser returns whether cli auth via browser is
 // allowed. If it's not explicitly configured, it defaults to true when
 // WebAuthn is enabled as a second factor.
-func (c *AuthPreferenceV2) GetAllowBrowserAuthentication() bool {
-	if c.Spec.AllowBrowserAuthentication != nil {
-		return c.Spec.AllowBrowserAuthentication.Value
+func (c *AuthPreferenceV2) GetAllowCLIAuthViaBrowser() bool {
+	if c.Spec.AllowCLIAuthViaBrowser != nil {
+		return c.Spec.AllowCLIAuthViaBrowser.Value
 	}
 
 	// Default to enabled when WebAuthn is enabled.
 	return c.IsSecondFactorWebauthnAllowed()
 }
 
-func (c *AuthPreferenceV2) SetAllowBrowserAuthentication(b bool) {
-	c.Spec.AllowBrowserAuthentication = NewBoolOption(b)
+func (c *AuthPreferenceV2) SetAllowCLIAuthViaBrowser(b bool) {
+	c.Spec.AllowCLIAuthViaBrowser = NewBoolOption(b)
 }
 
 // SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
@@ -830,9 +830,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
 	}
 
-	// Validate AllowBrowserAuthentication. WebAuthn is required for browser authentication.
-	if !hasWebauthn && c.Spec.AllowBrowserAuthentication != nil && c.Spec.AllowBrowserAuthentication.Value {
-		return trace.BadParameter("missing required Webauthn configuration for allow_browser_authentication=true")
+	// Validate AllowCLIAuthViaBrowser. WebAuthn is required for cli auth via browser.
+	if !hasWebauthn && c.Spec.AllowCLIAuthViaBrowser != nil && c.Spec.AllowCLIAuthViaBrowser.Value {
+		return trace.BadParameter("missing required Webauthn configuration for allow_cli_auth_via_browser=true")
 	}
 
 	// Prevent local lockout by disabling local second factor methods.

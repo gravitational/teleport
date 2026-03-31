@@ -38,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/constants"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -356,20 +357,20 @@ func (k *KeyRing) clientCertPoolPEM(clusters ...string) ([]byte, error) {
 //
 // The config is set up to authenticate to proxy with the first available principal
 // and ( if keyStore != nil ) trust local SSH CAs without asking for public keys.
-func (k *KeyRing) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
+func (k *KeyRing) ProxyClientSSHConfig(hostname string) (apissh.ClientConfig, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
+		return apissh.ClientConfig{}, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
 	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k.SSHPrivateKey.Signer)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	sshConfig.HostKeyCallback, err = k.HostKeyCallback(hostname)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	return sshConfig, nil

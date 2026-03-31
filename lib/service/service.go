@@ -77,6 +77,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -523,7 +524,7 @@ func (c *Connector) clientIdentityString() string {
 	return c.clientState.Load().identity.String()
 }
 
-func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+func (c *Connector) clientSSHClientConfig(fips bool) (apissh.ClientConfig, error) {
 	hostKeyCallback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: func() ([]ssh.PublicKey, error) {
@@ -532,15 +533,16 @@ func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) 
 			FIPS: fips,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	return &ssh.ClientConfig{
+	return apissh.ClientConfig{
 		User: c.hostID,
-		Auth: []ssh.AuthMethod{ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
-			return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
-		})},
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{c.clientState.Load().sshCertSigner}, nil
+			},
+		},
 		HostKeyCallback: hostKeyCallback,
-		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -1136,7 +1138,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
 			"that Enterprise FIPS release was downloaded from " +
 			"a Teleport account https://teleport.sh")
-
 	}
 
 	if cfg.Auth.Preference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && cfg.Modules.BuildType() != modules.BuildEnterprise {
@@ -2514,6 +2515,16 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// setLocalAuth must be called before InitUsageReporting so that enterprise
+	// auth extensions can access the UsageReporter via GetAuthServer.
+	process.setLocalAuth(authServer)
+	if process.Config.PluginRegistry != nil {
+		if err := process.Config.PluginRegistry.InitUsageReporting(process); err != nil {
+			return trace.Wrap(err, "initializing usage reporting")
+		}
+	}
+
 	authServer.EncryptedIO = encryptedIO
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -2591,8 +2602,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	recordingMetadataProvider.SetService(recordingMetadataService)
-
-	process.setLocalAuth(authServer)
 
 	// The auth server runs its own upload completer, which is necessary in sync recording modes where
 	// a node can abandon an upload before it is competed.
@@ -3132,6 +3141,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()
@@ -3712,13 +3722,17 @@ func (process *TeleportProcess) initSSH() error {
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
 				reversetunnel.AgentPoolConfig{
-					InsecureMode:             process.Config.InsecureMode,
-					Component:                teleport.ComponentNode,
-					HostUUID:                 conn.HostID(),
-					Resolver:                 conn.TunnelProxyResolver(),
-					Client:                   conn.Client,
-					AccessPoint:              authClient,
-					AuthMethods:              conn.ClientAuthMethods(),
+					InsecureMode: process.Config.InsecureMode,
+					Component:    teleport.ComponentNode,
+					HostUUID:     conn.HostID(),
+					Resolver:     conn.TunnelProxyResolver(),
+					Client:       conn.Client,
+					AccessPoint:  authClient,
+					PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+						GetSigners: func() ([]ssh.Signer, error) {
+							return conn.ServerGetHostSigners(), nil
+						},
+					},
 					Cluster:                  conn.ClusterName(),
 					Server:                   serverHandler,
 					FIPS:                     process.Config.FIPS,
@@ -5870,11 +5884,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Create and register reverse tunnel AgentPool.
 	rcWatcher, err = reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
-		InsecureMode:        process.Config.InsecureMode,
-		HostUUID:            conn.HostID(),
-		AuthClient:          conn.Client,
-		AccessPoint:         accessPoint,
-		AuthMethods:         conn.ClientAuthMethods(),
+		InsecureMode: process.Config.InsecureMode,
+		HostUUID:     conn.HostID(),
+		AuthClient:   conn.Client,
+		AccessPoint:  accessPoint,
+		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return conn.ServerGetHostSigners(), nil
+			},
+		},
 		LocalCluster:        clusterName,
 		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
@@ -6890,14 +6908,18 @@ func (process *TeleportProcess) initApps() {
 		agentPool, err := reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				InsecureMode:             process.Config.InsecureMode,
-				Component:                teleport.ComponentApp,
-				HostUUID:                 conn.HostID(),
-				Resolver:                 tunnelAddrResolver,
-				Client:                   conn.Client,
-				Server:                   appServer,
-				AccessPoint:              accessPoint,
-				AuthMethods:              conn.ClientAuthMethods(),
+				InsecureMode: process.Config.InsecureMode,
+				Component:    teleport.ComponentApp,
+				HostUUID:     conn.HostID(),
+				Resolver:     tunnelAddrResolver,
+				Client:       conn.Client,
+				Server:       appServer,
+				AccessPoint:  accessPoint,
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					GetSigners: func() ([]ssh.Signer, error) {
+						return conn.ServerGetHostSigners(), nil
+					},
+				},
 				Cluster:                  clusterName,
 				FIPS:                     process.Config.FIPS,
 				ConnectedProxyGetter:     proxyGetter,

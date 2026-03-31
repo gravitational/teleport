@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -193,18 +194,22 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 
 // SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
+func (i *Identity) SSHClientConfig(fips bool) (apissh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: i.getSSHCheckers,
 			FIPS:            fips,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	return &ssh.ClientConfig{
-		User:            i.ID.HostUUID,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
+	return apissh.ClientConfig{
+		User: i.ID.HostUUID,
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{i.KeySigner}, nil
+			},
+		},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil

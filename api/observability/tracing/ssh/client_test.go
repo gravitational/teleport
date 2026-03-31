@@ -18,16 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api"
 )
 
 func TestIsTracingSupported(t *testing.T) {
@@ -75,58 +71,11 @@ func TestIsTracingSupported(t *testing.T) {
 			})
 
 			conn, chans, reqs := srv.GetClient(t)
-			client, err := NewClient(conn, chans, reqs)
-			require.NoError(t, err)
+			client := NewClient(conn, chans, reqs)
 
 			require.Equal(t, tt.expectedCapability, client.capability)
 		})
 	}
-}
-
-func TestNewClientVersionMismatch(t *testing.T) {
-	t.Parallel()
-
-	srv := newServer(
-		t,
-		tracingSupportedVersion,
-		func(conn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
-			go ssh.DiscardRequests(reqs)
-
-			for ch := range chans {
-				err := ch.Reject(ssh.Prohibited, "no channels allowed")
-				assert.NoError(t, err)
-			}
-		},
-	)
-
-	tcpConn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", srv.listener.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		tcpConn.Close()
-	})
-
-	config := &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(srv.cSigner)},
-		ClientVersion:   "SSH-2.0-invalid-version",
-		HostKeyCallback: ssh.FixedHostKey(srv.hSigner.PublicKey()),
-	}
-
-	sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, srv.listener.Addr().String(), config)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sshConn.Close()
-	})
-
-	_, err = NewClient(sshConn, chans, reqs)
-	require.ErrorIs(
-		t,
-		trace.BadParameter(
-			"SSH client version must be set to %q, got %q (this is a bug)",
-			api.SSHClientVersion(),
-			config.ClientVersion,
-		),
-		err,
-	)
 }
 
 // envReqParams are parameters for env request
@@ -233,8 +182,7 @@ func TestSetEnvs(t *testing.T) {
 
 	// create a client and open a session
 	conn, chans, reqs := srv.GetClient(t)
-	client, err := NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client := NewClient(conn, chans, reqs)
 	session, err := client.NewSession(ctx)
 	require.NoError(t, err)
 
@@ -370,8 +318,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	})
 
 	conn, chans, reqs := srv.GetClient(t)
-	client, err := NewClient(conn, chans, reqs)
-	require.NoError(t, err)
+	client := NewClient(conn, chans, reqs)
 
 	// The client should reply false to any global request from the server, as we
 	// don't currently support a mechanism for the client to register global handlers.

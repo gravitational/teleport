@@ -276,7 +276,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
 				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
-				assert.Equal(t, &services.SSOMFASessionData{
+				assert.Equal(t, &services.MFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
 					Username:      samlUser.GetName(),
 					ConnectorID:   samlConnector.GetName(),
@@ -315,7 +315,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
 				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
-				assert.Equal(t, &services.SSOMFASessionData{
+				assert.Equal(t, &services.MFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
 					Username:      oidcUser.GetName(),
 					ConnectorID:   oidcConnector.GetName(),
@@ -455,7 +455,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		username           string
-		sd                 *services.SSOMFASessionData
+		sd                 *services.MFASessionData
 		ssoResponse        *proto.SSOResponse
 		requiredExtensions *mfav1.ChallengeExtensions
 		assertValidation   func(t *testing.T, mad *authz.MFAAuthData, err error)
@@ -485,7 +485,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch user",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request1",
 				Username:      "wrong-user",
 				ConnectorID:   samlConnector.GetName(),
@@ -509,7 +509,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch token",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request2",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -533,7 +533,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK non validated session data",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request2",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -556,7 +556,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch scope",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request3",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -580,7 +580,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK reuse not allowed",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request4",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -606,7 +606,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK sso mfa not enabled by auth connector",
 			username: noMFASAMLUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request5",
 				Username:      noMFASAMLUser.GetName(),
 				ConnectorID:   noMFASAMLConnector.GetName(),
@@ -630,7 +630,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK non sso user",
 			username: standardUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request6",
 				Username:      standardUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -654,7 +654,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "OK sso user",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request7",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -684,7 +684,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "OK sso user allow reuse",
 			username: samlUser.GetName(),
-			sd: &services.SSOMFASessionData{
+			sd: &services.MFASessionData{
 				RequestID:     "request8",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
@@ -715,7 +715,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.sd != nil {
-				err := a.UpsertSSOMFASessionData(ctx, tt.sd)
+				err := a.UpsertMFASessionData(ctx, tt.sd)
 				require.NoError(t, err)
 			}
 

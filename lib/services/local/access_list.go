@@ -877,7 +877,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			}
 		}
 
-		if err := a.insertMembersAndUpdateNestedRelationships(ctx, slices.Collect(maps.Values(membersMap))); err != nil {
+		if err := a.insertMembersAndUpdateNestedRelationships(ctx, accessList.GetName(), slices.Collect(maps.Values(membersMap))); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -1302,19 +1302,19 @@ func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *access
 	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
 }
 
-func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
-	if err := a.insertMembers(ctx, members); err != nil {
+func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, accessListName string, members []*accesslist.AccessListMember) error {
+	if err := a.insertMembers(ctx, accessListName, members); err != nil {
 		return trace.Wrap(err)
 	}
 	// In case of nested access list members.
-	if err := a.updatedMembersNestedRelationships(ctx, members); err != nil {
+	if err := a.updatedMembersNestedRelationships(ctx, accessListName, members); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (a *AccessListService) insertMembers(ctx context.Context, members []*accesslist.AccessListMember) error {
-	items, err := a.membersToBackendItems(members)
+func (a *AccessListService) insertMembers(ctx context.Context, acl string, members []*accesslist.AccessListMember) error {
+	items, err := a.membersToBackendItems(acl, members)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1329,10 +1329,10 @@ func (a *AccessListService) insertMembers(ctx context.Context, members []*access
 	return nil
 }
 
-func (a *AccessListService) membersToBackendItems(members []*accesslist.AccessListMember) ([]backend.Item, error) {
+func (a *AccessListService) membersToBackendItems(acl string, members []*accesslist.AccessListMember) ([]backend.Item, error) {
 	out := make([]backend.Item, 0, len(members))
 	for _, member := range members {
-		item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+		item, err := a.memberService.WithPrefix(acl).MakeBackendItem(member)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1341,13 +1341,13 @@ func (a *AccessListService) membersToBackendItems(members []*accesslist.AccessLi
 	return out, nil
 }
 
-func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
+func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, acl string, members []*accesslist.AccessListMember) error {
 	for _, member := range members {
 		if member.Spec.MembershipKind != accesslist.MembershipKindList {
 			continue
 		}
 		// Update memberOf field if nested list.
-		if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
+		if err := a.updateAccessListMemberOf(ctx, acl, member.Spec.Name, true); err != nil {
 			return trace.Wrap(err)
 		}
 	}

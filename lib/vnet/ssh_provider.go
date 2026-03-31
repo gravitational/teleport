@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -115,7 +116,7 @@ func (p *sshProvider) dialViaProxy(
 		InsecureSkipVerify:      dialOpts.GetInsecureSkipVerify(),
 		// This empty SSH client config should never be used, we dial to the
 		// proxy over TLS only.
-		SSHConfig: &ssh.ClientConfig{},
+		SSHConfig: apissh.ClientConfig{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "building proxy client")
@@ -178,24 +179,24 @@ func (p *sshProvider) sessionSSHConfig(
 	target dialTarget,
 	user string,
 	agent *sshAgent,
-) (*ssh.ClientConfig, error) {
+) (apissh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
 	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	sshPub, err := ssh.ParsePublicKey(resp.GetCert())
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing session SSH cert")
+		return apissh.ClientConfig{}, trace.Wrap(err, "parsing session SSH cert")
 	}
 	sshCert, ok := sshPub.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("expected ssh.Certificate, got %T", sshCert)
+		return apissh.ClientConfig{}, trace.BadParameter("expected ssh.Certificate, got %T", sshCert)
 	}
 	cryptoPub, ok := sshCert.Key.(ssh.CryptoPublicKey)
 	if !ok {
-		return nil, trace.BadParameter("expected SSH key to implement CryptoPublicKey, got %T", sshCert.Key)
+		return apissh.ClientConfig{}, trace.BadParameter("expected SSH key to implement CryptoPublicKey, got %T", sshCert.Key)
 	}
 	sessionID := resp.GetSessionId()
 	signer := &rpcSigner{
@@ -206,25 +207,29 @@ func (p *sshProvider) sessionSSHConfig(
 	}
 	sshSigner, err := ssh.NewSignerFromSigner(signer)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	certSigner, err := ssh.NewCertSigner(sshCert, sshSigner)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	// Add the session SSH key to the SSH agent in case proxy recording mode is
 	// enabled. Adding it to the agent here before returning an
 	// ssh.ClientConfig guarantees the key is added to the agent before the
 	// agent could be used.
 	if err := agent.setSessionKey(certSigner); err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	hostKeyCallback, err := buildHostKeyCallback(resp.GetTrustedCas(), p.cfg.clock)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	return &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(certSigner)},
+	return apissh.ClientConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{certSigner}, nil
+			},
+		},
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
 	}, nil

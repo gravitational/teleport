@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -157,7 +158,7 @@ func (f *Facade) TLSConfig() (*tls.Config, error) {
 	return cfg, nil
 }
 
-func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (f *Facade) SSHClientConfig() (apissh.ClientConfig, error) {
 	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
 		GetHostCheckers: func() ([]ssh.PublicKey, error) {
 			f.mu.RLock()
@@ -166,19 +167,20 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return apissh.ClientConfig{}, err
 	}
 
 	// Build a "dynamic" ssh config. Based roughly on
 	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
 	// dynamically changing credentials and CAs.
-	cfg := &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
+	cfg := apissh.ClientConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
 				f.mu.RLock()
 				defer f.mu.RUnlock()
+
 				return []ssh.Signer{f.identity.CertSigner}, nil
-			}),
+			},
 		},
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         apidefaults.DefaultIOTimeout,
@@ -197,7 +199,7 @@ func (f *Facade) SSHClientConfig() (*ssh.ClientConfig, error) {
 		User: "-teleport-internal-join",
 	}
 	if f.fips {
-		cfg.Config = ssh.Config{
+		cfg.SSHConfig = ssh.Config{
 			KeyExchanges: defaults.FIPSKEXAlgorithms,
 			MACs:         defaults.FIPSMACAlgorithms,
 			Ciphers:      defaults.FIPSCiphers,

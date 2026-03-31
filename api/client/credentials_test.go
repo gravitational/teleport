@@ -34,12 +34,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -308,7 +308,7 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 	})
 }
 
-func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
+func getExpectedSSHConfig(t *testing.T) apissh.ClientConfig {
 	cert, err := sshutils.ParseCertificate(sshCert)
 	require.NoError(t, err)
 
@@ -328,9 +328,9 @@ func requireEqualTLSConfig(t *testing.T, expected *tls.Config, actual *tls.Confi
 	))
 }
 
-func requireEqualSSHConfig(t *testing.T, expected *ssh.ClientConfig, actual *ssh.ClientConfig) {
+func requireEqualSSHConfig(t *testing.T, expected apissh.ClientConfig, actual apissh.ClientConfig) {
 	require.Empty(t, cmp.Diff(expected, actual,
-		cmpopts.IgnoreFields(ssh.ClientConfig{}, "Auth", "HostKeyCallback"),
+		cmpopts.IgnoreFields(apissh.ClientConfig{}, "PublicKeyAuth", "HostKeyCallback"),
 	))
 }
 

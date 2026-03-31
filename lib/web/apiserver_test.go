@@ -27,6 +27,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -3500,7 +3501,7 @@ func TestConstructSSHResponse(t *testing.T) {
 	plaintext, err := key.Open([]byte(rawresp.Query().Get("response")))
 	require.NoError(t, err)
 
-	var resp *authclient.SSHLoginResponse
+	var resp *authclient.CLILoginResponse
 	err = json.Unmarshal(plaintext, &resp)
 	require.NoError(t, err)
 	require.Equal(t, "foo", resp.Username)
@@ -10999,7 +11000,7 @@ func stateTokenFromConsoleLoginResponse(t *testing.T, responseBody []byte) strin
 // - in a query param
 // - in a redirect URL
 // - in an HTML document
-func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.SSHLoginResponse {
+func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.CLILoginResponse {
 	// First pull the URL from the HTML meta redirect.
 	redirectURL, err := app.GetURLFromMetaRedirect(responseBody)
 	require.NoError(t, err)
@@ -11015,7 +11016,7 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 	require.NoError(t, err, "unencrypting github callback response")
 
 	// Then unmarshal the JSON.
-	var sshLoginResponse authclient.SSHLoginResponse
+	var sshLoginResponse authclient.CLILoginResponse
 	require.NoError(t, json.Unmarshal(callbackPlaintext, &sshLoginResponse))
 	return &sshLoginResponse
 }
@@ -11451,4 +11452,112 @@ func newLock(t *testing.T, name string, expired bool, target types.LockTarget) t
 	require.NoError(t, err)
 
 	return lock
+}
+
+func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
+	t.Parallel()
+
+	caKeyPEM, caCertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, nil, time.Hour)
+	require.NoError(t, err)
+	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+
+	makeCert := func(t *testing.T, identity tlsca.Identity) *x509.Certificate {
+		t.Helper()
+		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		subj, err := identity.Subject()
+		require.NoError(t, err)
+		certPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+			Clock:     clock,
+			PublicKey: key.Public(),
+			Subject:   subj,
+			NotAfter:  clock.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		cert, err := tlsca.ParseCertificatePEM(certPEM)
+		require.NoError(t, err)
+		return cert
+	}
+
+	newRequestWithCert := func(cert *x509.Certificate) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}
+		return req
+	}
+
+	h := &Handler{}
+
+	t.Run("no TLS returns access denied", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		_, err := h.AuthenticateReqForAccessGraphAPI(req)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate required")
+	})
+
+	t.Run("TLS without peer certificate returns access denied", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.TLS = &tls.ConnectionState{}
+		_, err := h.AuthenticateReqForAccessGraphAPI(req)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate required")
+	})
+
+	t.Run("cert without access graph usage returns access denied", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username: "user",
+			Groups:   []string{"access"},
+		})
+		_, err := h.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate is not valid for Access Graph API")
+	})
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "access-graph-user@example.com", nil)
+
+	// Create a web session with Access Graph API usage for testing.
+	userInfo, err := proxy.auth.Auth().GetUser(context.Background(), pack.user, false)
+	require.NoError(t, err)
+	agSession, err := proxy.auth.Auth().CreateWebSessionFromReq(context.Background(), auth.NewWebSessionRequest{
+		User:   pack.user,
+		Roles:  userInfo.GetRoles(),
+		Traits: userInfo.GetTraits(),
+		Usage:  types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
+	})
+	require.NoError(t, err)
+	agSessionID := agSession.GetName()
+
+	t.Run("cert with access graph usage but unknown session returns access denied", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username:     pack.user,
+			Groups:       []string{"access"},
+			Usage:        []string{teleport.UsageAccessGraphAPIOnly},
+			WebSessionID: "non-existent-session-id",
+		})
+		_, err := proxy.handler.handler.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "need auth")
+	})
+
+	t.Run("cert with access graph usage and valid session returns session context", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username:     pack.user,
+			Groups:       []string{"access"},
+			Usage:        []string{teleport.UsageAccessGraphAPIOnly},
+			WebSessionID: agSessionID,
+		})
+		sctx, err := proxy.handler.handler.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.NoError(t, err)
+		require.NotNil(t, sctx)
+		require.Equal(t, pack.user, sctx.GetUser())
+	})
 }

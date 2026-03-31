@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/test/bufconn"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -102,7 +102,7 @@ func testSSHConnection(t *testing.T, dial dialer) {
 	defer tcpConn.Close()
 
 	clientConfig := sshClientConfig(t)
-	sshConn, chans, reqs, err := tracessh.NewClientConnWithTimeout(t.Context(), tcpConn, "localhost", clientConfig)
+	sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(t.Context(), tcpConn, "localhost", clientConfig)
 	require.NoError(t, err)
 	defer sshConn.Close()
 
@@ -256,7 +256,7 @@ func runTestSSHProxy(
 	lis net.Listener,
 	serverCfg *ssh.ServerConfig,
 	serverDialer dialer,
-	clientCfg *ssh.ClientConfig,
+	clientCfg apissh.ClientConfig,
 ) error {
 	for {
 		incomingConn, err := lis.Accept()
@@ -291,7 +291,7 @@ func runTestSSHProxyInstance(
 	incomingConn net.Conn,
 	serverCfg *ssh.ServerConfig,
 	outgoingConn net.Conn,
-	clientCfg *ssh.ClientConfig,
+	clientCfg apissh.ClientConfig,
 ) error {
 	defer incomingConn.Close()
 	defer outgoingConn.Close()
@@ -300,7 +300,7 @@ func runTestSSHProxyInstance(
 		return trace.Wrap(err)
 	}
 	defer incomingSSHConn.Close()
-	outgoingSSHConn, outgoingChans, outgoingReqs, err := tracessh.NewClientConnWithTimeout(ctx, outgoingConn, "localhost", clientCfg)
+	outgoingSSHConn, outgoingChans, outgoingReqs, err := apissh.NewClientConnWithTimeout(ctx, outgoingConn, "localhost", clientCfg)
 	if err != nil {
 		return trace.Wrap(err, "proxying SSH conn in test")
 	}
@@ -409,13 +409,17 @@ func sshServerConfig(t *testing.T) *ssh.ServerConfig {
 	return serverConfig
 }
 
-func sshClientConfig(t *testing.T) *ssh.ClientConfig {
+func sshClientConfig(t *testing.T) apissh.ClientConfig {
 	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 	clientSigner, err := ssh.NewSignerFromSigner(clientKey)
 	require.NoError(t, err)
-	return &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{ssh.PublicKeys(clientSigner)},
+	return apissh.ClientConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{clientSigner}, nil
+			},
+		},
 		// We're not testing SSH authentication here, just accept any host key.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}

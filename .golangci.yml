@@ -349,12 +349,12 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
-        - pattern: ^ssh\.NewClient$
+        - pattern: ^ssh\.(Dial|NewClient|NewClientConn)$
           pkg: ^golang\.org/x/crypto/ssh$
-          msg: Use tracessh.NewClientWithTimeout or tracessh.NewClient to construct ssh.Client with proper defaults
-        - pattern: ^ssh\.NewClientConn$
-          pkg: ^golang\.org/x/crypto/ssh$
-          msg: Use tracessh.NewClientConn to construct ssh.Conn with proper defaults
+          msg: Use api/ssh package to construct SSH clients with proper defaults
+        - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
+          pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
+          msg: Use api/ssh package to construct SSH clients with proper defaults
       analyze-types: true
     misspell:
       locale: US
@@ -481,18 +481,39 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+
+      # Only the api/observability/tracing/ssh package is allowed to call x/crypto/ssh new client functions directly.
       - linters:
           - forbidigo
-        path: api/observability/tracing/ssh/client.go
+        path: ^api/observability/tracing/ssh/
         text: ssh.NewClient
       - linters:
           - forbidigo
-        path: api/observability/tracing/ssh/client_test.go
+        path: ^api/observability/tracing/ssh/
         text: ssh.NewClientConn
       - linters:
           - forbidigo
-        path: api/observability/tracing/ssh/ssh.go
-        text: ssh.NewClientConn
+        path: ^api/observability/tracing/ssh/
+        text: NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientConnWithTimeout
+
+      # Only the api/ssh package is allowed to call the api/observability/tracing/ssh package directly. All others must use the api/ssh package.
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.Dial
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientConnWithTimeout
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/

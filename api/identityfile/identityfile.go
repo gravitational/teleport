@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -96,20 +96,20 @@ func (i *IdentityFile) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns the identity file's associated SSHClientConfig.
-func (i *IdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (i *IdentityFile) SSHClientConfig() (apissh.ClientConfig, error) {
 	sshCert, err := sshutils.ParseCertificate(i.Certs.SSH)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	priv, err := keys.ParsePrivateKey(i.PrivateKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, i.CACerts.SSH...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
 	return ssh, nil

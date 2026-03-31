@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -162,7 +163,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
-	keyAuthMethod, err := keyRing.AsAuthMethod()
+	signer, err := keyRing.SSHSigner()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -187,7 +188,11 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	clientConf := &client.Config{}
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
-	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
+	clientConf.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		GetSigners: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{signer}, nil
+		},
+	}
 	clientConf.Host = req.ResourceName
 	clientConf.HostKeyCallback = hostkeyCallback
 	clientConf.HostLogin = req.SSHPrincipal

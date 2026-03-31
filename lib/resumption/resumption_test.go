@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -225,21 +226,32 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 }
 
 func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
-	conn, newChC, reqC, err := tracessh.NewClientConnWithTimeout(ctx, nc, nc.RemoteAddr().String(), &ssh.ClientConfig{
-		User:            "alice",
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         time.Second,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	return apissh.NewClientWithTimeout(
+		ctx,
+		nc,
+		nc.RemoteAddr().String(),
+		apissh.ClientConfig{
+			User: "alice",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				GetSigners: func() ([]ssh.Signer, error) {
+					// This is a dummy signer to get through the authentication phase i.e., it is not used for the test.
+					_, key, err := ed25519.GenerateKey(nil)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
 
-	clt, err := tracessh.NewClient(conn, newChC, reqC)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+					signer, err := ssh.NewSignerFromKey(key)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
 
-	return clt, nil
+					return []ssh.Signer{signer}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         time.Second,
+		},
+	)
 }
 
 func discardingSSHServer(t *testing.T) func(nc net.Conn) {

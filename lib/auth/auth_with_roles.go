@@ -589,7 +589,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclien
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -2927,7 +2927,6 @@ func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start st
 	}
 
 	return tokens, next, nil
-
 }
 
 // DeleteWebToken removes the web token specified with req.
@@ -3779,7 +3778,27 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	if req.Usage == proto.UserCertsRequest_AccessGraphAPI {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+			return nil, trace.AccessDenied("access graph requires a Teleport Policy license")
+		}
+		user, err := types.NewUser(req.Username)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		user.SetRoles(accessInfo.Roles)
+		user.SetTraits(accessInfo.Traits)
+		if err := checker.CheckAccessToRule(
+			&services.Context{
+				User: user,
+			}, apidefaults.Namespace, types.KindAccessGraph, types.VerbRead,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	var appSessionID string
+	var webSessionID string
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
@@ -3791,6 +3810,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				Traits:         accessInfo.Traits,
 				Roles:          accessInfo.Roles,
 				AccessRequests: req.AccessRequests,
+				// Propagate AllowedResourceAccessIDs so the app session cert
+				// carries resource-level restrictions from the caller's identity.
+				// Without this, checkAllowedResources() at the app service sees an
+				// empty list and falls back to role-based checks alone.
+				RequestedResourceAccessIDs: accessInfo.AllowedResourceAccessIDs,
 				// App sessions created through generateUserCerts are securely contained
 				// to the Proxy and Auth roles, and thus should pass hardware key requirements
 				// through the "web_session" attestation. User's will be required to provide
@@ -3819,6 +3843,25 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.Wrap(err)
 		}
 		appSessionID = ws.GetName()
+	} else if req.Usage == proto.UserCertsRequest_AccessGraphAPI {
+		// If usage is AccessGraphAPI, we need to create a web session
+		// so that the proxy can create a client to auth to report usage metrics.
+		// The user won't have the cookie so he could not use it.
+		wsSession, err := a.authServer.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
+			User:             req.Username,
+			SessionTTL:       req.Expires.Sub(a.authServer.GetClock().Now()),
+			LoginIP:          a.context.Identity.GetIdentity().LoginIP,
+			Roles:            accessInfo.Roles,
+			Traits:           accessInfo.Traits,
+			LoginTime:        a.authServer.clock.Now().UTC(),
+			AccessRequests:   req.AccessRequests,
+			AttestWebSession: true,
+			Usage:            types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		webSessionID = wsSession.GetName()
 	}
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -3868,6 +3911,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// Propagate any join attributes from the current identity to the new
 		// identity.
 		JoinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
+		WebSessionID:   webSessionID,
 	}
 
 	if user.GetName() != a.context.User.GetName() {
@@ -3897,6 +3941,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.Usage = []string{teleport.UsageAppsOnly}
 	case proto.UserCertsRequest_Kubernetes:
 		certReq.Usage = []string{teleport.UsageKubeOnly}
+	case proto.UserCertsRequest_AccessGraphAPI:
+		certReq.Usage = []string{teleport.UsageAccessGraphAPIOnly}
 	case proto.UserCertsRequest_SSH:
 		// SSH certs are ssh-only by definition, certReq.usage only applies to
 		// TLS certs.
@@ -6847,10 +6893,8 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 
 	return out, nil

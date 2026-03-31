@@ -12,6 +12,7 @@ types:
     - "ClusterNetworkingConfigV2"
     - "DatabaseV3"
     - "GithubConnectorV3"
+    - "LockV2"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
     - "RoleV6"
@@ -64,6 +65,13 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   GithubConnectorV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  LockV2:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -162,6 +170,7 @@ exclude_fields:
 
     # AuthPreference
     - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
+    - "AuthPreferenceV2.Spec.AllowBrowserAuthentication" # Deprecated, use AllowCLIAuthViaBrowser
 
     # ClusterMaintenanceConfig
     - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
@@ -210,7 +219,7 @@ computed_fields:
     # Auth preference
     - "AuthPreferenceV2.Spec.AllowPasswordless"
     - "AuthPreferenceV2.Spec.AllowHeadless"
-    - "AuthPreferenceV2.Spec.AllowBrowserAuthentication"
+    - "AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"
     - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
     - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"
@@ -234,6 +243,9 @@ computed_fields:
 
     # Github connector
     - "GithubConnectorV3.Kind"
+
+    # Lock
+    - "LockV2.Kind"
 
     # OIDC connector
     - "OIDCConnectorV3.Kind"
@@ -470,6 +482,8 @@ validators:
     - UseMapKeysPresentValidator("teleport.dev/origin")
   GithubConnectorV3.Version:
     - UseVersionBetween(3,3)
+  LockV2.Version:
+    - UseVersionBetween(2,2)
   OIDCConnectorV3.Version:
     - UseVersionBetween(3,3)
   OktaImportRuleV1.Version:

@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -328,7 +329,7 @@ func WithSSHLogDir(logDir string) NodeClientOption {
 
 // NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
 // The nodeName field is optional and is used only to present better error messages.
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
+func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -369,13 +370,8 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	clt, err := tracessh.NewClient(sshconn, chans, emptyCh)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	nc := &NodeClient{
-		Client:          clt,
+		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
@@ -715,7 +711,7 @@ func newClientConn(
 	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
-	config *ssh.ClientConfig,
+	config apissh.ClientConfig,
 ) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	type response struct {
 		conn   ssh.Conn
@@ -729,7 +725,7 @@ func newClientConn(
 		// Use a noop text map propagator so that the tracing context isn't included in
 		// the connection handshake. Since the provided conn will already include the tracing
 		// context we don't want to send it again.
-		conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
+		conn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 

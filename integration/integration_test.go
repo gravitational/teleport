@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -7810,19 +7811,15 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
 	sshConfig := modClusterClient.ProxyClient.SSHConfig(username)
-	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
+	modSSHConn, modSSHChans, modSSHReqs, err := apissh.NewClientConnWithTimeout(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
 	require.NoError(t, err)
 
 	// We pass an empty channel which we close right away to ssh.NewClient
 	// because the client need to handle requests itself.
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
-
-	cli, err := tracessh.NewClient(modSSHConn, modSSHChans, emptyCh)
-	require.NoError(t, err)
-
 	modNodeCli := client.NodeClient{
-		Client:          cli,
+		Client:          tracessh.NewClient(modSSHConn, modSSHChans, emptyCh),
 		TC:              modTC,
 		Tracer:          modTC.Tracer,
 		FIPSEnabled:     details.FIPS,
@@ -9248,59 +9245,50 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 	signer, err := creds.KeyRing.SSHSigner()
 	require.NoError(t, err)
 
+	config := apissh.ClientConfig{
+		User: suite.Me.Username,
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			GetSigners: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         15 * time.Second,
+	}
+
 	t.Run("tunnel node", func(t *testing.T) {
 		t.Run("forced listen node", func(t *testing.T) {
-			clt, err := ssh.Dial("tcp", forceListenNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
-				User:            suite.Me.Username,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-				Timeout:         15 * time.Second,
-			})
+			clt, err := apissh.Dial(t.Context(), "tcp", forceListenNode.Config.SSH.Addr.Addr, config)
 			require.NoError(t, err)
 
-			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			ok, resp, err := clt.SendRequest(t.Context(), teleport.VersionRequest, true, nil)
 			require.NoError(t, err)
 			require.True(t, ok)
 			require.Equal(t, teleport.Version, string(resp))
 		})
 
 		t.Run("tunnel only node", func(t *testing.T) {
-			_, err := ssh.Dial("tcp", tunnelOnlyNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
-				User:            suite.Me.Username,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-				Timeout:         15 * time.Second,
-			})
+			_, err := apissh.Dial(t.Context(), "tcp", tunnelOnlyNode.Config.SSH.Addr.Addr, config)
 			require.Error(t, err)
 		})
 	})
 
 	t.Run("direct node", func(t *testing.T) {
 		t.Run("forced listen node", func(t *testing.T) {
-			clt, err := ssh.Dial("tcp", forceListenDirectNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
-				User:            suite.Me.Username,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-				Timeout:         15 * time.Second,
-			})
+			clt, err := apissh.Dial(t.Context(), "tcp", forceListenDirectNode.Config.SSH.Addr.Addr, config)
 			require.NoError(t, err)
 
-			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			ok, resp, err := clt.SendRequest(t.Context(), teleport.VersionRequest, true, nil)
 			require.NoError(t, err)
 			require.True(t, ok)
 			require.Equal(t, teleport.Version, string(resp))
 		})
 
 		t.Run("direct node", func(t *testing.T) {
-			clt, err := ssh.Dial("tcp", directNode.Config.SSH.Addr.Addr, &ssh.ClientConfig{
-				User:            suite.Me.Username,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-				Timeout:         15 * time.Second,
-			})
+			clt, err := apissh.Dial(t.Context(), "tcp", directNode.Config.SSH.Addr.Addr, config)
 			require.NoError(t, err)
 
-			ok, resp, err := clt.SendRequest(teleport.VersionRequest, true, nil)
+			ok, resp, err := clt.SendRequest(t.Context(), teleport.VersionRequest, true, nil)
 			require.NoError(t, err)
 			require.True(t, ok)
 			require.Equal(t, teleport.Version, string(resp))

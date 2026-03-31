@@ -25,11 +25,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -39,7 +39,7 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentCon
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
 	// Dial establishes a client connection to a SSH server.
-	Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error)
+	Dial(ctx context.Context, network string, addr string, config apissh.ClientConfig) (*tracessh.Client, error)
 
 	// DialTimeout acts like Dial but takes a timeout.
 	DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error)
@@ -54,7 +54,7 @@ type directDial struct {
 }
 
 // Dial returns traced SSH client connection
-func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+func (d directDial) Dial(ctx context.Context, network string, addr string, config apissh.ClientConfig) (*tracessh.Client, error) {
 	conn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -62,7 +62,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
 	// Setting deadline on connection prevents this case from happening
-	return tracessh.NewClientWithTimeout(ctx, conn, addr, config)
+	return apissh.NewClientWithTimeout(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -117,14 +117,14 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
-func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+func (d proxyDial) Dial(ctx context.Context, network string, addr string, config apissh.ClientConfig) (*tracessh.Client, error) {
 	// Build a proxy connection first.
 	pconn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c, err := tracessh.NewClientWithTimeout(ctx, pconn, addr, config)
+	c, err := apissh.NewClientWithTimeout(ctx, pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

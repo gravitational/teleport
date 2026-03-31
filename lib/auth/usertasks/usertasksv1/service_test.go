@@ -349,7 +349,7 @@ func newService(t *testing.T, checker services.AccessChecker, usageReporter usag
 		Authorizer:    authorizer,
 		Backend:       backendService,
 		Cache:         backendService,
-		UsageReporter: func() usagereporter.UsageReporter { return usageReporter },
+		UsageReporter: usageReporter,
 		Emitter:       emitter,
 		Clock:         clock,
 	})
