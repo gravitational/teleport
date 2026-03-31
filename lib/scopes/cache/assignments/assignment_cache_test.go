@@ -218,7 +218,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-02@/aa",
+		PageToken: "v1:bob-02/dynamic@/aa",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -230,7 +230,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-01@/",
+		PageToken: "v1:bob-01/dynamic@/",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -242,7 +242,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:carol-01@/bb",
+		PageToken: "v1:carol-01/dynamic@/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -254,7 +254,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-01@/",
+		PageToken: "v1:bob-01/dynamic@/",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -267,7 +267,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-03@/aa/bb",
+		PageToken: "v1:bob-03/dynamic@/aa/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -280,7 +280,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:carol-01@/bb",
+		PageToken: "v1:carol-01/dynamic@/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -292,7 +292,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v2:bob-02@/aa",
+		PageToken: "v2:bob-02/dynamic@/aa",
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
@@ -697,12 +697,12 @@ func TestScopedRoleAssignmentSubKinds(t *testing.T) {
 		require.Equal(t, tt.GetSubKind(), rsp.GetAssignment().GetSubKind())
 	}
 
-	// Trying to get an assignment without specifying a subkind is an error.
+	// Trying to get an assignment without specifying a subkind returns NotFound.
 	_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 		Name: "shared-name",
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// Make sure paging across assignments does not skip or duplicate
 	// assignments with matching names but different subkinds.

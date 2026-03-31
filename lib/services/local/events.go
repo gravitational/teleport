@@ -1114,12 +1114,18 @@ func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource,
 	switch event.Type {
 	case types.OpDelete:
 		components := event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).Components()
-		if len(components) != 2 {
+		name := ""
+		subKind := ""
+		switch len(components) {
+		case 1:
+			name = components[0]
+		case 2:
+			name = components[0]
+			subKind = components[1]
+		default:
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		name := components[0]
-		subKind := components[1]
-		if name == "" || subKind == "" {
+		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 		if subKind == scopedaccess.SubKindMaterialized {

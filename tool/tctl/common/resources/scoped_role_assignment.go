@@ -135,11 +135,9 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref
 }
 
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	// Default to dynamic if the user didn't specify a subkind.
-	subKind := cmp.Or(ref.SubKind, scopedaccess.SubKindDynamic)
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:    ref.Name,
-		SubKind: subKind,
+		SubKind: ref.SubKind,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

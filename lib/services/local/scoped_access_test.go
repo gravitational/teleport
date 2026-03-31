@@ -523,6 +523,17 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
+	// check that otherwise valid assignment fails if subkind is unknown.
+	assignment01.SubKind = "unknown"
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+		RoleRevisions: map[string]string{
+			"role-01": roleRevisions[0],
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
 	// check that assignment of correct role with correct revision works
 	assignment01.SubKind = scopedaccess.SubKindDynamic
 	crsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -535,13 +546,21 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.NotEmpty(t, crsp.Assignment.Metadata.Revision)
 	require.Empty(t, cmp.Diff(crsp.Assignment, assignment01, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// Check that the assignment can be retrieved.
+	// check that the assignment can be retrieved.
 	grsp, err := service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 		Name:    assignment01.Metadata.Name,
 		SubKind: scopedaccess.SubKindDynamic,
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// verify that getting a materialized assignment from the backend is an error.
+	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    assignment01.Metadata.Name,
+		SubKind: scopedaccess.SubKindMaterialized,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
 	// verify that create fails if the assignment already exists
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -562,11 +581,11 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
-	// verify that delete of assignment with empty subkind fails
+	// verify that delete of assignment with materialized subkind fails
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
-		SubKind:  "",
+		SubKind:  scopedaccess.SubKindMaterialized,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
@@ -892,32 +911,6 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 			"role-02": urrsp.Role.Metadata.Revision, // revision of updated role-02
 			"role-03": roleRevisions[2],
 		},
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
-}
-
-func TestGetScopedRoleAssignmentSubkinds(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	backend, err := memory.New(memory.Config{Context: ctx})
-	require.NoError(t, err)
-	defer backend.Close()
-
-	service := NewScopedAccessService(backend)
-
-	// SubKind is required for GetScopedRoleAssignment.
-	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: "assignment-01",
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
-
-	// Getting a materialized assignment from the backend is an error.
-	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name:    "assignment-01",
-		SubKind: scopedaccess.SubKindMaterialized,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)

@@ -314,6 +314,14 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.Wrap(err)
 	}
 
+	switch assignment.GetSubKind() {
+	case SubKindDynamic, SubKindMaterialized:
+	case "":
+		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
+	default:
+		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
+	}
+
 	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
 		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
 	}
@@ -362,14 +370,6 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetKind() != KindScopedRoleAssignment {
 		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
-	}
-
-	switch assignment.GetSubKind() {
-	case SubKindDynamic, SubKindMaterialized:
-	case "":
-		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
-	default:
-		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
 	if assignment.GetVersion() == "" {

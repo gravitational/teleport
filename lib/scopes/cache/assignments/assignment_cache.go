@@ -89,9 +89,6 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
-	if req.GetSubKind() == "" {
-		return nil, trace.BadParameter("missing scoped role assignment sub kind in get request")
-	}
 
 	assignment, ok := c.cache.Get(assignmentKey{
 		name:    req.GetName(),
@@ -238,5 +235,8 @@ type assignmentKey struct {
 }
 
 func (k assignmentKey) String() string {
+	if k.subKind == "" {
+		return k.name
+	}
 	return k.name + "/" + k.subKind
 }

@@ -330,7 +330,7 @@ func TestValidateAsssignment(t *testing.T) {
 				Version: types.V1,
 			},
 			strongOk: false,
-			weakOk:   false,
+			weakOk:   true,
 		},
 		{
 			name: "missing name",
@@ -393,7 +393,7 @@ func TestValidateAsssignment(t *testing.T) {
 				Version: types.V1,
 			},
 			strongOk: false,
-			weakOk:   false,
+			weakOk:   true,
 		},
 		{
 			name: "missing scope",

@@ -408,10 +408,7 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
 	subKind := req.GetSubKind()
-	switch subKind {
-	case "":
-		return nil, trace.BadParameter("missing scoped role assignment sub_kind in get request")
-	case scopedaccess.SubKindMaterialized:
+	if subKind == scopedaccess.SubKindMaterialized {
 		return nil, trace.BadParameter(`reading scoped role assignments with sub_kind "materialized" from the backend is not supported`)
 	}
 
@@ -525,8 +522,6 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 
 	switch assignment.GetSubKind() {
 	case scopedaccess.SubKindDynamic:
-	case "":
-		return nil, trace.BadParameter("creating scoped role assignments with empty sub_kind is not supported")
 	default:
 		return nil, trace.BadParameter("creating scoped role assignments with sub_kind %q is not supported", assignment.GetSubKind())
 	}
@@ -633,12 +628,9 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 
 	subKind := req.GetSubKind()
 	switch subKind {
-	case scopedaccess.SubKindDynamic:
-		// This is the only subkind that should be allowed to be deleted in this version.
+	case scopedaccess.SubKindDynamic, "":
 	case scopedaccess.SubKindMaterialized:
 		return nil, trace.BadParameter(`deleting scoped role assignments with sub_kind "materialized" is not supported`)
-	case "":
-		return nil, trace.BadParameter("missing scoped role assignment sub_kind in delete request")
 	default:
 		return nil, trace.BadParameter("unhandled sub_kind %q in scoped role assignment delete request", subKind)
 	}
@@ -886,6 +878,10 @@ type scopedRoleAssignmentKey struct {
 }
 
 func (k scopedRoleAssignmentKey) Key() backend.Key {
+	if k.subKind == "" {
+		// Supports reading old scoped role assignments created without a subkind.
+		return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, k.name)
+	}
 	return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, k.name, k.subKind)
 }
 
