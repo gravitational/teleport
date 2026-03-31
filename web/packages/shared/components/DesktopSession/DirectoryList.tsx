@@ -23,6 +23,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
+import { minWidth, width } from 'design/system';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -77,8 +78,9 @@ export function SharedDirectoryList({
           {/* Directory list */}
           <Stack gap={1} fullWidth>
             {sharedDirectories.map(dir => (
-              <Flex justifyContent="space-between" alignItems="center">
-                <Text>{dir.name}</Text>
+              <div>
+              <Flex justifyContent="space-between" alignItems="center" overflow="hidden">
+                <Text style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} fontSize={3}>{dir.name}</Text>
                 <HoverTooltip
                   placement="bottom"
                   tipContent={
@@ -87,19 +89,23 @@ export function SharedDirectoryList({
                       : 'This version of Windows Desktop Server does not support removal of shared directories'
                   }
                 >
+                  <Flex flexShrink={0}>
                   <ButtonSecondary
                     size="small"
                     p={1}
-                    minWidth={0}
+                    minWidth={16}
                     height="auto"
                     title={'Unshare Directory'}
                     onClick={() => onRemoveSharedDirectory(dir.id)}
                     disabled={!canRemoveSharedDirectory}
                   >
+                    
                     <Eject size="small" disabled={!canRemoveSharedDirectory} />
                   </ButtonSecondary>
+                  </Flex>
                 </HoverTooltip>
               </Flex>
+              </div>
             ))}
 
             {/* Share Button */}
@@ -115,7 +121,7 @@ function addDirectoryButton(directoryCount: number, onClick: () => void) {
   return (
     <Flex justifyContent="space-between" alignItems="center">
       <PurpleText $purple={directoryCount > 0}>
-        <Text>Connect a shared directory</Text>
+        <Text fontSize={3}>Connect a shared directory</Text>
       </PurpleText>
       <ButtonPrimary
         size="small"
@@ -142,7 +148,7 @@ function sharedDirectoryHeader(directoryCount: number) {
   return (
     <div>
       <Flex justifyContent="space-between" alignItems="center">
-        <Text typography="h4">
+        <Text typography="h2">
           {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
         </Text>
       </Flex>
