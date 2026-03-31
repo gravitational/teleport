@@ -15,10 +15,19 @@ browser-based (e.g. a passkey or TouchID), which would otherwise prevent them
 from authenticating via the CLI entirely.
 
 Example usage:
-- `tsh login --proxy example.teleport.sh --user alice --mfa-mode=browser`
-- `tsh ssh --mfa-mode=browser alice@node`
-- `tsh mfa add --mfa-mode=browser`
-- `tctl edit --mfa-mode=browser cluster_auth_preferences`
+```code
+# Login to a cluster
+$ tsh login --proxy example.teleport.sh --user alice --mfa-mode=browser
+
+# SSH in to a node
+$ tsh ssh --mfa-mode=browser alice@node
+
+# Add a new MFA method
+$ tsh mfa add --mfa-mode=browser
+
+# Edit teleport configuration file
+$ tctl edit --mfa-mode=browser cluster_auth_preferences
+```
 
 ## How it works
 
@@ -33,7 +42,7 @@ and uses it to complete the original command.
 
 ## Prerequisites
 
-- A Teleport cluster with [WebAuthn](../management/security/idp-compromise.mdx#set-up-cluster-wide-webauthn) configured.
+- A Teleport Cloud or a self-hosted cluster with WebAuthn configured.
 
 - A machine with the `tsh` binary installed and a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/).
@@ -44,6 +53,33 @@ and uses it to complete the original command.
 
 A Teleport cluster with WebAuthn configured is automatically capable of Browser
 MFA without any additional configuration.
+
+<details>
+<summary>Enable Webauthn</summary>
+
+To enable WebAuthn support, create a `cap.yaml` file or get the existing
+configuration using `tctl get cluster_auth_preference`:
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factors: ["webauthn"]
+  webauthn:
+    rp_id: example.teleport.sh
+```
+
+Update the configuration:
+
+```code
+$ tctl create -f cap.yaml
+# cluster auth preference has been updated
+```
+
+</details>
 
 <details>
 <summary>Alternative: disable Browser MFA</summary>
@@ -63,7 +99,7 @@ spec:
   type: local
   second_factors: ["webauthn"]
   webauthn:
-    rp_id: example.com
+    rp_id: example.teleport.sh
   allow_cli_auth_via_browser: false # disable Browser MFA
 ```
 
@@ -76,7 +112,7 @@ $ tctl create -f cap.yaml
 
 </details>
 
-## Step 2/2. Authenticate via the Browser
+## Step 2/2. Authenticate via the browser
 
 Run a command that requires MFA, for example, logging in to a cluster using `tsh`.
 
@@ -87,10 +123,13 @@ $ tsh login --proxy example.teleport.sh --user alice --mfa-mode=browser
 #  http://127.0.0.1:51697/d658314e-68f0-4ad4-be79-0181e6e0dae5
 ```
 
-<details>
-<summary>The `--mfa-mode` flag is optional.</summary>
+A Web browser window should automatically open, if not, click or copy+paste the
+URL printed by `tsh`. You will be prompted to complete the MFA verification
+process in the browser. Once successfully verified, the originating command will
+be authenticated and allowed to proceed.
 
-If omitted, it defaults to `auto`, which tries each authentication mode in order until one succeeds.
+The `--mfa-mode` flag is optional. If omitted, it defaults to `auto`, which
+tries each authentication mode in order until one succeeds:
 1. WebAuthn
 1. SSO
 1. Browser MFA
@@ -100,10 +139,3 @@ Browser MFA is not attempted automatically on Windows because Windows natively
 supports platform WebAuthn authenticators (such as Windows Hello) in CLI
 applications. To use Browser MFA on Windows, pass `--mfa-mode=browser`
 explicitly.
-
-</details>
-
-A Web browser window should automatically open, if not, click or copy+paste the
-URL printed by `tsh`. You will be prompted to complete the MFA verification
-process in the browser. Once successfully verified, the originating command will
-be authenticated and allowed to proceed.
