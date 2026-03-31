@@ -226,6 +226,99 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// AtomicRoleOperationParam contains the roles to create/update and delete in a single atomic operation.
+// Roles in RolesToCreateUpdate without a revision will be created, roles with a revision will be updated.
+// RoleNamesToDelete contains names of roles to delete. These roles must exist; if any
+// role does not exist, the entire atomic operation fails.
+type AtomicRoleOperationParam struct {
+	// RolesToCreateUpdate contains roles to create (if no revision) or update (if revision is set).
+	RolesToCreateUpdate []types.Role
+	// RoleNamesToDelete contains names of roles to delete atomically with the creates/updates.
+	RoleNamesToDelete []string
+}
+
+// AtomicRoleOperations performs an atomic role operation using Compare-And-Swap.
+// All operations succeed or fail together. Roles without a revision are created with NotExists()
+// condition, roles with a revision are updated with Revision() condition for optimistic concurrency
+// control, and deletions use Exists() condition.
+//
+// The same error conditions as backend.AtomicWrite apply: the operation will fail if there are
+// no items, too many items (exceeds backend limit), or multiple items with the same key.
+//
+// On success, all roles in param.RolesToCreateUpdate have their revision updated.
+func (s *AccessService) AtomicRoleOperations(ctx context.Context, param AtomicRoleOperationParam) error {
+	var condActions []backend.ConditionalAction
+
+	// Each role uses a condition based on whether it has a revision.
+	// If the role has a revision , the CAS optimistic lock on the revision is applied.
+	// Otherwise , if a revision is not present , the atomic transaction creates the role.
+	for _, role := range param.RolesToCreateUpdate {
+		item, err := roleToBackendItem(role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		condActions = append(condActions, backend.ConditionalAction{
+			Key:       item.Key,
+			Condition: roleCondition(role),
+			Action:    backend.Put(item),
+		})
+	}
+
+	// Each deletion requires the role to exist
+	for _, roleName := range param.RoleNamesToDelete {
+		condActions = append(condActions, backend.ConditionalAction{
+			Key:       backend.NewKey(rolesPrefix, roleName, paramsPrefix),
+			Condition: backend.Exists(),
+			Action:    backend.Delete(),
+		})
+	}
+
+	// Execute all operations atomically
+	// If any condition fails, none of the operations are applied
+	revision, err := s.AtomicWrite(ctx, condActions)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update all roles with the revision from the atomic write.
+	// All roles share the same revision since they were written in a single transaction.
+	// This allows callers to immediately use these roles for subsequent updates.
+	for _, r := range param.RolesToCreateUpdate {
+		r.SetRevision(revision)
+	}
+	return nil
+}
+
+// roleCondition returns the appropriate backend condition for a role based on its revision.
+func roleCondition(role types.Role) backend.Condition {
+	revision := role.GetRevision()
+	if revision == "" {
+		// No revision means this is a new role - use NotExists
+		// to make sure the role will be created only if it doesn't exist before.
+		return backend.NotExists()
+	}
+	// Has revision - use CAS with the revision
+	return backend.Revision(revision)
+}
+
+// roleToBackendItem converts a role to a backend item for storage.
+func roleToBackendItem(role types.Role) (backend.Item, error) {
+	if err := services.ValidateRoleName(role); err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		Revision: role.GetRevision(),
+	}
+	return item, nil
+}
+
 // GetLock gets a lock by name.
 func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	if name == "" {
