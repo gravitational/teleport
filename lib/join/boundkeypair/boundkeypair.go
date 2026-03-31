@@ -255,15 +255,15 @@ func mutateStatusBoundPublicKey(newPublicKey, expectPreviousKey string) boundKey
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
 // this token. It ensures the expected previous bot instance and host IDs are
 // still the bound value before performing the update. Note that bot instance
-// and host IDs are mutually exclusive, so an empty `expectPreviousHostID` is a
-// normal previous state.
-func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance, expectPreviousHostID string) boundKeypairStatusMutator {
+// and host IDs are mutually exclusive, so `BoundHostID` on the token status
+// must be empty.
+func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance string) boundKeypairStatusMutator {
 	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		if status.BoundBotInstanceID != expectPreviousBotInstance {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
-		if status.BoundHostID != expectPreviousHostID {
+		if status.BoundHostID != "" {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
@@ -276,15 +276,15 @@ func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance, exp
 // mutateStatusBoundHostID updates the host ID currently bound to this token. It
 // ensures the expected previous host and bot instance IDs are still the bound
 // values (or lack thereof) before performing the update. Note that bot instance
-// and host IDs are mutually exclusive, so an empty `expectPreviousBotInstance`
-// is an expected state.
-func mutateStatusBoundHostID(newHostID, expectPreviousHostID, expectPreviousBotInstance string) boundKeypairStatusMutator {
+// and host IDs are mutually exclusive, so an empty `BoundBotInstanceID` on the
+// token status is required.
+func mutateStatusBoundHostID(newHostID, expectPreviousHostID string) boundKeypairStatusMutator {
 	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		if status.BoundHostID != expectPreviousHostID {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
-		if status.BoundBotInstanceID != expectPreviousBotInstance {
+		if status.BoundBotInstanceID != "" {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
@@ -984,7 +984,7 @@ func HandleBoundKeypairJoin(
 		if expectNewUniqueID {
 			mutators = append(
 				mutators,
-				mutateStatusBoundBotInstance(botInstanceID, status.BoundBotInstanceID, ""),
+				mutateStatusBoundBotInstance(botInstanceID, status.BoundBotInstanceID),
 			)
 		}
 
@@ -1002,7 +1002,7 @@ func HandleBoundKeypairJoin(
 		if expectNewUniqueID {
 			mutators = append(
 				mutators,
-				mutateStatusBoundHostID(hostID, status.BoundHostID, ""),
+				mutateStatusBoundHostID(hostID, status.BoundHostID),
 			)
 		}
 

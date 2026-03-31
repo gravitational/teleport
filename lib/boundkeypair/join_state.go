@@ -85,13 +85,14 @@ type JoinStateParams struct {
 }
 
 func (p *JoinStateParams) GetSubject() (string, error) {
-	if p.Token.Spec.BotName != "" {
+	switch {
+	case p.Token.Spec.BotName != "":
 		return p.Token.Spec.BotName, nil
-	} else if p.HostID != "" {
+	case p.HostID != "":
 		return p.HostID, nil
-	} else if p.Token.Status.BoundKeypair.BoundHostID != "" {
+	case p.Token.Status.BoundKeypair.BoundHostID != "":
 		return p.Token.Status.BoundKeypair.BoundHostID, nil
-	} else {
+	default:
 		return "", trace.BadParameter("invalid join state parameters, one of [.Token.Spec.BotName, .HostID] is required")
 	}
 }

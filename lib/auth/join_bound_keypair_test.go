@@ -19,7 +19,6 @@
 package auth_test
 
 import (
-	"context"
 	"crypto"
 	"crypto/tls"
 	"strings"
@@ -105,7 +104,7 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, correctPublicKey := testBoundKeypair(t)
 	_, rotatedPublicKey := testBoundKeypair(t)
@@ -953,7 +952,7 @@ func testExtractBotParamsFromCerts(t require.TestingT, certs *proto.Certs) (stri
 func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -1162,7 +1161,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	// sequence.
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -1320,7 +1319,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailureDuringRenewal(t 
 	// its own.
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -1605,7 +1604,7 @@ func TestServer_CreateBoundKeypairToken(t *testing.T) {
 func TestServer_RegisterUsingBoundKeypairMethod_LegacyAgentJoinNotAllowed(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
