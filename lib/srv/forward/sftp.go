@@ -112,8 +112,11 @@ func (p *SFTPProxy) Serve() error {
 	}
 
 	// Close the backend remote filesystem to propagate session completion gracefully.
-	closeErr := p.handlers.remoteFS.Close()
-	return trace.NewAggregate(serveErr, closeErr)
+	if err := p.handlers.remoteFS.Close(); err != nil {
+		p.handlers.logger.DebugContext(auditContext.CancelContext(), "Failed to close remote filesystem gracefully", "error", err)
+	}
+
+	return trace.Wrap(serveErr)
 }
 
 // Close closes the SFTP proxy.

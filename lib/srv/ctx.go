@@ -1419,7 +1419,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	return trace.NewAggregate(waitErr, closeErr)
 }
 
-// EventMetadata returns ServerMetadata for this server context.
+// ServerMetadata returns ServerMetadata for this server context.
 func (c *ServerContext) ServerMetadata() apievents.ServerMetadata {
 	return c.GetServer().EventMetadata()
 }
@@ -1429,7 +1429,7 @@ func (c *ServerContext) UserMetadata() apievents.UserMetadata {
 	return c.Identity.GetUserMetadata()
 }
 
-// UserMetadata returns ConnectionMetadata for this server context.
+// ConnectionMetadata returns ConnectionMetadata for this server context.
 func (c *ServerContext) ConnectionMetadata() apievents.ConnectionMetadata {
 	return apievents.ConnectionMetadata{
 		RemoteAddr: c.ServerConn.RemoteAddr().String(),

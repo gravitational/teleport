@@ -153,9 +153,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		}
 	}()
 
-	// Ensure stderrR pipe is closed.
-	serverCtx.AddCloser(stderrR)
-
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
 	if err != nil {

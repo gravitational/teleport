@@ -158,12 +158,13 @@ func (r *RemoteFS) Readlink(name string) (string, error) {
 
 func (r *RemoteFS) Close() error {
 	clientErr := r.Client.Close()
-	var sessionErr error
-	if r.session != nil {
-		// Wait for the session to end on the server side before closing the client side.
-		if sessionErr = r.session.Wait(); sessionErr == nil {
-			sessionErr = r.session.Close()
-		}
+	if r.session == nil {
+		return trace.Wrap(clientErr)
 	}
-	return trace.NewAggregate(clientErr, sessionErr)
+
+	// Wait for the session to end on the server side before closing the client side.
+	waitErr := r.session.Wait()
+	closeErr := r.session.Close()
+
+	return trace.NewAggregate(clientErr, waitErr, closeErr)
 }
