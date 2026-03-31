@@ -268,19 +268,23 @@ func (s *OutputService) generateScoped(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO: Rather than using bot's internal identity, go off and generate a
-	// new identity using GenerateBotCerts endpoint.
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	id, err := s.identityGenerator.GenerateScoped(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+	)
+	if err != nil {
+		return trace.Wrap(err, "generating scoped identity")
+	}
 
-	id := s.getBotIdentity()
 	if err := s.render(ctx, id, hostCAs, userCAs, databaseCAs); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if s.cfg.SSHConfigMode == SSHConfigModeOn {
-		// todo: usually we'd actually fetch all the clusters you can access here,
-		// but! scoped identities don't support trusted clusters yet so we can
-		// just use our cluster name from our ident.
-		clusterNames := []string{s.getBotIdentity().ClusterName}
+		// For unscoped, we'd actually fetch all the clusters we can access
+		// here, but scopes don't support trusted clusters, so we can just
+		// use our cluster as indicated by our identity.
+		clusterNames := []string{id.ClusterName}
 
 		proxyPing, err := s.proxyPinger.Ping(ctx)
 		if err != nil {
