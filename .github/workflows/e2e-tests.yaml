@@ -338,23 +338,21 @@ jobs:
             --paginate --jq ".[] | select(.user.type == \"Bot\") | select(.body | contains(\"${marker}\")) | .id" \
             | head -n1)
 
-          if [ "${{ steps.download.outcome }}" != "success" ] || [ ! -f "$comment_file" ]; then
-            echo "No PR comment file found"
-            exit 0
-          fi
-
-          if [ ! -s "$comment_file" ]; then
-            # Empty file means all tests passed — delete existing comment if any.
+          if [ "${{ steps.download.outcome }}" == "success" ] && [ -f "$comment_file" ] && [ -s "$comment_file" ]; then
+            # File has content — update or create comment.
             if [ -n "$comment_id" ]; then
-              gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}"
-              echo "Deleted existing E2E results PR comment"
+              gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${comment_id}" \
+                -F body=@"$comment_file"
+              echo "Updated E2E results PR comment"
+            else
+              gh api -X POST "repos/${{ github.repository }}/issues/${pr_number}/comments" \
+                -F body=@"$comment_file"
+              echo "Created E2E results PR comment"
             fi
           elif [ -n "$comment_id" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${comment_id}" \
-              -F body=@"$comment_file"
-            echo "Updated E2E results PR comment"
+            # No file or empty file — delete existing comment.
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}"
+            echo "Deleted existing E2E results PR comment"
           else
-            gh api -X POST "repos/${{ github.repository }}/issues/${pr_number}/comments" \
-              -F body=@"$comment_file"
-            echo "Created E2E results PR comment"
+            echo "No comment to update"
           fi
