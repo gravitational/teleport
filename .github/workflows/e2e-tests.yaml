@@ -127,13 +127,14 @@ jobs:
           IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
           RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
 
-      - name: Upload build logs
+      - name: Print build logs
         if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-logs
-          path: build-logs/
-          retention-days: 7
+        run: |
+          for log in build-logs/*.log; do
+            echo "::group::$(basename "$log" .log) build log"
+            cat "$log"
+            echo "::endgroup::"
+          done
 
       - name: Build e2e runner
         run: cd e2e/runner && go build -o e2e .
