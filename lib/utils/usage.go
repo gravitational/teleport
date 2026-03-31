@@ -60,14 +60,14 @@ func withCommandPrintfWidth(app *kingpin.Application, args []string) func(*usage
 		}
 
 		if appContext.SelectedCommand != nil {
-			commands = appContext.SelectedCommand.Model().FlattenedCommands()
+			commands = appContext.SelectedCommand.Model().Commands
 		} else {
-			commands = app.Model().FlattenedCommands()
+			commands = app.Model().Commands
 		}
 
 		for _, command := range commands {
-			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
-				opt.commandPrintfWidth = len(command.FullCommand)
+			if !command.Hidden && len(command.Name) > opt.commandPrintfWidth {
+				opt.commandPrintfWidth = len(command.Name)
 			}
 		}
 	}

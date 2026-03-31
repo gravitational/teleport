@@ -336,6 +336,9 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
+	// output --help output to stdout instead of stderr
+	app.UsageWriter(os.Stdout)
+
 	// set our own help template
 	return app.UsageTemplate(createUsageTemplate())
 }
@@ -454,9 +457,9 @@ const defaultUsageTemplate = `{{define "FormatCommand" -}}
 {{end -}}
 
 {{define "FormatCommands" -}}
-{{range .FlattenedCommands -}}
+{{range .Commands -}}
 {{if not .Hidden -}}
-{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+{{"  "}}{{.Name | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end -}}
 {{end -}}
 {{end -}}

@@ -34,10 +34,12 @@ func TestUpdateAppUsageTemplate(t *testing.T) {
 		app.Terminate(func(int) {})
 
 		app.Command("hello", "Hello.")
+		app.Command("really-long-command", "A really long command.")
 
 		create := app.Command("create", "Create.")
 		create.Command("box", "Box.")
 		create.Command("rocket", "Rocket.")
+		create.Command("really-long-subcommand", "A really long subcommand.")
 		return app
 	}
 
@@ -51,10 +53,10 @@ func TestUpdateAppUsageTemplate(t *testing.T) {
 			inputArgs: []string{},
 			outputContains: `
 Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
+  help                Show help.
+  hello               Hello.
+  really-long-command A really long command.
+  create              Create.
 `,
 		},
 		{
@@ -62,8 +64,9 @@ Commands:
 			inputArgs: []string{"create"},
 			outputContains: `
 Commands:
-  create box    Box.
-  create rocket Rocket.
+  box                    Box.
+  rocket                 Rocket.
+  really-long-subcommand A really long subcommand.
 `,
 		},
 		{
@@ -71,10 +74,10 @@ Commands:
 			inputArgs: []string{"unknown"},
 			outputContains: `
 Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
+  help                Show help.
+  hello               Hello.
+  really-long-command A really long command.
+  create              Create.
 `,
 		},
 	}
