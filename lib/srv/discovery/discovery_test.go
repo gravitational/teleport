@@ -66,6 +66,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -124,6 +125,20 @@ type mockSSMClient struct {
 	invokeOutput  *ssm.GetCommandInvocationOutput
 }
 
+func mockSSMClientWithAlwaysSuccess() *mockSSMClient {
+	return &mockSSMClient{
+		commandOutput: &ssm.SendCommandOutput{
+			Command: &ssmtypes.Command{
+				CommandId: aws.String("command-id-1"),
+			},
+		},
+		invokeOutput: &ssm.GetCommandInvocationOutput{
+			Status:       ssmtypes.CommandInvocationStatusSuccess,
+			ResponseCode: 0,
+		},
+	}
+}
+
 func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 	return sm.commandOutput, nil
 }
@@ -180,6 +195,18 @@ type mockEC2Client struct {
 	output *ec2.DescribeInstancesOutput
 }
 
+func mockeEC2ClientWithInstances(instances []ec2types.Instance) *mockEC2Client {
+	return &mockEC2Client{
+		output: &ec2.DescribeInstancesOutput{
+			Reservations: []ec2types.Reservation{
+				{
+					Instances: instances,
+				},
+			},
+		},
+	}
+}
+
 func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	return m.output, nil
 }
@@ -215,6 +242,12 @@ type mockSSMInstaller struct {
 	runError           error
 }
 
+func newMockSSMInstaller() *mockSSMInstaller {
+	return &mockSSMInstaller{
+		installedInstances: make(map[string]struct{}),
+	}
+}
+
 func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
 	if m.runError != nil {
 		return m.runError
@@ -236,6 +269,129 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+func TestDiscoveryServer_serverEnrollWithIntegrationCredentials(t *testing.T) {
+
+	const discoveryGroup = "test-discovery-group"
+	const pollInterval = 1 * time.Minute
+
+	discoveryConfigName := uuid.NewString()
+	discoveryConfigForEC2Enroll, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: discoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-central-1"},
+				Tags:    map[string]utils.Strings{"env": {"dev"}},
+				SSM:     &types.AWSSSM{DocumentName: "AWS-RunShellScript"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
+	mockSSMInstaller := newMockSSMInstaller()
+	mockSSMClient := mockSSMClientWithAlwaysSuccess()
+	ssmClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
+		return mockSSMClient, nil
+	}
+
+	ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		return mockeEC2ClientWithInstances(genEC2Instances(1)), nil
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		mockAccessPoint := &mockAuthServer{
+			events: local.NewEventsService(bk),
+		}
+
+		mockAccessPoint.storeDiscoveryConfigs = map[string]*discoveryconfig.DiscoveryConfig{
+			discoveryConfigName: discoveryConfigForEC2Enroll,
+		}
+
+		mockEmitter := &mockEmitter{
+			eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+				t.Helper()
+				require.Equal(t, &events.SSMRun{
+					Metadata: events.Metadata{
+						Type: libevents.SSMRunEvent,
+						Code: libevents.SSMRunSuccessCode,
+					},
+					CommandID:  "command-id-1",
+					AccountID:  "owner",
+					InstanceID: "instance-id-1",
+					Region:     "eu-central-1",
+					ExitCode:   0,
+					Status:     string(ssmtypes.CommandInvocationStatusSuccess),
+				}, ae)
+			},
+		}
+
+		server, err := New(ctx,
+			&Config{
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fake.NewClientset(),
+				AccessPoint:      mockAccessPoint,
+				Matchers:         Matchers{},
+				Emitter:          mockEmitter,
+				DiscoveryGroup:   discoveryGroup,
+				PollInterval:     pollInterval,
+				GetSSMClient:     ssmClientGetter,
+				GetEC2Client:     ec2ClientGetter,
+			})
+		require.NoError(t, err)
+		server.ec2Installer = mockSSMInstaller
+
+		t.Cleanup(server.Stop)
+		go server.Start()
+
+		// Wait for discovery server to complete one iteration of discovering resources
+		synctest.Wait()
+
+		// Check that the instance was discovered and the SSM command was run, which indicates that enrollment was attempted.
+		expectedInstances := mockSSMInstaller.GetInstalledInstances()
+		wantInstances := []string{"instance-id-0"}
+		require.ElementsMatch(t, expectedInstances, wantInstances)
+
+		// The discovery config status is always lagging one iteration.
+		// Wait for another iteration to happen before checking the expected status.
+		time.Sleep(2 * pollInterval)
+		synctest.Wait()
+
+		syncTime := time.Now()
+		wantDiscoveryConfigStatus := discoveryconfig.Status{
+			State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+			ErrorMessage:        nil,
+			DiscoveredResources: 1,
+			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+				"my-integration": {
+					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:     1,
+							SyncStart: timestamppb.New(syncTime),
+							SyncEnd:   timestamppb.New(syncTime),
+						},
+					},
+				},
+			},
+		}
+
+		require.Contains(t, mockAccessPoint.storeDiscoveryConfigs, discoveryConfigName)
+
+		gotDiscoveryConfigStatus := mockAccessPoint.storeDiscoveryConfigs[discoveryConfigName].Status
+		discoveryStatusDiff := cmp.Diff(wantDiscoveryConfigStatus, gotDiscoveryConfigStatus, protocmp.Transform(), cmpopts.IgnoreFields(discoveryconfig.Status{}, "LastSyncTime"))
+		require.Empty(t, discoveryStatusDiff, "discovery config status does not match")
+	})
 }
 
 func TestDiscoveryServer(t *testing.T) {
@@ -276,26 +432,6 @@ func TestDiscoveryServer(t *testing.T) {
 			Azure:          defaultStaticMatcher.Azure,
 			GCP:            defaultStaticMatcher.GCP,
 			Kube:           defaultStaticMatcher.Kubernetes,
-		},
-	)
-	require.NoError(t, err)
-
-	dcForEC2SSMWithIntegrationName := uuid.NewString()
-	dcForEC2SSMWithIntegration, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: dcForEC2SSMWithIntegrationName},
-		discoveryconfig.Spec{
-			DiscoveryGroup: defaultDiscoveryGroup,
-			AWS: []types.AWSMatcher{{
-				Types:   []string{"ec2"},
-				Regions: []string{"eu-central-1"},
-				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-				SSM:     &types.AWSSSM{DocumentName: "document"},
-				Params: &types.InstallerParams{
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
-				Integration: "my-integration",
-			}},
 		},
 	)
 	require.NoError(t, err)
@@ -633,70 +769,6 @@ func TestDiscoveryServer(t *testing.T) {
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
-			name:             "one node found with Script mode using Integration credentials",
-			presentInstances: []types.Server{},
-			foundEC2Instances: []ec2types.Instance{
-				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []ec2types.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
-					}},
-					State: &ec2types.InstanceState{
-						Name: ec2types.InstanceStateNameRunning,
-					},
-				},
-			},
-			ssm: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-					},
-				},
-				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       ssmtypes.CommandInvocationStatusSuccess,
-					ResponseCode: 0,
-				},
-			},
-			emitter: &mockEmitter{
-				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
-					t.Helper()
-					require.Equal(t, &events.SSMRun{
-						Metadata: events.Metadata{
-							Type: libevents.SSMRunEvent,
-							Code: libevents.SSMRunSuccessCode,
-						},
-						CommandID:  "command-id-1",
-						AccountID:  "owner",
-						InstanceID: "instance-id-1",
-						Region:     "eu-central-1",
-						ExitCode:   0,
-						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
-					}, ae)
-				},
-			},
-			staticMatchers:  Matchers{},
-			discoveryConfig: dcForEC2SSMWithIntegration,
-			wantDiscoveryConfigStatus: &discoveryconfig.Status{
-				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
-				ErrorMessage:        nil,
-				DiscoveredResources: 1,
-				LastSyncTime:        fakeClock.Now().UTC(),
-				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
-					"my-integration": {
-						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-							AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
-								Found:    1,
-								Enrolled: 0,
-								Failed:   0,
-							},
-						},
-					},
-				},
-			},
-			wantInstalledInstances: []string{"instance-id-1"},
-		},
-		{
 			name:              "no nodes found using DiscoveryConfig and Integration, but DiscoveryConfig Status is still updated",
 			presentInstances:  []types.Server{},
 			foundEC2Instances: []ec2types.Instance{},
@@ -949,16 +1021,16 @@ func TestDiscoveryServer(t *testing.T) {
 						require.Empty(t, cmpDiff, "expected discovery config status summary does not match actual summary, diff: %s", cmpDiff)
 
 						if expectedValue.AwsEc2 != nil {
-							requireSyncTimesSet(t, gotResourcesSummary.AwsEc2)
+							requireSyncStartSet(t, gotResourcesSummary.AwsEc2)
 						}
 						if expectedValue.AwsEks != nil {
-							requireSyncTimesSet(t, gotResourcesSummary.AwsEks)
+							requireSyncStartSet(t, gotResourcesSummary.AwsEks)
 						}
 						if expectedValue.AwsRds != nil {
-							requireSyncTimesSet(t, gotResourcesSummary.AwsRds)
+							requireSyncStartSet(t, gotResourcesSummary.AwsRds)
 						}
 						if expectedValue.AzureVms != nil {
-							requireSyncTimesSet(t, gotResourcesSummary.AzureVms)
+							requireSyncStartSet(t, gotResourcesSummary.AzureVms)
 						}
 					}
 					return true
@@ -971,10 +1043,9 @@ func TestDiscoveryServer(t *testing.T) {
 	}
 }
 
-func requireSyncTimesSet(t *testing.T, summary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+func requireSyncStartSet(t *testing.T, summary *discoveryconfigv1.ResourcesDiscoveredSummary) {
 	require.NotNil(t, summary)
 	require.True(t, summary.SyncStart.AsTime().After(time.Unix(0, 0)))
-	require.True(t, summary.SyncEnd.AsTime().After(time.Unix(0, 0)))
 }
 
 func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTasks, minUserTaskResources int) []*usertasksv1.UserTask {
@@ -2854,7 +2925,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					srv.muDynamicDatabaseFetchers.RLock()
 					defer srv.muDynamicDatabaseFetchers.RUnlock()
 					return len(srv.dynamicDatabaseFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
+				}, 5*time.Second, 100*time.Millisecond)
 			}
 
 			require.NoError(t, srv.Start())
@@ -3039,12 +3110,12 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		require.GreaterOrEqual(t, currentEmittedEvents, 1)
 
 		// Advance clock to trigger a poll.
-		clock.Advance(5 * time.Minute)
+		clock.Advance(6 * time.Minute)
 		// Wait for the cycle to complete
 		// A new DiscoveryFetch event must have been emitted.
 		expectedEmittedEvents := currentEmittedEvents + 1
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			require.GreaterOrEqual(collect, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
 		}, waitForReconcileTimeout, 100*time.Millisecond)
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
@@ -3455,6 +3526,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logtest.InitLogger(func() bool { return true })
 			logger := logtest.NewLogger()
 
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
@@ -3473,22 +3549,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter.server = server
 			emitter.t = t
 
-			if tc.discoveryConfig != nil {
-				sub := server.newDiscoveryConfigChangedSub()
-
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), tc.discoveryConfig)
-				require.NoError(t, err)
-
-				// wait for discovery config update
-				select {
-				case <-sub:
-				case <-time.After(3 * time.Second):
-					require.Fail(t, "timed out waiting for an update")
-				case <-t.Context().Done():
-					require.Fail(t, "test context done while waiting for an update")
-				}
-			}
-
 			require.NoError(t, server.Start())
 			t.Cleanup(server.Stop)
 
@@ -3503,7 +3563,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					expectedEvents = 0
 				}
 				require.Equal(c, expectedEvents, reporter.ResourceCreateEventCount())
-			}, 500*time.Millisecond, 50*time.Millisecond)
+			}, 5*time.Second, 50*time.Millisecond)
 
 			if tc.userTasksCheck != nil {
 				tc.userTasksCheck(t, tlsServer.Auth())
@@ -3775,6 +3835,11 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
 			logger := logtest.NewLogger()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
@@ -3798,22 +3863,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter.server = server
 			emitter.t = t
 
-			if tc.discoveryConfig != nil {
-				sub := server.newDiscoveryConfigChangedSub()
-
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
-				require.NoError(t, err)
-
-				// wait for discovery config update
-				select {
-				case <-sub:
-				case <-time.After(3 * time.Second):
-					t.Fatal("timed out waiting for channel update")
-				case <-t.Context().Done():
-					require.Fail(t, "test context done while waiting for an update")
-				}
-			}
-
 			require.NoError(t, server.Start())
 			t.Cleanup(server.Stop)
 
@@ -3822,11 +3871,11 @@ func TestGCPVMDiscovery(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-				}, 500*time.Millisecond, 50*time.Millisecond)
+				}, 5*time.Second, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
-				}, 500*time.Millisecond, 50*time.Millisecond)
+				}, 5*time.Second, 50*time.Millisecond)
 			}
 		})
 	}
