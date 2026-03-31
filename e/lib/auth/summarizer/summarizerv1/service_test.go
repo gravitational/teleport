@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -46,18 +45,6 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
-func TestMain(m *testing.M) {
-	modules.SetModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-			},
-		},
-	})
-	os.Exit(m.Run())
-}
-
 type testPlugin struct{}
 
 func (p *testPlugin) GetName() string {
@@ -82,7 +69,14 @@ func (p *testPlugin) RegisterAuthServices(
 		Emitter:           authServer.AuthServer.GetEmitter(),
 		Decrypter:         &fakeEncryptedIO{},
 		UsageReporter:     authServer.AuthServer.UsageReporter,
-	})
+		Modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy: {Enabled: true},
+				},
+			},
+		}})
 	if err != nil {
 		return trace.Wrap(err)
 	}

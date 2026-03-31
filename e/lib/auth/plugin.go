@@ -413,6 +413,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			AWSConfigCache:                   cfgCache,
 			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
+			Modules:                          modules.GetModules(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -108,6 +109,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Emitter:           authServer.AuthServer.GetEmitter(),
 		Decrypter:         p.decrypter,
 		UsageReporter:     authServer.AuthServer.UsageReporter,
+		Modules:           modulestest.EnterpriseModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

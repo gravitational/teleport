@@ -43,6 +43,8 @@ type ServiceConfig struct {
 	Backend           services.Summarizer
 	SummaryDownloader SummaryDownloader
 	Decrypter         events.DecryptionWrapper
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
 	// OpenAIClientFactory creates OpenAI clients for testing. Optional.
@@ -65,6 +67,7 @@ type Service struct {
 	pb.UnimplementedSummarizerServiceServer
 	authorizer                       authz.Authorizer
 	backend                          services.Summarizer
+	modules                          modules.Modules
 	summaryDownloader                SummaryDownloader
 	logger                           *slog.Logger
 	decrypter                        events.DecryptionWrapper
@@ -97,10 +100,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Emitter == nil {
 		return nil, trace.BadParameter("emitter is required")
 	}
+	if cfg.Modules == nil {
+		return nil, trace.BadParameter("modules is required")
+	}
 
 	return &Service{
 		authorizer:                       cfg.Authorizer,
 		backend:                          cfg.Backend,
+		modules:                          cfg.Modules,
 		summaryDownloader:                cfg.SummaryDownloader,
 		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
 		decrypter:                        cfg.Decrypter,
@@ -900,7 +907,7 @@ func (s *Service) IsEnabled(
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
 		return &pb.IsEnabledResponse{Enabled: false}, nil
 	}
 
@@ -921,8 +928,8 @@ func (s *Service) IsEnabled(
 
 // decryptIfNeeded decrypts the data if it is encrypted.
 // If the data is not encrypted, it is returned as-is.
-func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
-	decryptedData, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
+func (s *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
+	decryptedData, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, s.decrypter)
 	return decryptedData, trace.Wrap(err)
 }
 
