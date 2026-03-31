@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -46,9 +46,12 @@ type tcpDBHandler struct {
 }
 
 type tcpDBHandlerConfig struct {
-	dbInfo                   *vnetv1.DatabaseInfo
-	dbProvider               *dbProvider
-	clock                    clockwork.Clock
+	dbInfo     *vnetv1.DatabaseInfo
+	dbProvider *dbProvider
+	clock      clockwork.Clock
+	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
+	// proxy always trust the root cluster CA rather than the system cert pool,
+	// even when ALPN conn upgrades are not required.
 	alwaysTrustRootClusterCA bool
 }
 
@@ -123,7 +126,6 @@ func (h *tcpDBHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnprox
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it
 // to the local ALPN proxy, which is configured with middleware to automatically
 // handle certificate renewal and re-logins.
-// localPort is unused — databases don't have multi-port support unlike TCP apps.
 func (h *tcpDBHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	lp, err := h.getOrInitializeLocalProxy(ctx)
 	if err != nil {

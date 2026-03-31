@@ -465,6 +465,10 @@ message SignForDBRequest {
   DatabaseKey database_key = 1;
   // Sign holds signature request details.
   SignRequest sign = 2;
+  // Username is the database user for which the cert was issued. Required
+  // because different users connecting to the same database get different
+  // certs and signers.
+  string username = 3;
 }
 
 // SignForDBResponse is a response for SignForDB.

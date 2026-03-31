@@ -46,7 +46,7 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "reissuing certificate for database %s", dbInfo.GetDatabaseKey().GetName())
 	}
-	signer, err := p.newDBCertSigner(cert, dbInfo.GetDatabaseKey())
+	signer, err := p.newDBCertSigner(cert, dbInfo)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 	return tlsCert, nil
 }
 
-func (p *dbProvider) newDBCertSigner(cert []byte, dbKey *vnetv1.DatabaseKey) (*rpcSigner, error) {
+func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (*rpcSigner, error) {
 	x509Cert, err := x509.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing x509 certificate")
@@ -67,7 +67,8 @@ func (p *dbProvider) newDBCertSigner(cert []byte, dbKey *vnetv1.DatabaseKey) (*r
 		pub: pub,
 		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
 			return p.clt.SignForDB(context.TODO(), &vnetv1.SignForDBRequest{
-				DatabaseKey: dbKey,
+				DatabaseKey: dbInfo.GetDatabaseKey(),
+				Username:    dbInfo.GetUsername(),
 				Sign:        req,
 			})
 		},
