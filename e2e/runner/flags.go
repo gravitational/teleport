@@ -151,15 +151,15 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 		if mode == modeTest || mode == modeUI || mode == modeDebug {
 			detected := scanFixtures(e2eDir, f.testFiles)
-			for _, fix := range detected {
-				if !fix.Enabled {
-					slog.Info("auto-enabling fixture from test scan", "fixture", fix.Name)
-					fix.Enabled = true
-				}
-			}
-
 			if len(detected) == 0 {
 				slog.Debug("fixture scan found no fixture declarations")
+			} else {
+				names := make([]string, len(detected))
+				for i, fix := range detected {
+					fix.Enabled = true
+					names[i] = fix.Name
+				}
+				slog.Info("enabled fixtures", "fixtures", names)
 			}
 		}
 	}
