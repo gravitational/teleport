@@ -19,7 +19,6 @@
 package limiter
 
 import (
-	"cmp"
 	"context"
 	"net"
 	"net/http"
@@ -119,27 +118,26 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 	return bucket.IsRateLimited()
 }
 
-// RegisterRequest increases number of requests for the provided token
-// Returns error if there are too many requests with the provided token.
-func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+// RegisterRequest increases number of requests for the provided token.
+// It returns an error if there are too many requests with the provided
+// token.
+func (l *RateLimiter) RegisterRequest(token string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	rate := cmp.Or(customRate, l.rates)
-
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
-	ttl := rate.MaxPeriod()*10 + 1
+	ttl := l.rates.MaxPeriod()*10 + 1
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
-			return ratelimit.NewTokenBucketSet(rate, l.clock), nil
+			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	bucketSet.Update(rate)
+	bucketSet.Update(l.rates)
 
 	delay, err := bucketSet.Consume(1)
 	if err != nil {
@@ -151,15 +149,16 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 	return nil
 }
 
-// RegisterRequestFromAddr increases the number of requests coming for the given
-// remote address, returning an error if the address is invalid or if there have
-// been too many requests from that address recently.
-func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr, customRate *ratelimit.RateSet) error {
-	token, err := clientIPFromAddr(addr)
+// RegisterRequestFromAddr increases the number of requests coming
+// for the given remote address, returning an error if the address is
+// invalid or if there have been too many requests from that address
+// recently.
+func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
+	token, err := utils.ClientIPFromAddr(addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return l.RegisterRequest(token, customRate)
+	return l.RegisterRequest(token)
 }
 
 // Add rate limiter to the handle
