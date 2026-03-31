@@ -127,7 +127,6 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, string, error) {
 	}
 
 	if childErr, exitErr := proc.waitReady(ctx); exitErr != nil {
-		_ = proc.Close()
 		return nil, childErr, trace.Wrap(exitErr)
 	}
 
@@ -206,8 +205,10 @@ func (p *Process) waitReady(ctx context.Context) (string, error) {
 	case <-readyC:
 		return "", nil
 	case <-ctx.Done():
+		_ = p.Close()
 		return "", trace.Wrap(ctx.Err(), "networking process failed to signal ready")
 	case <-p.done:
+		_ = p.Close()
 		return p.childErr, p.exitErr
 	}
 }
