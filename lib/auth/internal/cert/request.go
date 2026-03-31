@@ -58,7 +58,7 @@ type Request struct {
 	// this wraps a scoped access checker context and cert parameters must be
 	// determined by configuration/defaults since we cannot know which role will
 	// apply without knowing the target resource.
-	CheckerContext *services.SplitAccessCheckerContext
+	CheckerContext *services.ScopedAccessCheckerContext
 
 	// TTL is duration of the certificate.
 	TTL time.Duration
