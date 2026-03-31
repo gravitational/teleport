@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -238,6 +239,8 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 			return
 		}
 
+		// Replace \n with \r\n so the message is correctly aligned in a terminal.
+		childErr = strings.ReplaceAll(childErr, "\n", "\r\n")
 		if _, err := io.WriteString(errorWriter, childErr); err != nil {
 			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}

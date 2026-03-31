@@ -8479,7 +8479,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 			)
 			require.Error(t, err)
 			// Check for exact match to catch regressions with new lines.
-			require.Equal(t, unkownUserReexecError, err.Error())
+			require.Equal(t, strings.ReplaceAll(unkownUserReexecError, "\r\n", "\n"), err.Error())
 		})
 	})
 
@@ -8528,7 +8528,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 			)
 			require.Error(t, err)
 			// Check for exact match to catch regressions with new lines.
-			require.Equal(t, contextualReexecErrorMessage, err.Error())
+			require.Equal(t, strings.ReplaceAll(contextualReexecErrorMessage, "\r\n", "\n"), err.Error())
 		})
 	})
 }
