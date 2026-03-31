@@ -4581,17 +4581,26 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
+		if err == nil {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
+
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-		if err != nil {
-			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+
+		// If we get a basic SSH exit error with no unexpected msg or signal,
+		// convert it to an exitCodeError and return.
+		var sshExitErr *ssh.ExitError
+		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
 		}
-		err = &common.ExitCodeError{Code: status}
-		return trace.Wrap(err)
+
+		// For unexpected errors, print the error message before converting to an exitCodeError.
+		fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+		return trace.Wrap(&common.ExitCodeError{Code: status})
 	}
 	return trace.Wrap(err)
 }

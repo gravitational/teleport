@@ -110,6 +110,9 @@ type MFACeremony struct {
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackMFAToken func(ctx context.Context) (string, error)
 	GetCallbackWebauthn func(ctx context.Context) (*wantypes.CredentialAssertionResponse, error)
+	// GetCallbackResponse returns the response from the server without assuming
+	// if it is SSO or Browser MFA, so it can be inspected and actioned.
+	GetCallbackResponse func(ctx context.Context) (*authclient.CLILoginResponse, error)
 }
 
 // GetClientCallbackURL returns the client callback URL.
@@ -124,9 +127,38 @@ func (m *MFACeremony) GetProxyAddress() string {
 
 // Run the SSO/Browser MFA ceremony.
 func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	// The proxy will only ever return one of SSO or Browser challenge. However,
-	// check for SSO challenge first as it takes priority over browser MFA.
 	switch {
+	// If both SSO and Browser MFA challenges are set then Connect has initiated
+	// this MFA ceremony. In which case, don't print the redirect URL and listen
+	// for either response to be returned.
+	case chal.SSOChallenge != nil && chal.BrowserMFAChallenge != nil:
+		loginResp, err := m.GetCallbackResponse(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch {
+		case loginResp.MFAToken != "":
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_SSO{
+					SSO: &proto.SSOResponse{
+						RequestId: chal.SSOChallenge.RequestId,
+						Token:     loginResp.MFAToken,
+					},
+				},
+			}, nil
+		case loginResp.BrowserMFAWebauthnResponse != nil:
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: &proto.BrowserMFAResponse{
+						RequestId:        chal.BrowserMFAChallenge.RequestId,
+						WebauthnResponse: wantypes.CredentialAssertionResponseToProto(loginResp.BrowserMFAWebauthnResponse),
+					},
+				},
+			}, nil
+		default:
+			return nil, trace.BadParameter("login response missing both SSO MFA token and Browser WebAuthn response")
+		}
 	case chal.SSOChallenge != nil:
 		if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
 			return nil, trace.Wrap(err)
@@ -220,12 +252,13 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 	}
 }
 
-// NewConnectMFACeremony creates a new Teleport Connect SSO ceremony from the given redirector.
+// NewConnectMFACeremony creates a new Teleport Connect SSO/Browser ceremony from the given redirector.
 func NewConnectMFACeremony(rd *Redirector) mfa.CallbackCeremony {
 	return &MFACeremony{
-		close:             rd.Close,
-		ClientCallbackURL: rd.ClientCallbackURL,
-		ProxyAddress:      rd.ProxyAddr,
+		close:               rd.Close,
+		ClientCallbackURL:   rd.ClientCallbackURL,
+		ProxyAddress:        rd.ProxyAddr,
+		GetCallbackResponse: rd.WaitForResponse,
 		HandleRedirect: func(ctx context.Context, redirectURL string) error {
 			// Connect handles redirect on the Electron side.
 			return nil
