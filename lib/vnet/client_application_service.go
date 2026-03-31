@@ -452,30 +452,42 @@ func checkAppKey(key *vnetv1.AppKey) error {
 	return nil
 }
 
-// dbKey is a clone of [vnetv1.DatabaseKey] that is not a protobuf type so it
-// can be used as a key in maps.
+// dbKey is a clone of [vnetv1.DatabaseKey] plus username that is not a protobuf
+// type so it can be used as a key in maps. Username is included because
+// different database users connecting to the same database resource get
+// different certs with different RouteToDatabase subjects.
 type dbKey struct {
-	profile, leafCluster, name string
+	profile, leafCluster, name, username string
 }
 
-func newDBKey(protoDBKey *vnetv1.DatabaseKey) dbKey {
+func newDBKeyFromInfo(dbInfo *vnetv1.DatabaseInfo) dbKey {
 	return dbKey{
-		profile:     protoDBKey.GetProfile(),
-		leafCluster: protoDBKey.GetLeafCluster(),
-		name:        protoDBKey.GetName(),
+		profile:     dbInfo.GetDatabaseKey().GetProfile(),
+		leafCluster: dbInfo.GetDatabaseKey().GetLeafCluster(),
+		name:        dbInfo.GetDatabaseKey().GetName(),
+		username:    dbInfo.GetUsername(),
 	}
 }
 
-func (s *clientApplicationService) setSignerForDB(key *vnetv1.DatabaseKey, signer crypto.Signer) {
-	s.dbSignerMu.Lock()
-	defer s.dbSignerMu.Unlock()
-	s.dbSignerCache[newDBKey(key)] = signer
+func newDBKeyFromSignReq(req *vnetv1.SignForDBRequest) dbKey {
+	return dbKey{
+		profile:     req.GetDatabaseKey().GetProfile(),
+		leafCluster: req.GetDatabaseKey().GetLeafCluster(),
+		name:        req.GetDatabaseKey().GetName(),
+		username:    req.GetUsername(),
+	}
 }
 
-func (s *clientApplicationService) getSignerForDB(key *vnetv1.DatabaseKey) (crypto.Signer, bool) {
+func (s *clientApplicationService) setSignerForDB(dbInfo *vnetv1.DatabaseInfo, signer crypto.Signer) {
+	s.dbSignerMu.Lock()
+	defer s.dbSignerMu.Unlock()
+	s.dbSignerCache[newDBKeyFromInfo(dbInfo)] = signer
+}
+
+func (s *clientApplicationService) getSignerForDB(req *vnetv1.SignForDBRequest) (crypto.Signer, bool) {
 	s.dbSignerMu.RLock()
 	defer s.dbSignerMu.RUnlock()
-	signer, ok := s.dbSignerCache[newDBKey(key)]
+	signer, ok := s.dbSignerCache[newDBKeyFromSignReq(req)]
 	return signer, ok
 }
 
@@ -510,7 +522,7 @@ func (s *clientApplicationService) ReissueDBCert(ctx context.Context, req *vnetv
 	if err != nil {
 		return nil, trace.Wrap(err, "reissuing database certificate")
 	}
-	s.setSignerForDB(dbKey, cert.PrivateKey.(crypto.Signer))
+	s.setSignerForDB(dbInfo, cert.PrivateKey.(crypto.Signer))
 	return &vnetv1.ReissueDBCertResponse{
 		Cert: cert.Certificate[0],
 	}, nil
@@ -533,9 +545,9 @@ func (s *clientApplicationService) SignForDB(ctx context.Context, req *vnetv1.Si
 	if err := checkDBKey(dbKey); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, ok := s.getSignerForDB(dbKey)
+	signer, ok := s.getSignerForDB(req)
 	if !ok {
-		return nil, trace.BadParameter("no signer for database %v", dbKey)
+		return nil, trace.BadParameter("no signer for database %v (username %s)", dbKey, req.GetUsername())
 	}
 
 	signature, err := sign(signer, signReq)

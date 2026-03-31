@@ -79,8 +79,6 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		}, nil
 	}
 	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
-		// The query matched a valid database, return a handler that will proxy
-		// all connections to that database.
 		dbInfo := matchedDB.GetDatabaseInfo()
 		return &tcpHandlerSpec{
 			ipv4CIDRRange: dbInfo.GetIpv4CidrRange(),

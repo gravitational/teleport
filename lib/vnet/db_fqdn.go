@@ -63,10 +63,7 @@ func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err err
 		return "", "", errNoMatch
 	}
 
-	// Validate that dbName looks like a valid database resource name. This
-	// prevents predicate expression injection when the name is used in API
-	// queries and avoids unnecessary cluster API calls for obviously invalid
-	// names.
+	// This avoids unnecessary cluster API calls for obviously invalid database names
 	if err := types.ValidateDatabaseName(dbName); err != nil {
 		return "", "", errNoMatch
 	}
