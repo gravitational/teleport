@@ -116,7 +116,7 @@ func (c *SSHAccessChecker) PermitX11Forwarding() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.PermitX11Forwarding()
 	}
-	return c.checker.scopedCompatChecker.PermitX11Forwarding()
+	return c.checker.role.GetSpec().GetSsh().GetPermitX11Forwarding()
 }
 
 // SSHPortForwardMode returns the SSH port forwarding mode.
