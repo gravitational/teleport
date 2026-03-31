@@ -1022,12 +1022,12 @@ class SharedDirectoryManager {
   constructor(
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
     private logger: Logger,
-    max_directories: number = 10
+    private max_directories: number = 10
   ) {
-    // The teleport RDP client uses device_id 1 for its emulated smart card device.
+    // The teleport RDP client uses deviceId '1' for its emulated smart card device.
     // Reserve enough device identifiers for double the number of allowed directories.
     // The identifier assignment algorithm avoids re-assigning device_ids until it needs
-    // to wrap. Increasing the range of
+    // to wrap.
     this.device_id = new Identifiers(
       2,
       Math.min(2 + max_directories * 2, 0xffffffff /* max uint32 */)
@@ -1058,15 +1058,21 @@ class SharedDirectoryManager {
   }
 
   async shareDirectory(): Promise<[number, string]> {
+    if (this.sharedDirectories.size >= this.max_directories) {
+      throw Error("Maximum allowed shared directories reached")
+    }
+
     let directory = await this.selectSharedDirectory();
     const id = this.device_id.acquire();
+    if (id === undefined) {
+      throw Error("Error acquiring identifier for shared directory")
+    }
+
     this.sharedDirectories.set(id, directory);
     this.logger.info(
       `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`
     );
     return [id, directory.getDirectoryName()];
-    // TODO: make sure to move this somewhere else
-    //this.sendSharedDirectoryAnnounce(id, name);
   }
 
   async unshareDirectory(directoryId: number) {

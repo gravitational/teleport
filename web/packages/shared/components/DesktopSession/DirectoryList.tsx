@@ -18,11 +18,12 @@
 
 import styled from 'styled-components';
 
-import { Flex, Stack, Text } from 'design';
+import { Flex, Stack, Text} from 'design';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
-import { Eject, FolderShared, Plus } from 'design/Icon';
+import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
+import { Theme } from 'design/theme';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -32,6 +33,11 @@ interface SharedDirectoriesProps {
   canSharedDirectories: boolean;
 }
 
+export interface DirectoryItem {
+  name: string;
+  id: number;
+}
+
 export function SharedDirectoryList({
   sharedDirectories,
   onRemoveSharedDirectory,
@@ -39,49 +45,55 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canSharedDirectories,
 }: SharedDirectoriesProps) {
+  const headerText = sharedDirectories.length == 1 ? "Shared Directory" : "Shared Directories"
   return (
     <MenuIcon
-      Icon={FolderShared}
-      buttonIconProps={{ disabled: !canSharedDirectories }}
+      Icon={FolderPlus}
+      buttonIconProps={{
+        disabled: !canSharedDirectories,
+        // square highlight instead of default circle
+        css: 'border-radius: 0',
+      }}
+      // Right align the menu with the icon
+      menuProps={
+        {
+          anchorOrigin: {
+            vertical: 'bottom',
+            horizontal: 'right',
+          },
+          transformOrigin: {
+            vertical: 'top',
+            horizontal: 'right',
+          }
+        }        
+      }
       tooltip={
         !canSharedDirectories
           ? 'Directory sharing is not enabled for this session'
-          : undefined
+          : 'Share local directories with the Desktop'
       }
     >
       <Container>
         <Stack gap={1} fullWidth>
           {/* Header row */}
           <Flex justifyContent="space-between" alignItems="center">
-            <Text typography="h4">Shared Directories</Text>
-            <ButtonPrimary
-              size="small"
-              p={1}
-              minWidth={0}
-              height="auto"
-              onClick={onAddSharedDirectory}
-              compact={true}
-              $inputAlignment={false}
-            >
-              <Plus size="small" />
-            </ButtonPrimary>
+            <Text typography="h4">              
+              {sharedDirectories.length > 0 ? `${sharedDirectories.length} ` + headerText : headerText }              
+            </Text>
           </Flex>
+          <hr></hr>
 
           {/* Directory list */}
           <Stack gap={1} fullWidth>
             {sharedDirectories.map(dir => (
-              <Flex
-                key={dir.id}
-                justifyContent="space-between"
-                alignItems="center"
-              >
+              <Flex justifyContent="space-between" alignItems="center">
                 <Text>{dir.name}</Text>
                 <HoverTooltip
                   placement="bottom"
                   tipContent={
                     canRemoveSharedDirectory
                       ? 'Remove Shared Directory'
-                      : 'The Windows Desktop Server does not support removal of shared directories'
+                      : 'This version of Windows Desktop Server does not support removal of shared directories'
                   }
                 >
                   <ButtonSecondary
@@ -98,6 +110,24 @@ export function SharedDirectoryList({
                 </HoverTooltip>
               </Flex>
             ))}
+
+            {/* Share Button */}
+            <Flex justifyContent="space-between" alignItems="center">
+              <PurpleText>
+              <Text>Connect a shared directory</Text>
+              </PurpleText>
+              <ButtonPrimary              
+                size="small"
+                p={1}
+                minWidth={0}
+                height="auto"
+                onClick={onAddSharedDirectory}
+                compact={true}
+                $inputAlignment={false}
+              >
+                <Plus size="small" />
+              </ButtonPrimary>
+            </Flex>
           </Stack>
         </Stack>
       </Container>
@@ -105,13 +135,13 @@ export function SharedDirectoryList({
   );
 }
 
-export interface DirectoryItem {
-  name: string;
-  id: number;
-}
-
 const Container = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
   padding: ${props => props.theme.space[4]}px;
   width: 370px;
+`;
+
+
+const PurpleText = styled.div`
+  color: ${p => p.theme.colors.brand};
 `;

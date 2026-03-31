@@ -81,7 +81,7 @@ export default function TopBar(props: Props) {
               onRemoveSharedDirectory={onRemoveSharedDirectory}
               onAddSharedDirectory={onAddSharedDirectory}
               canRemoveSharedDirectory={canRemoveSharedDirectory}
-              canSharedDirectories={canShareDirectory}
+              canSharedDirectories={canShareDirectory}              
             />
             {/*<FolderShared style={primaryOnTrue(isSharingDirectory)} />*/}
           </HoverTooltip>
@@ -119,7 +119,6 @@ type Props = {
   isSharingClipboard: boolean;
   clipboardSharingMessage: string;
   canShareDirectory: boolean;
-  //isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onAddSharedDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
