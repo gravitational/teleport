@@ -938,6 +938,23 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 		require.NotContains(t, key.Comment, alice.GetName())
 		require.NotContains(t, key.Comment, bob.GetName())
 	}
+
+	// Logging in with max in a different scope clears the agent, and sets new certs for max
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String(),
+		"--user", max.GetName(),
+		"--scope", "/prod/us-east",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, max, connector.GetName()))
+	require.NoError(t, err)
+
+	keysAfterMaxRescoped, err := keyring.List()
+	require.NoError(t, err)
+	require.NotEmpty(t, keysAfterMaxRescoped)
+
+	require.NotElementsMatch(t, keysAfterMax, keysAfterMaxRescoped)
 }
 
 func TestRelogin(t *testing.T) {
