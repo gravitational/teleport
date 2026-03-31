@@ -5095,8 +5095,7 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
+	return trace.Wrap(limiter.RegisterRequest(remote))
 }
 
 func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*SessionContext, error) {
