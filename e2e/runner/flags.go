@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -50,6 +49,7 @@ type e2eFlags struct {
 	testFiles        []string
 	reportPR         int
 	reportRepo       string
+	reportSHA        string
 	tracePath        string
 }
 
@@ -67,9 +67,11 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	modes.register("debug", "run tests with Playwright inspector (PWDEBUG=1)", modeDebug)
 	modes.register("browse", "open a signed-in browser for manual web testing", modeBrowse)
 	modes.register("browse-connect", "open a signed-in Teleport Connect app for manual testing", modeBrowseConnect)
-	modes.register("report", "download and open a Playwright report for a PR (pass PR number as argument)", modeReport)
-	modes.register("test-results", "download test results and open a trace for a PR (pass PR number and trace path as arguments)", modeTestResults)
 	modes.register("github-report", "publish test results as GitHub annotations, job summary, and PR comment (CI only)", modeGitHubReport)
+
+	var testResultsPR int
+	flag.IntVar(&f.reportPR, "report", 0, "download and open a Playwright report for a given PR number")
+	flag.IntVar(&testResultsPR, "test-results", 0, "download test results and open a trace for a given PR number (pass trace path as argument)")
 
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")
 	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries")                          // useful for running during development to avoid rebuilding Teleport every time
@@ -90,6 +92,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		"override teleport URL for Playwright tests (e.g. https://localhost:3080), if set the runner will skip starting Teleport")
 
 	flag.StringVar(&f.reportRepo, "repo", "", "GitHub repo name (e.g. teleport.e), auto-detected if omitted")
+	flag.StringVar(&f.reportSHA, "sha", "", "commit SHA to download artifacts for (overrides PR head SHA)")
 
 	bindFixtureFlags(flag.CommandLine)
 	modes.bindFlags(flag.CommandLine)
@@ -124,26 +127,29 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		return nil, 0, err
 	}
 
-	if mode == modeReport || mode == modeTestResults {
+	switch {
+	case f.reportPR > 0 && testResultsPR > 0:
+		return nil, 0, fmt.Errorf("--report and --test-results are mutually exclusive")
+	case f.reportPR > 0:
+		if mode != modeTest {
+			return nil, 0, fmt.Errorf("--report and --%s are mutually exclusive", mode)
+		}
+		mode = modeReport
+	case testResultsPR > 0:
+		if mode != modeTest {
+			return nil, 0, fmt.Errorf("--test-results and --%s are mutually exclusive", mode)
+		}
+		mode = modeTestResults
+		f.reportPR = testResultsPR
+
 		args := flag.Args()
 		if len(args) < 1 {
-			return nil, 0, fmt.Errorf("--%s requires a PR number as the first argument", mode)
+			return nil, 0, fmt.Errorf("--test-results requires a trace path as an argument")
 		}
+		f.tracePath = args[0]
+	}
 
-		pr, err := strconv.Atoi(args[0])
-		if err != nil {
-			return nil, 0, fmt.Errorf("invalid PR number %q: %w", args[0], err)
-		}
-
-		f.reportPR = pr
-
-		if mode == modeTestResults {
-			if len(args) < 2 {
-				return nil, 0, fmt.Errorf("--test-results requires a trace path as the second argument")
-			}
-			f.tracePath = args[1]
-		}
-	} else {
+	if mode != modeReport && mode != modeTestResults {
 		e2eDir := filepath.Join(repoRoot, "e2e")
 
 		f.testFiles, err = normalizeTestFiles(e2eDir, flag.Args())

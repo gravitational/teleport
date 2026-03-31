@@ -74,6 +74,7 @@ func main() {
 		cfg := &reportConfig{
 			prNumber:  flags.reportPR,
 			repo:      repo,
+			sha:       flags.reportSHA,
 			e2eDir:    e2eDir,
 			tracePath: flags.tracePath,
 		}

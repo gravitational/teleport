@@ -225,7 +225,7 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 
 	if pr := ciPRNumber(); pr > 0 {
 		fmt.Fprint(w, "---\n\n")
-		fmt.Fprintf(w, "##### View full report\n```\n./e2e/run.sh --report %d\n```\n", pr)
+		fmt.Fprintf(w, "##### View full report\n```\n./%s\n```\n", ciReportCmd(pr))
 	}
 }
 

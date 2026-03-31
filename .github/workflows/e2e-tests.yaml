@@ -186,6 +186,7 @@ jobs:
 
     env:
       HOME: /root
+      E2E_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
