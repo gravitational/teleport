@@ -317,10 +317,10 @@ export default class Modal extends React.Component<ModalProps> {
       ...this.modalEl.querySelectorAll<HTMLElement>(
         'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       ),
-    ].filter(
-      el =>
-        el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden'
-    );
+    ].filter(el => {
+      const style = getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
   };
 
   restoreLastFocus() {

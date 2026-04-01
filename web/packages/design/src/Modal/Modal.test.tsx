@@ -177,36 +177,6 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 });
 
 describe('trapFocus', () => {
-  let originalOffsetParent: PropertyDescriptor | undefined;
-
-  beforeAll(() => {
-    // JSDOM doesn't implement layout, so offsetParent is always null. Mock it so that the
-    // focusable-element filter in handleFocusTrapTab can work.
-    originalOffsetParent = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      'offsetParent'
-    );
-    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
-      get() {
-        if (this.style.display === 'none') {
-          return null;
-        }
-        return this.parentElement; // oxlint-disable-line testing-library/no-node-access
-      },
-      configurable: true,
-    });
-  });
-
-  afterAll(() => {
-    if (originalOffsetParent) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'offsetParent',
-        originalOffsetParent
-      );
-    }
-  });
-
   // In the following describe group, the focused element is removed during a re-render, leaving
   // lastModalFocus as a stale detached reference. Explicit keys ensure React unmounts the Removable
   // button rather than reconciling it with Stable.
