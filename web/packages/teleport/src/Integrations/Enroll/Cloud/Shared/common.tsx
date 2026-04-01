@@ -20,8 +20,9 @@ import { useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { Button, ButtonPrimary, Flex } from 'design';
+import { Button, ButtonPrimary, ButtonText, Flex } from 'design';
 import { Check, Copy } from 'design/Icon';
+import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
@@ -107,4 +108,29 @@ export const CircleNumber = styled.span`
   margin-right: ${p => p.theme.space[2]}px;
   flex-shrink: 0;
   box-sizing: border-box;
+`;
+
+export const FilterButton = styled(ButtonText)`
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: ${props => props.theme.colors.text.main};
+  cursor: pointer;
+  font: inherit;
+
+  &:hover {
+    color: ${props => props.theme.colors.text.main};
+    background: transparent;
+  }
+
+  &:focus-visible {
+    outline: 2px solid
+      ${props => props.theme.colors.interactive.solid.primary.default};
+    outline-offset: 2px;
+  }
+`;
+
+export const FilterChevron = styled(Icons.ChevronRight)<{ expanded: boolean }>`
+  transition: transform 0.2s ease-in-out;
+  transform: ${props => (props.expanded ? 'rotate(90deg)' : 'none')};
 `;

@@ -225,6 +225,46 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   };
 };
 
+// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources#limitations
+const INVALID_AZURE_TAG_NAME_CHARS = ['<', '>', '%', '&', '\\', '?', '/'];
+const AZURE_TAG_NAME_MAX_LENGTH = 512;
+const validAzureTagName = (name: string): ValidationResult => {
+  if (INVALID_AZURE_TAG_NAME_CHARS.some(char => name.includes(char))) {
+    return {
+      valid: false,
+      message: `Name must not contain characters ${INVALID_AZURE_TAG_NAME_CHARS.join(', ')}.`,
+    };
+  }
+
+  if (name.length > AZURE_TAG_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message: 'Name must be <= ' + AZURE_TAG_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * requiredAzureTagName is a required field and checks for a
+ * value which must also be a valid Azure tag name.
+ * @param name is an Azure tag name.
+ * @returns ValidationResult
+ */
+const requiredAzureTagName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Tag name is required',
+    };
+  }
+
+  return validAzureTagName(name);
+};
+
 /**
  * requiredIntegrationName is a required field and checks for a
  * value which must also be a valid Integration name.
@@ -552,6 +592,7 @@ export {
   requiredIamRoleName,
   requiredIamTrustAnchorName,
   requiredIamProfileName,
+  requiredAzureTagName,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,

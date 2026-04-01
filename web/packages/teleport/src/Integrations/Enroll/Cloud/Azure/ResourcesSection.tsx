@@ -19,7 +19,10 @@
 import { Box, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredAzureTagName,
+} from 'shared/components/Validation/rules';
 
 import {
   LabelsInput,
@@ -32,11 +35,11 @@ import {
   FilterButton,
   FilterChevron,
 } from '../Shared/common';
-import { AwsLabel, Ec2Config } from './types';
+import { AzureTag, VmConfig } from './types';
 
-const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
+const azureTagRule: LabelsRule = (labels: Label[]) => () => {
   const results = labels.map(label => ({
-    name: requiredField('Please enter a tag key')(label.name)(),
+    name: requiredAzureTagName(label.name)(),
     value: requiredField('Please enter a tag value')(label.value)(),
   }));
   return {
@@ -46,13 +49,13 @@ const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
 };
 
 type ResourcesSectionProps = {
-  ec2Config: Ec2Config;
-  onEc2Change: (config: Ec2Config) => void;
+  vmConfig: VmConfig;
+  onVmChange: (config: VmConfig) => void;
 };
 
 export function ResourcesSection({
-  ec2Config,
-  onEc2Change,
+  vmConfig,
+  onVmChange,
 }: ResourcesSectionProps) {
   return (
     <>
@@ -61,30 +64,30 @@ export function ResourcesSection({
         Resource Types
       </Flex>
       <Text ml={4} mb={3}>
-        Select which AWS resource types to automatically discover and enroll.
+        Select which Azure resource types to automatically discover and enroll.
       </Text>
-      <AwsService
-        label="EC2 Instances"
+      <AzureService
+        label="Virtual Machines"
         helperText={
           <Text>
-            Discover EC2 instances and establish SSH access through the Teleport
-            proxy.
+            Discover Azure VM instances and establish SSH access through the
+            Teleport proxy.
             <br />
-            Note: If no tags are specified, all EC2 instances in the selected
+            Note: If no tags are specified, all Azure VMs in the selected
             regions will be enrolled.
           </Text>
         }
-        tooltipText="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
-        config={ec2Config}
-        onChange={onEc2Change}
+        tooltipText="Filter for Azure VMs by their tags. If no tags are added, Teleport will enroll all instances."
+        config={vmConfig}
+        onChange={onVmChange}
       />
     </>
   );
 }
 
-type ServiceConfig = Ec2Config;
+type ServiceConfig = VmConfig;
 
-type AwsServiceProps = {
+type AzureServiceProps = {
   label: string;
   helperText: React.ReactNode;
   tooltipText: string;
@@ -92,13 +95,13 @@ type AwsServiceProps = {
   onChange: (config: ServiceConfig) => void;
 };
 
-function AwsService({
+function AzureService({
   label,
   helperText,
   tooltipText,
   config,
   onChange,
-}: AwsServiceProps) {
+}: AzureServiceProps) {
   const toggle = () => {
     onChange({
       ...config,
@@ -131,19 +134,19 @@ function AwsService({
         </FilterButton>
         {config.enabled && (
           <Box mb={2}>
-            <Box width={400}>
+            <Box width={600}>
               <LabelsInput
                 adjective="tag"
                 labels={config.tags as Label[]}
-                labelKey={{ fieldName: 'Key', placeholder: 'Environment' }}
+                labelKey={{ fieldName: 'Name', placeholder: 'Environment' }}
                 labelVal={{ fieldName: 'Value', placeholder: 'production' }}
                 setLabels={(tags: Label[]) =>
                   onChange({
                     ...config,
-                    tags: tags as AwsLabel[],
+                    tags: tags as AzureTag[],
                   })
                 }
-                rule={nonEmptyTags}
+                rule={azureTagRule}
               />
             </Box>
           </Box>
