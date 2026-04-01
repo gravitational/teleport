@@ -99,6 +99,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
+  AVAILABLE_SESSIONS = 'available sessions'
 }
 
 type EventMap = {
@@ -115,6 +116,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  [TdpClientEvent.AVAILABLE_SESSIONS]: [string[]]
   'terminal.webauthn': [string];
 };
 
@@ -335,6 +337,11 @@ export class TdpClient extends EventEmitter<EventMap> {
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
   };
 
+  onAvailableSessions = (listener: (spec: string[]) => void) => {
+    this.on(TdpClientEvent.AVAILABLE_SESSIONS, listener);
+    return () => this.off(TdpClientEvent.AVAILABLE_SESSIONS, listener);
+  };
+
   onLatencyStats = (listener: (stats: LatencyStats) => void) => {
     this.on(TdpClientEvent.LATENCY_STATS, listener);
     return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
@@ -503,9 +510,9 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleServerHello(hello: ServerHello) {
-    // In the future, we may add new server capability advertisements
-    // that will affect client configuration.
-    // For now we'll just activate the the connection.
+    if (hello.sessions.length > 0) {
+      this.emit(TdpClientEvent.AVAILABLE_SESSIONS,hello.sessions);
+    }
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -779,6 +786,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
     this.transport.send(data);
+  }
+
+  sendSessionSelection(session: string) {
+    this.send(this.codec.encodeSessionSelection(session));
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {

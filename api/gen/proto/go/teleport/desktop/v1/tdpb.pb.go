@@ -312,6 +312,7 @@ type ServerHello struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ActivationSpec   *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
 	ClipboardEnabled bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
+	Sessions         []string               `protobuf:"bytes,3,rep,name=sessions,proto3" json:"sessions,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -360,6 +361,58 @@ func (x *ServerHello) GetClipboardEnabled() bool {
 	return false
 }
 
+func (x *ServerHello) GetSessions() []string {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+// Sent by client to select one of available sessions
+type SessionSelection struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionSelection) Reset() {
+	*x = SessionSelection{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionSelection) ProtoMessage() {}
+
+func (x *SessionSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionSelection.ProtoReflect.Descriptor instead.
+func (*SessionSelection) Descriptor() ([]byte, []int) {
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SessionSelection) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 // Defines the boundaries that PNG frame will update.
 // Used for composition on PNG frame messages only.
 type Rectangle struct {
@@ -374,7 +427,7 @@ type Rectangle struct {
 
 func (x *Rectangle) Reset() {
 	*x = Rectangle{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[2]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +439,7 @@ func (x *Rectangle) String() string {
 func (*Rectangle) ProtoMessage() {}
 
 func (x *Rectangle) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[2]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +452,7 @@ func (x *Rectangle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rectangle.ProtoReflect.Descriptor instead.
 func (*Rectangle) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{2}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Rectangle) GetLeft() uint32 {
@@ -441,7 +494,7 @@ type PNGFrame struct {
 
 func (x *PNGFrame) Reset() {
 	*x = PNGFrame{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[3]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +506,7 @@ func (x *PNGFrame) String() string {
 func (*PNGFrame) ProtoMessage() {}
 
 func (x *PNGFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[3]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +519,7 @@ func (x *PNGFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PNGFrame.ProtoReflect.Descriptor instead.
 func (*PNGFrame) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{3}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PNGFrame) GetCoordinates() *Rectangle {
@@ -493,7 +546,7 @@ type FastPathPDU struct {
 
 func (x *FastPathPDU) Reset() {
 	*x = FastPathPDU{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[4]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +558,7 @@ func (x *FastPathPDU) String() string {
 func (*FastPathPDU) ProtoMessage() {}
 
 func (x *FastPathPDU) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[4]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +571,7 @@ func (x *FastPathPDU) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FastPathPDU.ProtoReflect.Descriptor instead.
 func (*FastPathPDU) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{4}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *FastPathPDU) GetPdu() []byte {
@@ -538,7 +591,7 @@ type RDPResponsePDU struct {
 
 func (x *RDPResponsePDU) Reset() {
 	*x = RDPResponsePDU{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[5]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -550,7 +603,7 @@ func (x *RDPResponsePDU) String() string {
 func (*RDPResponsePDU) ProtoMessage() {}
 
 func (x *RDPResponsePDU) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[5]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -563,7 +616,7 @@ func (x *RDPResponsePDU) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RDPResponsePDU.ProtoReflect.Descriptor instead.
 func (*RDPResponsePDU) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{5}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RDPResponsePDU) GetResponse() []byte {
@@ -587,7 +640,7 @@ type ConnectionActivated struct {
 
 func (x *ConnectionActivated) Reset() {
 	*x = ConnectionActivated{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[6]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -599,7 +652,7 @@ func (x *ConnectionActivated) String() string {
 func (*ConnectionActivated) ProtoMessage() {}
 
 func (x *ConnectionActivated) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[6]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -612,7 +665,7 @@ func (x *ConnectionActivated) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionActivated.ProtoReflect.Descriptor instead.
 func (*ConnectionActivated) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{6}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConnectionActivated) GetIoChannelId() uint32 {
@@ -656,7 +709,7 @@ type SyncKeys struct {
 
 func (x *SyncKeys) Reset() {
 	*x = SyncKeys{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -668,7 +721,7 @@ func (x *SyncKeys) String() string {
 func (*SyncKeys) ProtoMessage() {}
 
 func (x *SyncKeys) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -681,7 +734,7 @@ func (x *SyncKeys) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncKeys.ProtoReflect.Descriptor instead.
 func (*SyncKeys) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{7}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *SyncKeys) GetScrollLockPressed() bool {
@@ -723,7 +776,7 @@ type MouseMove struct {
 
 func (x *MouseMove) Reset() {
 	*x = MouseMove{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +788,7 @@ func (x *MouseMove) String() string {
 func (*MouseMove) ProtoMessage() {}
 
 func (x *MouseMove) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +801,7 @@ func (x *MouseMove) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MouseMove.ProtoReflect.Descriptor instead.
 func (*MouseMove) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{8}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MouseMove) GetX() uint32 {
@@ -776,7 +829,7 @@ type MouseButton struct {
 
 func (x *MouseButton) Reset() {
 	*x = MouseButton{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -788,7 +841,7 @@ func (x *MouseButton) String() string {
 func (*MouseButton) ProtoMessage() {}
 
 func (x *MouseButton) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -801,7 +854,7 @@ func (x *MouseButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MouseButton.ProtoReflect.Descriptor instead.
 func (*MouseButton) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{9}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *MouseButton) GetButton() MouseButtonType {
@@ -829,7 +882,7 @@ type KeyboardButton struct {
 
 func (x *KeyboardButton) Reset() {
 	*x = KeyboardButton{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -841,7 +894,7 @@ func (x *KeyboardButton) String() string {
 func (*KeyboardButton) ProtoMessage() {}
 
 func (x *KeyboardButton) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -854,7 +907,7 @@ func (x *KeyboardButton) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyboardButton.ProtoReflect.Descriptor instead.
 func (*KeyboardButton) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{10}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *KeyboardButton) GetKeyCode() uint32 {
@@ -885,7 +938,7 @@ type ClientScreenSpec struct {
 
 func (x *ClientScreenSpec) Reset() {
 	*x = ClientScreenSpec{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -897,7 +950,7 @@ func (x *ClientScreenSpec) String() string {
 func (*ClientScreenSpec) ProtoMessage() {}
 
 func (x *ClientScreenSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +963,7 @@ func (x *ClientScreenSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientScreenSpec.ProtoReflect.Descriptor instead.
 func (*ClientScreenSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{11}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ClientScreenSpec) GetWidth() uint32 {
@@ -938,7 +991,7 @@ type Alert struct {
 
 func (x *Alert) Reset() {
 	*x = Alert{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -950,7 +1003,7 @@ func (x *Alert) String() string {
 func (*Alert) ProtoMessage() {}
 
 func (x *Alert) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -963,7 +1016,7 @@ func (x *Alert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Alert.ProtoReflect.Descriptor instead.
 func (*Alert) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{12}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Alert) GetMessage() string {
@@ -991,7 +1044,7 @@ type MouseWheel struct {
 
 func (x *MouseWheel) Reset() {
 	*x = MouseWheel{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1003,7 +1056,7 @@ func (x *MouseWheel) String() string {
 func (*MouseWheel) ProtoMessage() {}
 
 func (x *MouseWheel) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1069,7 @@ func (x *MouseWheel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MouseWheel.ProtoReflect.Descriptor instead.
 func (*MouseWheel) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{13}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MouseWheel) GetAxis() MouseWheelAxis {
@@ -1043,7 +1096,7 @@ type ClipboardData struct {
 
 func (x *ClipboardData) Reset() {
 	*x = ClipboardData{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1055,7 +1108,7 @@ func (x *ClipboardData) String() string {
 func (*ClipboardData) ProtoMessage() {}
 
 func (x *ClipboardData) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1068,7 +1121,7 @@ func (x *ClipboardData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClipboardData.ProtoReflect.Descriptor instead.
 func (*ClipboardData) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{14}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ClipboardData) GetData() []byte {
@@ -1093,7 +1146,7 @@ type MFA struct {
 
 func (x *MFA) Reset() {
 	*x = MFA{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1105,7 +1158,7 @@ func (x *MFA) String() string {
 func (*MFA) ProtoMessage() {}
 
 func (x *MFA) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1118,7 +1171,7 @@ func (x *MFA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MFA.ProtoReflect.Descriptor instead.
 func (*MFA) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{15}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *MFA) GetType() MFAType {
@@ -1160,7 +1213,7 @@ type SharedDirectoryAnnounce struct {
 
 func (x *SharedDirectoryAnnounce) Reset() {
 	*x = SharedDirectoryAnnounce{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1172,7 +1225,7 @@ func (x *SharedDirectoryAnnounce) String() string {
 func (*SharedDirectoryAnnounce) ProtoMessage() {}
 
 func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1185,7 +1238,7 @@ func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryAnnounce.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryAnnounce) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{16}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SharedDirectoryAnnounce) GetDirectoryId() uint32 {
@@ -1213,7 +1266,7 @@ type SharedDirectoryAcknowledge struct {
 
 func (x *SharedDirectoryAcknowledge) Reset() {
 	*x = SharedDirectoryAcknowledge{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1278,7 @@ func (x *SharedDirectoryAcknowledge) String() string {
 func (*SharedDirectoryAcknowledge) ProtoMessage() {}
 
 func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1291,7 @@ func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryAcknowledge.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryAcknowledge) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{17}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SharedDirectoryAcknowledge) GetDirectoryId() uint32 {
@@ -1280,7 +1333,7 @@ type SharedDirectoryRequest struct {
 
 func (x *SharedDirectoryRequest) Reset() {
 	*x = SharedDirectoryRequest{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1292,7 +1345,7 @@ func (x *SharedDirectoryRequest) String() string {
 func (*SharedDirectoryRequest) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1305,7 +1358,7 @@ func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SharedDirectoryRequest) GetDirectoryId() uint32 {
@@ -1479,7 +1532,7 @@ type SharedDirectoryResponse struct {
 
 func (x *SharedDirectoryResponse) Reset() {
 	*x = SharedDirectoryResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1544,7 @@ func (x *SharedDirectoryResponse) String() string {
 func (*SharedDirectoryResponse) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1557,7 @@ func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SharedDirectoryResponse) GetCompletionId() uint32 {
@@ -1666,7 +1719,7 @@ type FileSystemObject struct {
 
 func (x *FileSystemObject) Reset() {
 	*x = FileSystemObject{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1678,7 +1731,7 @@ func (x *FileSystemObject) String() string {
 func (*FileSystemObject) ProtoMessage() {}
 
 func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1691,7 +1744,7 @@ func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileSystemObject.ProtoReflect.Descriptor instead.
 func (*FileSystemObject) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *FileSystemObject) GetLastModified() uint64 {
@@ -1741,7 +1794,7 @@ type LatencyStats struct {
 
 func (x *LatencyStats) Reset() {
 	*x = LatencyStats{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1753,7 +1806,7 @@ func (x *LatencyStats) String() string {
 func (*LatencyStats) ProtoMessage() {}
 
 func (x *LatencyStats) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1766,7 +1819,7 @@ func (x *LatencyStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LatencyStats.ProtoReflect.Descriptor instead.
 func (*LatencyStats) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *LatencyStats) GetClientLatencyMs() uint32 {
@@ -1794,7 +1847,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1806,7 +1859,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1819,7 +1872,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *Ping) GetUuid() []byte {
@@ -1854,6 +1907,7 @@ type Envelope struct {
 	//	*Envelope_SharedDirectoryResponse
 	//	*Envelope_LatencyStats
 	//	*Envelope_Ping
+	//	*Envelope_SessionSelection
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1861,7 +1915,7 @@ type Envelope struct {
 
 func (x *Envelope) Reset() {
 	*x = Envelope{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1873,7 +1927,7 @@ func (x *Envelope) String() string {
 func (*Envelope) ProtoMessage() {}
 
 func (x *Envelope) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1886,7 +1940,7 @@ func (x *Envelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Envelope.ProtoReflect.Descriptor instead.
 func (*Envelope) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{23}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Envelope) GetPayload() isEnvelope_Payload {
@@ -2076,6 +2130,15 @@ func (x *Envelope) GetPing() *Ping {
 	return nil
 }
 
+func (x *Envelope) GetSessionSelection() *SessionSelection {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_SessionSelection); ok {
+			return x.SessionSelection
+		}
+	}
+	return nil
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -2160,6 +2223,10 @@ type Envelope_Ping struct {
 	Ping *Ping `protobuf:"bytes,20,opt,name=ping,proto3,oneof"`
 }
 
+type Envelope_SessionSelection struct {
+	SessionSelection *SessionSelection `protobuf:"bytes,21,opt,name=session_selection,json=sessionSelection,proto3,oneof"`
+}
+
 func (*Envelope_ClientHello) isEnvelope_Payload() {}
 
 func (*Envelope_ServerHello) isEnvelope_Payload() {}
@@ -2200,6 +2267,8 @@ func (*Envelope_LatencyStats) isEnvelope_Payload() {}
 
 func (*Envelope_Ping) isEnvelope_Payload() {}
 
+func (*Envelope_SessionSelection) isEnvelope_Payload() {}
+
 // Info request.
 type SharedDirectoryRequest_Info struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2210,7 +2279,7 @@ type SharedDirectoryRequest_Info struct {
 
 func (x *SharedDirectoryRequest_Info) Reset() {
 	*x = SharedDirectoryRequest_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2222,7 +2291,7 @@ func (x *SharedDirectoryRequest_Info) String() string {
 func (*SharedDirectoryRequest_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2235,7 +2304,7 @@ func (x *SharedDirectoryRequest_Info) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Info.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Info) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 0}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 0}
 }
 
 func (x *SharedDirectoryRequest_Info) GetPath() string {
@@ -2256,7 +2325,7 @@ type SharedDirectoryRequest_Create struct {
 
 func (x *SharedDirectoryRequest_Create) Reset() {
 	*x = SharedDirectoryRequest_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2268,7 +2337,7 @@ func (x *SharedDirectoryRequest_Create) String() string {
 func (*SharedDirectoryRequest_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2281,7 +2350,7 @@ func (x *SharedDirectoryRequest_Create) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Create.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Create) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 1}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 1}
 }
 
 func (x *SharedDirectoryRequest_Create) GetPath() string {
@@ -2308,7 +2377,7 @@ type SharedDirectoryRequest_Delete struct {
 
 func (x *SharedDirectoryRequest_Delete) Reset() {
 	*x = SharedDirectoryRequest_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2320,7 +2389,7 @@ func (x *SharedDirectoryRequest_Delete) String() string {
 func (*SharedDirectoryRequest_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2333,7 +2402,7 @@ func (x *SharedDirectoryRequest_Delete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Delete.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Delete) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 2}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 2}
 }
 
 func (x *SharedDirectoryRequest_Delete) GetPath() string {
@@ -2353,7 +2422,7 @@ type SharedDirectoryRequest_List struct {
 
 func (x *SharedDirectoryRequest_List) Reset() {
 	*x = SharedDirectoryRequest_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2365,7 +2434,7 @@ func (x *SharedDirectoryRequest_List) String() string {
 func (*SharedDirectoryRequest_List) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2378,7 +2447,7 @@ func (x *SharedDirectoryRequest_List) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_List.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_List) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 3}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 3}
 }
 
 func (x *SharedDirectoryRequest_List) GetPath() string {
@@ -2400,7 +2469,7 @@ type SharedDirectoryRequest_Read struct {
 
 func (x *SharedDirectoryRequest_Read) Reset() {
 	*x = SharedDirectoryRequest_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2412,7 +2481,7 @@ func (x *SharedDirectoryRequest_Read) String() string {
 func (*SharedDirectoryRequest_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2425,7 +2494,7 @@ func (x *SharedDirectoryRequest_Read) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Read.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Read) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 4}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 4}
 }
 
 func (x *SharedDirectoryRequest_Read) GetPath() string {
@@ -2461,7 +2530,7 @@ type SharedDirectoryRequest_Write struct {
 
 func (x *SharedDirectoryRequest_Write) Reset() {
 	*x = SharedDirectoryRequest_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2473,7 +2542,7 @@ func (x *SharedDirectoryRequest_Write) String() string {
 func (*SharedDirectoryRequest_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2486,7 +2555,7 @@ func (x *SharedDirectoryRequest_Write) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Write.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Write) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 5}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 5}
 }
 
 func (x *SharedDirectoryRequest_Write) GetPath() string {
@@ -2521,7 +2590,7 @@ type SharedDirectoryRequest_Move struct {
 
 func (x *SharedDirectoryRequest_Move) Reset() {
 	*x = SharedDirectoryRequest_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2533,7 +2602,7 @@ func (x *SharedDirectoryRequest_Move) String() string {
 func (*SharedDirectoryRequest_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2546,7 +2615,7 @@ func (x *SharedDirectoryRequest_Move) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Move.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Move) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 6}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 6}
 }
 
 func (x *SharedDirectoryRequest_Move) GetOriginalPath() string {
@@ -2574,7 +2643,7 @@ type SharedDirectoryRequest_Truncate struct {
 
 func (x *SharedDirectoryRequest_Truncate) Reset() {
 	*x = SharedDirectoryRequest_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2586,7 +2655,7 @@ func (x *SharedDirectoryRequest_Truncate) String() string {
 func (*SharedDirectoryRequest_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2599,7 +2668,7 @@ func (x *SharedDirectoryRequest_Truncate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryRequest_Truncate.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryRequest_Truncate) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18, 7}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 7}
 }
 
 func (x *SharedDirectoryRequest_Truncate) GetPath() string {
@@ -2626,7 +2695,7 @@ type SharedDirectoryResponse_Info struct {
 
 func (x *SharedDirectoryResponse_Info) Reset() {
 	*x = SharedDirectoryResponse_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2638,7 +2707,7 @@ func (x *SharedDirectoryResponse_Info) String() string {
 func (*SharedDirectoryResponse_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2651,7 +2720,7 @@ func (x *SharedDirectoryResponse_Info) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Info.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Info) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 0}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 0}
 }
 
 func (x *SharedDirectoryResponse_Info) GetFso() *FileSystemObject {
@@ -2671,7 +2740,7 @@ type SharedDirectoryResponse_Create struct {
 
 func (x *SharedDirectoryResponse_Create) Reset() {
 	*x = SharedDirectoryResponse_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2683,7 +2752,7 @@ func (x *SharedDirectoryResponse_Create) String() string {
 func (*SharedDirectoryResponse_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2696,7 +2765,7 @@ func (x *SharedDirectoryResponse_Create) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Create.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Create) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 1}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 1}
 }
 
 func (x *SharedDirectoryResponse_Create) GetFso() *FileSystemObject {
@@ -2715,7 +2784,7 @@ type SharedDirectoryResponse_Delete struct {
 
 func (x *SharedDirectoryResponse_Delete) Reset() {
 	*x = SharedDirectoryResponse_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2727,7 +2796,7 @@ func (x *SharedDirectoryResponse_Delete) String() string {
 func (*SharedDirectoryResponse_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2740,7 +2809,7 @@ func (x *SharedDirectoryResponse_Delete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Delete.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Delete) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 2}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 2}
 }
 
 // List response.
@@ -2753,7 +2822,7 @@ type SharedDirectoryResponse_List struct {
 
 func (x *SharedDirectoryResponse_List) Reset() {
 	*x = SharedDirectoryResponse_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2765,7 +2834,7 @@ func (x *SharedDirectoryResponse_List) String() string {
 func (*SharedDirectoryResponse_List) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,7 +2847,7 @@ func (x *SharedDirectoryResponse_List) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_List.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_List) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 3}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 3}
 }
 
 func (x *SharedDirectoryResponse_List) GetFsoList() []*FileSystemObject {
@@ -2798,7 +2867,7 @@ type SharedDirectoryResponse_Read struct {
 
 func (x *SharedDirectoryResponse_Read) Reset() {
 	*x = SharedDirectoryResponse_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2879,7 @@ func (x *SharedDirectoryResponse_Read) String() string {
 func (*SharedDirectoryResponse_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2823,7 +2892,7 @@ func (x *SharedDirectoryResponse_Read) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Read.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Read) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 4}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 4}
 }
 
 func (x *SharedDirectoryResponse_Read) GetData() []byte {
@@ -2843,7 +2912,7 @@ type SharedDirectoryResponse_Write struct {
 
 func (x *SharedDirectoryResponse_Write) Reset() {
 	*x = SharedDirectoryResponse_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2855,7 +2924,7 @@ func (x *SharedDirectoryResponse_Write) String() string {
 func (*SharedDirectoryResponse_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2868,7 +2937,7 @@ func (x *SharedDirectoryResponse_Write) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Write.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Write) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 5}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 5}
 }
 
 func (x *SharedDirectoryResponse_Write) GetBytesWritten() uint32 {
@@ -2887,7 +2956,7 @@ type SharedDirectoryResponse_Move struct {
 
 func (x *SharedDirectoryResponse_Move) Reset() {
 	*x = SharedDirectoryResponse_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2899,7 +2968,7 @@ func (x *SharedDirectoryResponse_Move) String() string {
 func (*SharedDirectoryResponse_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2912,7 +2981,7 @@ func (x *SharedDirectoryResponse_Move) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Move.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Move) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 6}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 6}
 }
 
 // Truncate response.
@@ -2924,7 +2993,7 @@ type SharedDirectoryResponse_Truncate struct {
 
 func (x *SharedDirectoryResponse_Truncate) Reset() {
 	*x = SharedDirectoryResponse_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2936,7 +3005,7 @@ func (x *SharedDirectoryResponse_Truncate) String() string {
 func (*SharedDirectoryResponse_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2949,7 +3018,7 @@ func (x *SharedDirectoryResponse_Truncate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SharedDirectoryResponse_Truncate.ProtoReflect.Descriptor instead.
 func (*SharedDirectoryResponse_Truncate) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19, 7}
+	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20, 7}
 }
 
 var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
@@ -2961,10 +3030,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x8d\x01\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xa9\x01\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
-	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\"_\n" +
+	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12\x1a\n" +
+	"\bsessions\x18\x03 \x03(\tR\bsessions\"&\n" +
+	"\x10SessionSelection\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"_\n" +
 	"\tRectangle\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\rR\x04left\x12\x10\n" +
 	"\x03top\x18\x02 \x01(\rR\x03top\x12\x14\n" +
@@ -3095,7 +3167,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x11client_latency_ms\x18\x01 \x01(\rR\x0fclientLatencyMs\x12*\n" +
 	"\x11server_latency_ms\x18\x02 \x01(\rR\x0fserverLatencyMs\"\x1a\n" +
 	"\x04Ping\x12\x12\n" +
-	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"\x8b\f\n" +
+	"\x04uuid\x18\x01 \x01(\fR\x04uuid\"\xe1\f\n" +
 	"\bEnvelope\x12E\n" +
 	"\fclient_hello\x18\x01 \x01(\v2 .teleport.desktop.v1.ClientHelloH\x00R\vclientHello\x12E\n" +
 	"\fserver_hello\x18\x02 \x01(\v2 .teleport.desktop.v1.ServerHelloH\x00R\vserverHello\x12<\n" +
@@ -3119,7 +3191,8 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x18shared_directory_request\x18\x11 \x01(\v2+.teleport.desktop.v1.SharedDirectoryRequestH\x00R\x16sharedDirectoryRequest\x12j\n" +
 	"\x19shared_directory_response\x18\x12 \x01(\v2,.teleport.desktop.v1.SharedDirectoryResponseH\x00R\x17sharedDirectoryResponse\x12H\n" +
 	"\rlatency_stats\x18\x13 \x01(\v2!.teleport.desktop.v1.LatencyStatsH\x00R\flatencyStats\x12/\n" +
-	"\x04ping\x18\x14 \x01(\v2\x19.teleport.desktop.v1.PingH\x00R\x04pingB\t\n" +
+	"\x04ping\x18\x14 \x01(\v2\x19.teleport.desktop.v1.PingH\x00R\x04ping\x12T\n" +
+	"\x11session_selection\x18\x15 \x01(\v2%.teleport.desktop.v1.SessionSelectionH\x00R\x10sessionSelectionB\t\n" +
 	"\apayload*\x8b\x01\n" +
 	"\x0fMouseButtonType\x12!\n" +
 	"\x1dMOUSE_BUTTON_TYPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -3153,7 +3226,7 @@ func file_teleport_desktop_v1_tdpb_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_desktop_v1_tdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(MouseButtonType)(0),                     // 0: teleport.desktop.v1.MouseButtonType
 	(AlertSeverity)(0),                       // 1: teleport.desktop.v1.AlertSeverity
@@ -3161,101 +3234,103 @@ var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(MFAType)(0),                             // 3: teleport.desktop.v1.MFAType
 	(*ClientHello)(nil),                      // 4: teleport.desktop.v1.ClientHello
 	(*ServerHello)(nil),                      // 5: teleport.desktop.v1.ServerHello
-	(*Rectangle)(nil),                        // 6: teleport.desktop.v1.Rectangle
-	(*PNGFrame)(nil),                         // 7: teleport.desktop.v1.PNGFrame
-	(*FastPathPDU)(nil),                      // 8: teleport.desktop.v1.FastPathPDU
-	(*RDPResponsePDU)(nil),                   // 9: teleport.desktop.v1.RDPResponsePDU
-	(*ConnectionActivated)(nil),              // 10: teleport.desktop.v1.ConnectionActivated
-	(*SyncKeys)(nil),                         // 11: teleport.desktop.v1.SyncKeys
-	(*MouseMove)(nil),                        // 12: teleport.desktop.v1.MouseMove
-	(*MouseButton)(nil),                      // 13: teleport.desktop.v1.MouseButton
-	(*KeyboardButton)(nil),                   // 14: teleport.desktop.v1.KeyboardButton
-	(*ClientScreenSpec)(nil),                 // 15: teleport.desktop.v1.ClientScreenSpec
-	(*Alert)(nil),                            // 16: teleport.desktop.v1.Alert
-	(*MouseWheel)(nil),                       // 17: teleport.desktop.v1.MouseWheel
-	(*ClipboardData)(nil),                    // 18: teleport.desktop.v1.ClipboardData
-	(*MFA)(nil),                              // 19: teleport.desktop.v1.MFA
-	(*SharedDirectoryAnnounce)(nil),          // 20: teleport.desktop.v1.SharedDirectoryAnnounce
-	(*SharedDirectoryAcknowledge)(nil),       // 21: teleport.desktop.v1.SharedDirectoryAcknowledge
-	(*SharedDirectoryRequest)(nil),           // 22: teleport.desktop.v1.SharedDirectoryRequest
-	(*SharedDirectoryResponse)(nil),          // 23: teleport.desktop.v1.SharedDirectoryResponse
-	(*FileSystemObject)(nil),                 // 24: teleport.desktop.v1.FileSystemObject
-	(*LatencyStats)(nil),                     // 25: teleport.desktop.v1.LatencyStats
-	(*Ping)(nil),                             // 26: teleport.desktop.v1.Ping
-	(*Envelope)(nil),                         // 27: teleport.desktop.v1.Envelope
-	(*SharedDirectoryRequest_Info)(nil),      // 28: teleport.desktop.v1.SharedDirectoryRequest.Info
-	(*SharedDirectoryRequest_Create)(nil),    // 29: teleport.desktop.v1.SharedDirectoryRequest.Create
-	(*SharedDirectoryRequest_Delete)(nil),    // 30: teleport.desktop.v1.SharedDirectoryRequest.Delete
-	(*SharedDirectoryRequest_List)(nil),      // 31: teleport.desktop.v1.SharedDirectoryRequest.List
-	(*SharedDirectoryRequest_Read)(nil),      // 32: teleport.desktop.v1.SharedDirectoryRequest.Read
-	(*SharedDirectoryRequest_Write)(nil),     // 33: teleport.desktop.v1.SharedDirectoryRequest.Write
-	(*SharedDirectoryRequest_Move)(nil),      // 34: teleport.desktop.v1.SharedDirectoryRequest.Move
-	(*SharedDirectoryRequest_Truncate)(nil),  // 35: teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	(*SharedDirectoryResponse_Info)(nil),     // 36: teleport.desktop.v1.SharedDirectoryResponse.Info
-	(*SharedDirectoryResponse_Create)(nil),   // 37: teleport.desktop.v1.SharedDirectoryResponse.Create
-	(*SharedDirectoryResponse_Delete)(nil),   // 38: teleport.desktop.v1.SharedDirectoryResponse.Delete
-	(*SharedDirectoryResponse_List)(nil),     // 39: teleport.desktop.v1.SharedDirectoryResponse.List
-	(*SharedDirectoryResponse_Read)(nil),     // 40: teleport.desktop.v1.SharedDirectoryResponse.Read
-	(*SharedDirectoryResponse_Write)(nil),    // 41: teleport.desktop.v1.SharedDirectoryResponse.Write
-	(*SharedDirectoryResponse_Move)(nil),     // 42: teleport.desktop.v1.SharedDirectoryResponse.Move
-	(*SharedDirectoryResponse_Truncate)(nil), // 43: teleport.desktop.v1.SharedDirectoryResponse.Truncate
-	(*v1.AuthenticateChallenge)(nil),         // 44: teleport.mfa.v1.AuthenticateChallenge
-	(*v1.AuthenticateResponse)(nil),          // 45: teleport.mfa.v1.AuthenticateResponse
+	(*SessionSelection)(nil),                 // 6: teleport.desktop.v1.SessionSelection
+	(*Rectangle)(nil),                        // 7: teleport.desktop.v1.Rectangle
+	(*PNGFrame)(nil),                         // 8: teleport.desktop.v1.PNGFrame
+	(*FastPathPDU)(nil),                      // 9: teleport.desktop.v1.FastPathPDU
+	(*RDPResponsePDU)(nil),                   // 10: teleport.desktop.v1.RDPResponsePDU
+	(*ConnectionActivated)(nil),              // 11: teleport.desktop.v1.ConnectionActivated
+	(*SyncKeys)(nil),                         // 12: teleport.desktop.v1.SyncKeys
+	(*MouseMove)(nil),                        // 13: teleport.desktop.v1.MouseMove
+	(*MouseButton)(nil),                      // 14: teleport.desktop.v1.MouseButton
+	(*KeyboardButton)(nil),                   // 15: teleport.desktop.v1.KeyboardButton
+	(*ClientScreenSpec)(nil),                 // 16: teleport.desktop.v1.ClientScreenSpec
+	(*Alert)(nil),                            // 17: teleport.desktop.v1.Alert
+	(*MouseWheel)(nil),                       // 18: teleport.desktop.v1.MouseWheel
+	(*ClipboardData)(nil),                    // 19: teleport.desktop.v1.ClipboardData
+	(*MFA)(nil),                              // 20: teleport.desktop.v1.MFA
+	(*SharedDirectoryAnnounce)(nil),          // 21: teleport.desktop.v1.SharedDirectoryAnnounce
+	(*SharedDirectoryAcknowledge)(nil),       // 22: teleport.desktop.v1.SharedDirectoryAcknowledge
+	(*SharedDirectoryRequest)(nil),           // 23: teleport.desktop.v1.SharedDirectoryRequest
+	(*SharedDirectoryResponse)(nil),          // 24: teleport.desktop.v1.SharedDirectoryResponse
+	(*FileSystemObject)(nil),                 // 25: teleport.desktop.v1.FileSystemObject
+	(*LatencyStats)(nil),                     // 26: teleport.desktop.v1.LatencyStats
+	(*Ping)(nil),                             // 27: teleport.desktop.v1.Ping
+	(*Envelope)(nil),                         // 28: teleport.desktop.v1.Envelope
+	(*SharedDirectoryRequest_Info)(nil),      // 29: teleport.desktop.v1.SharedDirectoryRequest.Info
+	(*SharedDirectoryRequest_Create)(nil),    // 30: teleport.desktop.v1.SharedDirectoryRequest.Create
+	(*SharedDirectoryRequest_Delete)(nil),    // 31: teleport.desktop.v1.SharedDirectoryRequest.Delete
+	(*SharedDirectoryRequest_List)(nil),      // 32: teleport.desktop.v1.SharedDirectoryRequest.List
+	(*SharedDirectoryRequest_Read)(nil),      // 33: teleport.desktop.v1.SharedDirectoryRequest.Read
+	(*SharedDirectoryRequest_Write)(nil),     // 34: teleport.desktop.v1.SharedDirectoryRequest.Write
+	(*SharedDirectoryRequest_Move)(nil),      // 35: teleport.desktop.v1.SharedDirectoryRequest.Move
+	(*SharedDirectoryRequest_Truncate)(nil),  // 36: teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	(*SharedDirectoryResponse_Info)(nil),     // 37: teleport.desktop.v1.SharedDirectoryResponse.Info
+	(*SharedDirectoryResponse_Create)(nil),   // 38: teleport.desktop.v1.SharedDirectoryResponse.Create
+	(*SharedDirectoryResponse_Delete)(nil),   // 39: teleport.desktop.v1.SharedDirectoryResponse.Delete
+	(*SharedDirectoryResponse_List)(nil),     // 40: teleport.desktop.v1.SharedDirectoryResponse.List
+	(*SharedDirectoryResponse_Read)(nil),     // 41: teleport.desktop.v1.SharedDirectoryResponse.Read
+	(*SharedDirectoryResponse_Write)(nil),    // 42: teleport.desktop.v1.SharedDirectoryResponse.Write
+	(*SharedDirectoryResponse_Move)(nil),     // 43: teleport.desktop.v1.SharedDirectoryResponse.Move
+	(*SharedDirectoryResponse_Truncate)(nil), // 44: teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	(*v1.AuthenticateChallenge)(nil),         // 45: teleport.mfa.v1.AuthenticateChallenge
+	(*v1.AuthenticateResponse)(nil),          // 46: teleport.mfa.v1.AuthenticateResponse
 }
 var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
-	15, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
-	10, // 1: teleport.desktop.v1.ServerHello.activation_spec:type_name -> teleport.desktop.v1.ConnectionActivated
-	6,  // 2: teleport.desktop.v1.PNGFrame.coordinates:type_name -> teleport.desktop.v1.Rectangle
+	16, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
+	11, // 1: teleport.desktop.v1.ServerHello.activation_spec:type_name -> teleport.desktop.v1.ConnectionActivated
+	7,  // 2: teleport.desktop.v1.PNGFrame.coordinates:type_name -> teleport.desktop.v1.Rectangle
 	0,  // 3: teleport.desktop.v1.MouseButton.button:type_name -> teleport.desktop.v1.MouseButtonType
 	1,  // 4: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
 	2,  // 5: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
 	3,  // 6: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
-	44, // 7: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
-	45, // 8: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
-	28, // 9: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
-	29, // 10: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
-	30, // 11: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
-	31, // 12: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
-	32, // 13: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
-	33, // 14: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
-	34, // 15: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
-	35, // 16: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	36, // 17: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
-	37, // 18: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
-	38, // 19: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
-	39, // 20: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
-	40, // 21: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
-	41, // 22: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
-	42, // 23: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
-	43, // 24: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	45, // 7: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
+	46, // 8: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
+	29, // 9: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
+	30, // 10: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
+	31, // 11: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
+	32, // 12: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
+	33, // 13: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
+	34, // 14: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
+	35, // 15: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
+	36, // 16: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	37, // 17: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
+	38, // 18: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
+	39, // 19: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
+	40, // 20: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
+	41, // 21: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
+	42, // 22: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
+	43, // 23: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
+	44, // 24: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
 	4,  // 25: teleport.desktop.v1.Envelope.client_hello:type_name -> teleport.desktop.v1.ClientHello
 	5,  // 26: teleport.desktop.v1.Envelope.server_hello:type_name -> teleport.desktop.v1.ServerHello
-	7,  // 27: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
-	8,  // 28: teleport.desktop.v1.Envelope.fast_path_pdu:type_name -> teleport.desktop.v1.FastPathPDU
-	9,  // 29: teleport.desktop.v1.Envelope.rdp_response_pdu:type_name -> teleport.desktop.v1.RDPResponsePDU
-	11, // 30: teleport.desktop.v1.Envelope.sync_keys:type_name -> teleport.desktop.v1.SyncKeys
-	12, // 31: teleport.desktop.v1.Envelope.mouse_move:type_name -> teleport.desktop.v1.MouseMove
-	13, // 32: teleport.desktop.v1.Envelope.mouse_button:type_name -> teleport.desktop.v1.MouseButton
-	14, // 33: teleport.desktop.v1.Envelope.keyboard_button:type_name -> teleport.desktop.v1.KeyboardButton
-	15, // 34: teleport.desktop.v1.Envelope.client_screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
-	16, // 35: teleport.desktop.v1.Envelope.alert:type_name -> teleport.desktop.v1.Alert
-	17, // 36: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
-	18, // 37: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
-	19, // 38: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
-	20, // 39: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
-	21, // 40: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
-	22, // 41: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
-	23, // 42: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
-	25, // 43: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
-	26, // 44: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
-	24, // 45: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	24, // 46: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	24, // 47: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
-	48, // [48:48] is the sub-list for method output_type
-	48, // [48:48] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	8,  // 27: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
+	9,  // 28: teleport.desktop.v1.Envelope.fast_path_pdu:type_name -> teleport.desktop.v1.FastPathPDU
+	10, // 29: teleport.desktop.v1.Envelope.rdp_response_pdu:type_name -> teleport.desktop.v1.RDPResponsePDU
+	12, // 30: teleport.desktop.v1.Envelope.sync_keys:type_name -> teleport.desktop.v1.SyncKeys
+	13, // 31: teleport.desktop.v1.Envelope.mouse_move:type_name -> teleport.desktop.v1.MouseMove
+	14, // 32: teleport.desktop.v1.Envelope.mouse_button:type_name -> teleport.desktop.v1.MouseButton
+	15, // 33: teleport.desktop.v1.Envelope.keyboard_button:type_name -> teleport.desktop.v1.KeyboardButton
+	16, // 34: teleport.desktop.v1.Envelope.client_screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
+	17, // 35: teleport.desktop.v1.Envelope.alert:type_name -> teleport.desktop.v1.Alert
+	18, // 36: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
+	19, // 37: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
+	20, // 38: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
+	21, // 39: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
+	22, // 40: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
+	23, // 41: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
+	24, // 42: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
+	26, // 43: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
+	27, // 44: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
+	6,  // 45: teleport.desktop.v1.Envelope.session_selection:type_name -> teleport.desktop.v1.SessionSelection
+	25, // 46: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	25, // 47: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	25, // 48: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
+	49, // [49:49] is the sub-list for method output_type
+	49, // [49:49] is the sub-list for method input_type
+	49, // [49:49] is the sub-list for extension type_name
+	49, // [49:49] is the sub-list for extension extendee
+	0,  // [0:49] is the sub-list for field type_name
 }
 
 func init() { file_teleport_desktop_v1_tdpb_proto_init() }
@@ -3263,7 +3338,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 	if File_teleport_desktop_v1_tdpb_proto != nil {
 		return
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[18].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[19].OneofWrappers = []any{
 		(*SharedDirectoryRequest_Info_)(nil),
 		(*SharedDirectoryRequest_Create_)(nil),
 		(*SharedDirectoryRequest_Delete_)(nil),
@@ -3273,7 +3348,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryRequest_Move_)(nil),
 		(*SharedDirectoryRequest_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[19].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[20].OneofWrappers = []any{
 		(*SharedDirectoryResponse_Info_)(nil),
 		(*SharedDirectoryResponse_Create_)(nil),
 		(*SharedDirectoryResponse_Delete_)(nil),
@@ -3283,7 +3358,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryResponse_Move_)(nil),
 		(*SharedDirectoryResponse_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[23].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[24].OneofWrappers = []any{
 		(*Envelope_ClientHello)(nil),
 		(*Envelope_ServerHello)(nil),
 		(*Envelope_PngFrame)(nil),
@@ -3304,6 +3379,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*Envelope_SharedDirectoryResponse)(nil),
 		(*Envelope_LatencyStats)(nil),
 		(*Envelope_Ping)(nil),
+		(*Envelope_SessionSelection)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3311,7 +3387,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_desktop_v1_tdpb_proto_rawDesc), len(file_teleport_desktop_v1_tdpb_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   40,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

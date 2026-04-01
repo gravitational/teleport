@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import { useParams } from 'react-router';
 
 import {
@@ -24,7 +24,7 @@ import {
   DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
+import {selectDirectoryInBrowser, TdpClient, useListener} from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -35,6 +35,7 @@ import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
 import { useUser } from 'teleport/User/UserContext';
+import {SessionSelection} from "shared/components/DesktopSession/DesktopSession";
 
 export function DesktopSession() {
   const ctx = useTeleport();
@@ -111,12 +112,31 @@ export function DesktopSession() {
     fetchAcl();
   }, [username, clusterId, fetchAcl]);
 
+  const sessions = useRef([]);
+  useListener(client.onAvailableSessions, (s)=>{
+    sessions.current = s;
+  });
+
+  const onConnect = useCallback((session: string) => {
+    client.sendSessionSelection(session);
+    sessions.current = [];
+  }, [client])
+
   return (
     <SharedDesktopSession
       client={client}
       username={username}
       desktop={desktopName}
       customConnectionState={({ retry }) => {
+        if (sessions.current.length > 0) {
+          return (
+            <SessionSelection
+              desktopName={desktopName}
+              sessions={sessions.current}
+              onConnect={onConnect}
+            />
+          )
+        }
         // Errors, except for dialog cancellations, are handled within the MFA dialog.
         if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
           return (

@@ -22,7 +22,7 @@ import {
   MFA,
   SharedDirectoryRequest,
   SharedDirectoryResponse,
-  ClientHello as tdpbClientHello,
+  ClientHello as tdpbClientHello, SessionSelection,
 } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 import { CredentialAssertion } from 'gen-proto-ts/teleport/legacy/types/webauthn/webauthn_pb';
 import {
@@ -359,6 +359,7 @@ export type LatencyStats = {
 export type ServerHello = {
   clipboardSupport: boolean;
   activationEvent: RdpConnectionActivated;
+  sessions: string[];
 };
 
 export type ClientHello = {
@@ -427,6 +428,7 @@ export interface Codec {
   encodeKeyboardInput(code: string, state: ButtonState): Message[];
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeSessionSelection(sessions: string): Message;
   encodeMfaJson(mfaJson: MfaResponse): Message;
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
@@ -625,9 +627,14 @@ export class TdpbCodec implements Codec {
 
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
+        const hello = envelope.payload.serverHello;
         return {
-          kind: 'rdpConnectionActivated',
-          data: envelope.payload.serverHello.activationSpec,
+          kind: 'serverHello',
+          data: {
+            sessions: hello.sessions,
+            clipboardSupport: hello.clipboardEnabled,
+            activationEvent: hello.activationSpec,
+          }
         };
       case 'pngFrame':
         const frame = envelope.payload.pngFrame;
@@ -796,6 +803,15 @@ export class TdpbCodec implements Codec {
       }),
     });
     return [hello];
+  }
+
+  encodeSessionSelection(session: string): Message {
+    return this.marshal({
+      oneofKind: 'sessionSelection',
+      sessionSelection: {
+        name: session
+      }
+    })
   }
 
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
@@ -1212,6 +1228,10 @@ export class TdpCodec implements Codec {
       x: view.getUint8(1),
       y: view.getUint8(2),
     };
+  }
+
+  encodeSessionSelection(sessions: string): Message {
+    throw new Error("Method not implemented.");
   }
 
   encodeInitialMessages(

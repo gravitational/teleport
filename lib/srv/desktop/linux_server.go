@@ -21,11 +21,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"iter"
 	"log/slog"
 	"maps"
 	"net"
 	"os/user"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -341,6 +341,16 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	width := uint16(8192)
 	height := uint16(8192)
 	resized := true
+
+	xsessions, err := x11.GetAvailableXSessions(nil, nil)
+	if err != nil {
+		log.ErrorContext(ctx, "failed to get available xsessions", "error", err)
+		sendTDPError("Couldn't get available xsessions.")
+		return
+	}
+
+	var username string
+
 	for {
 		msg, err := tdpConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
@@ -392,40 +402,8 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				}
 			}
 
-			xsessions, err := x11.GetAvailableXSessions(nil, nil)
-			if err != nil {
-				log.ErrorContext(ctx, "failed to get available xsessions", "error", err)
-				sendTDPError("Couldn't get available xsessions.")
-				return
-			}
-			next, _ := iter.Pull(maps.Values(xsessions))
-			xsession, valid := next()
-			if !valid {
-				log.ErrorContext(ctx, "failed to get any xsession", "error", err)
-				sendTDPError("Couldn't get any xsession.")
-				return
-			}
-			xsessionCmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
-				Logger:         log,
-				Command:        xsession,
-				Username:       authCtx.Identity.GetIdentity().Username,
-				Login:          m.Username,
-				ChildLogConfig: s.cfg.ChildLogConfig,
-				Display:        backend.Display,
-				AuthorityFile:  backend.AuthorityFile.Name(),
-			})
-			go func() {
-				err := xsessionCmd.Wait()
-				if err == nil {
-					sendTDPError("Xsession was terminated")
-				} else {
-					sendTDPError("Xsession was terminated with error")
-				}
-			}()
-			if err != nil {
-				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
-				sendTDPError("Couldn't start Xsession.")
-			}
+			username = m.Username
+
 			mu.Lock()
 			width = uint16(m.ScreenSpec.Width)
 			height = uint16(m.ScreenSpec.Height)
@@ -443,6 +421,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 					ScreenHeight:  m.ScreenSpec.Height,
 				},
 				ClipboardEnabled: true,
+				Sessions:         slices.Collect(maps.Keys(xsessions)),
 			}); err != nil {
 				log.WarnContext(ctx, "failed to send server hello", "error", err)
 				return
@@ -504,6 +483,34 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 					time.Sleep(40*time.Millisecond - delta)
 				}
 			}()
+		case *tdpb.SessionSelection:
+			xsession, ok := xsessions[m.Name]
+			if !ok {
+				log.WarnContext(ctx, "failed to get xsession", "error", err)
+				sendTDPError(fmt.Sprintf("Couldn't get xsession %s.", m.Name))
+				return
+			}
+			xsessionCmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
+				Logger:         log,
+				Command:        xsession,
+				Username:       authCtx.Identity.GetIdentity().Username,
+				Login:          username,
+				ChildLogConfig: s.cfg.ChildLogConfig,
+				Display:        backend.Display,
+				AuthorityFile:  backend.AuthorityFile.Name(),
+			})
+			go func() {
+				err := xsessionCmd.Wait()
+				if err == nil {
+					sendTDPError("Xsession was terminated")
+				} else {
+					sendTDPError("Xsession was terminated with error")
+				}
+			}()
+			if err != nil {
+				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
+				sendTDPError("Couldn't start Xsession.")
+			}
 		case *tdpb.MouseMove:
 			if err := backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
 				log.ErrorContext(ctx, "failed to send mouse move", "error", err)

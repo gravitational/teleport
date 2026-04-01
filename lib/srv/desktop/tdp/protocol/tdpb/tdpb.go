@@ -134,6 +134,16 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 	})
 }
 
+type SessionSelection tdpbv1.SessionSelection
+
+func (s *SessionSelection) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_SessionSelection{
+			SessionSelection: (*tdpbv1.SessionSelection)(s),
+		},
+	})
+}
+
 // MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
 
@@ -443,6 +453,9 @@ func messageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
 		return (*LatencyStats)(m.LatencyStats)
 	case *tdpbv1.Envelope_Ping:
 		return (*Ping)(m.Ping)
+	case *tdpbv1.Envelope_SessionSelection:
+		return (*SessionSelection)(m.SessionSelection)
+
 	default:
 		return nil
 	}

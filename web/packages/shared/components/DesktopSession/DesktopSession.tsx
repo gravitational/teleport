@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   Alert,
-  Box,
+  Box, Button,
   ButtonPrimary,
   Flex,
   H2,
@@ -57,6 +57,12 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
+import {List} from "teleport/Bots/List/Bots.story";
+import {FieldSelect} from "shared/components/FieldSelect";
+import {sessions} from "teleport/Sessions/fixtures";
+import session from "teleport/services/session";
+import {Session} from "node:inspector";
+import Validation from "shared/components/Validation";
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -460,6 +466,41 @@ function DisconnectedStateContainer(props: {
       {props.children}
     </Flex>
   );
+}
+
+export function SessionSelection(props: {
+  desktopName: string;
+  sessions: string[];
+  onConnect: (session: string) => void;
+}) {
+  const options = props.sessions.map((session) => ({value: session, label: session}));
+  const [session, setSession] = useState(options[0]);
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Text mb={3}>Select session to start:</Text>
+      <Validation>
+        <FieldSelect
+          value={session}
+          options={options}
+          menuPosition="fixed"
+          isMulti={false}
+          isClearable={false}
+          onChange={setSession}
+        />
+      </Validation>
+      <ButtonPrimary
+        type="submit"
+        width="45%"
+        size="large"
+        onClick={e => {
+          e.preventDefault();
+          props.onConnect(session.value);
+        }}
+      >
+        Connect
+      </ButtonPrimary>
+    </DisconnectedStateContainer>
+  )
 }
 
 export function DisconnectedState(props: {
