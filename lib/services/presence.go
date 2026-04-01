@@ -90,23 +90,6 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
-	// AppendPutNodeActions adds conditional actions to an atomic write to create
-	// or update a node resource.
-	AppendPutNodeActions(
-		actions []backend.ConditionalAction,
-		server types.Server,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteNodeActions adds conditional actions to an atomic write to
-	// delete a node resource.
-	AppendDeleteNodeActions(
-		actions []backend.ConditionalAction,
-		namespace string,
-		name string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
 	// GetAuthServers returns a list of registered servers
 	//
 	// Deprecated: Prefer paginated variant [ListAuthServers].
@@ -235,4 +218,21 @@ type PresenceInternal interface {
 	// same host ID and name exists in storage, no matter its contents (i.e., it
 	// doesn't check the revision of the app_server in storage).
 	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
+
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }

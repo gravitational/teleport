@@ -58,6 +58,19 @@ type Access interface {
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
 
+	LockGetter
+	// UpsertLock upserts a lock.
+	UpsertLock(context.Context, types.Lock) error
+	// DeleteLock deletes a lock.
+	DeleteLock(context.Context, string) error
+	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
+	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
+}
+
+// AccessInternal extends the Access interface with auth-specific internal methods.
+type AccessInternal interface {
+	Access
+
 	// AppendPutRoleActions adds conditional actions to an atomic write to create
 	// or update a role.
 	AppendPutRoleActions(
@@ -73,14 +86,6 @@ type Access interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
-
-	LockGetter
-	// UpsertLock upserts a lock.
-	UpsertLock(context.Context, types.Lock) error
-	// DeleteLock deletes a lock.
-	DeleteLock(context.Context, string) error
-	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
-	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)
