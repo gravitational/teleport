@@ -179,12 +179,13 @@ func (p *Process) start(ctx context.Context) error {
 		errMsg := new(strings.Builder)
 		const maxRead = 4096
 		if _, err := io.Copy(errMsg, io.LimitReader(stderrReader, maxRead)); err != nil {
-			slog.WarnContext(ctx, "Failed to read child process error after early exit", "child_error", err)
+			slog.DebugContext(ctx, "Failed to read child process error after early exit", "error", err)
 			p.exitErr = trace.Wrap(p.exitErr, "networking process exited before signaling ready")
 			return
 		}
 
 		p.childErr = errMsg.String()
+		slog.DebugContext(ctx, "Networking process exited with error", "error", p.childErr)
 	}()
 
 	return nil
