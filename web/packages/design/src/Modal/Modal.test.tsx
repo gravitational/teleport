@@ -207,6 +207,71 @@ describe('trapFocus', () => {
     }
   });
 
+  // In the following describe group, the focused element is removed during a re-render, leaving
+  // lastModalFocus as a stale detached reference. Explicit keys ensure React unmounts the Removable
+  // button rather than reconciling it with Stable.
+  describe('when lastModalFocus was removed from the DOM', () => {
+    test('blurs programmatic focus theft', () => {
+      const { rerender } = render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="removable">Removable</button>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      screen.getByRole('button', { name: 'Removable' }).focus();
+      rerender(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+    });
+
+    test('Tab focuses into the modal', () => {
+      const { rerender } = render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="removable">Removable</button>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      screen.getByRole('button', { name: 'Removable' }).focus();
+      rerender(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Stable' })).toHaveFocus();
+    });
+  });
+
   test('returns focus to the modal when an outside element steals it', () => {
     render(<ModalWithOutsideButton trapFocus />);
 
