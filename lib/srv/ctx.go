@@ -51,16 +51,16 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/session/envutils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 var ctxID int32
@@ -156,7 +156,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() *servicecfg.PAMConfig
+	GetPAM() *pamcfg.PAMConfig
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
