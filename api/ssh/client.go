@@ -36,6 +36,12 @@ const (
 	VersionPrefix = "SSH-2.0-Teleport"
 
 	// DefaultClientVersion is the default SSH client identification string used by Teleport SSH clients.
+	//
+	// The Teleport version included in the client version string is intended for informational/debugging purposes only
+	// and should NEVER be relied upon for inferring client capabilities or behavior. The presence of specific features
+	// should be determined by parsing the version string for the expected feature flags. The string is not guaranteed
+	// to be in any specific format, so it should not be parsed as a structured version string (e.g., semantic
+	// versioning). DO NOT USE the Teleport version for any logic other than display or logging.
 	DefaultClientVersion = VersionPrefix + "_" + api.Version
 
 	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
