@@ -60,6 +60,8 @@ const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
 
   if (matcher.regions.length > 0) {
     obj.regions = [...matcher.regions].sort();
+  } else {
+    obj.regions = ['*'];
   }
 
   const tags = buildTagMap(matcher.tags);
