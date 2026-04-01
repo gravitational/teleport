@@ -237,17 +237,7 @@ describe('trapFocus', () => {
   });
 
   test('wraps focus from last to first element on Tab', () => {
-    render(
-      <>
-        <button>Outside</button>
-        <Modal open={true} trapFocus>
-          <div>
-            <button>First</button>
-            <button>Last</button>
-          </div>
-        </Modal>
-      </>
-    );
+    render(<TwoButtonModalWithOutsideButton />);
 
     const lastButton = screen.getByRole('button', { name: 'Last' });
     lastButton.focus();
@@ -256,17 +246,7 @@ describe('trapFocus', () => {
   });
 
   test('wraps focus from first to last element on Shift+Tab', () => {
-    render(
-      <>
-        <button>Outside</button>
-        <Modal open={true} trapFocus>
-          <div>
-            <button>First</button>
-            <button>Last</button>
-          </div>
-        </Modal>
-      </>
-    );
+    render(<TwoButtonModalWithOutsideButton />);
 
     const firstButton = screen.getByRole('button', { name: 'First' });
     firstButton.focus();
@@ -279,17 +259,7 @@ describe('trapFocus', () => {
   // and lets handleFocusTrapFocusIn redirect focus into the modal).
   describe('when nothing inside the modal was focused yet', () => {
     test('Tab focuses the first element', () => {
-      render(
-        <>
-          <button>Outside</button>
-          <Modal open={true} trapFocus>
-            <div>
-              <button>First</button>
-              <button>Last</button>
-            </div>
-          </Modal>
-        </>
-      );
+      render(<TwoButtonModalWithOutsideButton />);
 
       fireEvent.keyDown(document, { key: 'Tab' });
       screen.getByRole('button', { name: 'Outside' }).focus();
@@ -297,17 +267,7 @@ describe('trapFocus', () => {
     });
 
     test('Shift+Tab focuses the last element', () => {
-      render(
-        <>
-          <button>Outside</button>
-          <Modal open={true} trapFocus>
-            <div>
-              <button>First</button>
-              <button>Last</button>
-            </div>
-          </Modal>
-        </>
-      );
+      render(<TwoButtonModalWithOutsideButton />);
 
       fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
       screen.getByRole('button', { name: 'Outside' }).focus();
@@ -315,17 +275,7 @@ describe('trapFocus', () => {
     });
 
     test('blurs the thief when focus is stolen programmatically', () => {
-      render(
-        <>
-          <button>Outside</button>
-          <Modal open={true} trapFocus>
-            <div>
-              <button>First</button>
-              <button>Second</button>
-            </div>
-          </Modal>
-        </>
-      );
+      render(<TwoButtonModalWithOutsideButton />);
 
       // No element has autoFocus, so lastModalFocus is not pre-populated. The thief should be
       // blurred rather than auto-focusing the first element inside the modal.
@@ -380,15 +330,28 @@ describe('trapFocus', () => {
   });
 });
 
-const ModalWithOutsideButton = (props: { trapFocus?: boolean }) => (
+const ModalWithOutsideButton = (
+  props: { trapFocus?: boolean } & Pick<ModalProps, 'keepInDOMAfterClose'> & {
+      children?: React.ReactNode;
+    }
+) => (
   <>
     <button>Outside</button>
-    <Modal open={true} trapFocus={props.trapFocus}>
-      <div>
-        <button>Inside</button>
-      </div>
+    <Modal
+      open
+      trapFocus={props.trapFocus}
+      keepInDOMAfterClose={props.keepInDOMAfterClose}
+    >
+      <div>{props.children ?? <button>Inside</button>}</div>
     </Modal>
   </>
+);
+
+const TwoButtonModalWithOutsideButton = () => (
+  <ModalWithOutsideButton trapFocus>
+    <button>First</button>
+    <button>Last</button>
+  </ModalWithOutsideButton>
 );
 
 const ToggleableModal = () => {
