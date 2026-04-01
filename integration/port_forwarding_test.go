@@ -78,7 +78,7 @@ func waitForSessionToBeEstablished(t *testing.T, clt authclient.ClientI, partici
 
 // startSessionAndWaitForTracker starts a session and waits for a session tracker to exist in the backend
 // Returns the tracker and a session error channel.
-func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *client.TeleportClient, cmd []string) (types.SessionTracker, <-chan error, error) {
+func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *client.TeleportClient, participants int, cmd []string) (types.SessionTracker, <-chan error, error) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -98,9 +98,9 @@ func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *c
 		select {
 		case err := <-errC:
 			if err != nil {
-				return nil, errC, trace.Wrap(err, "encountered session error while waiting for tracker creation")
+				return nil, nil, trace.Wrap(err, "encountered session error while waiting for tracker creation")
 			}
-			return nil, errC, trace.BadParameter("session exited before tracker creation")
+			return nil, nil, trace.BadParameter("session exited before tracker creation")
 		case <-ticker.C:
 			trackers, err := auth.GetActiveSessionTrackers(ctx)
 			if err != nil {
@@ -111,11 +111,15 @@ func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *c
 				lastTrackerErr = trace.BadParameter("no active sessions found")
 				continue
 			}
+			if len(trackers[0].GetParticipants()) != participants {
+				lastTrackerErr = trace.BadParameter("session tracker found with only %v/%v expected participants", len(trackers[0].GetParticipants()), participants)
+				continue
+			}
 			return trackers[0], errC, nil
 		case <-timeout.C:
-			return nil, errC, trace.Wrap(lastTrackerErr)
+			return nil, nil, trace.Wrap(lastTrackerErr)
 		case <-ctx.Done():
-			return nil, errC, trace.Wrap(ctx.Err(), "waiting for session tracker")
+			return nil, nil, trace.Wrap(ctx.Err(), "waiting for session tracker")
 		}
 	}
 }

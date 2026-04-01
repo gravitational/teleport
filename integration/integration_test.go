@@ -460,7 +460,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdin = myTerm
 
 			// wait until the session tracker exists.
-			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, nil)
+			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
 			require.NoError(t, err)
 
 			// make sure it's us who joined! :)
@@ -4953,7 +4953,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// create interactive session
-	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, nil)
+	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
 	require.NoError(t, err)
 
 	// make sure it's us who joined! :)
@@ -9446,12 +9446,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	})
 
 	handleConn := func(nConn net.Conn) {
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
+		defer nConn.Close()
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
 		if err != nil {
@@ -9463,12 +9458,8 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			assert.NoError(t, err)
 			return
 		}
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
-			}
-		})
+		defer conn.Close()
+
 		go ssh.DiscardRequests(reqs)
 
 		for {
@@ -9487,10 +9478,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			}
 			channel, reqs, err := channelReq.Accept()
 			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
+			defer channel.Close()
 
 			go func() {
 				var agentForwarded, shellRequested, execRequested, sftpRequested bool
@@ -9554,7 +9542,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			if !assert.NoError(t, err) {
 				return
 			}
-			handleConn(nConn)
+			go handleConn(nConn)
 		}
 	}()
 
