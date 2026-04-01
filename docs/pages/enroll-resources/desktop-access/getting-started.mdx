@@ -108,28 +108,18 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
 {/*lint ignore ordered-list-marker-value*/}
 5. Restart the computer.
 
+   Once restarted, you can verify the Teleport authentication package is loaded by running the following command in a Command Prompt and confirming that teleport appears in the output:
+
+   ```code
+   $ REG QUERY "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v "Authentication Packages"
+   ```
 
 If you want to automate the installation process, you can run the setup program from
 an administrative Command Prompt or PowerShell console with the following command:
 
 ```code
 $ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
-```
-
-<Checkpoint
-  title="Verify Windows is prepared"
-  description="Confirm that the Windows computer has restarted and the Teleport authentication package is loaded."
->
-
-Verify the Teleport authentication package is loaded by running the following command in a Command Prompt:
-
-  ```code
-  $ REG QUERY "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v "Authentication Packages"
-  ```
-
-The output should include `teleport` in the list of authentication packages. If it doesn't, either the Teleport Windows Auth Setup program didn't run successfully or the computer hasn't been restarted after installation.
-
-</Checkpoint>
+``` 
 
 ## Step 2/4. Configure the Windows Desktop Service
 
