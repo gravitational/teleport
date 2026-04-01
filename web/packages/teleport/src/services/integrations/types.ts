@@ -112,9 +112,19 @@ export type IntegrationGitHub = IntegrationTemplate<
   IntegrationSpecGitHub
 >;
 
+export type IntegrationSpecAzureOidc = {
+  tenantId: string;
+  clientId: string;
+  managedIdentity?: {
+    region: string;
+    resourceGroup: string;
+  };
+};
+
 export type IntegrationAzureOidc = IntegrationTemplate<
   'integration',
-  IntegrationKind.AzureOidc
+  IntegrationKind.AzureOidc,
+  IntegrationSpecAzureOidc
 >;
 
 /**
@@ -612,6 +622,8 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+  // azurevm contains the summary for the Azure VM resources for this integration.
+  azurevm: ResourceTypeSummary;
   // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
   rolesAnywhereProfileSync: RolesAnywhereProfileSync;
   isManagedByTerraform?: boolean;
@@ -778,6 +790,10 @@ export type IntegrationDiscoveryRule = {
   region: string;
   // labelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
   labelMatcher: Label[];
+  // subscriptions is the set of Azure subscriptions that are used to filter Azure resources
+  subscriptions?: string[];
+  // resourceGroups is the set of Azure resource groups that are used to filter Azure resources
+  resourceGroups?: string[];
   // discoveryConfig is the name of the DiscoveryConfig that created this rule.
   discoveryConfig: string;
   // lastSync contains the time when this rule was used.
@@ -991,6 +1007,10 @@ export const azureRegionMap = {
 };
 
 export type AzureRegion = keyof typeof azureRegionMap;
+
+export enum AzureResource {
+  vm = 'vm',
+}
 
 // RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the

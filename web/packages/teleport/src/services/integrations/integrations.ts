@@ -40,6 +40,7 @@ import {
   AwsOidcPingResponse,
   AwsRdsDatabase,
   AwsRolesAnywherePingResponse,
+  AzureResource,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -473,7 +474,7 @@ export const integrationService = {
 
   fetchIntegrationRules(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ): Promise<IntegrationDiscoveryRules> {
     return api
@@ -644,6 +645,7 @@ function makeIntegration(json: any): Integration {
     awsra,
     isManagedByTerraform,
     summary,
+    metadata,
   } = json;
 
   const commonFields = {
@@ -658,6 +660,7 @@ function makeIntegration(json: any): Integration {
     statusCode: IntegrationStatusCode.Running,
     isManagedByTerraform,
     summary,
+    labels: metadata?.labels,
   };
 
   if (subKind === IntegrationKind.AwsOidc) {
@@ -686,6 +689,23 @@ function makeIntegration(json: any): Integration {
           roleArn: awsra.profileSyncConfig.roleArn,
           filters: awsra.profileSyncConfig.filters,
         },
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.AzureOidc) {
+    const managedIdentity = json.managedIdentity;
+    return {
+      ...commonFields,
+      spec: {
+        tenantId: json.azureoidc?.tenantId,
+        clientId: json.azureoidc?.clientId,
+        managedIdentity: managedIdentity
+          ? {
+              region: managedIdentity.region,
+              resourceGroup: managedIdentity.resourceGroup,
+            }
+          : undefined,
       },
     };
   }
