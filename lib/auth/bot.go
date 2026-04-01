@@ -318,6 +318,7 @@ func (a *Server) updateBotInstance(
 	username, botName, botInstanceID string,
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
+	botScope string,
 ) error {
 	if botName == "" {
 		// Only applies to bot identities
@@ -420,7 +421,7 @@ func (a *Server) updateBotInstance(
 		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
 			BotName:    botName,
 			InstanceId: instanceID.String(),
-		}, authRecord, expires)
+		}, authRecord, expires, botScope)
 
 		if _, err := a.BotInstance.CreateBotInstance(ctx, bi); err != nil {
 			return trace.Wrap(err)
@@ -523,6 +524,7 @@ func newBotInstance(
 	spec *machineidv1pb.BotInstanceSpec,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	expires time.Time,
+	scope string,
 ) *machineidv1pb.BotInstance {
 	return &machineidv1pb.BotInstance{
 		Kind:    types.KindBotInstance,
@@ -530,7 +532,8 @@ func newBotInstance(
 		Metadata: &headerv1.Metadata{
 			Expires: timestamppb.New(expires),
 		},
-		Spec: spec,
+		Scope: scope,
+		Spec:  spec,
 		Status: &machineidv1pb.BotInstanceStatus{
 			InitialAuthentication: initialAuth,
 			LatestAuthentications: []*machineidv1pb.BotInstanceStatusAuthentication{initialAuth},
@@ -589,9 +592,9 @@ func (a *Server) generateInitialBotCerts(
 	// TODO:
 	// - We only want to allow scoped cert generation if ScopeJoinToken is used
 	// and the token scope follows the bot scoping rules - see RFD
-	scope, _ := userState.GetLabel(types.BotScopeLabel)
+	botScope, _ := userState.GetLabel(types.BotScopeLabel)
 	// AccessCheckerForScope works fine if scope is empty.
-	scopeAwareChecker, err := a.AccessCheckerForScope(ctx, scope, userState, []types.ResourceAccessID{})
+	scopeAwareChecker, err := a.AccessCheckerForScope(ctx, botScope, userState, []types.ResourceAccessID{})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -633,7 +636,7 @@ func (a *Server) generateInitialBotCerts(
 			BotName:            botName,
 			InstanceId:         uuid.String(),
 			PreviousInstanceId: previousInstanceID,
-		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+		}, initialAuth, expires.Add(machineidv1.ExpiryMargin), botScope)
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {
@@ -650,7 +653,7 @@ func (a *Server) generateInitialBotCerts(
 		// value sent by the client, so we can trust it.
 		if err := a.updateBotInstance(
 			ctx, &certReq, username, botName, existingInstanceID,
-			initialAuth, currentIdentityGeneration,
+			initialAuth, currentIdentityGeneration, botScope,
 		); err != nil {
 			return nil, "", trace.Wrap(err)
 		}

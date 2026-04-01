@@ -275,7 +275,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 				return checker.Common().CheckAccessToRules(
 					&ruleCtx,
 					types.KindBotInstance,
-					types.VerbRead,
+					types.VerbReadNoSecrets,
 					types.VerbList,
 				)
 			},
@@ -310,8 +310,9 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
-	botName := authCtx.Identity.GetIdentity().BotName
-	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
+	ident := authCtx.Identity.GetIdentity()
+	botName := ident.BotName
+	botInstanceID := ident.BotInstanceID
 	switch {
 	case botName == "":
 		return nil, trace.AccessDenied("identity did not contain bot name")
@@ -319,7 +320,15 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		return nil, trace.AccessDenied("identity did not contain bot instance ID")
 	}
 
-	// TODO: Propagate scope to underlying bot instance resource.
+	// For now, we just require that Scoped Bots have the BotInternal identity
+	// flag set - however - in the future, we could/should require this for all
+	// Bots once enough time has passed to be sure Bots will be operating with
+	// the appropriate flag set.
+	if ident.ScopePin != nil && ident.ScopePin.Scope != "" {
+		if !ident.BotInternal {
+			return nil, trace.AccessDenied("identity not marked BotInternal")
+		}
+	}
 
 	b.logger.DebugContext(
 		ctx,
