@@ -360,7 +360,7 @@ updates:
           # Exclude teleterm dev deps that are really just regular deps that we don't want
           # electron-builder to externalize (see https://github.com/gravitational/teleport/pull/65213).
           - '@protobuf-ts/grpc-transport'
-          - '@xterm/*',
+          - '@xterm/*'
           - events
           - 'react-dnd*'
       ui:
