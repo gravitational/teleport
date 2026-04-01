@@ -26,11 +26,11 @@ import {
 } from 'react';
 import styled from 'styled-components';
 
-import { ButtonSecondary } from 'design/Button/Button';
 import Flex from 'design/Flex';
-import { ChevronDown, ChevronRight, Copy } from 'design/Icon';
+import { ChevronDown, ChevronRight } from 'design/Icon';
 import { P2 } from 'design/Text';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
+
+import { CopyButton } from '../CopyButton/CopyButton';
 
 export interface MarkdownOptions {
   /**
@@ -364,20 +364,8 @@ function CodeBlock(props: { code: string }) {
       <StyledPre>
         <code>{code}</code>
       </StyledPre>
-      <CopyButton value={code} />
+      <StyledCopyButton value={code} />
     </CodeBlockContainer>
-  );
-}
-
-function CopyButton(props: { value: string }) {
-  const { value } = props;
-  return (
-    <CodeButton
-      title="Copy to clipboard"
-      onClick={() => copyToClipboard(value)}
-    >
-      <Copy size="medium" />
-    </CodeButton>
   );
 }
 
@@ -395,12 +383,11 @@ const StyledPre = styled.pre`
   margin: 0;
 `;
 
-const CodeButton = styled(ButtonSecondary)`
-  padding: ${({ theme }) => theme.space[2]}px;
-  background-color: transparent;
+const StyledCopyButton = styled(CopyButton)`
   position: absolute;
   right: 0;
   top: 0;
+  padding: ${({ theme }) => theme.space[2]}px;
 `;
 
 function Section(
