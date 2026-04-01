@@ -23,7 +23,7 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { render, screen, userEvent, within } from 'design/utils/testing';
 
-import { SortMenu } from './SortMenuV2';
+import { SortMenu } from './SortMenu';
 
 describe('SortMenu', () => {
   it('shows the selected item in the button', async () => {

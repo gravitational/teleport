@@ -32,7 +32,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
-import { SortOrder } from '../Controls/SortMenuV2';
+import { SortOrder } from '../Controls/SortMenu';
 
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
