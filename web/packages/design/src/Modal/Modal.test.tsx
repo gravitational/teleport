@@ -274,6 +274,69 @@ describe('trapFocus', () => {
     expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
   });
 
+  // In the following describe group, we simulate the browser Tab behavior manually: fire keyDown
+  // (which sets lastTabKeyDirection), then focus the outside element (which triggers focusin
+  // and lets handleFocusTrapFocusIn redirect focus into the modal).
+  describe('when nothing inside the modal was focused yet', () => {
+    test('Tab focuses the first element', () => {
+      render(
+        <>
+          <button>Outside</button>
+          <Modal open={true} trapFocus>
+            <div>
+              <button>First</button>
+              <button>Last</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+    });
+
+    test('Shift+Tab focuses the last element', () => {
+      render(
+        <>
+          <button>Outside</button>
+          <Modal open={true} trapFocus>
+            <div>
+              <button>First</button>
+              <button>Last</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+    });
+
+    test('blurs the thief when focus is stolen programmatically', () => {
+      render(
+        <>
+          <button>Outside</button>
+          <Modal open={true} trapFocus>
+            <div>
+              <button>First</button>
+              <button>Second</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      // No element has autoFocus, so lastModalFocus is not pre-populated. The thief should be
+      // blurred rather than auto-focusing the first element inside the modal.
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+      // JSDOM sets document.body as activeElement when blurring any other element.
+      expect(document.body).toHaveFocus();
+    });
+  });
+
   test('does not trap focus when trapFocus is not set', () => {
     render(<ModalWithOutsideButton />);
 

@@ -115,6 +115,7 @@ export default class Modal extends React.Component<ModalProps> {
   lastModalFocus: HTMLElement | undefined;
   modalEl: HTMLDivElement | null = null;
   mounted = false;
+  lastTabKeyDirection: 'forward' | 'backward' | null = null;
 
   componentDidMount() {
     this.mounted = true;
@@ -243,12 +244,26 @@ export default class Modal extends React.Component<ModalProps> {
     const target = event.target as HTMLElement;
 
     if (this.modalEl.contains(target)) {
-      // Focus moved within the modal — remember it.
       this.lastModalFocus = target;
+    } else if (this.lastModalFocus) {
+      // Focus escaped the modal — pull it back to the last focused element.
+      this.lastModalFocus.focus();
+    } else if (this.lastTabKeyDirection) {
+      // Tab/Shift+Tab moved focus outside the modal before anything inside was focused.
+      // Direct focus to the appropriate element inside the modal.
+      const focusable =
+        this.modalEl.querySelectorAll<HTMLElement>(focusableSelector);
+      const el =
+        this.lastTabKeyDirection === 'forward'
+          ? focusable[0]
+          : focusable[focusable.length - 1];
+      el?.focus();
     } else {
-      // Focus escaped the modal — pull it back.
-      this.lastModalFocus?.focus();
+      // Programmatic focus theft (Tab was not pressed) with nothing focused inside yet — just blur
+      // the thief.
+      target.blur();
     }
+    this.lastTabKeyDirection = null;
   };
 
   handleFocusTrapTab = (event: KeyboardEvent) => {
@@ -256,11 +271,12 @@ export default class Modal extends React.Component<ModalProps> {
       return;
     }
 
-    // Select focusable elements that are visible and not disabled.
+    // Record the Tab direction so that handleFocusTrapFocusIn can tell a Tab keypress apart from
+    // programmatic focus theft.
+    this.lastTabKeyDirection = event.shiftKey ? 'backward' : 'forward';
+
     const focusable = [
-      ...this.modalEl.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      ),
+      ...this.modalEl.querySelectorAll<HTMLElement>(focusableSelector),
     ].filter(
       el =>
         el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden'
@@ -340,6 +356,10 @@ export default class Modal extends React.Component<ModalProps> {
     );
   }
 }
+
+/** Focusable elements that are visible and not disabled. */
+const focusableSelector =
+  'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export type BackdropProps = {
   /**
