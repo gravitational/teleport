@@ -253,7 +253,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	case os.IsNotExist(statErr) || config.replaceCerts:
 		slog.Info("generating self-signed TLS certificates", "dir", config.certsDir)
 
-		if err := generateSelfSignedCert(config.certsDir, fixtures.SSHNode.Enabled); err != nil {
+		if err := generateSelfSignedCert(config.certsDir); err != nil {
 			return fmt.Errorf("failed to generate TLS certificates: %w", err)
 		}
 	}
