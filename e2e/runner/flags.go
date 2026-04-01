@@ -141,7 +141,8 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		f.tracePath = args[0]
 	}
 
-	if mode != modeReport && mode != modeTestResults {
+	isTestRun := mode == modeTest || mode == modeUI || mode == modeDebug || mode == modeCodegen
+	if isTestRun {
 		e2eDir := filepath.Join(repoRoot, "e2e")
 
 		f.testFiles, err = normalizeTestFiles(e2eDir, flag.Args())
@@ -149,18 +150,16 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 			return nil, 0, err
 		}
 
-		if mode == modeTest || mode == modeUI || mode == modeDebug {
-			detected := scanFixtures(e2eDir, f.testFiles)
-			if len(detected) == 0 {
-				slog.Debug("fixture scan found no fixture declarations")
-			} else {
-				names := make([]string, len(detected))
-				for i, fix := range detected {
-					fix.Enabled = true
-					names[i] = fix.Name
-				}
-				slog.Info("enabled fixtures", "fixtures", names)
+		detected := scanFixtures(e2eDir, f.testFiles)
+		if len(detected) == 0 {
+			slog.Debug("fixture scan found no fixture declarations")
+		} else {
+			names := make([]string, len(detected))
+			for i, fix := range detected {
+				fix.Enabled = true
+				names[i] = fix.Name
 			}
+			slog.Info("enabled fixtures", "fixtures", names)
 		}
 	}
 
