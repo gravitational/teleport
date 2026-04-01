@@ -98,6 +98,21 @@ func TestScanFile(t *testing.T) {
 test.use({ fixtures: ['connect'] });`,
 			wantNames: []string{"connect"},
 		},
+		{
+			name:      "trailing inline comment is stripped",
+			content:   `someCode; // test.use({ fixtures: ['connect'] })`,
+			wantNames: nil,
+		},
+		{
+			name:      "inline comment after real fixture is stripped",
+			content:   `test.use({ fixtures: ['ssh-node'] }); // test.use({ fixtures: ['connect'] })`,
+			wantNames: []string{"ssh-node"},
+		},
+		{
+			name:      "braces inside string literals do not corrupt blocks",
+			content:   "const s = \"{ not a block }\";\ntest.use({ fixtures: ['ssh-node'] });",
+			wantNames: []string{"ssh-node"},
+		},
 	}
 
 	for _, tt := range tests {

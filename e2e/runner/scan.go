@@ -260,28 +260,25 @@ func stripComments(lines []string) []string {
 		if inBlock {
 			if idx := strings.Index(line, "*/"); idx >= 0 {
 				inBlock = false
-				cleaned[i] = line[idx+2:]
+				line = line[idx+2:]
+			} else {
+				continue
 			}
-
-			continue
-		}
-
-		if strings.HasPrefix(strings.TrimSpace(line), "//") {
-			continue
 		}
 
 		if idx := strings.Index(line, "/*"); idx >= 0 {
 			if endIdx := strings.Index(line[idx+2:], "*/"); endIdx >= 0 {
 				// Single-line block comment.
-				cleaned[i] = line[:idx] + line[idx+2+endIdx+2:]
-
-				continue
+				line = line[:idx] + line[idx+2+endIdx+2:]
+			} else {
+				inBlock = true
+				line = line[:idx]
 			}
+		}
 
-			inBlock = true
-			cleaned[i] = line[:idx]
-
-			continue
+		// Strip trailing // comment that is outside string literals.
+		if idx := findInlineComment(line); idx >= 0 {
+			line = line[:idx]
 		}
 
 		cleaned[i] = line
@@ -290,17 +287,75 @@ func stripComments(lines []string) []string {
 	return cleaned
 }
 
+// findInlineComment returns the byte offset of the first // that is not inside a single-quoted, double-quoted, or
+// backtick string literal, or -1.
+func findInlineComment(line string) int {
+	var quote byte
+
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+			} else if ch == quote {
+				quote = 0
+			}
+
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '/':
+			if i+1 < len(line) && line[i+1] == '/' {
+				return i
+			}
+		}
+	}
+
+	return -1
+}
+
 func parseBlocks(lines []string) []blockRange {
 	var blocks []blockRange
 	var stack []int
+	inTemplateLiteral := false
 
 	for i, line := range lines {
 		lineNum := i + 1
-		for _, ch := range line {
+		var quote byte
+
+		for j := 0; j < len(line); j++ {
+			ch := line[j]
+
+			if inTemplateLiteral && quote == 0 {
+				quote = '`'
+			}
+
+			if quote != 0 {
+				if ch == '\\' {
+					j++
+				} else if ch == quote {
+					if quote == '`' {
+						inTemplateLiteral = false
+					}
+
+					quote = 0
+				}
+
+				continue
+			}
+
 			switch ch {
+			case '\'', '"':
+				quote = ch
+			case '`':
+				quote = '`'
+				inTemplateLiteral = true
 			case '{':
 				stack = append(stack, lineNum)
-
 			case '}':
 				if len(stack) > 0 {
 					start := stack[len(stack)-1]
@@ -308,6 +363,10 @@ func parseBlocks(lines []string) []blockRange {
 					blocks = append(blocks, blockRange{start: start, end: lineNum})
 				}
 			}
+		}
+
+		if quote != 0 && quote != '`' {
+			quote = 0
 		}
 	}
 
