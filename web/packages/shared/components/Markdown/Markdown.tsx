@@ -417,6 +417,12 @@ function Section(
         role="button"
         aria-expanded={expanded}
         aria-controls={accessibilityId}
+        tabIndex={0}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setExpanded(prev => !prev);
+          }
+        }}
       >
         {expanded ? (
           <ChevronDown size="medium" />
