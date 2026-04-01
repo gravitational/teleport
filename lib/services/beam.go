@@ -27,9 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 var beamAliasRegexp = regexp.MustCompile(`^[a-z]+-[a-z]+$`)
@@ -46,79 +45,25 @@ type BeamReader interface {
 	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
 }
 
-// BeamWriter defines methods for writing beam resources. They atomically operate
-// on multiple records (i.e. the beam and its supported resources) so diverge from
-// the usual simple CRUD methods.
+// BeamWriter defines methods for writing beam resources. We always write beams
+// using Backend.AtomicWrite (with their supporting resources) so this interface
+// doesn't contain the usual CRUD methods.
 type BeamWriter interface {
-	// CreateBeam atomically writes the beam and its supporting resources to the
-	// backend. If the beam's alias is already in-use, or any other resource name
-	// conflicts, an AlreadyExists error will be returned, and the caller should
-	// generate a new alias and resource names and try again.
-	//
-	// This function should be called before the actual VM is provisioned so that
-	// if a subsequent operation fails, we maintain a record of it, and can clean
-	// the VM up later.
-	CreateBeam(ctx context.Context, p CreateBeamParams) (*beamsv1.Beam, error)
+	// AppendPutBeamActions adds conditional actions to an atomic write to create
+	// or update a Beam resource.
+	AppendPutBeamActions(
+		actions []backend.ConditionalAction,
+		beam *beamsv1.Beam,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 
-	// UpdateBeamCreateNode atomically writes the beam and node to the backend.
-	// It is used to "finalize" the creation of the beam.
-	UpdateBeamCreateNode(ctx context.Context, beam *beamsv1.Beam, node types.Server) (*beamsv1.Beam, error)
-
-	// UpdateBeamCreateApp atomically writes the beam and app to the backend. It
-	// is used to "publish" the beam.
-	UpdateBeamCreateApp(ctx context.Context, beam *beamsv1.Beam, app types.Application) (*beamsv1.Beam, error)
-
-	// UpdateBeamDeleteApp atomically writes the beam and deletes its app from
-	// the backend. It is used to "unpublish" the beam.
-	UpdateBeamDeleteApp(ctx context.Context, beam *beamsv1.Beam, appName string) (*beamsv1.Beam, error)
-
-	// DeleteBeam atomically deletes the beam and its supporting resources from
-	// the backend. It should not be called until the VM has been cleaned up.
-	DeleteBeam(ctx context.Context, name string) error
-}
-
-// CreateBeamParams contains the parameters to CreateBeam, including the
-// resources that must exist before the VM is provisioned.
-type CreateBeamParams struct {
-	Beam              *beamsv1.Beam
-	Token             types.ProvisionToken
-	BotUser           types.User
-	BotRole           types.Role
-	WorkloadIdentity  *workloadidentityv1.WorkloadIdentity
-	DelegationSession *delegationv1.DelegationSession
-}
-
-func (p *CreateBeamParams) Validate() error {
-	if err := ValidateBeam(p.Beam); err != nil {
-		return trace.Wrap(err, "validating beam")
-	}
-
-	if p.Token == nil {
-		return trace.BadParameter("token is required")
-	}
-
-	if p.BotUser == nil {
-		return trace.BadParameter("bot user is required")
-	}
-	if err := ValidateUser(p.BotUser); err != nil {
-		return trace.Wrap(err, "validating user")
-	}
-
-	if p.BotRole == nil {
-		return trace.BadParameter("bot role is required")
-	}
-	if err := ValidateRole(p.BotRole); err != nil {
-		return trace.Wrap(err, "validating bot role")
-	}
-
-	if err := ValidateWorkloadIdentity(p.WorkloadIdentity); err != nil {
-		return trace.Wrap(err, "validating workload identity")
-	}
-
-	if err := ValidateDelegationSession(p.DelegationSession); err != nil {
-		return trace.Wrap(err, "validating delegation session")
-	}
-	return nil
+	// AppendDeleteBeamActions adds conditional actions to an atomic write to
+	// delete a Beam resource.
+	AppendDeleteBeamActions(
+		actions []backend.ConditionalAction,
+		beam *beamsv1.Beam,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // Beams defines methods for managing beam resources.

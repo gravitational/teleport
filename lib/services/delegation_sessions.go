@@ -23,6 +23,7 @@ import (
 
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // DelegationSessions is an interface over the DelegationSessions service. This
@@ -37,6 +38,22 @@ type DelegationSessions interface {
 
 	// DeleteDelegationSession deletes a delegation session using its ID.
 	DeleteDelegationSession(ctx context.Context, id string) error
+
+	// AppendPutDelegationSessionActions adds conditional actions to an atomic
+	// write to create or update a DelegationSession.
+	AppendPutDelegationSessionActions(
+		actions []backend.ConditionalAction,
+		session *delegationv1.DelegationSession,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteDelegationSessionActions adds conditional actions to an atomic
+	// write to delete a DelegationSession.
+	AppendDeleteDelegationSessionActions(
+		actions []backend.ConditionalAction,
+		id string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // ValidateDelegationSession validates a DelegationSession object.
