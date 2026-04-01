@@ -6,6 +6,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # If any argument points to an enterprise e2e test, delegate to e/e2e/run.sh.
 for arg in "$@"; do
   case "$arg" in
+    -*|/*) continue ;;
     e/e2e/* | */e/e2e/* | e/e2e | */e/e2e)
       exec "$REPO_ROOT/e/e2e/run.sh" "$@"
       ;;
