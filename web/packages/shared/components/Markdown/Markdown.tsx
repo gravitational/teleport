@@ -266,7 +266,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
 
       const nextLine = lines.at(i);
       if (nextLine === undefined) {
-        break;
+        continue;
       }
 
       if (nextLine.trim().startsWith('<summary>')) {
@@ -296,7 +296,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
 
       items.push(
         <Section
-          key={`section-${i}`}
+          key={`section-${startI}`}
           title={summary || 'Expand'}
           expanded={expanded}
         >
