@@ -1448,8 +1448,8 @@ func TestAccessRequestWatcherRace(t *testing.T) {
 	dynamicAccessService := local.NewDynamicAccessService(bk)
 
 	for range 10 {
-		accessRequest1 := newAccessRequest(t, uuid.NewString())
-		accessRequest1, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest1)
+		accessRequest := newAccessRequest(t, uuid.NewString())
+		_, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest)
 		require.NoError(t, err)
 	}
 
