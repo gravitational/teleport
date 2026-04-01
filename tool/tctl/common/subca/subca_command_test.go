@@ -60,12 +60,12 @@ OCILEpSS/B19NPlXOYipYx7lPCoRHCsDQk/RuQ0doilw+Gx1f/lMMH3Z/g==
 	const want = "0fa1e6306b74b68aca58636482dc3cb5ff64ba17dbff6d808cf901169745e6be\n"
 
 	tests := []struct {
-		name         string
-		prepareFlags func(t *testing.T, stdin *bytes.Buffer) []string
+		name           string
+		prepareCommand func(t *testing.T, stdin *bytes.Buffer) []string
 	}{
 		{
 			name: "--cert=file",
-			prepareFlags: func(t *testing.T, stdin *bytes.Buffer) []string {
+			prepareCommand: func(t *testing.T, stdin *bytes.Buffer) []string {
 				tmp := t.TempDir()
 				name := tmp + "/cert.pem"
 				require.NoError(t,
@@ -78,7 +78,7 @@ OCILEpSS/B19NPlXOYipYx7lPCoRHCsDQk/RuQ0doilw+Gx1f/lMMH3Z/g==
 		},
 		{
 			name: "--cert='-' (stdin)",
-			prepareFlags: func(t *testing.T, stdin *bytes.Buffer) []string {
+			prepareCommand: func(t *testing.T, stdin *bytes.Buffer) []string {
 				stdin.WriteString(certPEM)
 				// "tctl auth pub-key-hash --cert='-'"
 				return []string{"auth", "pub-key-hash", "--cert=-"}
@@ -92,7 +92,7 @@ OCILEpSS/B19NPlXOYipYx7lPCoRHCsDQk/RuQ0doilw+Gx1f/lMMH3Z/g==
 			env := newCommand(t)
 
 			// Prepare/parse flags.
-			flags := test.prepareFlags(t, env.Stdin)
+			flags := test.prepareCommand(t, env.Stdin)
 			selectedCommand, err := env.App.Parse(flags)
 			require.NoError(t, err, "app.Parse()")
 
