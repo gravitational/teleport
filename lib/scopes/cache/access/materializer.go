@@ -771,6 +771,12 @@ func (m *materializer) materializeAssignment(
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: userName,
 		},
+		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
+			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: list.GetName(),
+			},
+		},
 	}
 
 	if relation.isMember {

@@ -42,9 +42,12 @@ message ScopedRoleAssignment {
 
   // Spec is the role assignment specification.
   ScopedRoleAssignmentSpec spec = 6;
+
+  // Status is the status of the role assignment.
+  ScopedRoleAssignmentStatus status = 7;
 }
 
-// ScopedRoleAssignmentSpec is the specification of a scoped role.
+// ScopedRoleAssignmentSpec is the specification of a scoped role assignment.
 message ScopedRoleAssignmentSpec {
   // User is the user to whom all contained assignments apply.
   string user = 1;
@@ -61,4 +64,19 @@ message Assignment {
   // Scope is the scope to which the role is assigned. This must be a member/child
   // of the scope of the [ScopedRoleAssignment] in which this assignment is contained.
   string scope = 2;
+}
+
+// ScopedRoleAssignmentStatus is the status of a scoped role assignment.
+message ScopedRoleAssignmentStatus {
+  // Origin describes the origin of a scoped role assignment.
+  message Origin {
+    // CreatorKind is the kind of the scoped role assignment creator.
+    string creator_kind = 1;
+
+    // CreatorName is the name of the scoped role assignment creator.
+    string creator_name = 2;
+  }
+
+  // Origin describes the origin of the scoped role assignment.
+  Origin origin = 1;
 }

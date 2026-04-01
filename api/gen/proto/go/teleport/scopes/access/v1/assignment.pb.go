@@ -53,7 +53,9 @@ type ScopedRoleAssignment struct {
 	// Scope is the scope of the role assignment resource.
 	Scope string `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
 	// Spec is the role assignment specification.
-	Spec          *ScopedRoleAssignmentSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *ScopedRoleAssignmentSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	// Status is the status of the role assignment.
+	Status        *ScopedRoleAssignmentStatus `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -130,7 +132,14 @@ func (x *ScopedRoleAssignment) GetSpec() *ScopedRoleAssignmentSpec {
 	return nil
 }
 
-// ScopedRoleAssignmentSpec is the specification of a scoped role.
+func (x *ScopedRoleAssignment) GetStatus() *ScopedRoleAssignmentStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+// ScopedRoleAssignmentSpec is the specification of a scoped role assignment.
 type ScopedRoleAssignmentSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User is the user to whom all contained assignments apply.
@@ -241,25 +250,132 @@ func (x *Assignment) GetScope() string {
 	return ""
 }
 
+// ScopedRoleAssignmentStatus is the status of a scoped role assignment.
+type ScopedRoleAssignmentStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Origin describes the origin of the scoped role assignment.
+	Origin        *ScopedRoleAssignmentStatus_Origin `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopedRoleAssignmentStatus) Reset() {
+	*x = ScopedRoleAssignmentStatus{}
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleAssignmentStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleAssignmentStatus) ProtoMessage() {}
+
+func (x *ScopedRoleAssignmentStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedRoleAssignmentStatus.ProtoReflect.Descriptor instead.
+func (*ScopedRoleAssignmentStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_assignment_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ScopedRoleAssignmentStatus) GetOrigin() *ScopedRoleAssignmentStatus_Origin {
+	if x != nil {
+		return x.Origin
+	}
+	return nil
+}
+
+// Origin describes the origin of a scoped role assignment.
+type ScopedRoleAssignmentStatus_Origin struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// CreatorKind is the kind of the scoped role assignment creator.
+	CreatorKind string `protobuf:"bytes,1,opt,name=creator_kind,json=creatorKind,proto3" json:"creator_kind,omitempty"`
+	// CreatorName is the name of the scoped role assignment creator.
+	CreatorName   string `protobuf:"bytes,2,opt,name=creator_name,json=creatorName,proto3" json:"creator_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopedRoleAssignmentStatus_Origin) Reset() {
+	*x = ScopedRoleAssignmentStatus_Origin{}
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleAssignmentStatus_Origin) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleAssignmentStatus_Origin) ProtoMessage() {}
+
+func (x *ScopedRoleAssignmentStatus_Origin) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_assignment_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedRoleAssignmentStatus_Origin.ProtoReflect.Descriptor instead.
+func (*ScopedRoleAssignmentStatus_Origin) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_assignment_proto_rawDescGZIP(), []int{3, 0}
+}
+
+func (x *ScopedRoleAssignmentStatus_Origin) GetCreatorKind() string {
+	if x != nil {
+		return x.CreatorKind
+	}
+	return ""
+}
+
+func (x *ScopedRoleAssignmentStatus_Origin) GetCreatorName() string {
+	if x != nil {
+		return x.CreatorName
+	}
+	return ""
+}
+
 var File_teleport_scopes_access_v1_assignment_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\n" +
-	"*teleport/scopes/access/v1/assignment.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\"\xf8\x01\n" +
+	"*teleport/scopes/access/v1/assignment.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\"\xc7\x02\n" +
 	"\x14ScopedRoleAssignment\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12G\n" +
-	"\x04spec\x18\x06 \x01(\v23.teleport.scopes.access.v1.ScopedRoleAssignmentSpecR\x04spec\"w\n" +
+	"\x04spec\x18\x06 \x01(\v23.teleport.scopes.access.v1.ScopedRoleAssignmentSpecR\x04spec\x12M\n" +
+	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"w\n" +
 	"\x18ScopedRoleAssignmentSpec\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12G\n" +
 	"\vassignments\x18\x02 \x03(\v2%.teleport.scopes.access.v1.AssignmentR\vassignments\"6\n" +
 	"\n" +
 	"Assignment\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +
-	"\x05scope\x18\x02 \x01(\tR\x05scopeBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"\xc2\x01\n" +
+	"\x1aScopedRoleAssignmentStatus\x12T\n" +
+	"\x06origin\x18\x01 \x01(\v2<.teleport.scopes.access.v1.ScopedRoleAssignmentStatus.OriginR\x06origin\x1aN\n" +
+	"\x06Origin\x12!\n" +
+	"\fcreator_kind\x18\x01 \x01(\tR\vcreatorKind\x12!\n" +
+	"\fcreator_name\x18\x02 \x01(\tR\vcreatorNameBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_assignment_proto_rawDescOnce sync.Once
@@ -273,22 +389,26 @@ func file_teleport_scopes_access_v1_assignment_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_assignment_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_scopes_access_v1_assignment_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_scopes_access_v1_assignment_proto_goTypes = []any{
-	(*ScopedRoleAssignment)(nil),     // 0: teleport.scopes.access.v1.ScopedRoleAssignment
-	(*ScopedRoleAssignmentSpec)(nil), // 1: teleport.scopes.access.v1.ScopedRoleAssignmentSpec
-	(*Assignment)(nil),               // 2: teleport.scopes.access.v1.Assignment
-	(*v1.Metadata)(nil),              // 3: teleport.header.v1.Metadata
+	(*ScopedRoleAssignment)(nil),              // 0: teleport.scopes.access.v1.ScopedRoleAssignment
+	(*ScopedRoleAssignmentSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleAssignmentSpec
+	(*Assignment)(nil),                        // 2: teleport.scopes.access.v1.Assignment
+	(*ScopedRoleAssignmentStatus)(nil),        // 3: teleport.scopes.access.v1.ScopedRoleAssignmentStatus
+	(*ScopedRoleAssignmentStatus_Origin)(nil), // 4: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
+	(*v1.Metadata)(nil),                       // 5: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_access_v1_assignment_proto_depIdxs = []int32{
-	3, // 0: teleport.scopes.access.v1.ScopedRoleAssignment.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.scopes.access.v1.ScopedRoleAssignment.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRoleAssignment.spec:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentSpec
-	2, // 2: teleport.scopes.access.v1.ScopedRoleAssignmentSpec.assignments:type_name -> teleport.scopes.access.v1.Assignment
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 2: teleport.scopes.access.v1.ScopedRoleAssignment.status:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentStatus
+	2, // 3: teleport.scopes.access.v1.ScopedRoleAssignmentSpec.assignments:type_name -> teleport.scopes.access.v1.Assignment
+	4, // 4: teleport.scopes.access.v1.ScopedRoleAssignmentStatus.origin:type_name -> teleport.scopes.access.v1.ScopedRoleAssignmentStatus.Origin
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_assignment_proto_init() }
@@ -302,7 +422,7 @@ func file_teleport_scopes_access_v1_assignment_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_assignment_proto_rawDesc), len(file_teleport_scopes_access_v1_assignment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -301,7 +301,7 @@ spec:
     scope: /ops
 status:
   origin:
-    creator: access_list
+    creator_kind: access_list
     creator_name: west-admins
 version: v1
 ---
@@ -319,7 +319,7 @@ spec:
     scope: /ops
 status:
   origin:
-    creator: access_list
+    creator_kind: access_list
     creator_name: west-admins
 version: v1
 ```
