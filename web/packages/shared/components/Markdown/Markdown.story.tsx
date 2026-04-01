@@ -145,7 +145,7 @@ This creates a line break without a paragraph break.
 
 Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] \\( \\) \\# \\+ \\- \\. \\!
 
-## Collapsable Sections
+## Collapsible Sections
 
 <details>
   <summary>What's in here?</summary>
