@@ -227,6 +227,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       wasmReady = this.initWasm();
     }
     await wasmReady;
+    this.directoryManager.reset();
 
     try {
       this.transport = await this.getTransport(

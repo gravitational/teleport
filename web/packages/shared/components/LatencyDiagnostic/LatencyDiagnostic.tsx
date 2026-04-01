@@ -102,7 +102,11 @@ export function LatencyDiagnostic({
     <MenuIcon
       Icon={(props) => <Icons.Wifi {...props} size="large" />}      
       tooltip="Network Connection"
-      buttonIconProps={{ color: colors.total }}
+      buttonIconProps={{
+        color: colors.total,
+        // square highlight instead of default circle
+        css: 'border-radius: 0',
+      }}
     >
       <Container>
         <Flex gap={5} flexDirection="column">
