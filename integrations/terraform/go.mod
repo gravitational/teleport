@@ -20,6 +20,8 @@ require (
 	google.golang.org/protobuf v1.36.10
 )
 
+require github.com/beevik/etree v1.6.0
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.121.6 // indirect
@@ -141,7 +143,6 @@ require (
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/beevik/etree v1.6.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
