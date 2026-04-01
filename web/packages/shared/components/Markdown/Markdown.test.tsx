@@ -763,60 +763,59 @@ details <script>alert('xss')</script>
       ).toBeInTheDocument();
     });
   });
-});
 
-describe('collapsible sections', () => {
-  it('renders a closed section', async () => {
-    const text = `
+  describe('collapsible sections', () => {
+    it('renders a closed section', async () => {
+      const text = `
 <details>
   <summary>title goes here</summary>
   content goes here
 </details>
 more content here`;
 
-    const user = userEvent.setup();
-    renderMarkdown(text);
+      const user = userEvent.setup();
+      renderMarkdown(text);
 
-    expect(screen.getByText('title goes here')).toBeInTheDocument();
-    expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
-    expect(screen.getByText('more content here')).toBeInTheDocument();
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'title goes here' }));
-    expect(screen.getByText('content goes here')).toBeInTheDocument();
-  });
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.getByText('content goes here')).toBeInTheDocument();
+    });
 
-  it('renders an open section', async () => {
-    const text = `
+    it('renders an open section', async () => {
+      const text = `
 <details open>
   <summary>title goes here</summary>
   content goes here
 </details>
 more content here`;
 
-    const user = userEvent.setup();
-    renderMarkdown(text);
+      const user = userEvent.setup();
+      renderMarkdown(text);
 
-    expect(screen.getByText('title goes here')).toBeInTheDocument();
-    expect(screen.getByText('content goes here')).toBeInTheDocument();
-    expect(screen.getByText('more content here')).toBeInTheDocument();
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.getByText('content goes here')).toBeInTheDocument();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'title goes here' }));
-    expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
-  });
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+    });
 
-  it('renders an empty section', async () => {
-    const text = `
+    it('renders an empty section', async () => {
+      const text = `
 <details open>
-    <summary>title goes here</summary>
-  </details>`;
+  <summary>title goes here</summary>
+</details>`;
 
-    renderMarkdown(text);
+      renderMarkdown(text);
 
-    expect(screen.getByText('title goes here')).toBeInTheDocument();
-  });
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+    });
 
-  it('renders stacked sections', async () => {
-    const text = `
+    it('renders stacked sections', async () => {
+      const text = `
 <details open>
   <summary>section 1</summary>
   section content 1
@@ -826,29 +825,32 @@ more content here`;
   section content 2
 </details>`;
 
-    renderMarkdown(text);
+      renderMarkdown(text);
 
-    expect(screen.getByText('section 1')).toBeInTheDocument();
-    expect(screen.getByText('section 2')).toBeInTheDocument();
-    expect(screen.getByText('section content 1')).toBeInTheDocument();
-    expect(screen.getByText('section content 2')).toBeInTheDocument();
-  });
+      expect(screen.getByText('section 1')).toBeInTheDocument();
+      expect(screen.getByText('section 2')).toBeInTheDocument();
+      expect(screen.getByText('section content 1')).toBeInTheDocument();
+      expect(screen.getByText('section content 2')).toBeInTheDocument();
+    });
 
-  it('renders a malformed/incomplete closed section', () => {
-    const text = `<details>
-some other content`;
+    it('renders a malformed/incomplete closed section', () => {
+      const text = `
+<details>
+  some other content`;
 
-    renderMarkdown(text);
+      renderMarkdown(text);
 
-    expect(screen.queryByText('some other content')).not.toBeInTheDocument();
-  });
+      expect(screen.queryByText('some other content')).not.toBeInTheDocument();
+    });
 
-  it('renders a malformed/incomplete open section', () => {
-    const text = `<details open>
-some other content`;
+    it('renders a malformed/incomplete open section', () => {
+      const text = `
+<details open>
+  some other content`;
 
-    renderMarkdown(text);
+      renderMarkdown(text);
 
-    expect(screen.getByText('some other content')).toBeInTheDocument();
+      expect(screen.getByText('some other content')).toBeInTheDocument();
+    });
   });
 });
