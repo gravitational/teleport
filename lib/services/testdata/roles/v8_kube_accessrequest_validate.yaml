@@ -21,7 +21,7 @@ spec:
 kind: role
 version: v8
 metadata:
-  name: v8-kube-no-access
+  name: v8-empty-access
 spec:
   allow: {}
   deny: {}
@@ -217,7 +217,7 @@ spec:
     request:
       search_as_roles:
       - v8-kube-db-access-wildcard
-      - v8-kube-no-access
+      - v8-empty-access
       kubernetes_resources:
       - kind: 'namespaces'
         api_group: ''
@@ -279,10 +279,10 @@ spec:
 kind: role
 version: v8
 metadata:
-  name: v8-kube-request-no-access
+  name: v8-request-empty-access
 spec:
   allow:
     request:
       search_as_roles:
-      - v8-kube-no-access
+      - v8-empty-access
   deny: {}

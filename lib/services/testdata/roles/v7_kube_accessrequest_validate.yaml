@@ -20,7 +20,7 @@ spec:
 kind: role
 version: v7
 metadata:
-  name: v7-kube-no-access
+  name: v7-empty-access
 spec:
   allow: {}
   deny: {}
@@ -199,7 +199,7 @@ spec:
     request:
       search_as_roles:
       - v7-kube-db-access-wildcard
-      - v7-kube-no-access
+      - v7-empty-access
       kubernetes_resources:
       - kind: 'namespace'
   deny: {}
@@ -254,10 +254,10 @@ spec:
 kind: role
 version: v7
 metadata:
-  name: v7-kube-request-no-access
+  name: v7-request-empty-access
 spec:
   allow:
     request:
       search_as_roles:
-      - v7-kube-no-access
+      - v7-empty-access
   deny: {}

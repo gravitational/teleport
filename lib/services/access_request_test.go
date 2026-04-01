@@ -3618,7 +3618,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-kube-no-access"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3634,7 +3634,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-kube-no-access"},
+			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4315,7 +4315,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-kube-no-access"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4331,7 +4331,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-kube-no-access"},
+			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4622,25 +4622,25 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			desc: "v7 reject when requested role does not allow all requested kind and there is an unrelated requested role",
 			userStaticRoles: []string{
 				"v7-kube-request-namespace_search-namespace",
-				"v7-kube-request-no-access",
+				"v7-request-empty-access",
 			},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
 			wantInvalidRequestKindErr: true,
-			wantNoRolesConfiguredErr:  true,
+			wantNoRolesConfiguredErr:  false,
 		},
 		{
 			desc: "v8 reject when requested role does not allow all requested kind and there is an unrelated requested role",
 			userStaticRoles: []string{
 				"v8-kube-request-namespace_search-namespace",
-				"v8-kube-request-no-access",
+				"v8-request-empty-access",
 			},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 			},
 			wantInvalidRequestKindErr: true,
-			wantNoRolesConfiguredErr:  true,
+			wantNoRolesConfiguredErr:  false,
 		},
 	}
 	for _, tc := range testCases {

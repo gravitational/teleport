@@ -2424,12 +2424,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return roles, nil
 	}
 
-	origRolesLength := len(roles)
 	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
-	var kubeRelatedError error
-	if len(roles) < origRolesLength {
-		kubeRelatedError = getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
-	}
 	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
@@ -2462,6 +2457,8 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
+	noRoleAllowingRequestedKubeResource := false
+	hasKubeResourceKindRestrictions := len(mappedRequestedRolesToAllowedKinds) > 0
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range underlyingResources {
 		var constraints *types.ResourceConstraints
@@ -2536,25 +2533,38 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			// requested login and will include it.
 			rolesForResource = fewestLogins(rolesForResource)
 		}
+
+		if hasKubeResourceKindRestrictions && len(rolesForResource) == 0 {
+			kind := resource.GetKind()
+			if kind == types.KindKubernetesCluster ||
+				slices.Contains(types.KubernetesResourcesKinds, kind) {
+				noRoleAllowingRequestedKubeResource = true
+			}
+		}
 		for _, role := range rolesForResource {
 			necessaryRoles[role.GetName()] = struct{}{}
 		}
 	}
 
 	if len(necessaryRoles) == 0 {
+		// If a kube resource was requested but no role allows it, return a specific kube
+		// error rather than a generic "no access" error. The kube error may point to an
+		// easy fix (e.g. the request is missing a required namespace), so surfacing it
+		// first gives the user actionable guidance even when non-kube resources were also
+		// requested and similarly unmatched.
+		if noRoleAllowingRequestedKubeResource {
+			return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
+		}
 		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, trace.NewAggregate(
-			trace.BadParameter(
-				`no roles configured in the "search_as_roles" for this user allow `+
-					`access to any requested resources. The user may already have `+
-					`access to all requested resources with their existing roles. `+
-					`resources: %s roles: %v login: %q`,
-				resourcesStr, roles, loginHint),
-			kubeRelatedError,
-		)
+		return nil, trace.BadParameter(
+			`no roles configured in the "search_as_roles" for this user allow `+
+				`access to any requested resources. The user may already have `+
+				`access to all requested resources with their existing roles. `+
+				`resources: %s roles: %v login: %q`,
+			resourcesStr, roles, loginHint)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
