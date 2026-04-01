@@ -58,11 +58,20 @@ requirements for your platform:
   script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
   similar.
 
-You must also have **one** of the following:
-- A registered domain name.
-- An authoritative DNS nameserver managed by your organization, plus an existing
-  certificate authority. If using this approach, ensure that your browser is
-  configured to use your organization's nameserver.
+- **One** of the following:
+  - A registered domain name.
+  - An authoritative DNS nameserver managed by your organization, plus an
+    existing certificate authority. If using this approach, ensure that your
+    browser is configured to use your organization's nameserver.
+
+- Two DNS `A` records, each pointing to the IP address of your Linux host.
+  Assuming `teleport.example.com` is your domain name, set up records for:
+
+  |Domain|Reason|
+  |---|---|
+  |`teleport.example.com`|Traffic to the Proxy Service from users and services.|
+  |`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
+
 </TabItem>
 <TabItem label="Local Docker container">
 
@@ -126,21 +135,7 @@ Finally, you will need a multi-factor authenticator app such as
 Authenticator](https://www.google.com/landing/2step/), or
 [1Password](https://support.1password.com/one-time-passwords/).
 
-## Step 1/4. Configure DNS
-
-If you are following this guide with a local Docker container, you can skip to
-[Step 2](#step-24-set-up-teleport-on-your-linux-host).
-
-If you are following this guide with a virtual machine, set up two DNS `A`
-records, each pointing to the IP address of your Linux host. Assuming
-`teleport.example.com` is your domain name, set up records for:
-
-|Domain|Reason|
-|---|---|
-|`teleport.example.com`|Traffic to the Proxy Service from users and services.|
-|`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
-
-## Step 2/4. Set up Teleport on your Linux host
+## Step 1/3. Set up Teleport on your Linux host
 
 In this step, you will log into your Linux host, download the Teleport binary,
 generate a Teleport configuration file, and start the Teleport Auth Service,
@@ -271,7 +266,7 @@ internet, a local container, or a private network:
   - Check the Teleport logs for errors: `sudo journalctl -u teleport` on a VM, or review the terminal output in your container.
 </Checkpoint>
 
-## Step 3/4. Create a Teleport user and set up multi-factor authentication
+## Step 2/3. Create a Teleport user and set up multi-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -376,7 +371,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 
 </details>
 
-## Step 4/4. Access your server with Teleport
+## Step 3/3. Access your server with Teleport
 
 Now that you have Teleport running and a user configured, you can access your Linux server through the Teleport Web UI (it will be automatically enrolled since Teleport is running on it).
 
