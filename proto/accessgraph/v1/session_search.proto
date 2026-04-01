@@ -1,0 +1,454 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/summarizer/v1/summarizer.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1";
+
+// SessionRecordingService provides methods for searching session summaries stored in
+// the access graph and to store them. It is intended for use by the Auth server, which queries
+// the access graph and then applies its own access-control filtering before
+// returning results to end users.
+service SessionRecordingService {
+  // SearchSessionSummaries establishes a bidirectional stream for batched
+  // searching of session summaries.
+  //
+  // Basic interaction flow:
+  //   1. Client sends SearchSessionSummariesRequest{search_params} with filter
+  //      criteria, max_summaries, and an optional resume_token to continue a
+  //      previous search from a known checkpoint.
+  //   2. Server streams zero or more SearchSessionSummariesResponse{summary}
+  //      messages (one summary per message to respect gRPC size limits), then
+  //      sends exactly one SearchSessionSummariesResponse{batch_complete}.
+  //   3. If batch_complete.has_more is true, the client can send
+  //      SearchSessionSummariesRequest{fetch_more} to receive the next batch.
+  //      The server again streams results followed by batch_complete.
+  //   4. Steps 2–3 repeat until batch_complete.has_more is false or the client
+  //      is no longer interested, at which point the client closes the stream.
+  //
+  // Results are ordered by session_start descending (most recent first) and
+  // this order is stable across batches.
+  //
+  // Resuming across streams:
+  //   Every summary message carries a checkpoint_token representing the cursor
+  //   position immediately after that summary. Storing the token from the last
+  //   successfully processed SummaryAndCheckpoint and passing it as
+  //   search_params.resume_token in a new stream resumes the search from
+  //   exactly that position, skipping already-processed summaries.
+  //
+  // Each SessionSummary includes the raw session_end_event, which the Auth
+  // server uses to evaluate the requesting user's visibility before forwarding
+  // results downstream.
+  rpc SearchSessionSummaries(stream SearchSessionSummariesRequest) returns (stream SearchSessionSummariesResponse);
+  // StoreSessionSummary saves a session summary with its associated metadata
+  // and embeddings to the access graph storage. Re-storing the same session_id
+  // is idempotent; the server overwrites the existing entry.
+  rpc StoreSessionSummary(StoreSessionSummaryRequest) returns (StoreSessionSummaryResponse);
+}
+
+// SearchSessionSummariesRequest is sent by the client on the SearchSessionSummaries stream.
+// The first message must carry search_params; subsequent messages carry fetch_more
+// to advance to the next batch.
+message SearchSessionSummariesRequest {
+  // FetchMore is sent by the client to request the next batch of results
+  // from an in-progress search.
+  message FetchMore {
+    // max_summaries is the maximum number of SessionSummary objects the server
+    // should include in the next batch. The server may return fewer.
+    // A value of 0 lets the server choose a default batch size.
+    uint32 max_summaries = 1;
+  }
+  oneof payload {
+    // search_params initiates a new search with the given filter criteria.
+    // Must be the first message sent on the stream.
+    SearchSessionSummariesParams search_params = 1;
+    // fetch_more requests the next batch of results for the current search.
+    // May only be sent after the server has responded with has_more = true.
+    FetchMore fetch_more = 2;
+  }
+}
+
+// SearchSessionSummariesParams defines the filter criteria and batch settings
+// for a session summary search.
+message SearchSessionSummariesParams {
+  // start_time restricts results to sessions whose session_start is at or after
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
+  google.protobuf.Timestamp start_time = 1;
+
+  // end_time restricts results to sessions whose session_start is before
+  // this timestamp. The interval is [start_time, end_time).
+  // The server returns an error if this field is unset or zero.
+  google.protobuf.Timestamp end_time = 2;
+
+  // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+  // A session matches if its kind equals any value in the list (OR semantics).
+  // An empty list disables this filter.
+  repeated string kinds = 3;
+
+  // username filters results to sessions initiated by this Teleport user.
+  optional string username = 4;
+
+  // user_roles filters results to sessions where the user held any of the given
+  // roles at session time (OR semantics). An empty list disables this filter.
+  repeated string user_roles = 5;
+
+  // access_request_ids filters results to sessions associated with any of
+  // the given access request IDs (OR semantics).
+  // An empty list disables this filter.
+  repeated string access_request_ids = 6;
+
+  // resource_kind filters results by the kind of resource accessed
+  // (e.g. "node", "kube_cluster", "db").
+  optional string resource_kind = 7;
+
+  // resource_name filters results to sessions on the resource with this name.
+  // Applied independently of resource_properties; ANDed with all other filters.
+  optional string resource_name = 8;
+
+  // resource_labels filters results to sessions on resources that carry all
+  // of the given labels. An empty map disables this filter.
+  map<string, string> resource_labels = 9;
+
+  // resource_properties narrows results using kind-specific properties
+  // (e.g. hostname for SSH, pod name for Kubernetes, database name for DB).
+  // Applied as an AND with resource_kind, resource_name, and all other filters.
+  // The active variant must match the resource_kind if set.
+  ResourceProperties resource_properties = 10;
+
+  // severity filters results by session severity level.
+  // RISK_LEVEL_UNSPECIFIED disables this filter.
+  teleport.summarizer.v1.RiskLevel severity = 11;
+
+  // search_queries are the caller's free-text queries together with their
+  // pre-computed vector embeddings, produced by the Auth server before
+  // forwarding the request. Each entry is an independent query; a session
+  // matches if any query matches (OR semantics). The access graph uses the text
+  // for keyword-based matching and the embeddings for vector similarity search.
+  // An empty list disables text and semantic search; results are then filtered
+  // by the other criteria only.
+  repeated EmbeddedQuery search_queries = 12;
+
+  // max_summaries is the maximum number of SessionSummary objects the server
+  // should include in each batch. The server may return fewer.
+  // A value of 0 lets the server choose a default batch size.
+  uint32 max_summaries = 13;
+
+  // resume_token resumes a previous search from a known per-summary cursor.
+  // Set this to the checkpoint_token from the last successfully processed
+  // SummaryAndCheckpoint to continue the search from exactly that position in a
+  // new stream without re-fetching already-seen summaries.
+  // The token encodes the complete search state of the original request;
+  // all other filter fields in this message are ignored when resume_token is set.
+  // An empty value starts a new search from the beginning of the result set.
+  string resume_token = 14;
+}
+
+// EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
+// produced by the Auth server before forwarding to the access graph.
+// model_name must match EmbeddingChunk.model_name for a meaningful similarity
+// comparison; the access graph skips stored chunks whose model differs.
+message EmbeddedQuery {
+  // text is the original query string.
+  string text = 1;
+  // embeddings is the vector representation of text, typically a
+  // high-dimensional float array produced by an embedding model.
+  repeated float embeddings = 2;
+  // model_name identifies the embedding model that produced embeddings
+  // (e.g. "text-embedding-3-small"). The access graph uses this to skip stored
+  // EmbeddingChunks produced by a different model, preventing silent ranking
+  // against incompatible vectors after a retrieval model rotation.
+  string model_name = 3;
+}
+
+// ResourceProperties holds session-kind-specific properties for a session.
+// Used both for filtering in search and for storing kind-specific metadata.
+// Only one variant should be set. When used in StoreSessionSummaryRequest or
+// SessionSummary, the active variant must match the session kind. When used as
+// a search filter in SearchSessionSummariesParams, the variant is evaluated
+// independently of resource_kind.
+message ResourceProperties {
+  oneof type {
+    // ssh holds SSH session properties.
+    SSHProperties ssh = 1;
+    // kubernetes holds Kubernetes session properties.
+    KubernetesProperties kubernetes = 2;
+    // database holds database session properties.
+    DatabaseProperties database = 3;
+  }
+}
+
+// SSHProperties are the kind-specific properties for SSH sessions.
+message SSHProperties {
+  // server_hostname is the hostname of the SSH server.
+  optional string server_hostname = 1;
+  // server_addr is the address (host:port) of the SSH server.
+  optional string server_addr = 2;
+}
+
+// KubernetesProperties are the kind-specific properties for Kubernetes sessions.
+message KubernetesProperties {
+  // pod_namespace is the Kubernetes namespace of the pod.
+  optional string pod_namespace = 1;
+  // pod_name is the name of the pod.
+  optional string pod_name = 2;
+}
+
+// DatabaseProperties are the kind-specific properties for database sessions.
+message DatabaseProperties {
+  // database_name is the name of the database accessed.
+  optional string database_name = 1;
+}
+
+// SearchSessionSummariesResponse is sent by the server on the
+// SearchSessionSummaries stream. For each batch the server sends zero or more
+// summary messages (one per SessionSummary) followed by exactly one
+// batch_complete message.
+//
+// Per-batch receive loop (pseudo-Go):
+//   var (
+//     buf            []SessionSummary
+//     lastCheckpoint string
+//   )
+//   for {
+//     msg := stream.Recv()
+//     switch p := msg.Payload.(type) {
+//     case *SearchSessionSummariesResponse_Summary:
+//       lastCheckpoint = p.Summary.CheckpointToken  // persist for cross-stream resume
+//       buf = append(buf, p.Summary.Summary)
+//     case *SearchSessionSummariesResponse_BatchComplete:
+//       process(buf)
+//       buf = buf[:0]
+//       if p.BatchComplete.HasMore {
+//         stream.Send(&FetchMore{
+//           max_summaries: next_max_summaries,
+//         })  // advance to next batch of up to next_max_summaries
+//       } else {
+//         stream.CloseSend()  // search exhausted
+//       }
+//     }
+//   }
+message SearchSessionSummariesResponse {
+  // BatchComplete signals the end of a batch of results. The client must either
+  // send FetchMore to retrieve the next batch or close the stream.
+  message BatchComplete {
+    // has_more is true when at least one additional batch is available.
+    // If false, this was the last batch and the client should close the stream.
+    bool has_more = 1;
+  }
+  oneof payload {
+    // summary carries one session summary together with a checkpoint cursor.
+    // Zero or more of these messages arrive before each batch_complete.
+    SummaryAndCheckpoint summary = 1;
+
+    // batch_complete signals that the server has finished sending all summaries
+    // for the current batch and is waiting for a FetchMore message or for the
+    // client to close the stream.
+    BatchComplete batch_complete = 2;
+  }
+}
+
+// SummaryAndCheckpoint pairs a session summary with a per-summary cursor that
+// the client can use to resume the search from exactly this position in a new
+// stream. Storing the checkpoint_token from the last successfully processed
+// message and passing it as resume_token in a new SearchSessionSummariesParams
+// skips all already-processed summaries without re-fetching them.
+message SummaryAndCheckpoint {
+  // summary is the session summary for this result.
+  SessionSummary summary = 1;
+
+  // checkpoint_token is an opaque cursor pointing to the position immediately
+  // after this summary in the overall result set. Pass this value as
+  // resume_token in a future SearchSessionSummariesParams to resume the search
+  // from this point in a new stream. The server maintains cursor state for the
+  // lifetime of the current stream, so this token is only needed for
+  // cross-stream resumption.
+  string checkpoint_token = 2;
+}
+
+// SessionSummary contains the metadata and raw session-end event for a
+// single recorded session, as stored in the access graph.
+message SessionSummary {
+  // session_id is the unique identifier of the session.
+  string session_id = 1;
+
+  // kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+  // This is distinct from resource_kind, which identifies the Teleport resource
+  // type (e.g. "node", "kube_cluster", "db").
+  string kind = 2;
+
+  // session_start is the timestamp when the session began.
+  google.protobuf.Timestamp session_start = 3;
+
+  // username is the Teleport username that initiated the session.
+  string username = 4;
+
+  // user_traits contains the traits associated with the user at the time of
+  // the session (e.g. LDAP attributes, SAML assertions).
+  google.protobuf.Struct user_traits = 5;
+
+  // user_roles contains the Teleport roles the user held during the session.
+  repeated string user_roles = 6;
+
+  // access_request_ids lists any access request IDs that were used to
+  // obtain elevated privileges for this session.
+  repeated string access_request_ids = 7;
+
+  // participants contains the usernames of other users who joined the session.
+  repeated string participants = 8;
+
+  // resource_kind is the Teleport resource type that was accessed (e.g. "node",
+  // "kube_cluster", "db"). This is distinct from kind, which is the session
+  // protocol type (e.g. "ssh", "k8s", "db").
+  string resource_kind = 9;
+
+  // resource_labels contains the labels of the resource at the time of the
+  // session, used for label-based access control evaluation.
+  map<string, string> resource_labels = 10;
+
+  // resource_id is the unique identifier of the resource accessed.
+  string resource_id = 11;
+
+  // resource_name is the human-readable name of the resource accessed.
+  // May be empty if not available.
+  string resource_name = 12;
+
+  // resource_properties contains additional kind-specific properties.
+  ResourceProperties resource_properties = 13;
+
+  // severity is the computed severity level of the session.
+  teleport.summarizer.v1.RiskLevel severity = 14;
+
+  // session_end_event is the raw JSON payload of the session-end audit event.
+  // The Auth server evaluates this field to determine whether the requesting
+  // user is permitted to see this session before forwarding it downstream.
+  google.protobuf.Struct session_end_event = 15;
+
+  // session_end is the timestamp when the session ended.
+  google.protobuf.Timestamp session_end = 16;
+
+  // host_id is the unique identifier of the host where the session occurred.
+  string host_id = 17;
+}
+
+// StoreSessionSummaryRequest is sent to store a session summary along with
+// its associated metadata and semantic embeddings.
+// Field order mirrors SessionSummary for easy mapping between the two.
+message StoreSessionSummaryRequest {
+  // session_id is the unique identifier of the session.
+  string session_id = 1;
+
+  // kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+  // Must match the active variant of resource_properties.
+  string kind = 2;
+
+  // username is the Teleport user who initiated the session.
+  string username = 3;
+
+  // session_start is the timestamp when the session began.
+  google.protobuf.Timestamp session_start = 4;
+
+  // session_end is the timestamp when the session ended.
+  google.protobuf.Timestamp session_end = 5;
+
+  // user_traits contains the traits associated with the user at the time of
+  // the session (e.g. LDAP attributes, SAML assertions).
+  google.protobuf.Struct user_traits = 6;
+
+  // user_roles are the Teleport roles the user held during the session.
+  repeated string user_roles = 7;
+
+  // access_request_ids are the IDs of any access requests used to gain
+  // elevated privileges for this session.
+  repeated string access_request_ids = 8;
+
+  // participants contains the usernames of other users who joined the session.
+  repeated string participants = 9;
+
+  // resource_kind is the kind of resource accessed (e.g. "node", "kube_cluster", "db").
+  string resource_kind = 10;
+
+  // resource_labels are the labels attached to the resource at session time,
+  // used for label-based access control and filtering.
+  map<string, string> resource_labels = 11;
+
+  // resource_id is the unique identifier of the resource accessed.
+  string resource_id = 12;
+
+  // resource_name is the name of the resource that was accessed.
+  string resource_name = 13;
+
+  // resource_properties contains kind-specific properties
+  // (e.g. hostname for SSH, pod name for Kubernetes, database name for DB).
+  ResourceProperties resource_properties = 14;
+
+  // severity is the severity level of the session.
+  teleport.summarizer.v1.RiskLevel severity = 15;
+
+  // session_end_event is the raw JSON payload of the session-end audit event.
+  // Stored as-is and returned in SessionSummary so that the Auth server can
+  // evaluate the requesting user's visibility without querying the audit log.
+  google.protobuf.Struct session_end_event = 16;
+
+  // host_id is the unique identifier of the host where the session occurred.
+  string host_id = 17;
+
+  // embeddings are the semantic vector embeddings of the session summary,
+  // used for similarity-based search queries.
+  repeated EmbeddingChunk embeddings = 18;
+}
+
+// EmbeddingChunk represents a semantic vector embedding for a text chunk from the
+// session summary, along with metadata about the chunk's position and content.
+// Session summaries are split into chunks to generate more precise embeddings
+// for similarity search.
+//
+// model_name is stored alongside the vector so that the access graph can
+// reject or skip comparisons against query embeddings produced by a different
+// model (e.g. after an admin rotates the retrieval model via
+// UpdateRetrievalModel / UpsertRetrievalModel). Without this field, a model
+// rotation would cause silent ranking against incompatible embeddings for all
+// pre-change sessions.
+message EmbeddingChunk {
+  // values is the vector representation of the text chunk, typically a
+  // high-dimensional float array produced by an embedding model.
+  repeated float values = 1;
+
+  // chunk is the original text segment that was embedded.
+  string chunk = 2;
+
+  // chunk_index is the zero-based position of this chunk within the
+  // full session summary.
+  uint32 chunk_index = 3;
+
+  // model_name identifies the embedding model that produced values
+  // (e.g. "text-embedding-3-small"). Used to detect incompatible stored
+  // embeddings after a retrieval model rotation.
+  string model_name = 4;
+}
+
+// StoreSessionSummaryResponse is the response returned after successfully
+// storing a session summary. Re-storing an existing session_id is idempotent;
+// the server overwrites the previous entry.
+message StoreSessionSummaryResponse {}
