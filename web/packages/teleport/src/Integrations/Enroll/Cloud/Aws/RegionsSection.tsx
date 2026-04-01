@@ -95,7 +95,7 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
         />
 
         {!isWildcard(regions) && (
-          <Box mt={3}>
+          <Box mt={3} width={400}>
             <RegionSelect<AwsRegion>
               isMulti={true}
               options={awsRegionOptions}

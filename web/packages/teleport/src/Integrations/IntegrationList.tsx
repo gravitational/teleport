@@ -77,6 +77,7 @@ const statusKinds = [
   'entra-id',
   IntegrationKind.AwsOidc,
   IntegrationKind.AwsRa,
+  IntegrationKind.AzureOidc,
 ];
 
 type Filters = {
@@ -187,6 +188,7 @@ export function IntegrationList(props: Props) {
               if (
                 item.kind === IntegrationKind.AwsOidc ||
                 item.kind === IntegrationKind.AwsRa ||
+                item.kind === IntegrationKind.AzureOidc ||
                 item.kind === 'entra-id'
               ) {
                 // action menu for these integrations are available on the status page dashboard.
@@ -386,7 +388,7 @@ const NameCell = ({ item }: { item: IntegrationLike }) => {
         icon = <IconContainer name="awsidentityandaccessmanagementiam" />;
         break;
       case IntegrationKind.AzureOidc:
-        formattedText = 'Azure OIDC';
+        formattedText = item.name;
         icon = <IconContainer name="azure" />;
         break;
       case IntegrationKind.GitHub:
