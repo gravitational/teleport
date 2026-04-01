@@ -150,27 +150,31 @@ func createCertAuthorityOverride(ctx context.Context,
 	subCA := authClient.SubCAClient()
 
 	var created *subcav1.CertAuthorityOverride
+	var action string
 	if opts.Force {
 		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, &subcav1.UpsertCertAuthorityOverrideRequest{
 			CaOverride: caOverride,
 		})
 		created = resp.GetCaOverride()
 		err = err1
+		action = "updated"
 	} else {
 		resp, err1 := subCA.CreateCertAuthorityOverride(ctx, &subcav1.CreateCertAuthorityOverrideRequest{
 			CaOverride: caOverride,
 		})
 		created = resp.GetCaOverride()
 		err = err1
+		action = "created"
 	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("%s %s/%s created\n",
+	fmt.Printf("%s %s/%s %s\n",
 		types.KindCertAuthorityOverride,
 		created.SubKind,
 		created.Metadata.Name,
+		action,
 	)
 	return nil
 }
