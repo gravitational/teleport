@@ -365,6 +365,7 @@ func (b *Bot) buildIdentityService(
 		ClientBuilder:  clientBuilder,
 		ReloadCh:       reloadCh,
 		StatusReporter: handle.statusReporter,
+		Scoped:         b.cfg.Scoped,
 	})
 	if err != nil {
 		unsubscribe()

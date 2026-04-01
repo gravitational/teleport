@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,6 +72,8 @@ type Config struct {
 	ReloadCh       <-chan struct{}
 	ClientBuilder  *client.Builder
 	StatusReporter readyz.Reporter
+
+	Scoped bool
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -827,5 +830,34 @@ func botIdentityFromToken(
 		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
 		TokenHashBytes:  []byte(tokenHash),
 	}, result.Certs)
-	return ident, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkScopeCorrectness(
+		ident.TLSIdentity,
+		cfg.Scoped,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ident, nil
+}
+
+// checkScopeCorrectness returns an error if the presented identity is:
+// - Scoped, but tbot is not running in scoped mode.
+// - Unscoped, but tbot is running in scoped mode.
+func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) error {
+	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
+	if identScoped && !scoped {
+		return trace.BadParameter(
+			"received scoped identity upon join, but tbot is not configured in scoped mode",
+		)
+	}
+	if !identScoped && scoped {
+		return trace.BadParameter(
+			"received unscoped identity upon join, but tbot is configured in scoped mode",
+		)
+	}
+	return nil
 }
