@@ -240,6 +240,21 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 				ClusterNameTemplate: "{{.ClusterName}}-{{.KubeName}}",
 			},
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *ArgoCDOutputConfig {
+				return &ArgoCDOutputConfig{
+					Selectors: []*KubernetesSelector{
+						{Name: "foo", Labels: make(map[string]string)},
+					},
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.KubeName}}",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

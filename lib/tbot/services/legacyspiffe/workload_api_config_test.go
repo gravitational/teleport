@@ -235,6 +235,23 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "ip_sans[0]: invalid IP address",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
+					Listen: "unix:///var/run/spiffe.sock",
+					SVIDs: []SVIDRequestWithRules{
+						{
+							SVIDRequest: SVIDRequest{
+								Path: "/foo",
+							},
+						},
+					},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

@@ -83,6 +83,17 @@ func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "at least one principal must be specified",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *HostOutputConfig {
+				return &HostOutputConfig{
+					Destination: destination.NewMemory(),
+					Principals:  []string{"host.example.com"},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

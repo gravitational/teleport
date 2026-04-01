@@ -209,6 +209,19 @@ func TestSPIFFESVIDOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "ip_sans[0]: invalid IP address",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *SVIDOutputConfig {
+				return &SVIDOutputConfig{
+					Destination: destination.NewMemory(),
+					SVID: SVIDRequest{
+						Path: "/foo",
+					},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

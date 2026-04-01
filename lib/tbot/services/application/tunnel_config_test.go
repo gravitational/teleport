@@ -101,6 +101,17 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "app_name: should not be empty",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					AppName: "my-app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

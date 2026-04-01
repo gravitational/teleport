@@ -91,6 +91,10 @@ type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	name string
 	in   func() T
 
+	// scoped indicates that CheckAndSetDefaults should be called with
+	// scoped set to true.
+	scoped bool
+
 	// want specifies the desired state of the checkAndSetDefaulter after
 	// check and set defaults has been run. If want is nil, the Output is
 	// compared to its initial state.
@@ -104,7 +108,7 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()
-			err := got.CheckAndSetDefaults(false)
+			err := got.CheckAndSetDefaults(tt.scoped)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
