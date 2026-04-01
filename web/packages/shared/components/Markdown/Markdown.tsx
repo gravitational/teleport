@@ -315,7 +315,8 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       if (
         headerRegex.test(currentLine) ||
         currentLine.trim().startsWith('- ') ||
-        fencedCodeRegex.test(currentLine.trim())
+        fencedCodeRegex.test(currentLine.trim()) ||
+        currentLine.trim().startsWith('<details')
       ) {
         break;
       }
