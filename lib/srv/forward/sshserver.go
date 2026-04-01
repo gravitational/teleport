@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -551,7 +552,7 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // does not spawn child processes.
 func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
 		Writer: io.Discard,

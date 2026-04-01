@@ -17,25 +17,10 @@
 package srv
 
 import (
-	"os/user"
-
 	"github.com/gravitational/teleport/session/reexec"
 )
 
 //go:fix inline
 func IsReexec() bool {
 	return reexec.IsReexec()
-}
-
-//go:fix inline
-func RunAndExit(commandType string) {
-	reexec.RunAndExit(commandType)
-}
-
-//go:fix inline
-type ExecLogConfig = reexec.ExecLogConfig
-
-//go:fix inline
-func CheckHomeDir(localUser *user.User) (bool, error) {
-	return reexec.CheckHomeDir(localUser)
 }
