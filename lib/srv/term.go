@@ -42,6 +42,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
 )
 
+const (
+	defaultTerm = "xterm"
+)
+
 // LookupUser is used to mock the value returned by user.Lookup(string).
 type LookupUser func(string) (*user.User, error)
 
