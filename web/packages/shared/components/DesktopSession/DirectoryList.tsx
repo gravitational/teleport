@@ -46,7 +46,7 @@ export function SharedDirectoryList({
 }: SharedDirectoriesProps) {
   return (
     <MenuIcon
-      Icon={(props) => <FolderPlus {...props} size="large" />}
+      Icon={props => <FolderPlus {...props} size="large" />}
       buttonIconProps={{
         disabled: !canSharedDirectories,
         // square highlight instead of default circle
@@ -74,40 +74,35 @@ export function SharedDirectoryList({
           {/* Header row */}
           {sharedDirectoryHeader(sharedDirectories.length)}
 
-          {/* Directory list */}          
-            {sharedDirectories.map(dir => (
-              <div>
-              <Flex justifyContent="space-between" alignItems="center" overflow="hidden">
-                <Text fontSize={3}>{dir.name}</Text>
-                <HoverTooltip
-                  placement="bottom"
-                  tipContent={
-                    canRemoveSharedDirectory
-                      ? 'Remove Shared Directory'
-                      : 'This version of Windows Desktop Server does not support removal of shared directories'
-                  }
-                >
-                  <Flex flexShrink={0}>
+          {/* Directory list */}
+          {sharedDirectories.map(dir => (
+            <Flex justifyContent="space-between" alignItems="center">
+              <Text fontSize={3}>{dir.name}</Text>
+              <HoverTooltip
+                placement="bottom"
+                tipContent={
+                  canRemoveSharedDirectory
+                    ? 'Remove Shared Directory'
+                    : 'This version of Windows Desktop Server does not support removal of shared directories'
+                }
+              >
+                <Flex flexShrink={0}>
                   <ButtonSecondary
                     size="small"
-                    p={1}
-                    minWidth={16}
-                    height="auto"
+                    compact={true}
                     title={'Unshare Directory'}
                     onClick={() => onRemoveSharedDirectory(dir.id)}
                     disabled={!canRemoveSharedDirectory}
                   >
-                    
                     <Eject size="small" disabled={!canRemoveSharedDirectory} />
                   </ButtonSecondary>
-                  </Flex>
-                </HoverTooltip>
-              </Flex>
-              </div>
-            ))}
+                </Flex>
+              </HoverTooltip>
+            </Flex>
+          ))}
 
-            {/* Share Button */}
-            {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}          
+          {/* Share Button */}
+          {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
         </Stack>
       </Container>
     </MenuIcon>
@@ -122,9 +117,6 @@ function addDirectoryButton(directoryCount: number, onClick: () => void) {
       </PurpleText>
       <ButtonPrimary
         size="small"
-        p={1}
-        minWidth={0}
-        height="auto"
         onClick={onClick}
         compact={true}
         $inputAlignment={false}
