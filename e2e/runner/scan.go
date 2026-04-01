@@ -176,7 +176,7 @@ func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error)
 		for _, spec := range allSpecs {
 			rel, _ := filepath.Rel(e2eDir, spec)
 			if strings.Contains(rel, tf) {
-				targets = append(targets, scanTarget{path: spec})
+				targets = append(targets, scanTarget{path: spec, line: line})
 			}
 		}
 
