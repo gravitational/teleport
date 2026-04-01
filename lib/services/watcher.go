@@ -1163,7 +1163,7 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	p.isStale = false
 	p.defineCollectorAsInitialized()
 	for _, lock := range p.current {
-		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock.Clone()})
+		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock})
 	}
 	return nil
 }
@@ -1197,7 +1197,7 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 				continue
 			}
 			if lock.IsInForce(p.Clock.Now()) {
-				p.current[lock.GetName()] = lock.Clone()
+				p.current[lock.GetName()] = lock
 				eventsToEmit = append(eventsToEmit, event)
 			} else {
 				delete(p.current, lock.GetName())
@@ -1492,7 +1492,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 				continue
 			}
 
-			c.cas[ca.GetType()][ca.GetName()] = ca.Clone()
+			c.cas[ca.GetType()][ca.GetName()] = ca
 			eventsToEmit = append(eventsToEmit, event)
 		default:
 			c.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
