@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { login } from '@gravitational/e2e/helpers/login';
+import { login, logout } from '@gravitational/e2e/helpers/login';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 
 const lightBody = 'rgb(241, 242, 244)';
@@ -26,16 +26,26 @@ test('switching between dark and light theme', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 
-  // Switch to dark theme.
+  // Switch to dark theme. Make sure that the change gets persisted in user
+  // preferences on the backend side before we log out.
+  const prefsResponse = page.waitForResponse(
+    response =>
+      URL.parse(response.url())?.pathname === '/v1/webapi/user/preferences' &&
+      response.request().method() === 'PUT'
+  );
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Switch to Dark Theme').click();
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
+  await prefsResponse;
 
   // Dark theme should be retained after logging out and in again.
-  await page.getByRole('button', { name: 'User Menu' }).click();
-  await page.getByText('Logout').click();
+  await logout(page);
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
+  // Make sure that the theme was actually saved in the backend. Simulate
+  // signing in on a fresh browser.
+  await page.context().clearCookies();
+  await page.evaluate(() => localStorage.clear());
   await login(page);
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
