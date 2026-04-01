@@ -141,7 +141,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		f.tracePath = args[0]
 	}
 
-	isTestRun := mode == modeTest || mode == modeUI || mode == modeDebug || mode == modeCodegen
+	isTestRun := mode == modeTest || mode == modeUI || mode == modeDebug
 	if isTestRun {
 		e2eDir := filepath.Join(repoRoot, "e2e")
 
