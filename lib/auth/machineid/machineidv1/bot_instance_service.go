@@ -197,7 +197,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 			return checker.Common().CheckAccessToRules(
 				&ruleCtx,
 				types.KindBotInstance,
-				types.VerbDelete,
+				types.VerbReadNoSecrets,
 			)
 		},
 	); err != nil {

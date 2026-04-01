@@ -60,7 +60,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead},
+			allowedVerbs: []string{types.VerbReadNoSecrets},
 		},
 		{
 			name: "ListBotInstances",
@@ -68,7 +68,7 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
+			allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList},
 		},
 		{
 			name: "ListBotInstancesV2",
@@ -76,11 +76,17 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
+			allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList},
 		},
 		{
 			name: "DeleteBotInstance",
+			// AdminActionAuthUnauthorized is included here because the admin
+			// action check for delete now occurs after the resource is read
+			// from the backend (post-Decision check), which this test cannot
+			// exercise with zero-valued requests. Admin action enforcement for
+			// delete is covered by integration tests instead.
 			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
 				authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
@@ -174,7 +180,7 @@ func TestBotInstanceServiceReadDelete(t *testing.T) {
 	}
 
 	// Make a service with all useful permissions that doesn't require admin auth
-	checker := fakeChecker{allowedVerbs: []string{types.VerbRead, types.VerbList, types.VerbDelete}}
+	checker := fakeChecker{allowedVerbs: []string{types.VerbReadNoSecrets, types.VerbList, types.VerbDelete}}
 	service := newBotInstanceService(t, backend, authz.AdminActionAuthNotRequired, checker)
 
 	// Make sure we can get all foo instances
@@ -575,6 +581,10 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	}
 
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+}
+
+func (f fakeChecker) GuessIfAccessIsPossible(ctx services.RuleContext, _ string, resource string, verb string) error {
+	return f.CheckAccessToRule(ctx, "", resource, verb)
 }
 
 // callMethod calls a method with given name in the BotInstanceService
