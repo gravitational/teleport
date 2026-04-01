@@ -181,7 +181,7 @@ Provide the following information and then generate a configuration file for the
 Teleport Database Service:
 
 - <Var name="example.teleport.sh:443" /> The host **and port** of your Teleport Proxy Service
-or cloud-hosted Teleport Enterprise site
+or cloud-hosted Teleport Enterprise site.
 - <Var name="project-id"/> The GCP project ID. You can normally see it in the
 organization view at the top of the GCP dashboard.
 - <Var name="instance-id"/> The name of your Cloud Spanner instance.
@@ -232,6 +232,10 @@ If the database does not appear, verify your Teleport role permissions. See the 
 </Checkpoint>
 
 ## Step 6/6: Connect using the service account
+
+In this step, you will create a Teleport user with access to the Spanner
+database, connect using the impersonated service account, and optionally
+remove stored credentials when you are done.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
