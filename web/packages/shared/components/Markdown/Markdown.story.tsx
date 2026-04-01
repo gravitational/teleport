@@ -156,6 +156,8 @@ Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] 
   \`\`\`
   Here's a code block
   \`\`\`
+
+  [And, a link](https://example.com)
 </details>
 
 <details open>

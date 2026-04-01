@@ -299,7 +299,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
           title={summary || 'Expand'}
           expanded={expanded}
         >
-          <Markdown text={content.join('\n')} />
+          <Markdown text={content.join('\n')} {...options} />
         </Section>
       );
 
