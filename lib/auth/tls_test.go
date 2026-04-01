@@ -5005,6 +5005,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
