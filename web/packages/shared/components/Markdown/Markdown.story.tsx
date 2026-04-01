@@ -148,21 +148,24 @@ Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] 
 ## Collapsable Sections
 
 <details>
-<summary>What's in here?</summary>
-# Heading 1
+  <summary>What's in here?</summary>
+  # Heading 1
 
-This is a paragraph.
+  This is a paragraph.
 
-\`\`\`
-Here's a code block
-\`\`\`
+  \`\`\`
+  Here's a code block
+  \`\`\`
 </details>
 
 <details open>
-<summary>Already open</summary>
-This section is open by default.
+  <summary>Already open</summary>
+  This section is open by default.
 </details>
-`;
+
+<details open>
+  This section has a default title
+</details>`;
 
 export const Basic: Story = {
   args: {

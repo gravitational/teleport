@@ -285,7 +285,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       items.push(
         <Section
           key={`section-${i}`}
-          title={summary ?? 'Expand'}
+          title={summary || 'Expand'}
           expanded={expanded}
         >
           <Markdown text={content.join('\n')} />
