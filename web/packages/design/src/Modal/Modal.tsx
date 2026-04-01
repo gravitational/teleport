@@ -246,8 +246,7 @@ export default class Modal extends React.Component<ModalProps> {
     } else if (this.lastTabKeyDirection) {
       // Tab/Shift+Tab moved focus outside the modal before anything inside was focused.
       // Direct focus to the appropriate element inside the modal.
-      const focusable =
-        this.modalEl.querySelectorAll<HTMLElement>(focusableSelector);
+      const focusable = this.getFocusableElements();
       const el =
         this.lastTabKeyDirection === 'forward'
           ? focusable[0]
@@ -270,12 +269,7 @@ export default class Modal extends React.Component<ModalProps> {
     // programmatic focus theft.
     this.lastTabKeyDirection = event.shiftKey ? 'backward' : 'forward';
 
-    const focusable = [
-      ...this.modalEl.querySelectorAll<HTMLElement>(focusableSelector),
-    ].filter(
-      el =>
-        el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden'
-    );
+    const focusable = this.getFocusableElements();
     if (focusable.length === 0) {
       return;
     }
@@ -290,6 +284,22 @@ export default class Modal extends React.Component<ModalProps> {
       event.preventDefault();
       first.focus();
     }
+  };
+
+  /** Return focusable elements within the modal that are visible and not disabled. */
+  getFocusableElements = (): HTMLElement[] => {
+    if (!this.modalEl) {
+      return [];
+    }
+
+    return [
+      ...this.modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ),
+    ].filter(
+      el =>
+        el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden'
+    );
   };
 
   restoreLastFocus() {
@@ -350,10 +360,6 @@ export default class Modal extends React.Component<ModalProps> {
     );
   }
 }
-
-/** Focusable elements that are visible and not disabled. */
-const focusableSelector =
-  'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export type BackdropProps = {
   /**

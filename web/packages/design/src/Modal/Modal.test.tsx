@@ -188,6 +188,9 @@ describe('trapFocus', () => {
     );
     Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
       get() {
+        if (this.style.display === 'none') {
+          return null;
+        }
         return this.parentElement;
       },
       configurable: true,
@@ -272,6 +275,19 @@ describe('trapFocus', () => {
       fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
       screen.getByRole('button', { name: 'Outside' }).focus();
       expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+    });
+
+    test('Tab skips hidden elements and focuses the first visible one', () => {
+      render(
+        <ModalWithOutsideButton trapFocus>
+          <button style={{ display: 'none' }}>Hidden</button>
+          <button>Visible</button>
+        </ModalWithOutsideButton>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Visible' })).toHaveFocus();
     });
 
     test('blurs the thief when focus is stolen programmatically', () => {
