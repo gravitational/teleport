@@ -439,6 +439,6 @@ const SectionHeadingContainer = styled(Flex)`
 
 const SectionContentContainer = styled.div`
   padding-left: ${({ theme }) => theme.space[3]}px;
-  border-left: 4px solid
+  border-left: ${({ theme }) => theme.borders[3]}
     ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
 `;
