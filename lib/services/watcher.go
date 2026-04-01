@@ -1197,7 +1197,7 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 				continue
 			}
 			if lock.IsInForce(p.Clock.Now()) {
-				p.current[lock.GetName()] = lock
+				p.current[lock.GetName()] = lock.Clone()
 				eventsToEmit = append(eventsToEmit, event)
 			} else {
 				delete(p.current, lock.GetName())
@@ -1492,7 +1492,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 				continue
 			}
 
-			c.cas[ca.GetType()][ca.GetName()] = ca
+			c.cas[ca.GetType()][ca.GetName()] = ca.Clone()
 			eventsToEmit = append(eventsToEmit, event)
 		default:
 			c.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
