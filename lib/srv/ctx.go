@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 var ctxID int32
@@ -207,7 +208,7 @@ type Server interface {
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
 type ChildLogConfig struct {
-	ExecLogConfig
+	reexec.ExecLogConfig
 
 	// Writer is the output writer to use for the logger. May be nil.
 	Writer io.Writer
@@ -1057,7 +1058,7 @@ func (c *ServerContext) LogValue() slog.Value {
 	)
 }
 
-func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
+func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	// PAM should be disabled.
 	if c.srv.Component() != teleport.ComponentNode {
 		return nil, nil
@@ -1108,7 +1109,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 	}
 
-	return &PAMConfig{
+	return &reexec.PAMConfig{
 		UsePAMAuth:  localPAMConfig.UsePAMAuth,
 		ServiceName: localPAMConfig.ServiceName,
 		Environment: environment,
@@ -1117,7 +1118,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
-func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
+func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
@@ -1154,7 +1155,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}
 
 	// Create the execCommand that will be sent to the child process.
-	return &ExecCommand{
+	return &reexec.ExecCommand{
 		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
@@ -1264,9 +1265,9 @@ func closeAll(closers ...io.Closer) error {
 	return trace.NewAggregate(errs...)
 }
 
-func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+func newUaccMetadata(c *ServerContext) (*reexec.UaccMetadata, error) {
 	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
-	return &UaccMetadata{
+	return &reexec.UaccMetadata{
 		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
@@ -1391,7 +1392,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// replied to.
 	var waitErr error
 	if bpfService.Enabled() && pam.Enabled {
-		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+		if waitErr = reexec.WaitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}
 	}

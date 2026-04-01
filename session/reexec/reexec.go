@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"context"
@@ -404,14 +404,14 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
+	cmd, err := BuildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForSignal(ctx, contfd, 10*time.Second)
+	err = WaitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -1063,9 +1063,9 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
-// buildCommand constructs a command that will execute the users shell. This
+// BuildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func BuildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1115,7 +1115,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Create default environment for user.
 	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
+		GetDefaultEnvPath(localUser.Uid),
 		"HOME=" + localUser.HomeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
@@ -1220,107 +1220,12 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 
 	// Perform OS-specific tweaks to the command.
 	if isReexec {
-		reexecCommandOSTweaks(&cmd)
+		CommandOSTweaks(&cmd)
 	} else {
 		userCommandOSTweaks(&cmd)
 	}
 
 	return &cmd, nil
-}
-
-// ConfigureCommand creates a command fully configured to execute. This
-// function is used by Teleport to re-execute itself and pass whatever data
-// is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
-	// Create a os.Pipe and start copying over the payload to execute. While the
-	// pipe buffer is quite large (64k) some users have run into the pipe
-	// blocking writes on much smaller buffers (7k) leading to Teleport being
-	// unable to run some exec commands.
-	//
-	// To not depend on the OS implementation of a pipe, instead the copy should
-	// be non-blocking. The io.Copy will be closed when either when the child
-	// process has fully read in the payload or the process exits with an error
-	// (and closes all child file descriptors).
-	//
-	// See the below for details.
-	//
-	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	cmdmsg, err := ctx.ExecCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cmdmsg.Terminal {
-		cmdmsg.ExtraFilesLen = len(extraFiles)
-	}
-
-	go copyCommand(ctx, cmdmsg)
-
-	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// The channel/request type determines the subcommand to execute.
-	var subCommand string
-	switch ctx.ExecType {
-	case teleport.NetworkingSubCommand:
-		subCommand = teleport.NetworkingSubCommand
-	default:
-		subCommand = teleport.ExecSubCommand
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable, subCommand}
-
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
-
-	// Build the "teleport exec" command.
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Env:  *env,
-		ExtraFiles: []*os.File{
-			ctx.cmdr,
-			ctx.logw,
-			ctx.contr,
-			ctx.readyw,
-			ctx.killShellr,
-		},
-	}
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
-
-	return cmd, nil
-}
-
-// copyCommand will copy the provided command to the child process over the
-// pipe attached to the context.
-func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
-	defer func() {
-		err := ctx.cmdw.Close()
-		if err != nil {
-			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
-		}
-
-		// Set to nil so the close in the context doesn't attempt to re-close.
-		ctx.cmdw = nil
-	}()
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
-		return
-	}
 }
 
 func coerceHomeDirError(usr *user.User, err error) error {
@@ -1428,7 +1333,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	}
 
 	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
+	CommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
 		if cmd.ProcessState.ExitCode() == teleport.RemoteCommandFailure {
@@ -1467,9 +1372,9 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	return nil
 }
 
-// waitForSignal will wait for the other side of the pipe to signal, if not
+// WaitForSignal will wait for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.
