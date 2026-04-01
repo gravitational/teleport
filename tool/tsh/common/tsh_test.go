@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -8451,7 +8452,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
-				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
+				require.Equal(t, reexecconstants.RemoteCommandFailure, exitCodeErr.Code)
 
 				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 
@@ -8473,7 +8474,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
-				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
+				require.Equal(t, reexecconstants.RemoteCommandFailure, exitCodeErr.Code)
 
 				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
 					user.UnknownUserError(missingLogin),

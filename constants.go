@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 const (
@@ -579,16 +577,6 @@ const (
 	JumpCloud = "jumpcloud"
 )
 
-const (
-	// RemoteCommandSuccess is returned when a command has successfully executed.
-	//go:fix inline
-	RemoteCommandSuccess = reexecconstants.RemoteCommandSuccess
-	// RemoteCommandFailure is returned when a command has failed to execute and
-	// we don't have another status code for it.
-	//go:fix inline
-	RemoteCommandFailure = reexecconstants.RemoteCommandFailure
-)
-
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
@@ -952,33 +940,6 @@ const (
 )
 
 const (
-	// ExecSubCommand is the sub-command Teleport uses to re-exec itself for
-	// command execution (exec and shells).
-	//go:fix inline
-	ExecSubCommand = reexecconstants.ExecSubCommand
-
-	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
-	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
-	// or x11 forwarding.
-	//go:fix inline
-	NetworkingSubCommand = reexecconstants.NetworkingSubCommand
-
-	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
-	// to check if the user's home directory exists.
-	//go:fix inline
-	CheckHomeDirSubCommand = reexecconstants.CheckHomeDirSubCommand
-
-	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
-	// specific UID to prevent the matching user from being deleted before
-	// spawning the intended child process.
-	//go:fix inline
-	ParkSubCommand = reexecconstants.ParkSubCommand
-
-	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
-	// handle SFTP connections.
-	//go:fix inline
-	SFTPSubCommand = reexecconstants.SFTPSubCommand
-
 	// WaitSubCommand is the sub-command Teleport uses to wait
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
