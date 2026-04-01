@@ -581,7 +581,7 @@ func isUnknownGroupError(err error, groupName string) bool {
 		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
-// DeleteAllUsers removes all temporary users in the [types.TeleportDropGroup]
+// DeleteAllUsers removes all temporary users in the [apiconstants.TeleportDropGroup]
 // without any active sessions.
 func (u *HostUserManagement) DeleteAllUsers() error {
 	users, err := u.backend.GetAllUsers()
