@@ -21,7 +21,13 @@ import type { Page } from '@playwright/test';
 import { generateInviteURL } from './tctl';
 import { mockWebAuthn } from './webauthn';
 
-export async function signup(page: Page, username: string) {
+export const defaultPassword = 'passwordtest123';
+
+export async function signup(
+  page: Page,
+  username: string,
+  password = defaultPassword
+) {
   await page.addInitScript(() =>
     localStorage.setItem('grv_teleport_license_acknowledged', 'true')
   );
@@ -35,13 +41,11 @@ export async function signup(page: Page, username: string) {
   await page.getByRole('textbox', { name: 'Password', exact: true }).click();
   await page
     .getByRole('textbox', { name: 'Password', exact: true })
-    .fill('passwordtest123');
+    .fill(password);
   await page
     .getByRole('textbox', { name: 'Password', exact: true })
     .press('Tab');
-  await page
-    .getByRole('textbox', { name: 'Confirm Password' })
-    .fill('passwordtest123');
+  await page.getByRole('textbox', { name: 'Confirm Password' }).fill(password);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Create an MFA Method' }).click();
   await page.getByRole('button', { name: 'Submit' }).click();
