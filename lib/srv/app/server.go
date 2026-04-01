@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -154,6 +155,12 @@ type Server struct {
 
 	// watcher monitors changes to application resources.
 	watcher *services.GenericWatcher[types.Application, readonly.Application]
+
+	// reconcileDone is closed after the first successful
+	// reconciliation cycle completes. It is only signaled
+	// when a resource watcher is active (s.watcher != nil).
+	reconcileDone     chan struct{}
+	reconcileDoneOnce sync.Once
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -207,9 +214,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh:  make(chan struct{}),
-		closeFunc:    closeFunc,
-		closeContext: closeContext,
+		reconcileCh:   make(chan struct{}),
+		reconcileDone: make(chan struct{}),
+		closeFunc:     closeFunc,
+		closeContext:  closeContext,
 	}
 
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
@@ -453,7 +461,83 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		}()
 	}
 
+	// Clean up orphaned app server records left behind by a previous
+	// instance (e.g. after SIGHUP reload removed an app from config).
+	go s.cleanupOrphanedAppServers(ctx)
+
 	return nil
+}
+
+// cleanupOrphanedAppServers deletes app server heartbeat records
+// belonging to this host that no longer correspond to a running app.
+// This handles the case where an app is removed from config and the
+// agent is reloaded: the old heartbeat record is orphaned because no
+// process deletes it, and it lingers until TTL expiry.
+func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
+	// If the resource watcher is active, wait for the first
+	// reconciliation so s.apps includes dynamic apps. Without
+	// this, cleanup would incorrectly delete heartbeat records
+	// for dynamic apps not yet reconciled. Use a timeout so
+	// cleanup still runs if the watcher never delivers an
+	// initial resource set (e.g. auth is slow at startup).
+	if s.watcher != nil {
+		timer := time.NewTimer(2 * time.Minute)
+		defer timer.Stop()
+		select {
+		case <-s.reconcileDone:
+		case <-timer.C:
+			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation before orphan cleanup, proceeding with static apps only.")
+		case <-s.closeContext.Done():
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// Snapshot the current app set before the RPC call. close()
+	// clears s.apps under the write lock before canceling
+	// closeContext, so snapshotting early ensures we see the full
+	// set even if close() runs during GetApplicationServers.
+	s.mu.RLock()
+	currentApps := make(map[string]bool, len(s.apps))
+	for name := range s.apps {
+		currentApps[name] = true
+	}
+	s.mu.RUnlock()
+
+	servers, err := s.c.AuthClient.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		s.log.WarnContext(ctx, "Failed to list app servers for orphan cleanup.", "error", err)
+		return
+	}
+
+	if s.closeContext.Err() != nil {
+		return
+	}
+
+	for _, server := range servers {
+		if server.GetHostID() != s.c.HostID {
+			continue
+		}
+		// Skip app servers managed by other components (e.g. AWS
+		// OIDC integration servers upserted by the proxy web
+		// handler). In all-in-one deployments these share our
+		// HostID but are not part of the app service's app set.
+		if server.GetApp().GetIntegration() != "" {
+			continue
+		}
+		name := server.GetApp().GetName()
+		if currentApps[name] {
+			continue
+		}
+		if err := s.removeAppServer(ctx, name); err != nil {
+			if !trace.IsNotFound(err) {
+				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
+			}
+			continue
+		}
+		s.log.InfoContext(ctx, "Removed orphaned app server on startup.", "app", name)
+	}
 }
 
 // Close will shut the server down and unblock any resources.
@@ -537,7 +621,7 @@ func (s *Server) close(ctx context.Context) error {
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
 
-	// Stop the database resource watcher.
+	// Stop the application resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
 	}
