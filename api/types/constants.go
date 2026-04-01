@@ -1744,20 +1744,26 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
-// TODO(espadolini): deprecate in v19, delete in v20
+// TODO(espadolini): delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
+	//
+	// Deprecated: use [constants.TeleportDropGroup].
 	//go:fix inline
 	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
+	//
+	// Deprecated: use [constants.TeleportKeepGroup].
 	//go:fix inline
 	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
+	//
+	// Deprecated: use [constants.TeleportStaticGroup].
 	//go:fix inline
 	TeleportStaticGroup = constants.TeleportStaticGroup
 )
