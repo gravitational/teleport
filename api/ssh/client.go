@@ -153,7 +153,11 @@ func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
 	return ssh.PublicKeysCallback(c.Signers), nil
 }
 
-// ClientConfig configures a Teleport SSH client.
+// ClientConfig defines all client-side parameters required to establish and authenticate an SSH connection with
+// Teleport. The minimal set of required parameters is User, HostKeyCallback, and PublicKeyAuth.Signers. The rest are
+// optional parameters that can be used to customize the SSH connection behavior. The client version string sent during
+// the SSH handshake is determined based on how the fields are set, with the default being DefaultClientVersion if no
+// features are indicated.
 type ClientConfig struct {
 	// Config contains configuration data common to both ServerConfig and ClientConfig.
 	SSHConfig ssh.Config
