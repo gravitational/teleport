@@ -1223,8 +1223,8 @@ func TestOnNewAppConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
-	// called.
+	// Attempt to establish a connection to an invalid app and verify
+	// that OnNewAppConnection was not called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
@@ -2281,8 +2281,7 @@ func mustStartFakeWebProxy(
 		return trace.Wrap(runTestSSHServerInstance(conn, serverConfig))
 	}
 
-	// Run a simplified TLS router for the test. Database protocols use the
-	// same echo handler as TCP apps since we're just testing the VNet plumbing.
+	// Run a simplified TLS router for the test.
 	protocolHandlers := map[alpncommon.Protocol]func(net.Conn) error{
 		alpncommon.ProtocolTCP:      tcpAppHandler,
 		alpncommon.ProtocolProxySSH: sshHandler,
