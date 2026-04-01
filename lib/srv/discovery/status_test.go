@@ -241,6 +241,52 @@ func TestMergeUpsertUserTask(t *testing.T) {
 	}
 }
 
+func TestMergeUpsertDiscoverEC2Task_DoesNotMergePermissionInstances(t *testing.T) {
+	t.Parallel()
+
+	syncTime := timestamppb.New(time.Now())
+	taskGroup := awsEC2TaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:   "unknown-account-test",
+		region:      "",
+	}
+
+	existingTask, err := usertasks.NewDiscoverEC2UserTask(
+		&usertasksv1.UserTaskSpec{
+			Integration: taskGroup.integration,
+			TaskType:    usertasks.TaskTypeDiscoverEC2,
+			IssueType:   taskGroup.issueType,
+			State:       usertasks.TaskStateOpen,
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				AccountId: taskGroup.accountID,
+				Region:    taskGroup.region,
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-old": {
+						InstanceId:      "i-old",
+						DiscoveryConfig: "dc-1",
+						DiscoveryGroup:  "group-1",
+						SyncTime:        syncTime,
+					},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	updater, ap := newTaskUpdater(t, existingTask)
+
+	require.NoError(t, updater.mergeUpsertDiscoverEC2Task(taskGroup, &usertasksv1.DiscoverEC2{
+		AccountId: taskGroup.accountID,
+		Region:    taskGroup.region,
+		Instances: map[string]*usertasksv1.DiscoverEC2Instance{},
+	}))
+
+	got, err := ap.GetUserTask(updater.ctx, existingTask.GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, got.GetSpec().GetDiscoverEc2().GetInstances())
+}
+
 type mocktaskUpdaterAccessPoint struct {
 	types.Semaphores
 
@@ -418,6 +464,144 @@ func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 			tasks := &azureVMTasks{}
 			tt.mutate(tasks)
 			require.Empty(t, cmp.Diff(tt.expected, tasks.taskGroups, protocmp.Transform()))
+		})
+	}
+}
+
+func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	var testEC2Key = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		accountID:       "123456789012",
+		region:          "us-west-2",
+		ssmDocument:     "doc",
+		installerScript: "script",
+	}
+
+	var testEC2KeyAlt = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		accountID:       "123456789012",
+		region:          "us-east-1",
+		ssmDocument:     "doc",
+		installerScript: "script",
+	}
+
+	var testEC2KeyPermIssue = awsEC2TaskKey{
+		integration:     "my-int",
+		issueType:       usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+		accountID:       "",
+		region:          "",
+		ssmDocument:     "",
+		installerScript: "",
+	}
+
+	syncTime := timestamppb.New(time.Now())
+
+	instance := func(id string) *usertasksv1.DiscoverEC2Instance {
+		return &usertasksv1.DiscoverEC2Instance{
+			InstanceId:      id,
+			DiscoveryConfig: "dc-01",
+			DiscoveryGroup:  "group-1",
+			SyncTime:        syncTime,
+		}
+	}
+
+	ec2Data := func(key awsEC2TaskKey, instances ...string) *usertasksv1.DiscoverEC2 {
+		data := &usertasksv1.DiscoverEC2{
+			AccountId:       key.accountID,
+			Region:          key.region,
+			SsmDocument:     key.ssmDocument,
+			InstallerScript: key.installerScript,
+			Instances:       make(map[string]*usertasksv1.DiscoverEC2Instance),
+		}
+		for _, inst := range instances {
+			data.Instances[inst] = instance(inst)
+		}
+		return data
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(tasks *awsEC2Tasks)
+		expected map[awsEC2TaskKey]*usertasksv1.DiscoverEC2
+		queue    map[awsEC2TaskKey]struct{}
+	}{
+		{
+			name: "empty integration is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				key := testEC2Key
+				key.integration = ""
+				tasks.addFailedEnrollment(key, instance("i-1"))
+			},
+		},
+		{
+			name: "empty issue type is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				key := testEC2Key
+				key.issueType = ""
+				tasks.addFailedEnrollment(key, instance("i-1"))
+			},
+		},
+		{
+			name: "creates task entry and adds instance",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key: ec2Data(testEC2Key, "i-1"),
+			},
+			queue: map[awsEC2TaskKey]struct{}{testEC2Key: {}},
+		},
+		{
+			name: "adds multiple instances to same key",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+				tasks.addFailedEnrollment(testEC2Key, instance("i-2"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key: ec2Data(testEC2Key, "i-1", "i-2"),
+			},
+			queue: map[awsEC2TaskKey]struct{}{testEC2Key: {}},
+		},
+		{
+			name: "different keys create separate entries",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, instance("i-1"))
+				tasks.addFailedEnrollment(testEC2KeyAlt, instance("i-2"))
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2Key:    ec2Data(testEC2Key, "i-1"),
+				testEC2KeyAlt: ec2Data(testEC2KeyAlt, "i-2"),
+			},
+			queue: map[awsEC2TaskKey]struct{}{testEC2Key: {}, testEC2KeyAlt: {}},
+		},
+		{
+			name: "permission issue creates task entry without instances",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedPermissionEnrollment(testEC2KeyPermIssue)
+			},
+			expected: map[awsEC2TaskKey]*usertasksv1.DiscoverEC2{
+				testEC2KeyPermIssue: ec2Data(testEC2KeyPermIssue),
+			},
+			queue: map[awsEC2TaskKey]struct{}{testEC2KeyPermIssue: {}},
+		},
+		{
+			name: "nil instance with non-permission issue is ignored",
+			mutate: func(tasks *awsEC2Tasks) {
+				tasks.addFailedEnrollment(testEC2Key, nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := &awsEC2Tasks{}
+			tt.mutate(tasks)
+			require.Empty(t, cmp.Diff(tt.expected, tasks.instancesIssues, protocmp.Transform()))
+			require.Equal(t, tt.queue, tasks.issuesSyncQueue)
 		})
 	}
 }

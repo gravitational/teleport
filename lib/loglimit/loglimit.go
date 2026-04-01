@@ -21,9 +21,7 @@ package loglimit
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,8 +31,7 @@ import (
 const (
 	// timeWindow is the time window over which logs are deduplicated.
 	timeWindow = time.Minute
-	// sweepInterval is how often the window mapping should be checked
-	// for stale entries.
+	// sweepInterval is how often the window mapping should be checked for stale entries.
 	sweepInterval = timeWindow * 3
 	// staleDuration is the amount of time an entry can exist in the
 	// window mapping before being evicted.
@@ -43,14 +40,11 @@ const (
 
 // Config contains the log limiter config.
 type Config struct {
-	// MessageSubstrings contains a list of substrings belonging to the
-	// logs that should be deduplicated.
+	// MessageSubstrings contains a list of substrings belonging to the logs that should be deduplicated.
 	MessageSubstrings []string
-	// Clock is a clock to override in tests, set to real time clock
-	// by default.
+	// Clock is a clock to override in tests, set to real time clock by default.
 	Clock clockwork.Clock
-	// Handler is the wrapped Handler that processes any messages that
-	// should be sampled.
+	// Handler is the wrapped Handler that processes any messages that should be sampled.
 	Handler slog.Handler
 }
 
@@ -73,15 +67,8 @@ func (c *Config) checkAndSetDefaults() error {
 type LogLimiter struct {
 	// config is the log limiter config.
 	config Config
-	// mu synchronizes access to `windows`.
-	mu sync.Mutex
-	// windows is a mapping from log substring to an active
-	// time window.
-	windows map[string]time.Time
-
-	// lastSweep indicates the last time the full windows mapping
-	// was sweeped and purged of expired entries.
-	lastSweep time.Time
+	// limiter stores fixed-window suppression state for matched substrings.
+	limiter *limiter
 }
 
 // Enabled implements slog.Handler.
@@ -96,39 +83,7 @@ func (l *LogLimiter) Handle(ctx context.Context, record slog.Record) error {
 		return trace.Wrap(l.config.Handler.Handle(ctx, record))
 	}
 
-	shouldLog := func(now time.Time) bool {
-		l.mu.Lock()
-		defer func() {
-			// Periodically attempt to clean up the last seen mapping.
-			if now.After(l.lastSweep.Add(sweepInterval)) {
-				for key, lastSeen := range l.windows {
-					if now.After(lastSeen.Add(staleDuration)) {
-						delete(l.windows, key)
-					}
-				}
-				l.lastSweep = l.config.Clock.Now()
-			}
-
-			l.mu.Unlock()
-		}()
-		lastSeen, ok := l.windows[messageSubstring]
-
-		switch {
-		case !ok:
-			// If this is the first occurrence, log the entry and save it.
-			l.windows[messageSubstring] = now
-			return true
-		case now.After(lastSeen.Add(timeWindow)):
-			// If this is NOT the first occurrence BUT the last occurrence,
-			// has expired, then permit the log entry and update the window.
-			l.windows[messageSubstring] = l.config.Clock.Now()
-			return true
-		default:
-			return false
-		}
-	}(l.config.Clock.Now())
-
-	if shouldLog {
+	if l.limiter.allow(messageSubstring, timeWindow) {
 		return trace.Wrap(l.config.Handler.Handle(ctx, record))
 	}
 
@@ -138,31 +93,30 @@ func (l *LogLimiter) Handle(ctx context.Context, record slog.Record) error {
 
 // WithAttrs implements slog.Handler.
 func (l *LogLimiter) WithAttrs(attrs []slog.Attr) slog.Handler {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
+	// slog.Handler values are immutable; derived handlers must behave as
+	// independent values. We clone suppression state at derivation time so the
+	// new handler starts with the same snapshot but then diverges independently.
 	return &LogLimiter{
 		config: Config{
 			MessageSubstrings: l.config.MessageSubstrings,
 			Clock:             l.config.Clock,
 			Handler:           l.config.Handler.WithAttrs(attrs),
 		},
-		windows: maps.Clone(l.windows),
+		limiter: l.limiter.clone(),
 	}
 }
 
 // WithGroup implements slog.Handler.
 func (l *LogLimiter) WithGroup(name string) slog.Handler {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
+	// Keep the same clone semantics as WithAttrs: copy current limiter state,
+	// then let parent/child handlers evolve independently.
 	return &LogLimiter{
 		config: Config{
 			MessageSubstrings: l.config.MessageSubstrings,
 			Clock:             l.config.Clock,
 			Handler:           l.config.Handler.WithGroup(name),
 		},
-		windows: maps.Clone(l.windows),
+		limiter: l.limiter.clone(),
 	}
 }
 
@@ -173,8 +127,16 @@ func New(config Config) (*LogLimiter, error) {
 	}
 
 	l := &LogLimiter{
-		config:  config,
-		windows: make(map[string]time.Time, len(config.MessageSubstrings)),
+		config: config,
+		limiter: newLimiter(limiterConfig{
+			clock:                 config.Clock,
+			sweepInterval:         sweepInterval,
+			sweepMultiplier:       int(sweepInterval / timeWindow),
+			staleMultiplier:       int(staleDuration / timeWindow),
+			allowAtWindowBoundary: false,
+			sweepAtBoundary:       false,
+			staleAtBoundary:       false,
+		}),
 	}
 
 	return l, nil

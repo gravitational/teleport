@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -78,7 +79,31 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
-const noDiscoveryConfig = ""
+const (
+	noDiscoveryConfig = ""
+
+	// ec2IAMWarningMinSuppression is the minimum duration a repeated EC2 IAM
+	// permission warning will be suppressed.
+	ec2IAMWarningMinSuppression = 15 * time.Minute
+
+	// ec2IAMWarningSuppressionMultiplier scales the poll interval to produce
+	// the suppression window.
+	ec2IAMWarningSuppressionMultiplier = 3
+
+	// ec2IAMWarningSweepMultiplier defines how many suppression windows
+	// must pass before a garbage collection sweep occurs. It multiplies
+	// against the suppression duration to determine the sweep interval.
+	// This tells the system when it's safe to delete the warning from
+	// its internal memory map.
+	ec2IAMWarningSweepMultiplier = 3
+
+	// ec2IAMWarningStaleMultiplier defines how many suppression windows
+	// a warning key must sit inactive before becoming stale. It
+	// multiplies against the suppression duration to determine this
+	// inactivity threshold. This tells the system how long to keep the
+	// warning in memory before deleting it.
+	ec2IAMWarningStaleMultiplier = 2
+)
 
 // Matchers contains all matchers used by discovery service
 type Matchers struct {
@@ -92,6 +117,27 @@ type Matchers struct {
 	Kubernetes []types.KubernetesMatcher
 	// AccessGraph is the configuration for the Access Graph Cloud sync.
 	AccessGraph *types.AccessGraphSync
+}
+
+type ec2IAMWarningKey struct {
+	integration string
+	accountID   string
+	region      string
+	issueType   string
+}
+
+// String returns a pipe-delimited composite key with each component quoted,
+// so pipe characters in field values do not collide with the delimiter.
+func (k ec2IAMWarningKey) String() string {
+	return fmt.Sprintf("%q|%q|%q|%q", k.integration, k.accountID, k.region, k.issueType)
+}
+
+func ec2IAMWarningSuppressionWindow(pollInterval time.Duration) time.Duration {
+	return max(pollInterval*ec2IAMWarningSuppressionMultiplier, ec2IAMWarningMinSuppression)
+}
+
+func ec2IAMWarningSweepInterval(pollInterval time.Duration) time.Duration {
+	return ec2IAMWarningSuppressionWindow(pollInterval) * ec2IAMWarningSweepMultiplier
 }
 
 func (m Matchers) IsEmpty() bool {
@@ -395,8 +441,8 @@ type Server struct {
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
-	// ec2Watcher periodically retrieves EC2 instances.
-	ec2Watcher *server.Watcher[*server.EC2Instances]
+	// ec2Watcher periodically retrieves EC2 instances and permission errors.
+	ec2Watcher *server.Watcher[*server.EC2DiscoveryResult]
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer ssmInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
@@ -442,9 +488,14 @@ type Server struct {
 	awsRDSResourcesStatus awsResourcesStatus
 	awsEKSResourcesStatus awsResourcesStatus
 	awsEC2Tasks           awsEC2Tasks
-	awsEKSTasks           awsEKSTasks
-	awsRDSTasks           awsRDSTasks
-	azureVMStatus         atomic.Pointer[resourceStatusMap]
+
+	// ec2IAMWarningLimiter rate-limits EC2 IAM permission warnings keyed by
+	// integration, account, region, and issue type.
+	ec2IAMWarningLimiter *loglimit.KeyedLimiter
+
+	awsEKSTasks   awsEKSTasks
+	awsRDSTasks   awsRDSTasks
+	azureVMStatus atomic.Pointer[resourceStatusMap]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -487,6 +538,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		awsEC2ResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEC2),
 		awsRDSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherRDS),
 		awsEKSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEKS),
+		ec2IAMWarningLimiter: loglimit.NewKeyedLimiter(loglimit.KeyedLimiterConfig{
+			Clock:           cfg.clock,
+			SweepInterval:   ec2IAMWarningSweepInterval(cfg.PollInterval),
+			StaleMultiplier: ec2IAMWarningStaleMultiplier,
+		}),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -632,10 +688,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		server.WithMissedRotation(s.caRotationCh),
-		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
-		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
+		server.WithPollInterval[*server.EC2DiscoveryResult](s.PollInterval),
+		server.WithTriggerFetchC[*server.EC2DiscoveryResult](s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
-		server.WithClock[*server.EC2Instances](s.clock),
+		server.WithPerInstanceTapFn(s.handleEC2WatcherResults),
+		server.WithClock[*server.EC2DiscoveryResult](s.clock),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -673,7 +730,75 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	return nil
 }
 
-func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2Instances]) {
+// handleEC2WatcherResults processes EC2 watcher results before
+// downstream enrollment handling runs. It conditionally logs
+// rate-limited IAM permission warnings, while unconditionally
+// queuing those permission errors as failed enrollments for later
+// user-task upserts.
+func (s *Server) handleEC2WatcherResults(results []*server.EC2DiscoveryResult) {
+	for _, result := range results {
+		if result == nil {
+			continue
+		}
+		for _, permErr := range result.PermissionErrors {
+			if permErr == nil {
+				continue
+			}
+			if s.shouldLogEC2IAMPermissionWarning(permErr) {
+				// discovery_config is logged as informational context and is intentionally absent from the rate-limiting key.
+				// The first config observed within a suppression window is the one shown in the emitted warning.
+				s.Log.WarnContext(s.ctx, "IAM permission error during EC2 discovery",
+					"issue_type", permErr.IssueType,
+					"integration", permErr.Integration,
+					"account_id", permErr.AccountID,
+					"region", permErr.Region,
+					"discovery_config", permErr.DiscoveryConfigName,
+					"error", permErr.Err,
+				)
+			}
+
+			// This is called every poll, regardless of the suppression logic.
+			s.awsEC2Tasks.addFailedPermissionEnrollment(
+				awsEC2TaskKey{
+					// Intentionally do not include DiscoveryConfigName in the task key. Permission errors are
+					// account/region scoped and usually shared by all discovery configs using the same credentials.
+					accountID:   permErr.AccountID,
+					integration: permErr.Integration,
+					issueType:   permErr.IssueType,
+					region:      permErr.Region,
+				},
+			)
+		}
+	}
+}
+
+// shouldLogEC2IAMPermissionWarning reports whether an EC2 IAM permission warning
+// should be logged. Identical warnings with the same integration, account, region,
+// and issue type are rate-limited to prevent log spam during repeated discovery polls.
+//
+// Suppression and stale-entry sweeping are delegated to [loglimit.KeyedLimiter],
+// which must be initialized before this method is called.
+func (s *Server) shouldLogEC2IAMPermissionWarning(permErr *server.EC2IAMPermissionError) bool {
+	if permErr == nil {
+		return false
+	}
+	if s.ec2IAMWarningLimiter == nil {
+		return true
+	}
+
+	suppressionWindow := ec2IAMWarningSuppressionWindow(s.PollInterval)
+
+	key := ec2IAMWarningKey{
+		integration: permErr.Integration,
+		accountID:   permErr.AccountID,
+		region:      permErr.Region,
+		issueType:   permErr.IssueType,
+	}
+
+	return s.ec2IAMWarningLimiter.Allow(key.String(), suppressionWindow)
+}
+
+func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2DiscoveryResult]) {
 	if len(fetchers) == 0 {
 		return
 	}
@@ -682,7 +807,7 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
-		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
+		func(f server.Fetcher[*server.EC2DiscoveryResult]) (awsResourceGroup, bool) {
 			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
@@ -735,7 +860,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[*server.EC2Instances], error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[*server.EC2DiscoveryResult], error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
@@ -1414,16 +1539,22 @@ func (s *Server) handleEC2Discovery() {
 
 	for {
 		select {
-		case instances := <-s.ec2Watcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
+		case result := <-s.ec2Watcher.InstancesC:
+			if result == nil {
+				continue
+			}
 
-			s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
-				discoveryConfigName: instances.DiscoveryConfigName,
-				integration:         instances.Integration,
-			}, len(instances.Instances))
+			for _, instances := range result.Instances {
+				s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
 
-			if err := s.handleEC2Instances(instances); err != nil {
-				s.logHandleInstancesErr(err)
+				s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
+					discoveryConfigName: instances.DiscoveryConfigName,
+					integration:         instances.Integration,
+				}, len(instances.Instances))
+
+				if err := s.handleEC2Instances(instances); err != nil {
+					s.logHandleInstancesErr(err)
+				}
 			}
 
 			s.upsertTasksForAWSEC2FailedEnrollments()

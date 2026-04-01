@@ -29,39 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSweepCleansUpStaleEntries(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-
-	var sink bytes.Buffer
-	logLimiter, err := New(Config{
-		MessageSubstrings: []string{"A", "B"},
-		Clock:             clock,
-		Handler:           slog.NewTextHandler(&sink, &slog.HandlerOptions{}),
-	})
-	require.NoError(t, err)
-
-	logger := slog.New(logLimiter)
-
-	logger.InfoContext(t.Context(), "A log 1")
-	require.Len(t, logLimiter.windows, 1)
-
-	// Simulate frequent calls that occur between the entry going stale
-	// and the sweep interval being reached.
-	//
-	// Advance in small increments, logging a deduplicated "B" message
-	// each time. After enough time has passed the "A" entry is stale
-	// and the sweep is overdue.
-	for elapsed := time.Duration(0); elapsed < staleDuration+sweepInterval; elapsed += timeWindow {
-		clock.Advance(timeWindow)
-		logger.InfoContext(t.Context(), "B log")
-	}
-
-	require.Len(t, logLimiter.windows, 1, "stale entry for A should have been swept")
-	require.Contains(t, logLimiter.windows, "B", "only the fresh B entry should remain")
-}
-
 func TestLogLimiter(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -205,4 +172,89 @@ msg="C log 1"
 			tc.logsAssert(t, loggedFirstBatch, loggedSecondBatch)
 		})
 	}
+}
+
+func TestLogLimiterSuppressionBoundaryIsStrictlyAfterWindowEnd(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2026, time.March, 23, 0, 0, 0, 0, time.UTC))
+
+	var sink bytes.Buffer
+	logLimiter, err := New(Config{
+		MessageSubstrings: []string{"A"},
+		Clock:             clock,
+		Handler: slog.NewTextHandler(&sink, &slog.HandlerOptions{
+			AddSource: false,
+			Level:     nil,
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.TimeKey || a.Key == slog.LevelKey {
+					return slog.Attr{}
+				}
+
+				return a
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	logger := slog.New(logLimiter)
+
+	logger.InfoContext(t.Context(), "A log 1")
+
+	clock.Advance(time.Minute - time.Millisecond)
+	logger.InfoContext(t.Context(), "A log 2")
+
+	clock.Advance(time.Millisecond)
+	logger.InfoContext(t.Context(), "A log 3")
+
+	clock.Advance(time.Millisecond)
+	logger.InfoContext(t.Context(), "A log 4")
+
+	assert.Equal(t, `msg="A log 1"
+msg="A log 4"
+`, sink.String())
+}
+
+func TestLogLimiterWithAttrsCloneStateDivergesIndependently(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2026, time.March, 23, 0, 0, 0, 0, time.UTC))
+
+	var sink bytes.Buffer
+	logLimiter, err := New(Config{
+		MessageSubstrings: []string{"A"},
+		Clock:             clock,
+		Handler: slog.NewTextHandler(&sink, &slog.HandlerOptions{
+			AddSource: false,
+			Level:     nil,
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.TimeKey || a.Key == slog.LevelKey {
+					return slog.Attr{}
+				}
+
+				return a
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	base := slog.New(logLimiter)
+	child := base.With("component", "child")
+
+	// Prime base state, then derive child so both start from the same snapshot.
+	base.InfoContext(t.Context(), "A from base")
+
+	// Child allows once from the cloned snapshot; base suppresses because it's
+	// still in the original window.
+	child.InfoContext(t.Context(), "A from child")
+	base.InfoContext(t.Context(), "A from base again")
+
+	// Child now suppresses independently in its own limiter state.
+	child.InfoContext(t.Context(), "A from child again")
+
+	logged := sink.String()
+	assert.Contains(t, logged, `msg="A from base"`)
+	assert.Contains(t, logged, `msg="A from child" component=child`)
+	assert.NotContains(t, logged, "A from base again")
+	assert.NotContains(t, logged, "A from child again")
 }

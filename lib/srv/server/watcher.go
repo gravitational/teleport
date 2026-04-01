@@ -89,6 +89,15 @@ func WithPerInstanceHookFn[Instances any](callback func(groups []Instances)) Opt
 	}
 }
 
+// WithPerInstanceTapFn sets an optional callback for each fetcher's batch of fetched
+// instance groups. It will be called once per fetcher. This callback observes results before
+// forwarding, but does not replace normal channel writes to InstancesC.
+func WithPerInstanceTapFn[Instances any](callback func(groups []Instances)) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		w.perInstanceTapFn = callback
+	}
+}
+
 // WithPostFetchHookFn sets an optional callback to be called after the fetch round is finished.
 func WithPostFetchHookFn[Instances any](f func()) Option[Instances] {
 	return func(w *Watcher[Instances]) {
@@ -104,9 +113,9 @@ func WithClock[Instances any](clock clockwork.Clock) Option[Instances] {
 }
 
 // WithMissedRotation sets the missed rotation channel.
-// Specialized for EC2Instances since this functionality is specific to EC2 servers.
-func WithMissedRotation(missedRotation <-chan []types.Server) Option[*EC2Instances] {
-	return func(w *Watcher[*EC2Instances]) {
+// Specialized for EC2DiscoveryResult since this functionality is specific to EC2 servers.
+func WithMissedRotation(missedRotation <-chan []types.Server) Option[*EC2DiscoveryResult] {
+	return func(w *Watcher[*EC2DiscoveryResult]) {
 		w.missedRotation = missedRotation
 	}
 }
@@ -127,6 +136,7 @@ type Watcher[Instances any] struct {
 	preFetchHookFn     func(fetchers []Fetcher[Instances])
 	postFetchHookFn    func()
 	triggerFetchHookFn func()
+	perInstanceTapFn   func(instances []Instances)
 	perInstanceHookFn  func(instances []Instances)
 }
 
@@ -181,6 +191,9 @@ func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, 
 		}
 		slog.ErrorContext(context.Background(), "Failed to fetch instances", "error", err)
 		return
+	}
+	if w.perInstanceTapFn != nil {
+		w.perInstanceTapFn(instancesColl)
 	}
 	w.perInstanceHookFn(instancesColl)
 }
