@@ -871,6 +871,7 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 			if err != nil {
 				return fmt.Errorf("truncate editor file: %w", err)
 			}
+			defer f.Close()
 
 			// Write edited CAs.
 			for i, caYAML := range casYAML {
