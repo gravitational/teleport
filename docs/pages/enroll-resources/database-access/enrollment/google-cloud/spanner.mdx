@@ -18,11 +18,11 @@ tags:
 <Tabs>
 
 <TabItem label="Self-Hosted">
-![Self-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_selfhosted.png)
+![Self-Hosted Teleport Architecture for Cloud Spanner Access](https://website.goteleport.com/_uploads/spanner_selfhosted_bf0e74fb75.png)
 </TabItem>
 
 <TabItem label="Cloud-Hosted">
-![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](../../../../../img/database-access/guides/spanner_cloud.png)
+![Cloud-Hosted Teleport Architecture for Cloud Spanner Access](https://website.goteleport.com/_uploads/spanner_cloud_a781090c6a.png)
 </TabItem>
 
 </Tabs>
@@ -92,7 +92,7 @@ $ gcloud iam service-accounts create spanner-user --display-name="Spanner User"
 </TabItem>
 </Tabs>
 
-## Step 2/6: Grant permissions
+## Step 2/6. Grant permissions
 
 Grant the database user account access to Spanner, then allow the Database Service account to impersonate it.
 
@@ -171,7 +171,7 @@ You should see the `roles/iam.serviceAccountTokenCreator` role.
 
 </Checkpoint>
 
-## Step 3/6: Install and configure the Teleport Database Service
+## Step 3/6. Install and configure the Teleport Database Service
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -199,11 +199,11 @@ $ sudo teleport db configure create \
   --gcp-instance-id=<Var name="instance-id" />
 ```
 
-## Step 4/6: Configure GCP credentials
+## Step 4/6. Configure GCP credentials
 
 (!docs/pages/includes/database-access/cloudsql_service_credentials.mdx serviceAccount="teleport-db-service"!)
 
-## Step 5/6: Start the Teleport Database Service
+## Step 5/6. Start the Teleport Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
@@ -231,7 +231,7 @@ If the database does not appear, verify your Teleport role permissions. See the 
 
 </Checkpoint>
 
-## Step 6/6: Connect using the service account
+## Step 6/6. Connect using the service account
 
 In this step, you will create a Teleport user with access to the Spanner
 database, connect using the impersonated service account, and optionally
@@ -239,10 +239,16 @@ remove stored credentials when you are done.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
+Log in to your Teleport cluster as the new user that you just created:
+```code
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=example-db-user
+```
+
 Connect using the service account name (without the domain suffix):
+(Note: `--db-name` here refers to the specific database ID within your Spanner instance.)
 
 ```code
-$ tsh db connect --db-user=spanner-user --db-name=example-db spanner-example
+$ tsh db connect --db-user=spanner-user --db-name=database-name spanner-example
 ```
 
 You should now have an authenticated connection using the impersonated service account.
