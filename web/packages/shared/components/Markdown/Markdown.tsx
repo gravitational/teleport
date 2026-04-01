@@ -420,6 +420,7 @@ function Section(
         tabIndex={0}
         onKeyDown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
             setExpanded(prev => !prev);
           }
         }}
