@@ -34,9 +34,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
+	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 type stubUser struct {
@@ -91,8 +91,8 @@ func TestStartNewParker(t *testing.T) {
 			newOsPack: func(t *testing.T) (*osWrapper, func()) {
 				return &osWrapper{
 					LookupGroup: func(name string) (*user.Group, error) {
-						require.Equal(t, types.TeleportDropGroup, name)
-						return nil, user.UnknownGroupError(types.TeleportDropGroup)
+						require.Equal(t, apiconstants.TeleportDropGroup, name)
+						return nil, user.UnknownGroupError(apiconstants.TeleportDropGroup)
 					},
 				}, func() {}
 			},
@@ -103,7 +103,7 @@ func TestStartNewParker(t *testing.T) {
 			newOsPack: func(t *testing.T) (*osWrapper, func()) {
 				return &osWrapper{
 					LookupGroup: func(name string) (*user.Group, error) {
-						require.Equal(t, types.TeleportDropGroup, name)
+						require.Equal(t, apiconstants.TeleportDropGroup, name)
 						return &user.Group{Gid: "1234"}, nil
 					},
 					CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
@@ -129,13 +129,13 @@ func TestStartNewParker(t *testing.T) {
 
 				return &osWrapper{
 						LookupGroup: func(name string) (*user.Group, error) {
-							require.Equal(t, types.TeleportDropGroup, name)
+							require.Equal(t, apiconstants.TeleportDropGroup, name)
 							return &user.Group{Gid: currentUser.Gid}, nil
 						},
 						CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
 							require.NotNil(t, ctx)
 							require.Len(t, arg, 1)
-							require.Equal(t, teleport.ParkSubCommand, arg[0])
+							require.Equal(t, reexecconstants.ParkSubCommand, arg[0])
 							parkerStarted = true
 							return exec.CommandContext(ctx, name, arg...)
 						},
@@ -260,7 +260,7 @@ func TestRootOpenFileAsUser(t *testing.T) {
 	username := "processing-user"
 
 	arg := os.Args[1]
-	os.Args[1] = teleport.ExecSubCommand
+	os.Args[1] = reexecconstants.ExecSubCommand
 	defer func() {
 		os.Args[1] = arg
 	}()
