@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package logutils
+package logconstants
 
 // these constants are asserted to be the same as the ones in
 // github.com/gravitational/teleport, they are inlined here to avoid circular

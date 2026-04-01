@@ -27,6 +27,8 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/session/logconstants"
 )
 
 // SlogTextHandler is a [slog.Handler] that outputs messages in a textual
@@ -178,7 +180,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			//	logger.InfoContext(ctx, "llama llama llama", teleport.ComponentKey, "alpaca", "foo", 123, teleport.ComponentKey, "shark")
 			component := s.component
 			r.Attrs(func(attr slog.Attr) bool {
-				if attr.Key != TeleportComponentKey {
+				if attr.Key != logconstants.ComponentKey {
 					return true
 				}
 
@@ -188,10 +190,10 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			})
 
 			if rep == nil {
-				state.appendKey(TeleportComponentKey)
+				state.appendKey(logconstants.ComponentKey)
 				state.appendString(component)
 			} else {
-				state.appendAttr(slog.String(TeleportComponentKey, component))
+				state.appendAttr(slog.String(logconstants.ComponentKey, component))
 			}
 		default:
 			if _, ok := knownFormatFields[field]; !ok {
@@ -321,7 +323,7 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	nonEmpty := false
 	for _, a := range attrs {
 		switch a.Key {
-		case TeleportComponentKey:
+		case logconstants.ComponentKey:
 			component := strings.ToUpper(fmt.Sprintf("[%v]", a.Value.String()))
 			if s.cfg.Padding > 0 {
 				component = padMax(component, s.cfg.Padding)
@@ -331,7 +333,7 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 			}
 			s2.component = component
 			s2.rawComponent = a.Value.String()
-		case TeleportComponentFields:
+		case logconstants.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
 				for k, v := range fields {
