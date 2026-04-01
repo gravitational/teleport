@@ -22,8 +22,6 @@ import (
 
 // BeginBrowserMFAChallengeParams contains parameters for lib/auth/Server.BeginBrowserMFAChallenge. This struct is in this
 // package in order to avoid a circular dependency between lib/auth and lib/auth/mfa/mfav1.
-// TODO(cthach)/TODO(danielashare): Move params struct back to lib/auth package after SSO MFA device support is added to lib/auth/authtest
-// (https://github.com/gravitational/teleport/issues/62271) and the lib/auth/mfa/mfav1.AuthServer interface is updated.
 type BeginBrowserMFAChallengeParams struct {
 	User                     string
 	BrowserMFATSHRedirectURL string

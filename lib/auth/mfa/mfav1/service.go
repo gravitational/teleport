@@ -29,8 +29,6 @@ import (
 )
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
-// TODO(cthach): Remove after SSO MFA device support is added to lib/auth/authtest
-// (https://github.com/gravitational/teleport/issues/62271) and update the tests to use lib/auth/authtest for mocking.
 type AuthServer interface {
 	CompleteBrowserMFAChallenge(
 		ctx context.Context,
