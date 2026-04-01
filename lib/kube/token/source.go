@@ -32,12 +32,12 @@ const (
 type getEnvFunc func(key string) string
 type readFileFunc func(name string) ([]byte, error)
 
-func GetIDToken(getEnv getEnvFunc, readFile readFileFunc) (string, error) {
-	// We check if we should use a custom location instead of the default one. This env var is not standard.
-	// This is useful when the operator wants to use a custom projected token, or another service account.
+func GetIDToken(customPath string, getEnv getEnvFunc, readFile readFileFunc) (string, error) {
 	path := kubernetesDefaultTokenPath
-	if customPath := getEnv(EnvVarCustomKubernetesTokenPath); customPath != "" {
+	if customPath != "" {
 		path = customPath
+	} else if envPath := getEnv(EnvVarCustomKubernetesTokenPath); envPath != "" {
+		path = envPath
 	}
 
 	token, err := readFile(path)

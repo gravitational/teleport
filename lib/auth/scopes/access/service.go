@@ -278,7 +278,8 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 	// load the assignment so we can determine the resource scope
 	grsp, err := s.cfg.Reader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: req.GetName(),
+		Name:    req.GetName(),
+		SubKind: req.GetSubKind(),
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {

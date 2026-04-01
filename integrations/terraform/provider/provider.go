@@ -95,6 +95,10 @@ const (
 	// attributeTerraformGitlabIDTokenEnvVar is the attribute configuring the environment variable used to fetch the ID
 	// token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`.
 	attributeTerraformGitlabIDTokenEnvVar = "gitlab_id_token_env_var"
+	// attributeKubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	attributeKubernetesTokenPath = "kubernetes_token_path"
 )
 
 type RetryConfig struct {
@@ -158,6 +162,10 @@ type providerData struct {
 	// defaults to `TBOT_GITLAB_JWT`. Useful in cases where multiple Teleport
 	// clusters are managed by the same GitLab job.
 	GitlabIDTokenEnvVar types.String `tfsdk:"gitlab_id_token_env_var"`
+	// KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	KubernetesTokenPath types.String `tfsdk:"kubernetes_token_path"`
 }
 
 // New returns an empty provider struct
@@ -284,6 +292,12 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
+			},
+			attributeKubernetesTokenPath: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
 			},
 		},
 	}, nil
