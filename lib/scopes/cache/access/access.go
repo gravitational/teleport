@@ -329,7 +329,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go materializer.RefreshEventLoop(ctx)
+	go materializer.RepairEventLoop(ctx)
 
 	// start processing and applying changes
 	for {
@@ -342,8 +342,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 			if err := materializer.ProcessEvent(ctx, state, event); err != nil {
 				return trace.Errorf("materializer failed during event processing: %w", err)
 			}
-		case event := <-materializer.RefreshEvents():
-			materializer.ProcessRefreshEvent(ctx, state, event)
+		case event := <-materializer.RepairEvents():
+			materializer.ProcessRepairEvent(ctx, state, event)
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				// watcher errors are expected if the watcher is closed before init completes.
