@@ -30,7 +30,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -475,83 +474,6 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
-func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
-	dbKey := dbInfo.GetDatabaseKey()
-	clusterURI := uri.NewClusterURI(dbKey.GetProfile()).AppendLeafCluster(dbKey.GetLeafCluster())
-	dbURI := clusterURI.AppendDB(dbKey.GetName())
-
-	routeToDatabase := vnet.RouteToDatabase(dbInfo)
-
-	reloginReq := &apiteleterm.ReloginRequest{
-		RootClusterUri: clusterURI.GetRootClusterURI().String(),
-		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
-			VnetCertExpired: &apiteleterm.VnetCertExpired{
-				TargetUri: dbURI.String(),
-			},
-		},
-	}
-
-	var cert tls.Certificate
-
-	reissueCert := func() error {
-		clusterClient, err := p.daemonService.GetCachedClient(ctx, clusterURI)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Using IssueUserCertsWithMFA over cluster.ReissueDBCerts because the latter
-		// rejects empty usernames which is correct for database gateways but not for VNet
-		// as for vnet, the username may come from the wire protocol.
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-			RouteToCluster:  dbKey.GetLeafCluster(),
-			RouteToDatabase: *routeToDatabase,
-			RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cert, err = result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
-		return trace.Wrap(err)
-	}
-
-	if err := p.daemonService.RetryWithRelogin(ctx, reloginReq, reissueCert); err != nil {
-		notifyErr := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
-			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
-				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
-					TargetUri: dbURI.String(),
-					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
-						CertReissueError: &apiteleterm.CertReissueError{
-							Error: err.Error(),
-						},
-					},
-				},
-			},
-		})
-		if notifyErr != nil {
-			log.ErrorContext(ctx, "Failed to send a notification for an error encountered during VNet database cert reissue",
-				"cert_reissue_error", err, "notify_error", notifyErr)
-		}
-
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	return cert, nil
-}
-
-// OnNewDBConnection submits a database usage event.
-func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
-	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
-	// don't want to slow down VNet connections.
-	go func() {
-		dbURI := uri.NewClusterURI(dbKey.GetProfile()).AppendLeafCluster(dbKey.GetLeafCluster()).AppendDB(dbKey.GetName())
-		if err := p.usageReporter.ReportDB(dbURI); err != nil {
-			log.ErrorContext(ctx, "Failed to submit database usage event", "db", dbURI, "error", err)
-		}
-	}()
-
-	return nil
-}
-
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way
@@ -697,7 +619,6 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 
 type usageReporter interface {
 	ReportApp(uri.ResourceURI) error
-	ReportDB(uri.ResourceURI) error
 	ReportSSHSession(profileName, rootClusterName string) error
 	Stop()
 }
@@ -816,18 +737,6 @@ func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName stri
 // ReportApp adds an event related to the given app to the events queue, if the app wasn't reported
 // already. Only one invocation of ReportApp can be in flight at a time.
 func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
-	return r.reportProtocolUsage(appURI, "app")
-}
-
-// ReportDB adds an event related to the given database to the events queue, if the database wasn't
-// reported already. Only one invocation of ReportDB can be in flight at a time.
-func (r *daemonUsageReporter) ReportDB(dbURI uri.ResourceURI) error {
-	return r.reportProtocolUsage(dbURI, "db")
-}
-
-// reportProtocolUsage adds a protocol usage event for the given resource to the events queue, if it
-// wasn't reported already. Only one invocation can be in flight at a time.
-func (r *daemonUsageReporter) reportProtocolUsage(resourceURI uri.ResourceURI, protocol string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -835,7 +744,7 @@ func (r *daemonUsageReporter) reportProtocolUsage(resourceURI uri.ResourceURI, p
 		return trace.CompareFailed("usage reporter has been stopped")
 	}
 
-	if _, hasBeenReported := r.reportedApps[resourceURI.String()]; hasBeenReported {
+	if _, hasAppBeenReported := r.reportedApps[appURI.String()]; hasAppBeenReported {
 		return nil
 	}
 
@@ -850,13 +759,13 @@ func (r *daemonUsageReporter) reportProtocolUsage(resourceURI uri.ResourceURI, p
 		}
 	}()
 
-	rootClusterURI := resourceURI.GetRootClusterURI()
-	client, err := r.cfg.ClientCache.GetCachedClient(ctx, resourceURI)
+	rootClusterURI := appURI.GetRootClusterURI()
+	client, err := r.cfg.ClientCache.GetCachedClient(ctx, appURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	rootClusterName := client.RootClusterName()
-	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(resourceURI)
+	_, tc, err := r.cfg.ClientCache.ResolveClusterURI(appURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -866,7 +775,7 @@ func (r *daemonUsageReporter) reportProtocolUsage(resourceURI uri.ResourceURI, p
 		return trace.NotFound("cluster ID for %q not found", rootClusterURI)
 	}
 
-	log.DebugContext(ctx, "Reporting protocol usage event", "uri", resourceURI.String(), "protocol", protocol)
+	log.DebugContext(ctx, "Reporting app usage event", "app", appURI.String())
 
 	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
 		AuthClusterId: clusterID,
@@ -877,17 +786,17 @@ func (r *daemonUsageReporter) reportProtocolUsage(resourceURI uri.ResourceURI, p
 				ProtocolUse: &prehogv1alpha.ConnectProtocolUseEvent{
 					ClusterName:   rootClusterName,
 					UserName:      tc.Username,
-					Protocol:      protocol,
+					Protocol:      "app",
 					Origin:        "vnet",
 					AccessThrough: "vnet",
 				},
 			},
 		},
 	}); err != nil {
-		return trace.Wrap(err, "adding %s usage event to queue", protocol)
+		return trace.Wrap(err, "adding app usage event to queue")
 	}
 
-	r.reportedApps[resourceURI.String()] = struct{}{}
+	r.reportedApps[appURI.String()] = struct{}{}
 
 	return nil
 }
@@ -912,11 +821,6 @@ type disabledTelemetryUsageReporter struct{}
 
 func (r *disabledTelemetryUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 	log.DebugContext(context.Background(), "Skipping app usage event, usage reporting is turned off", "app", appURI.String())
-	return nil
-}
-
-func (r *disabledTelemetryUsageReporter) ReportDB(dbURI uri.ResourceURI) error {
-	log.DebugContext(context.Background(), "Skipping database usage event, usage reporting is turned off", "db", dbURI.String())
 	return nil
 }
 
