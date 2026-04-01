@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"bytes"
@@ -141,9 +141,9 @@ func fdName(f FileFD) string {
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
 type ExecCommand struct {
-	stdin  io.Reader
-	stdout io.Writer
-	stderr io.Writer
+	Stdin  io.Reader `json:"-"`
+	Stdout io.Writer `json:"-"`
+	Stderr io.Writer `json:"-"`
 
 	// LogConfig is the log configuration for the child process.
 	LogConfig ExecLogConfig `json:"log_config"`
@@ -361,28 +361,28 @@ func RunCommand() (exitErr error, err error) {
 		if tty == nil {
 			return nil, trace.BadParameter("tty not found")
 		}
-		c.stdin = tty
-		c.stdout = tty
-		c.stderr = tty
+		c.Stdin = tty
+		c.Stdout = tty
+		c.Stderr = tty
 	} else if c.RequestType == sshutils.SubsystemRequest && c.Command == teleport.SFTPSubsystem {
 		// std{in/out} is not used by the SFTP sub process, just collect stderr.
-		c.stdin = bytes.NewReader(nil)
-		c.stdout = io.Discard
+		c.Stdin = bytes.NewReader(nil)
+		c.Stdout = io.Discard
 		// Propagate sftp subprocess errors to the parent process.
-		c.stderr = os.Stderr
+		c.Stderr = os.Stderr
 
 	} else {
 		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
-		c.stdin = os.NewFile(StdinFile, fdName(StdinFile))
-		if c.stdin == nil {
+		c.Stdin = os.NewFile(StdinFile, fdName(StdinFile))
+		if c.Stdin == nil {
 			return nil, trace.BadParameter("stdin not found")
 		}
-		c.stdout = os.NewFile(StdoutFile, fdName(StdoutFile))
-		if c.stdout == nil {
+		c.Stdout = os.NewFile(StdoutFile, fdName(StdoutFile))
+		if c.Stdout == nil {
 			return nil, trace.BadParameter("stdout not found")
 		}
-		c.stderr = os.NewFile(StderrFile, fdName(StderrFile))
-		if c.stderr == nil {
+		c.Stderr = os.NewFile(StderrFile, fdName(StderrFile))
+		if c.Stderr == nil {
 			return nil, trace.BadParameter("stderr not found")
 		}
 	}
@@ -403,9 +403,9 @@ func RunCommand() (exitErr error, err error) {
 			// account/session.
 			Env: c.PAMConfig.Environment,
 			// Connect std{in,out,err} to the TTY if a terminal has been allocated.
-			Stdin:  c.stdin,
-			Stdout: c.stdout,
-			Stderr: c.stderr,
+			Stdin:  c.Stdin,
+			Stdout: c.Stdout,
+			Stderr: c.Stderr,
 		}
 
 		// Discard std{out,err} for non-interactive requests. Otherwise, things like
@@ -467,7 +467,7 @@ func RunCommand() (exitErr error, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, pamEnvironment)
+	cmd, err := BuildCommand(&c, localUser, pamEnvironment)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,7 +475,7 @@ func RunCommand() (exitErr error, err error) {
 	// Wait until the continue signal is received from Teleport signaling that
 	// Teleport is monitoring this session if Enhanced Session Recording is enabled.
 	if c.RecordWithBPF {
-		err = waitForSignal(ctx, contfd, 10*time.Second)
+		err = WaitForSignal(ctx, contfd, 10*time.Second)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1191,9 +1191,9 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
-// buildCommand constructs a command that will execute the user's shell. This
+// BuildCommand constructs a command that will execute the user's shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string) (*exec.Cmd, error) {
+func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -1243,7 +1243,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	// Create default environment for user.
 	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
+		GetDefaultEnvPath(localUser.Uid),
 		"HOME=" + localUser.HomeDir,
 		"USER=" + c.Login,
 		"SHELL=" + shellPath,
@@ -1274,9 +1274,9 @@ func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	cmd.Env = *env
 
 	// set stdio. If a terminal was requested, the stdio fields all point to the same tty file.
-	cmd.Stdin = c.stdin
-	cmd.Stdout = c.stdout
-	cmd.Stderr = c.stderr
+	cmd.Stdin = c.Stdin
+	cmd.Stdout = c.Stdout
+	cmd.Stderr = c.Stderr
 
 	if c.Terminal {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -1344,104 +1344,12 @@ func buildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 
 	// Perform OS-specific tweaks to the command.
 	if isReexec {
-		reexecCommandOSTweaks(&cmd)
+		CommandOSTweaks(&cmd)
 	} else {
 		userCommandOSTweaks(&cmd)
 	}
 
 	return &cmd, nil
-}
-
-// ConfigureCommand creates a command fully configured to execute. This
-// function is used by Teleport to re-execute itself and pass whatever data
-// is need to the child to actually execute the shell.
-func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
-	// Create a os.Pipe and start copying over the payload to execute. While the
-	// pipe buffer is quite large (64k) some users have run into the pipe
-	// blocking writes on much smaller buffers (7k) leading to Teleport being
-	// unable to run some exec commands.
-	//
-	// To not depend on the OS implementation of a pipe, instead the copy should
-	// be non-blocking. The io.Copy will be closed when either when the child
-	// process has fully read in the payload or the process exits with an error
-	// (and closes all child file descriptors).
-	//
-	// See the below for details.
-	//
-	//   https://man7.org/linux/man-pages/man7/pipe.7.html
-	cmdmsg, err := ctx.ExecCommand()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	go copyCommand(ctx.CancelContext(), ctx.cmdw, cmdmsg)
-
-	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// The channel/request type determines the subcommand to execute.
-	var subCommand string
-	switch ctx.ExecType {
-	case teleport.NetworkingSubCommand:
-		subCommand = teleport.NetworkingSubCommand
-	default:
-		subCommand = teleport.ExecSubCommand
-	}
-
-	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
-	// is appended if Teleport is running in debug mode.
-	args := []string{executable, subCommand}
-
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
-
-	// Build the "teleport exec" command.
-	cmd := &exec.Cmd{
-		Path: executable,
-		Args: args,
-		Env:  *env,
-		ExtraFiles: []*os.File{
-			ctx.cmdr,
-			ctx.logw,
-			ctx.contr,
-			ctx.readyw,
-			ctx.killShellr,
-		},
-	}
-	// Add extra files if applicable.
-	if len(extraFiles) > 0 {
-		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
-	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
-
-	return cmd, nil
-}
-
-// copyCommand will copy the provided command to the child process over the
-// pipe attached to the context.
-func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *ExecCommand) {
-	defer func() {
-		err := cmdw.Close()
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to close command pipe", "error", err)
-		}
-
-		// Set to nil so the close in the context doesn't attempt to re-close.
-		cmdw = nil
-	}()
-
-	// Write command bytes to pipe. The child process will read the command
-	// to execute from this pipe.
-	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
-		return
-	}
 }
 
 func coerceHomeDirError(usr *user.User, err error) error {
@@ -1549,7 +1457,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	}
 
 	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
+	CommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
 		if cmd.ProcessState.ExitCode() == teleport.RemoteCommandFailure {
@@ -1588,9 +1496,9 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	return nil
 }
 
-// waitForSignal will wait for the other side of the pipe to signal, if not
+// WaitForSignal will wait for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.
