@@ -30,6 +30,10 @@ type Fixture struct {
 	Enabled bool
 }
 
+func (f *Fixture) String() string {
+	return f.Name
+}
+
 var all []*Fixture
 
 func register(name string) *Fixture {
@@ -42,6 +46,16 @@ func register(name string) *Fixture {
 
 func All() []*Fixture {
 	return all
+}
+
+func Enabled() []*Fixture {
+	var enabled []*Fixture
+	for _, f := range all {
+		if f.Enabled {
+			enabled = append(enabled, f)
+		}
+	}
+	return enabled
 }
 
 func BindFlags(fs *flag.FlagSet) {

@@ -151,16 +151,8 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 			return nil, 0, err
 		}
 
-		detected := scanFixtures(e2eDir, f.testFiles)
-		if len(detected) == 0 {
-			slog.Debug("fixture scan found no fixture declarations")
-		} else {
-			names := make([]string, len(detected))
-			for i, fix := range detected {
-				fix.Enabled = true
-				names[i] = fix.Name
-			}
-			slog.Info("enabled fixtures", "fixtures", names)
+		for _, fix := range scanFixtures(e2eDir, f.testFiles) {
+			fix.Enabled = true
 		}
 	}
 
@@ -168,6 +160,10 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	if mode == modeBrowseConnect {
 		fixtures.Connect.Enabled = true
 		f.browsers = []string{}
+	}
+
+	if enabled := fixtures.Enabled(); len(enabled) > 0 {
+		slog.Info("enabled fixtures", "fixtures", enabled)
 	}
 
 	// If every specified test file targets connect, skip browser instances.
