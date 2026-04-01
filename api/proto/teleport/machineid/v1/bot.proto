@@ -39,8 +39,8 @@ message Bot {
   // not be modified by users.
   BotStatus status = 6;
   // The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and
-  // if set, the Bot is scoped. When the Bot is scoped, the `spec.roles` and
-  // `spec.traits` fields must not be set.
+  // if set, the Bot is scoped. When the Bot is scoped, the `spec.roles`,
+  // `spec.traits` and `spec.max_session_ttl` fields must not be set.
   string scope = 7;
 }
 

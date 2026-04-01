@@ -506,7 +506,7 @@ func UpsertBot(
 		existingScope, _ := existingUser.GetLabel(types.BotScopeLabel)
 		if existingScope != bot.Scope {
 			return nil, trace.BadParameter(
-				"cannot change scope of existing bot from %q to %q",
+				"upserts cannot cause the scope of a bot to change, delete and recreate the bot to change its scope",
 				existingScope, bot.Scope,
 			)
 		}

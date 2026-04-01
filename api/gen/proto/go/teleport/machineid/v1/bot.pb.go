@@ -56,8 +56,8 @@ type Bot struct {
 	// not be modified by users.
 	Status *BotStatus `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 	// The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and
-	// if set, the Bot is scoped. When the Bot is scoped, the `spec.roles` and
-	// `spec.traits` fields must not be set.
+	// if set, the Bot is scoped. When the Bot is scoped, the `spec.roles`,
+	// `spec.traits` and `spec.max_session_ttl` fields must not be set.
 	Scope         string `protobuf:"bytes,7,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
