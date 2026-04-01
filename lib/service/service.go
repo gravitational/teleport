@@ -545,6 +545,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (apissh.ClientConfig, error
 			},
 		},
 		HostKeyCallback: hostKeyCallback,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
