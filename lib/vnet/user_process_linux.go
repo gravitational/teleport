@@ -42,13 +42,22 @@ const clientApplicationServiceSocketName = "vnet.sock"
 // certificates for apps. If successful it sets p.processManager and
 // p.networkStackInfo.
 func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
-	socketDir, err := os.MkdirTemp("", "vnet_service")
+	// Prefer XDG_RUNTIME_DIR for runtime sockets.
+	// Paths must be absolute, ignore relative values.
+	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
+	if runtimeDir == "" || !filepath.IsAbs(runtimeDir) {
+		runtimeDir = os.TempDir()
+	}
+	socketDir, err := os.MkdirTemp(runtimeDir, "vnet_service")
 	if err != nil {
 		return trace.Wrap(err, "creating temp dir for service socket")
 	}
 
 	listener, socketPath, err := listenUnixSocket(socketDir)
 	if err != nil {
+		if removeErr := os.RemoveAll(socketDir); removeErr != nil {
+			log.ErrorContext(processCtx, "Failed to remove service socket directory", "error", removeErr)
+		}
 		return trace.Wrap(err, "listening on unix socket")
 	}
 	// grpcServer.Serve takes ownership of (and closes) the listener.
@@ -101,9 +110,6 @@ func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 
 func listenUnixSocket(dir string) (net.Listener, string, error) {
 	socketPath := filepath.Join(dir, clientApplicationServiceSocketName)
-	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
-		return nil, "", trace.Wrap(err, "removing stale unix socket %s", socketPath)
-	}
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating unix socket listener")

@@ -33,6 +33,14 @@ const polkitAuthorizationTimeout = 30 * time.Second
 
 // introspectNode describes the exported D-Bus API. Update it if any method
 // signature is changed or new methods are added.
+//
+// D-Bus is strict about method signatures. If a client sends a different number
+// or type of arguments than the service expects, the call fails with an error.
+// There is no built-in forward or backward compatibility for method arguments.
+//
+// In practice this is unlikely to be a concern because the systemd unit
+// typically runs the same tsh binary as the client, so both sides are expected
+// to be the same version.
 var introspectNode = &introspect.Node{
 	Name: vnetDBusObjectPath,
 	Interfaces: []introspect.Interface{

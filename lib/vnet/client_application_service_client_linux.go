@@ -30,7 +30,7 @@ import (
 
 // newUnixClientApplicationServiceClient creates a gRPC client over a Unix
 // socket without TLS.
-func newUnixClientApplicationServiceClient(ctx context.Context, socketPath string) (*clientApplicationServiceClient, error) {
+func newUnixClientApplicationServiceClient(_ context.Context, socketPath string) (*clientApplicationServiceClient, error) {
 	if socketPath == "" {
 		return nil, trace.BadParameter("missing unix socket path")
 	}
