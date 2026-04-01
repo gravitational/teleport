@@ -465,7 +465,7 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot_scope")
 		}
 
-		if !scopes.ResourceScope(botScope).IsSubjectToPolicyScope(scoped.GetScoped().GetScope()) {
+		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
 			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
 		}
 	} else {
