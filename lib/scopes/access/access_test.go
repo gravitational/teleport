@@ -641,6 +641,150 @@ func TestValidateAsssignment(t *testing.T) {
 			strongOk: true,
 			weakOk:   true,
 		},
+		{
+			name: "valid bot assignment",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo/bar/child",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "bot_name and user both set",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User:     "alice",
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "bot_name without bot_scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName: "mybot",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "bot_scope without bot_name",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User:     "alice",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid bot_scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "not-a-scope",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "sub-assignment scope outside bot scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						// Valid
+						{
+							Role:  "test",
+							Scope: "/foo/bar",
+						},
+						// Invalid
+						{
+							Role:  "test",
+							Scope: "/foo/baz",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
 	}
 
 	for _, tt := range tts {

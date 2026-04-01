@@ -439,7 +439,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			// > scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope)??
 			// or is another helper more appropriate? or new helper needed?
 			botScope := assignment.GetSpec().GetBotScope()
-			assignmentScope := assignment.GetScope()
+			assignmentScope := subAssignment.GetScope()
 			rel := scopes.Compare(botScope, assignmentScope)
 			if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
 				return trace.BadParameter(
