@@ -242,6 +242,53 @@ describe('trapFocus', () => {
     });
   });
 
+  describe('when lastModalFocus becomes unfocusable', () => {
+    test('blurs programmatic focus theft', () => {
+      const { rerender } = render(
+        <ModalWithOutsideButton trapFocus>
+          <button>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      screen.getByRole('button', { name: 'Target' }).focus();
+
+      // Disable the focused button — it stays in the DOM but can't receive focus.
+      rerender(
+        <ModalWithOutsideButton trapFocus>
+          <button disabled>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+    });
+
+    test('Tab focuses into the modal', () => {
+      const { rerender } = render(
+        <ModalWithOutsideButton trapFocus>
+          <button>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      screen.getByRole('button', { name: 'Target' }).focus();
+
+      rerender(
+        <ModalWithOutsideButton trapFocus>
+          <button disabled>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Other' })).toHaveFocus();
+    });
+  });
+
   test('returns focus to the modal when an outside element steals it', () => {
     render(<ModalWithOutsideButton trapFocus />);
 

@@ -251,34 +251,56 @@ export default class Modal extends React.Component<ModalProps> {
 
     if (this.modalEl.contains(target)) {
       this.lastModalFocus = target;
+      this.lastTabKeyDirection = null;
+      return;
+    }
+
+    // Focus escaped the modal. Try to pull it back to the last focused element. The element may
+    // have been removed from the DOM (e.g., during a re-render) or become unfocusable (e.g.,
+    // dynamically disabled), in which case we fall through to the Tab/blur branches below.
+    if (this.tryFocusLastModalFocus()) {
+      this.lastTabKeyDirection = null;
+      return;
+    }
+
+    if (this.lastTabKeyDirection) {
+      // Tab/Shift+Tab moved focus outside the modal before anything inside was focused.
+      // Direct focus to the appropriate element inside the modal.
+      const focusable = this.getFocusableElements();
+      const el =
+        this.lastTabKeyDirection === 'forward'
+          ? focusable[0]
+          : focusable[focusable.length - 1];
+      el?.focus();
     } else {
-      // Focus escaped the modal.
-
-      // Clear lastModalFocus if it points to an element that was removed from the DOM (e.g.,
-      // during a re-render), so we don't keep trying to focus a detached node.
-      if (this.lastModalFocus && !this.modalEl.contains(this.lastModalFocus)) {
-        this.lastModalFocus = undefined;
-      }
-
-      if (this.lastModalFocus) {
-        // Pull focus back to the last focused element inside the modal.
-        this.lastModalFocus.focus();
-      } else if (this.lastTabKeyDirection) {
-        // Tab/Shift+Tab moved focus outside the modal before anything inside was focused.
-        // Direct focus to the appropriate element inside the modal.
-        const focusable = this.getFocusableElements();
-        const el =
-          this.lastTabKeyDirection === 'forward'
-            ? focusable[0]
-            : focusable[focusable.length - 1];
-        el?.focus();
-      } else {
-        // Programmatic focus theft (Tab was not pressed) with nothing focused inside yet — just
-        // blur the thief.
-        target.blur();
-      }
+      // Programmatic focus theft (Tab was not pressed) with nothing focused inside yet — just
+      // blur the thief.
+      target.blur();
     }
     this.lastTabKeyDirection = null;
+  };
+
+  /**
+   * Try to focus lastModalFocus. Returns true if focus was successfully moved. Clears the
+   * reference if the element is no longer in the DOM or is no longer focusable.
+   */
+  tryFocusLastModalFocus = (): boolean => {
+    if (!this.lastModalFocus) {
+      return false;
+    }
+    // Avoid calling .focus() on a detached node. This is redundant with the activeElement check
+    // below in JSDOM (where .focus() on detached nodes is a no-op), so tests pass without it,
+    // but in real browsers it skips an unnecessary .focus() call on a detached node.
+    if (!this.modalEl?.contains(this.lastModalFocus)) {
+      this.lastModalFocus = undefined;
+      return false;
+    }
+    this.lastModalFocus.focus();
+    if (document.activeElement !== this.lastModalFocus) {
+      this.lastModalFocus = undefined;
+      return false;
+    }
+    return true;
   };
 
   handleFocusTrapTab = (event: KeyboardEvent) => {
