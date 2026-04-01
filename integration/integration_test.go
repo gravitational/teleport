@@ -9435,10 +9435,6 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		})
 		go ssh.DiscardRequests(reqs)
 
-		var agentForwarded bool
-		var shellRequested bool
-		var execRequested bool
-		var sftpRequested bool
 		for {
 			var channelReq ssh.NewChannel
 			select {
@@ -9461,6 +9457,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			})
 
 			go func() {
+				var agentForwarded, shellRequested, execRequested, sftpRequested bool
 			outer:
 				for {
 					var req *ssh.Request

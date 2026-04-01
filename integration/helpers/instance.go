@@ -2013,7 +2013,7 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		for _, n := range nodes {
 			conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
 				ConnType:     types.NodeTunnel,
-				ServerID:     fmt.Sprintf("%s.%s", n.GetName(), clusterName),
+				ServerID:     n.GetName() + "." + clusterName,
 				TargetServer: n,
 				To: &utils.NetAddr{
 					AddrNetwork: "tcp",
