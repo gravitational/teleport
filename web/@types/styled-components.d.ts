@@ -17,12 +17,15 @@
  */
 
 import 'react';
+import type { LegacyThemeColors } from '@gravitational/design-system';
 import { CSSProp } from 'styled-components';
 
-import { Theme } from 'design/theme/themes/types';
+import type { SharedColors, Theme } from 'design/theme/themes/types';
 
 declare module 'styled-components' {
-  export interface DefaultTheme extends Theme {}
+  export interface DefaultTheme extends Theme {
+    colors: LegacyThemeColors & SharedColors;
+  }
 }
 
 // https://styled-components.com/docs/api#usage-with-typescript

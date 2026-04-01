@@ -21,7 +21,6 @@ import { UserEvent } from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
@@ -30,6 +29,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
@@ -467,7 +467,7 @@ function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
     });
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
+        <ConfiguredThemeProvider theme={theme}>
           <ContextProvider ctx={ctx}>{children}</ContextProvider>
         </ConfiguredThemeProvider>
       </QueryClientProvider>

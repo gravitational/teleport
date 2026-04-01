@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LEGACY_THEME_COLORS } from '@gravitational/design-system';
 import '@testing-library/jest-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -29,15 +30,17 @@ import {
   waitForElementToBeRemoved,
   within,
 } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import 'jest-styled-components';
+import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 
-import { darkTheme } from 'design/theme';
+import { darkTheme, type Theme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+
+import { sharedColors } from '../theme/themes/sharedStyles';
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {
@@ -47,10 +50,18 @@ export const testQueryClient = new QueryClient({
   },
 });
 
+const legacyTheme: Theme = {
+  ...darkTheme,
+  colors: {
+    ...sharedColors,
+    ...LEGACY_THEME_COLORS,
+  },
+};
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={testQueryClient}>
-      <ConfiguredThemeProvider theme={darkTheme}>
+      <ConfiguredThemeProvider theme={legacyTheme}>
         {children}
       </ConfiguredThemeProvider>
     </QueryClientProvider>
@@ -177,7 +188,7 @@ export {
   act,
   screen,
   fireEvent,
-  darkTheme as theme,
+  legacyTheme as theme,
   tick,
   render,
   prettyDOM,

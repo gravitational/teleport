@@ -146,7 +146,6 @@ const colors = {
   action: {
     active: '#FFFFFF',
     hover: 'rgba(255, 255, 255, 0.1)',
-    hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)',

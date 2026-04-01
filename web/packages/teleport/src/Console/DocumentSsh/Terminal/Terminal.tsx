@@ -47,6 +47,22 @@ export interface TerminalProps {
   disableAutoFocus?: boolean;
 }
 
+function createTerminalTheme(theme: ITheme) {
+  const values: Record<string, string> = {};
+
+  const styles = getComputedStyle(document.documentElement);
+
+  for (const [key, value] of Object.entries(theme)) {
+    const varMatch = value.match(/^var\((--[a-zA-Z0-9-_]+)\)$/);
+
+    if (varMatch) {
+      values[key] = styles.getPropertyValue(varMatch[1]).trim();
+    }
+  }
+
+  return values as ITheme;
+}
+
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>(undefined);
   const elementRef = useRef<HTMLDivElement>(null);
@@ -67,9 +83,10 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       el: elementRef.current,
       fontFamily: props.fontFamily,
       fontSize,
-      theme: props.theme,
+      theme: createTerminalTheme(props.theme),
       convertEol: props.convertEol,
     });
+
     termCtrlRef.current = termCtrl;
 
     termCtrl.open();
@@ -96,7 +113,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   }, []);
 
   useEffect(() => {
-    termCtrlRef.current?.updateTheme(props.theme);
+    termCtrlRef.current?.updateTheme(createTerminalTheme(props.theme));
   }, [props.theme]);
 
   useEffect(() => {
