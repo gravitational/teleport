@@ -226,7 +226,7 @@ func testResumption(t *testing.T, network, address string, expectedHostID string
 }
 
 func sshClient(ctx context.Context, nc net.Conn) (*tracessh.Client, error) {
-	return apissh.NewClientWithTimeout(
+	return apissh.NewClient(
 		ctx,
 		nc,
 		nc.RemoteAddr().String(),

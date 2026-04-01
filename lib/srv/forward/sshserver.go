@@ -792,7 +792,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := apissh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := apissh.NewClient(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1500,7 +1500,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1534,7 +1534,7 @@ func TestSSH(t *testing.T) {
 		for range connections {
 			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
 			require.NoError(t, err)
-			sshConn, _, _, err := apissh.NewClientConnWithTimeout(ctx, conn, "node.root1.example.com:22", clientConfig)
+			sshConn, _, _, err := apissh.NewClientConn(ctx, conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
 			expectReportedSSHSessions.Add(1)
@@ -1698,7 +1698,7 @@ func TestPriority(t *testing.T) {
 			HostKeyCallback: certChecker.CheckHostKey,
 		}
 
-		sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
 		require.NoError(t, err)
 		defer sshConn.Close()
 

@@ -62,7 +62,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
 	// Setting deadline on connection prevents this case from happening
-	return apissh.NewClientWithTimeout(ctx, conn, addr, config)
+	return apissh.NewClient(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -124,7 +124,7 @@ func (d proxyDial) Dial(ctx context.Context, network string, addr string, config
 		return nil, trace.Wrap(err)
 	}
 
-	c, err := apissh.NewClientWithTimeout(ctx, pconn, addr, config)
+	c, err := apissh.NewClient(ctx, pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

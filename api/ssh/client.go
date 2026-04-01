@@ -153,7 +153,7 @@ func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
 	return ssh.PublicKeysCallback(c.Signers), nil
 }
 
-// ClientConfig configures a Teleport SSH client wrapper around tracessh.
+// ClientConfig configures a Teleport SSH client.
 type ClientConfig struct {
 	// Config contains configuration data common to both ServerConfig and ClientConfig.
 	SSHConfig ssh.Config
@@ -184,7 +184,7 @@ type ClientConfig struct {
 	// AuthCallback ssh.ClientAuthCallback
 }
 
-// SSHClientConfig builds a new [ssh.ClientConfig] from the wrapper config.
+// SSHClientConfig builds a new [ssh.ClientConfig] from the client config.
 func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 	switch {
 	case c.User == "":
@@ -218,7 +218,7 @@ func (c ClientConfig) IsEmpty() bool {
 		c.HostKeyCallback == nil
 }
 
-// Dial dials an SSH server using the SSH client config wrapper.
+// Dial dials an SSH server using the client config.
 func Dial(
 	ctx context.Context,
 	network string,
@@ -239,8 +239,13 @@ func Dial(
 	return client, nil
 }
 
-// NewClientWithTimeout creates a traced SSH client over an existing connection using the SSH client config wrapper.
-func NewClientWithTimeout(
+// NewClient creates a traced SSH client over an existing connection using the client config.
+//
+// Timeout behavior is determined by [ClientConfig.Timeout]:
+//   - If Timeout > 0, the SSH handshake respects the earlier of the context deadline or Timeout.
+//   - If Timeout == 0, the SSH handshake uses Teleport's default I/O timeout.
+//   - If Timeout < 0, the SSH handshake only respects the context deadline or cancellation.
+func NewClient(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,
@@ -260,9 +265,13 @@ func NewClientWithTimeout(
 	return client, nil
 }
 
-// NewClientConnWithTimeout creates a traced SSH client connection over an existing connection using the SSH client
-// config wrapper.
-func NewClientConnWithTimeout(
+// NewClientConn creates a traced SSH client connection over an existing connection using the client config.
+//
+// Timeout behavior is determined by [ClientConfig.Timeout]:
+//   - If Timeout > 0, the SSH handshake respects the earlier of the context deadline or Timeout.
+//   - If Timeout == 0, the SSH handshake uses Teleport's default I/O timeout.
+//   - If Timeout < 0, the SSH handshake only respects the context deadline or cancellation.
+func NewClientConn(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,

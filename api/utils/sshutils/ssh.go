@@ -287,7 +287,7 @@ func RunSSH(ctx context.Context, addr, command string, cfg apissh.ClientConfig, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshClient, err := apissh.NewClientWithTimeout(ctx, conn, addr, cfg)
+	sshClient, err := apissh.NewClient(ctx, conn, addr, cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

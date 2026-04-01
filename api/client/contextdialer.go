@@ -382,7 +382,7 @@ func newTLSRoutingWithConnUpgradeDialer(ssh apissh.ClientConfig, params connectP
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.
 func sshConnect(ctx context.Context, conn net.Conn, ssh apissh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
 	ssh.Timeout = dialTimeout
-	sconn, err := apissh.NewClientWithTimeout(ctx, conn, addr, ssh)
+	sconn, err := apissh.NewClient(ctx, conn, addr, ssh)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}

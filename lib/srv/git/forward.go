@@ -636,7 +636,7 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	clientConfig.SSHConfig.KeyExchanges = s.cfg.KEXAlgorithms
 	clientConfig.SSHConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = apissh.NewClientWithTimeout(
+	s.remoteClient, err = apissh.NewClient(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),

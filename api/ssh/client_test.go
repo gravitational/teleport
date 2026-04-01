@@ -491,11 +491,11 @@ func TestClientWrappedFuncsEarlyReturnsOnValidationErrors(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("config User must be set"))
 	require.Nil(t, client)
 
-	client, err = NewClientWithTimeout(t.Context(), conn1, "127.0.0.1:0", cfg)
+	client, err = NewClient(t.Context(), conn1, "127.0.0.1:0", cfg)
 	require.ErrorIs(t, err, trace.BadParameter("config User must be set"))
 	require.Nil(t, client)
 
-	sshConn, chans, reqs, err := NewClientConnWithTimeout(t.Context(), conn1, "127.0.0.1:0", cfg)
+	sshConn, chans, reqs, err := NewClientConn(t.Context(), conn1, "127.0.0.1:0", cfg)
 	require.ErrorIs(t, err, trace.BadParameter("config User must be set"))
 	require.Nil(t, sshConn)
 	require.Nil(t, chans)

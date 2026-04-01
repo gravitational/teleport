@@ -102,7 +102,7 @@ func testSSHConnection(t *testing.T, dial dialer) {
 	defer tcpConn.Close()
 
 	clientConfig := sshClientConfig(t)
-	sshConn, chans, reqs, err := apissh.NewClientConnWithTimeout(t.Context(), tcpConn, "localhost", clientConfig)
+	sshConn, chans, reqs, err := apissh.NewClientConn(t.Context(), tcpConn, "localhost", clientConfig)
 	require.NoError(t, err)
 	defer sshConn.Close()
 
@@ -300,7 +300,7 @@ func runTestSSHProxyInstance(
 		return trace.Wrap(err)
 	}
 	defer incomingSSHConn.Close()
-	outgoingSSHConn, outgoingChans, outgoingReqs, err := apissh.NewClientConnWithTimeout(ctx, outgoingConn, "localhost", clientCfg)
+	outgoingSSHConn, outgoingChans, outgoingReqs, err := apissh.NewClientConn(ctx, outgoingConn, "localhost", clientCfg)
 	if err != nil {
 		return trace.Wrap(err, "proxying SSH conn in test")
 	}
