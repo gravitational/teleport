@@ -936,7 +936,7 @@ func StrongValidateBot(b *pb.Bot) error {
 		if len(b.Spec.Roles) > 0 {
 			return trace.BadParameter("spec.roles: cannot be set on scoped bot")
 		}
-		if b.Spec.MaxSessionTtl.AsDuration() > 0 {
+		if b.Spec.MaxSessionTtl.AsDuration() != 0 {
 			return trace.BadParameter("spec.max_session_ttl: cannot be set on scoped bot")
 		}
 		if len(b.Spec.Traits) > 0 {
@@ -1116,6 +1116,8 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// We always set this to zero here - but in Upsert, we copy from the
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
+	// Clears scope label that user should not be able to set.
+	delete(userMeta.Labels, types.BotScopeLabel)
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
 	// We track the Bot description within the User description field because
 	// the Role description already has a message.

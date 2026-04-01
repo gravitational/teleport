@@ -197,6 +197,9 @@ func TestCreateBot(t *testing.T) {
 						Labels: map[string]string{
 							"my-label":       "my-value",
 							"my-other-label": "my-other-value",
+							// Maliciously set label that we want to ensure
+							// is not propagated
+							types.BotScopeLabel: "/please-unset-me",
 						},
 						Description: "Property of US Robotics and Mechanical Men.",
 					},
