@@ -25,8 +25,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 const (
@@ -105,7 +105,7 @@ func getDefaultEnvPathWithLoginDefs(uid string, loginDefsPath string) string {
 func exitCode(err error) int {
 	// If no error occurred, return 0 (success).
 	if err == nil {
-		return teleport.RemoteCommandSuccess
+		return reexecconstants.RemoteCommandSuccess
 	}
 
 	var execExitErr *exec.ExitError
@@ -114,12 +114,12 @@ func exitCode(err error) int {
 	case errors.As(err, &execExitErr):
 		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
-			return teleport.RemoteCommandFailure
+			return reexecconstants.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
-		return teleport.RemoteCommandFailure
+		return reexecconstants.RemoteCommandFailure
 	}
 }

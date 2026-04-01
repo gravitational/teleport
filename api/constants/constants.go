@@ -610,3 +610,17 @@ const (
 	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
 	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
 )
+
+const (
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
+)
