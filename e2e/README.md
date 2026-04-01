@@ -67,6 +67,44 @@ Available fixtures:
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
 
+ ### Session Recordings
+
+The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
+session recordings page has content immediately. Recordings are stored in `e2e/testdata/recordings/` organized
+by session type:
+
+```
+e2e/testdata/recordings/
+├── events.jsonl          # generated - do not edit
+├── ssh/
+│   ├── <session-id>.tar
+│   ├── <session-id>.metadata
+│   └── <session-id>.thumbnail
+├── k8s/
+│   └── ...
+└── desktop/
+    └── ...
+```
+
+Each recording consists of a `.tar` file (required) and optional `.metadata` and `.thumbnail` sidecar files.
+The `events.jsonl` file contains the session end audit events and is auto-generated from the `.tar` files.
+
+**Adding a new recording:**
+
+1. Place the `.tar` file (and any `.metadata`/`.thumbnail` files) in the appropriate subdirectory
+   (`ssh/`, `k8s/`, or `desktop/`).
+2. Regenerate `events.jsonl`:
+   ```bash
+   cd e2e/runner && go generate ./...
+   ```
+3. Commit the new files along with the updated `events.jsonl`.
+
+By default, all recordings are associated with the `bob` user. To assign a recording to a different user,
+add the session ID and username to the `recordingUserMap` in `e2e/runner/cmd/gen-recording-events/main.go`.
+
+At runtime, the runner copies recording files into Teleport's records directory and appends the audit events
+to the audit log with adjusted timestamps so that sessions appear recent in the UI.
+
 ### Common Commands
 
 Typically, you'll want to run with `--no-build` during test development to skip rebuilding Teleport binaries on every

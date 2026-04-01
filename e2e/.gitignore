@@ -4,6 +4,7 @@ playwright-report/
 blob-reports/
 playwright/.cache/
 runner/e2e
+runner/gen-recording-events
 runner/runner
 certs/
 data/

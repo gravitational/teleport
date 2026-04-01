@@ -114,9 +114,10 @@ jobs:
         working-directory: e2e/runner
         run: |
           go generate ./...
-          if ! git diff --quiet -- ../helpers/fixtures.ts; then
-            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./...' from e2e/runner and commit the result."
-            git diff -- ../helpers/fixtures.ts
+          changed_files=$(git diff --name-only -- ../helpers/fixtures.ts ../testdata/recordings/events.jsonl)
+          if [ -n "$changed_files" ]; then
+            echo "::error::Generated files are out of date. Run 'go generate ./...' from e2e/runner and commit the result."
+            git diff -- $changed_files
             exit 1
           fi
 
