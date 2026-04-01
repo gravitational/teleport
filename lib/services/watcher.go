@@ -1103,7 +1103,7 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	p.isStale = false
 	p.defineCollectorAsInitialized()
 	for _, lock := range p.current {
-		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock})
+		p.fanout.Emit(types.Event{Type: types.OpPut, Resource: lock.Clone()})
 	}
 	return nil
 }
@@ -1521,7 +1521,7 @@ func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Contex
 	}
 	newCurrent := make(map[string]types.AccessRequest, len(accessRequests))
 	for _, accessRequest := range accessRequests {
-		newCurrent[accessRequest.GetName()] = accessRequest
+		newCurrent[accessRequest.GetName()] = accessRequest.Copy()
 	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
