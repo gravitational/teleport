@@ -20,7 +20,9 @@
 
 import { test as base } from '@playwright/test';
 
-type Fixture = 'ssh-node' | 'connect';
+type Fixture =
+  | 'ssh-node'
+  | 'connect';
 
 export const test = base.extend<{ fixtures: Fixture[] }>({
   fixtures: [[], { option: true }],
