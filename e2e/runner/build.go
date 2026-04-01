@@ -58,7 +58,7 @@ func build(ctx context.Context, config *e2eConfig) error {
 	// Both the teleport build (through make build/teleport -> build-ui) and the Connect build need JS
 	// deps installed. Running pnpm install concurrently from multiple goroutines would cause a race,
 	// so we ensure JS deps are installed up front before starting concurrent work.
-	needsJSDeps := buildTeleport || fixtures.Connect.Enabled
+	needsJSDeps := buildTeleport || buildConnect || buildConnectTsh
 	if needsJSDeps {
 		slog.Info("ensuring JS dependencies are installed")
 		if err := runMake(ctx, config.repoRoot, "ensure-js-deps"); err != nil {
