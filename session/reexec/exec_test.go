@@ -17,10 +17,36 @@
 package reexec
 
 import (
+	"flag"
+	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	if IsReexec() {
+		RunAndExit(os.Args[1])
+		return
+	}
+
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	if testing.Verbose() {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(
+			os.Stderr,
+			&slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			},
+		)))
+	} else {
+		slog.SetDefault(slog.New(slog.DiscardHandler))
+	}
+
+	os.Exit(m.Run())
+}
 
 func TestLoginDefsParser(t *testing.T) {
 	t.Parallel()
