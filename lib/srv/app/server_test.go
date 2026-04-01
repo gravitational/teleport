@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -158,6 +159,11 @@ type suiteConfig struct {
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
 	Login string
+	// ManualStart skips calling Start() automatically so the
+	// caller can inject state before starting the server.
+	ManualStart bool
+	// HostUUID overrides the generated host UUID when set.
+	HostUUID string
 }
 
 type fakeConnMonitor struct{}
@@ -176,7 +182,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = uuid.New().String()
+	s.hostUUID = config.HostUUID
+	if s.hostUUID == "" {
+		s.hostUUID = uuid.New().String()
+	}
 	s.login = config.Login
 
 	var err error
@@ -413,20 +422,22 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
-	err = s.appServer.Start(s.closeContext)
-	require.NoError(t, err)
+	if !config.ManualStart {
+		err = s.appServer.Start(s.closeContext)
+		require.NoError(t, err)
 
-	// Explicitly send a heartbeat for any statically defined apps.
-	for _, app := range apps {
-		select {
-		case sender := <-inventoryHandle.Sender():
-			appServer, err := s.appServer.getServerInfo(app)
-			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
-				AppServer: appServer,
-			}))
-		case <-time.After(20 * time.Second):
-			t.Fatal("timed out waiting for inventory handle sender")
+		// Explicitly send a heartbeat for any statically defined apps.
+		for _, app := range apps {
+			select {
+			case sender := <-inventoryHandle.Sender():
+				appServer, err := s.appServer.getServerInfo(app)
+				require.NoError(t, err)
+				require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
+					AppServer: appServer,
+				}))
+			case <-time.After(20 * time.Second):
+				t.Fatal("timed out waiting for inventory handle sender")
+			}
 		}
 	}
 
@@ -1362,6 +1373,90 @@ func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWS
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil
+}
+
+// TestCleanupOrphanedAppServers verifies that orphaned app server
+// records from a previous instance are deleted on startup.
+func TestCleanupOrphanedAppServers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		resourceMatchers []services.ResourceMatcher
+	}{
+		{
+			name: "static apps only",
+		},
+		{
+			name: "with resource matchers",
+			resourceMatchers: []services.ResourceMatcher{
+				{Labels: types.Labels{"group": []string{"a"}}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app0, err := makeStaticApp("app0", maps.Clone(staticLabels))
+			require.NoError(t, err)
+
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps:             types.Apps{app0},
+				ResourceMatchers: test.resourceMatchers,
+				ManualStart:      true,
+			})
+
+			// Plant an orphaned app server record with this host ID
+			// before starting the server.
+			orphanApp, err := types.NewAppV3(types.Metadata{
+				Name: "orphan",
+			}, types.AppSpecV3{
+				URI: "localhost:9999",
+			})
+			require.NoError(t, err)
+			orphanServer, err := types.NewAppServerV3FromApp(orphanApp, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), orphanServer)
+			require.NoError(t, err)
+
+			// Plant an app server record for app0 with this host ID
+			// to verify that cleanup preserves running apps' records.
+			app0Server, err := types.NewAppServerV3FromApp(app0, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), app0Server)
+			require.NoError(t, err)
+
+			// Plant an app server record with a different host ID to
+			// verify that cleanup does not delete other hosts' records.
+			otherServer, err := types.NewAppServerV3FromApp(orphanApp, "test", "other-host-id")
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), otherServer)
+			require.NoError(t, err)
+
+			// Start the server. The cleanup goroutine runs
+			// asynchronously after Start returns.
+			err = s.appServer.Start(s.closeContext)
+			require.NoError(t, err)
+
+			// The orphaned record for this host should be deleted.
+			// The record for the other host must remain.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				servers, err := s.authClient.GetApplicationServers(s.closeContext, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				var names []string
+				for _, srv := range servers {
+					names = append(names, srv.GetHostID()+"/"+srv.GetApp().GetName())
+				}
+				assert.NotContains(t, names, s.hostUUID+"/orphan", "orphan for this host should have been cleaned up")
+				assert.Contains(t, names, s.hostUUID+"/app0", "running app record should be preserved")
+				assert.Contains(t, names, "other-host-id/orphan", "orphan for other host should remain")
+			}, 10*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 var (
