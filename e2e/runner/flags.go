@@ -169,13 +169,19 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	// If every specified test file targets connect, skip browser instances.
 	if len(f.testFiles) > 0 {
 		allConnect := true
+		anyConnect := false
 
 		for _, file := range f.testFiles {
 			slashPath := filepath.ToSlash(file)
-			if slashPath != "tests/connect" && !strings.HasPrefix(slashPath, "tests/connect/") {
+			if slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
+				anyConnect = true
+			} else {
 				allConnect = false
-				break
 			}
+		}
+
+		if anyConnect && mode == modeUI {
+			return nil, 0, fmt.Errorf("--ui is not supported for Connect tests (Connect runs in Electron, not a browser)")
 		}
 
 		if allConnect {
