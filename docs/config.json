@@ -332,7 +332,12 @@
     },
     {
       "source": "/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
@@ -562,27 +567,47 @@
     },
     {
       "source": "/admin-guides/access-controls/device-trust/device-management/",
-      "destination": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/",
-      "destination": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
-      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
-      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
       "permanent": true
     },
     {
