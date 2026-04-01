@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -66,6 +67,22 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+
+	// AppendPutUserActions adds conditional actions to an atomic write to create
+	// or update the user's params resource.
+	AppendPutUserActions(
+		actions []backend.ConditionalAction,
+		user types.User,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteUserActions adds conditional actions to an atomic write to
+	// delete the user's params resource.
+	AppendDeleteUserActions(
+		actions []backend.ConditionalAction,
+		user string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // Identity is responsible for managing user entries and external identities

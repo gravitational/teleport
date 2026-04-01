@@ -496,6 +496,27 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
+// AppendPutUserActions adds conditional actions to an atomic write to create
+// or update the user's params resource.
+func (s *IdentityService) AppendPutUserActions(
+	actions []backend.ConditionalAction,
+	user types.User,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := itemFromUser(user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
+}
+
 // CompareAndSwapUser updates a user, but fails if the user (as exists in the
 // backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
@@ -718,6 +739,20 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	return trace.NewAggregate(notifErrors...)
+}
+
+// AppendDeleteUserActions adds conditional actions to an atomic write to
+// delete the user's params resource.
+func (s *IdentityService) AppendDeleteUserActions(
+	actions []backend.ConditionalAction,
+	user string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {

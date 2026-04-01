@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // LockGetter is a service that gets locks.
@@ -56,6 +57,22 @@ type Access interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
 	DeleteRole(ctx context.Context, name string) error
+
+	// AppendPutRoleActions adds conditional actions to an atomic write to create
+	// or update a role.
+	AppendPutRoleActions(
+		actions []backend.ConditionalAction,
+		role types.Role,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteRoleActions adds conditional actions to an atomic write to
+	// delete a role.
+	AppendDeleteRoleActions(
+		actions []backend.ConditionalAction,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 
 	LockGetter
 	// UpsertLock upserts a lock.

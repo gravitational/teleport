@@ -195,6 +195,27 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.
 	return role, nil
 }
 
+// AppendPutRoleActions adds conditional actions to an atomic write to create
+// or update a role.
+func (s *AccessService) AppendPutRoleActions(
+	actions []backend.ConditionalAction,
+	role types.Role,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := roleToBackendItem(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
 // GetRole returns a role by name
 func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
@@ -224,6 +245,20 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 		}
 	}
 	return trace.Wrap(err)
+}
+
+// AppendDeleteRoleActions adds conditional actions to an atomic write to
+// delete a role.
+func (s *AccessService) AppendDeleteRoleActions(
+	actions []backend.ConditionalAction,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       roleKey(name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 // GetLock gets a lock by name.

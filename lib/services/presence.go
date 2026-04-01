@@ -26,6 +26,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
@@ -88,6 +89,23 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
+
+	// AppendPutNodeActions adds conditional actions to an atomic write to create
+	// or update a node resource.
+	AppendPutNodeActions(
+		actions []backend.ConditionalAction,
+		server types.Server,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteNodeActions adds conditional actions to an atomic write to
+	// delete a node resource.
+	AppendDeleteNodeActions(
+		actions []backend.ConditionalAction,
+		namespace string,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 
 	// GetAuthServers returns a list of registered servers
 	//

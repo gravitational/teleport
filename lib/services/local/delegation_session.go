@@ -81,27 +81,37 @@ func (s *DelegationSessionService) DeleteDelegationSession(ctx context.Context, 
 	return trace.Wrap(s.service.DeleteResource(ctx, id))
 }
 
-func delegationSessionKey(name string) backend.Key {
-	return backend.NewKey(delegationSessionPrefix, name)
+// AppendPutDelegationSessionActions adds conditional actions to an atomic
+// write to create or update a DelegationSession.
+func (s *DelegationSessionService) AppendPutDelegationSessionActions(
+	actions []backend.ConditionalAction,
+	session *delegationv1.DelegationSession,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateDelegationSession(session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := s.service.MakeBackendItem(session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
 }
 
-func itemFromDelegationSession(session *delegationv1.DelegationSession) (*backend.Item, error) {
-	meta := session.GetMetadata()
-
-	value, err := services.MarshalProtoResource(session)
-	if err != nil {
-		return nil, err
-	}
-
-	expiry, err := types.GetExpiry(session)
-	if err != nil {
-		return nil, err
-	}
-
-	return &backend.Item{
-		Key:      delegationSessionKey(meta.GetName()),
-		Value:    value,
-		Expires:  expiry,
-		Revision: meta.GetRevision(),
-	}, nil
+// AppendDeleteDelegationSessionActions adds conditional actions to an atomic
+// write to delete a DelegationSession.
+func (s *DelegationSessionService) AppendDeleteDelegationSessionActions(
+	actions []backend.ConditionalAction,
+	id string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       s.service.BackendKey(id),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
