@@ -87,6 +87,12 @@ test('opens issue drawer and resolves a task', async () => {
       app_auto_discover: false,
     },
     discoverRds: { databases: {}, account_id: '', region: '' },
+    discoverAzureVm: {
+      instances: {},
+      subscription_id: '',
+      resource_group: '',
+      region: '',
+    },
   });
 
   render(

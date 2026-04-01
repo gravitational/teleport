@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-import { Box, ButtonText, Flex, Text } from 'design';
-import * as Icons from 'design/Icon';
+import { Box, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -30,7 +27,7 @@ import {
   type LabelsRule,
 } from 'teleport/components/LabelsInput/LabelsInput';
 
-import { CircleNumber } from '../Shared';
+import { CircleNumber, FilterButton, FilterChevron } from '../Shared/common';
 import { AwsLabel, Ec2Config } from './types';
 
 const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {
@@ -151,28 +148,3 @@ function AwsService({
     </>
   );
 }
-
-const FilterButton = styled(ButtonText)`
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: ${props => props.theme.colors.text.main};
-  cursor: pointer;
-  font: inherit;
-
-  &:hover {
-    color: ${props => props.theme.colors.text.main};
-    background: transparent;
-  }
-
-  &:focus-visible {
-    outline: 2px solid
-      ${props => props.theme.colors.interactive.solid.primary.default};
-    outline-offset: 2px;
-  }
-`;
-
-const FilterChevron = styled(Icons.ChevronRight)<{ expanded: boolean }>`
-  transition: transform 0.2s ease-in-out;
-  transform: ${props => (props.expanded ? 'rotate(90deg)' : 'none')};
-`;

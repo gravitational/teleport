@@ -225,6 +225,82 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   };
 };
 
+// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-resources#limitations
+const INVALID_AZURE_TAG_NAME_CHARS = ['<', '>', '%', '&', '\\', '?', '/'];
+const AZURE_TAG_NAME_MAX_LENGTH = 512;
+
+/**
+ * @param name validAzureTagName validates if the given value is a
+ * valid Azure Tag name.
+ */
+const validAzureTagName = (name: string): ValidationResult => {
+  if (INVALID_AZURE_TAG_NAME_CHARS.some(char => name.includes(char))) {
+    return {
+      valid: false,
+      message: `Name must not contain characters ${INVALID_AZURE_TAG_NAME_CHARS.join(', ')}.`,
+    };
+  }
+
+  if (name.length > AZURE_TAG_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message: 'Name must be <= ' + AZURE_TAG_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * requiredAzureTagName is a required field and checks for a
+ * value which must also be a valid Azure tag name.
+ * @param name is an Azure tag name.
+ * @returns ValidationResult
+ */
+const requiredAzureTagName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Tag name is required',
+    };
+  }
+
+  return validAzureTagName(name);
+};
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * validUuid checks that a value matches the standard UUID format
+ * (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Accepts any UUID version (v1–v5).
+ */
+const validUuid = (id: string): ValidationResult => {
+  if (!UUID_REGEX.test(id)) {
+    return { valid: false, message: 'Must be a valid UUID' };
+  }
+  return { valid: true };
+};
+
+/**
+ * requiredAzureSubscriptionId checks that a value is non-empty and a valid
+ * Azure subscription UUID.
+ */
+const requiredAzureSubscriptionId: Rule = id => (): ValidationResult => {
+  if (!id) {
+    return { valid: false, message: 'Subscription ID is required' };
+  }
+  if (!validUuid(id).valid) {
+    return {
+      valid: false,
+      message: 'Must be a valid Azure subscription ID',
+    };
+  }
+  return { valid: true };
+};
+
 /**
  * requiredIntegrationName is a required field and checks for a
  * value which must also be a valid Integration name.
@@ -552,6 +628,8 @@ export {
   requiredIamRoleName,
   requiredIamTrustAnchorName,
   requiredIamProfileName,
+  requiredAzureTagName,
+  requiredAzureSubscriptionId,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,

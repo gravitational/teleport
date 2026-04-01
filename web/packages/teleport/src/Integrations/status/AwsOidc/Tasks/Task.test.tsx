@@ -39,6 +39,7 @@ test('renders ec2 impacts', async () => {
       'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `account:ListRegions`\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
     discoverEks: undefined,
     discoverRds: undefined,
+    discoverAzureVm: undefined,
     discoverEc2: {
       region: 'us-east-2',
       account_id: undefined,
@@ -99,6 +100,7 @@ test('renders eks impacts', async () => {
       'Only EKS Clusters whose status is active can be automatically enrolled into teleport.\n',
     discoverEc2: undefined,
     discoverRds: undefined,
+    discoverAzureVm: undefined,
     discoverEks: {
       account_id: undefined,
       region: undefined,
@@ -151,6 +153,7 @@ test('renders rds impacts', async () => {
       'The Teleport Database Service uses [IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html) to communicate with RDS.\n',
     discoverEks: undefined,
     discoverEc2: undefined,
+    discoverAzureVm: undefined,
     discoverRds: {
       account_id: undefined,
       region: undefined,

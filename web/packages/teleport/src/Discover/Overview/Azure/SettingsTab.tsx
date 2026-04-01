@@ -20,40 +20,42 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
-import { Info as InfoAlert } from 'design/Alert';
+import { Danger } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
-import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
+import { ApplyTerraformSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ApplyTerraformSection';
 import {
-  ConfigurationScopeSection,
+  ManagedIdentitySection,
   IntegrationSection,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
-import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Aws/RegionsSection';
-import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
-import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
-import { Ec2Config } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
+} from 'teleport/Integrations/Enroll/Cloud/Azure/EnrollAzure';
+import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Azure/InfoGuide';
+import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ResourcesSection';
+import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Azure/tf_module';
 import {
-  Divider,
-  RegionOrWildcard,
-} from 'teleport/Integrations/Enroll/Cloud/Shared';
+  AzureManagedIdentity,
+  VmConfig,
+} from 'teleport/Integrations/Enroll/Cloud/Azure/types';
+import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
+import { RegionOrWildcard } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
+  IntegrationAzureOidc,
   IntegrationDiscoveryRule,
-  integrationService,
   IntegrationWithSummary,
-  Regions as AwsRegion,
+  integrationService,
+  AzureRegion,
+  AzureResource,
 } from 'teleport/services/integrations';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
-import { SETTINGS_PANEL_WIDTH } from '../SettingsTab';
+
+export const SETTINGS_PANEL_WIDTH = 500;
 
 export function SettingsTab({
   stats,
@@ -67,35 +69,58 @@ export function SettingsTab({
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
 
-  const { data: ec2Rules, isLoading } = useQuery({
-    queryKey: ['integrationRules', stats.name, AwsResource.ec2],
+  const {
+    data: vmRules,
+    isLoading: isRulesLoading,
+    isError: isRulesError,
+  } = useQuery({
+    queryKey: ['integrationRules', stats.name, 'vm'],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
-        AwsResource.ec2
+        AzureResource.vm
       ),
-    enabled: true,
+  });
+
+  const { data: integration, isLoading: isIntegrationLoading } = useQuery({
+    queryKey: ['integration', integrationName],
+    queryFn: () =>
+      integrationService.fetchIntegration<IntegrationAzureOidc>(
+        integrationName
+      ),
   });
 
   const getRegionsFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): RegionOrWildcard<AwsRegion>[] => {
+  ): RegionOrWildcard<AzureRegion>[] => {
     if (!rules || rules.length === 0) {
       return ['*'];
     }
     const regions = rules.map(rule => rule.region);
 
-    if (regions.includes('*') || regions.includes('aws-global')) {
+    if (regions.includes('*')) {
       return ['*'];
     }
 
-    return regions as RegionOrWildcard<AwsRegion>[];
+    return regions as RegionOrWildcard<AzureRegion>[];
   };
 
-  const getEc2ConfigFromRules = (
+  const getSubscriptionsFromRules = (rules?: IntegrationDiscoveryRule[]) => [
+    ...new Set((rules || []).flatMap(r => r.subscriptions || [])),
+  ];
+
+  const getResourceGroupsFromRules = (rules?: IntegrationDiscoveryRule[]) => [
+    ...new Set((rules || []).flatMap(r => r.resourceGroups || [])),
+  ];
+
+  const getVmConfigFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): Ec2Config => ({
+  ): VmConfig => ({
+    type: 'vm',
     enabled: rules !== undefined && rules.length > 0,
+    regions: getRegionsFromRules(rules),
+    subscriptions: getSubscriptionsFromRules(rules),
+    resourceGroups: getResourceGroupsFromRules(rules),
     tags:
       rules && rules.length > 0
         ? rules[0].labelMatcher.map(l => ({
@@ -105,25 +130,38 @@ export function SettingsTab({
         : [],
   });
 
-  const [updatedRegions, setRegions] = useState<
-    RegionOrWildcard<AwsRegion>[] | null
-  >(null);
-  const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
+  const getManagedIdentityFromIntegration = (
+    integration?: IntegrationAzureOidc
+  ): AzureManagedIdentity => ({
+    resourceGroup: integration?.spec?.managedIdentity?.resourceGroup || '',
+    region: (integration?.spec?.managedIdentity?.region ||
+      'eastus') as AzureRegion,
+  });
 
-  const regions = updatedRegions ?? getRegionsFromRules(ec2Rules?.rules);
-  const ec2Config = updatedEc2Config ?? getEc2ConfigFromRules(ec2Rules?.rules);
+  const [updatedRegions] = useState<RegionOrWildcard<AzureRegion>[] | null>(
+    null
+  );
+  const [updatedVmConfig, setVmConfig] = useState<VmConfig | null>(null);
+  const [updatedManagedIdentity, setManagedIdentity] =
+    useState<AzureManagedIdentity | null>(null);
+
+  const regions = updatedRegions ?? getRegionsFromRules(vmRules?.rules);
+  const vmConfig = updatedVmConfig ?? getVmConfigFromRules(vmRules?.rules);
+  const managedIdentity =
+    updatedManagedIdentity ?? getManagedIdentityFromIntegration(integration);
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        regions: regions,
-        ec2Config: ec2Config,
+        vmConfig: { ...vmConfig, regions },
+        managedIdentity: managedIdentity,
         version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, regions, vmConfig, managedIdentity, clusterVersion]
   );
 
+  const isLoading = isRulesLoading || isIntegrationLoading;
   if (isLoading) {
     return (
       <Flex justifyContent="center" mt={6}>
@@ -132,22 +170,16 @@ export function SettingsTab({
     );
   }
 
+  if (isRulesError) {
+    return <Danger>Failed to load the integration settings.</Danger>;
+  }
+
   return (
     <Validation>
       {({ validator }) => (
         <Flex>
           <Box flex="1">
             <Card p={4} mb={3}>
-              <InfoAlert
-                mb={3}
-                details="Review the prerequisites and setup requirements before configuring this integration."
-                primaryAction={{
-                  content: 'View Info Guide',
-                  onClick: () => onInfoGuideTabChange('info'),
-                }}
-              >
-                Before You Begin
-              </InfoAlert>
               <Box mb={4}>
                 <IntegrationSection
                   integrationName={integrationName}
@@ -157,17 +189,16 @@ export function SettingsTab({
               </Box>
               <Divider />
               <Box>
-                <ConfigurationScopeSection />
+                <ManagedIdentitySection
+                  managedIdentity={managedIdentity}
+                  onChange={setManagedIdentity}
+                  disabled={false}
+                />
               </Box>
               <Divider />
-              <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
-              />
+              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
               <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
-              <Divider />
-              <DeploymentMethodSection
+              <ApplyTerraformSection
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
