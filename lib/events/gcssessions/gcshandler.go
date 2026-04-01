@@ -19,6 +19,7 @@
 package gcssessions
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 var (
@@ -329,64 +331,85 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.Bucket, path), nil
 }
 
-// Download downloads a session recording from a GCS bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadFile(ctx, h.recordingPath(sessionID), writer))
+// StreamSessionRecording downloads a session recording from a GCS bucket and returns a
+// ReadCloser for the content. Returns trace.NotFound error if the recording
+// is not found.
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.gcsRetrier(ctx, h.recordingPath(sessionID))
 }
 
-// DownloadSummary downloads a session summary from a GCS bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+// StreamSessionSummary downloads a session summary from a GCS bucket and returns a
+// ReadCloser for the content. Returns trace.NotFound error if the summary is
+// not found.
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	// Happy path: the final summary exists.
-	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+	rc, err := h.gcsRetrier(ctx, h.summaryPath(sessionID))
 	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one.
-		err = h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer)
+		// Final summary doesn't exist, try the pending one. We don't retry
+		// here since the pending summary can be overwritten at any time.
+		rc, err = h.gcsStream(ctx, h.pendingSummaryPath(sessionID))
 		if trace.IsNotFound(err) {
 			// One more check for the final summary to prevent a race condition where
 			// the final one got created and the pending one got removed between the
 			// two checks above.
-			err = h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+			rc, err = h.gcsRetrier(ctx, h.summaryPath(sessionID))
 		}
 	}
-	return trace.Wrap(err)
+	return rc, trace.Wrap(err)
 }
 
-// DownloadMetadata downloads a session's metadata from a GCS bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadFile(ctx, h.metadataPath(sessionID), writer))
-}
-
-// DownloadThumbnail downloads a session's thumbnail from a GCS bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadFile(ctx, h.thumbnailPath(sessionID), writer))
-}
-
-func (h *Handler) downloadFile(ctx context.Context, path string, writer io.Writer) error {
-	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
-	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
+// gcsStream downloads an object in a single shot without retry logic.
+func (h *Handler) gcsStream(ctx context.Context, objectPath string) (io.ReadCloser, error) {
+	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", objectPath)
+	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(objectPath)
+	reader, err := obj.NewReader(ctx)
 	if err != nil {
-		return convertGCSError(err)
+		return nil, convertGCSError(err)
 	}
-	defer reader.Close()
-	start := time.Now()
-	written, err := io.Copy(writer, reader)
+	return reader, nil
+}
+
+// StreamSessionMetadata downloads a session's metadata from a GCS bucket and
+// returns a ReadCloser for the content. Returns trace.NotFound error if the
+// metadata is not found.
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.gcsRetrier(ctx, h.metadataPath(sessionID))
+}
+
+// StreamSessionThumbnail downloads a session's thumbnail from a GCS bucket and
+// returns a ReadCloser for the content. Returns trace.NotFound error if the
+// thumbnail is not found.
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.gcsRetrier(ctx, h.thumbnailPath(sessionID))
+}
+
+// gcsRetrier checks the object's existence and returns a downloadretrier.Retrier
+// whose DownloadFunc opens a range reader starting at the given offset.
+func (h *Handler) gcsRetrier(ctx context.Context, objectPath string) (io.ReadCloser, error) {
+	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", objectPath)
+	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(objectPath)
+
+	// Check existence upfront; also detect empty objects which GCS would
+	// return as NotFound in the old implementation.
+	attrs, err := obj.Attrs(ctx)
 	if err != nil {
-		return convertGCSError(err)
+		return nil, convertGCSError(err)
 	}
-	downloadLatencies.Observe(time.Since(start).Seconds())
-	downloadRequests.Inc()
-	if written == 0 {
-		return trace.NotFound("file at path %v is empty", path)
+	if attrs.Size == 0 {
+		return io.NopCloser(bytes.NewBuffer(nil)), nil
 	}
-	return nil
+	obj = obj.Generation(attrs.Generation)
+	return downloadretrier.New(ctx, attrs.Size, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
+		downloadRequests.Inc()
+		start := time.Now()
+		// NewRangeReader(ctx, offset, -1) reads from offset to the end.
+		reader, err := obj.NewRangeReader(ctx, offset, -1)
+		if err != nil {
+			return nil, convertGCSError(err)
+		}
+		downloadLatencies.Observe(time.Since(start).Seconds())
+		return reader, nil
+	}), nil
 }
 
 func (h *Handler) recordingPath(sessionID session.ID) string {

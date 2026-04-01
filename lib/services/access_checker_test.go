@@ -600,7 +600,7 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 
 	// the first value for shell encountered while checking roles should be used, which means
 	// secondaryShell should never be the result here
-	require.Equal(t, expectedShell, hui.Shell)
+	require.Equal(t, expectedShell, hui.Info.Shell)
 }
 
 func TestAccessCheckerDesktopGroups(t *testing.T) {
@@ -1445,6 +1445,22 @@ func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
 		&app,
 		AccessState{MFARequired: MFARequiredNever},
 		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/ReadOnly"),
+	)
+	require.NoError(t, err)
+
+	// 3) Should fail with AWSRoleARNMatcher: same constraint check as (1)
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		&AWSRoleARNMatcher{RoleARN: "arn:aws:iam::123456789012:role/Admin"},
+	)
+	require.Error(t, err)
+
+	// 4) Should pass with AWSRoleARNMatcher: same constraint check as (2)
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		&AWSRoleARNMatcher{RoleARN: "arn:aws:iam::123456789012:role/ReadOnly"},
 	)
 	require.NoError(t, err)
 }

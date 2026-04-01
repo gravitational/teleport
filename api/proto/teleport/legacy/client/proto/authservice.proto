@@ -184,6 +184,8 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
+    AccessGraphAPI = 6;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -2461,6 +2463,10 @@ message PresenceMFAChallengeRequest {
   // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
   // If unset, the server will only return non-Browser MFA challenges.
   string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the MFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string browser_mfa_request_id = 5;
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.

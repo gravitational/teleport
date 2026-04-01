@@ -19,6 +19,7 @@
 package s3sessions
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
+	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -442,138 +444,81 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
-// Download downloads a session recording from an S3 bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadOriginalFile(ctx, h.recordingPath(sessionID), writer))
+// StreamSessionRecording downloads a session recording from an S3 bucket and returns a
+// ReadCloser for the content. Returns trace.NotFound error if the recording
+// is not found.
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
 }
 
-// DownloadSummary downloads a final session summary from an S3 bucket and
-// writes the results into a writer. Returns trace.NotFound error if the
+// StreamSessionSummary downloads a final session summary from an S3 bucket and
+// returns a ReadCloser for the content. Returns trace.NotFound error if the
 // summary is not found or is not final.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadFile(ctx, h.summaryPath(sessionID), writer, nil /* versionID */))
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.downloadFileRetrier(ctx, h.summaryPath(sessionID), nil /* versionID */)
 }
 
-// DownloadMetadata downloads a session's metadata from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the metadata is not
-// found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadOriginalFile(ctx, h.metadataPath(sessionID), writer))
+// StreamSessionMetadata downloads a session's metadata from an S3 bucket and
+// returns a ReadCloser for the content. Returns trace.NotFound error if the
+// metadata is not found.
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.downloadOriginalFile(ctx, h.metadataPath(sessionID))
 }
 
-// DownloadThumbnail downloads a session's thumbnail from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the thumbnail is not
-// found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID), writer))
+// StreamSessionThumbnail downloads a session's thumbnail from an S3 bucket and
+// returns a ReadCloser for the content. Returns trace.NotFound error if the
+// thumbnail is not found.
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID))
 }
 
-func (h *Handler) downloadOriginalFile(ctx context.Context, path string, writer io.Writer) error {
+func (h *Handler) downloadOriginalFile(ctx context.Context, path string) (io.ReadCloser, error) {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
 	versionID, err := h.getOldestVersion(ctx, h.Bucket, path)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path, "version_id", versionID)
 
-	err = h.downloadFile(ctx, path, writer, aws.String(versionID))
-	if err != nil {
-		return awsutils.ConvertS3Error(err)
-	}
-	return nil
+	return h.downloadFileRetrier(ctx, path, aws.String(versionID))
 }
 
-func (h *Handler) downloadFile(
-	ctx context.Context, path string, writer io.Writer, versionID *string,
-) error {
-	// maxDownloadRetries is the maximum number of retries for the body.
-	const maxDownloadRetries = 3
-
-	// get the file head to find out the size.
-	headInput := &s3.HeadObjectInput{
+// downloadFileRetrier does a HeadObject to verify the object exists, then
+// returns a downloadretrier.Retrier whose DownloadFunc issues a range GET
+// starting at the given offset.
+func (h *Handler) downloadFileRetrier(ctx context.Context, path string, versionID *string) (io.ReadCloser, error) {
+	// Check existence and fetch content-length upfront so that NotFound is
+	// returned before the caller attempts any reads.
+	headOutput, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket:    aws.String(h.Bucket),
 		Key:       aws.String(path),
 		VersionId: versionID,
-	}
-
-	headOutput, err := h.client.HeadObject(ctx, headInput)
+	})
 	if err != nil {
-		return awsutils.ConvertS3Error(err)
+		return nil, awsutils.ConvertS3Error(err)
 	}
 
 	contentLength := aws.ToInt64(headOutput.ContentLength)
 	if contentLength == 0 {
-		return nil
+		return io.NopCloser(bytes.NewBuffer(nil)), nil
 	}
 
-	// offset tracks how many bytes have been successfully copied to the writer so far
-	var offset int64
-	var lastErr error
-	for attempt := range maxDownloadRetries {
-		if err := ctx.Err(); err != nil {
-			return trace.Wrap(err)
-		}
-		if attempt > 0 {
-			h.logger.DebugContext(ctx, "Retrying download from last position",
-				"bucket", h.Bucket,
-				"path", path,
-				"offset", offset,
-				"attempt", attempt+1,
-			)
-		}
-
-		// send the range header to download only the remaining part of the file
+	return downloadretrier.New(ctx, contentLength, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
 		rangeStr := fmt.Sprintf("bytes=%d-%d", offset, contentLength-1)
-
-		getInput := &s3.GetObjectInput{
+		output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
 			Bucket:    aws.String(h.Bucket),
 			Key:       aws.String(path),
 			VersionId: versionID,
 			Range:     aws.String(rangeStr),
-		}
-
-		output, err := h.client.GetObject(ctx, getInput)
+		})
 		if err != nil {
-			return trace.Wrap(awsutils.ConvertS3Error(err))
+			return nil, awsutils.ConvertS3Error(err)
 		}
-
-		// copy the body to the writer
-		n, err := io.Copy(writer, output.Body)
-		_ = output.Body.Close()
-
-		offset += n
-
-		if err != nil {
-			// If we haven't reached the end, continue
-			// the AWS manager.Downloader retries on every error when reading the error.
-			if offset < contentLength {
-				lastErr = err
-				continue
-			}
-			return trace.Wrap(err)
-		}
-
-		if offset < contentLength {
-			lastErr = fmt.Errorf("downloaded %d bytes, expected %d", offset, contentLength)
-			continue
-		}
-
-		// this case should never happen given that we force the version and the file
-		// shouldn't be changing under us, but if it does, we want to know about it
-		//  instead of silently truncating the recording
-		if offset != contentLength {
-			return trace.BadParameter("expected %d bytes, got %d when downloading file %q", contentLength, offset, path)
-		}
-
-		return nil
-	}
-
-	return trace.Wrap(lastErr, "failed to download file after %d attempts", maxDownloadRetries)
+		return output.Body, nil
+	}), nil
 }
 
 // versionID is used to store versions of a key to allow sorting by timestamp.

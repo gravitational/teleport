@@ -168,6 +168,7 @@ export const ossRoutes = {
   userResetContinue: '/web/reset/:tokenId/continue',
   kubernetes: '/web/cluster/:clusterId/kubernetes',
   headlessSso: `/web/headless/:requestId`,
+  browserMfa: `/web/mfa/browser/:requestId?`,
   integrations: '/web/integrations',
   integrationOverview: '/web/integrations/overview/:type/:name',
   integrationStatus: '/web/integrations/status/:type/:name',
@@ -235,7 +236,6 @@ const cfg = {
   customTheme: '',
   isStripeManaged: false,
   hasQuestionnaire: false,
-  externalAuditStorage: false,
   premiumSupport: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature
@@ -432,6 +432,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -1148,6 +1150,10 @@ const cfg = {
 
   getHeadlessSsoPath(requestId: string) {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
+  },
+
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
   },
 
   getUserInviteTokenRoute(tokenId = '') {

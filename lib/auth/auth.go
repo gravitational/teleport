@@ -147,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1463,6 +1464,11 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
+	// ObserveBrowserMFAChallengeExtensionsForTesting, if set, is called with the resolved
+	// challenge extensions when a BrowserMFARequestID is provided to
+	// CreateAuthenticateChallenge. Used for testing.
+	ObserveBrowserMFAChallengeExtensionsForTesting func(*mfav1.ChallengeExtensions)
+
 	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
 	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
@@ -1493,6 +1499,10 @@ type Server struct {
 	// EncryptedIO provides encryption for session related data such as
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
+
+	// anonymizationKey is used to anonymize sensitive data in a consistent way for
+	// use in telemetry and logging without exposing the original values.
+	anonymizationKey []byte
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2547,21 +2557,65 @@ func (a *Server) GetClusterID(ctx context.Context) (string, error) {
 	return clusterName.GetClusterID(), nil
 }
 
-// GetAnonymizationKey returns the anonymization key that identifies this client.
+// InitializeAnonymizationKey initializes the HMAC anonymization key for this auth server.
+// The anonymization key is used for hashing any PII data (like usernames, hostnames, etc.)
+// that may be included in events emitted by this auth server.
 // The anonymization key may be any of the following, in order of precedence:
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
+// If the anonymization key was already initialized, this function is a no-op.
+func (a *Server) InitializeAnonymizationKey() error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if len(a.anonymizationKey) > 0 {
+		// already initialized, no need to do anything
+		return nil
+	}
+
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
-		return string(key), nil
+		a.anonymizationKey = key
+		return nil
 	}
 
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
-		return string(a.license.AnonymizationKey), nil
+		a.anonymizationKey = a.license.AnonymizationKey
+		return nil
 	}
-	id, err := a.GetClusterID(ctx)
-	return id, trace.Wrap(err)
+
+	// load the cluster name from the backend to get the cluster ID for anonymization key generation
+	clusterName, err := a.Services.GetClusterName(a.closeCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id := clusterName.GetClusterID()
+	if len(id) == 0 {
+		// this should never happen since cluster ID is a required field,
+		// but we check just in case to avoid panics and to provide a more helpful error message.
+		return trace.BadParameter("cluster ID is empty, cannot initialize anonymization key")
+	}
+	a.anonymizationKey = []byte(id)
+	return nil
+}
+
+// GetAnonymizationKey returns the anonymization key for this auth server.
+// Before calling this function, InitializeAnonymizationKey should have been called
+// to ensure the key is properly initialized.
+func (a *Server) GetAnonymizationKey() []byte {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	return a.anonymizationKey
+}
+
+// SetAnonymizationKey sets the anonymization key for this auth server.
+// This is only used by Teleport Cloud where the anonymization key can be
+// refreshed.
+func (a *Server) SetAnonymizationKey(key []byte) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.anonymizationKey = key
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -2767,7 +2821,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		User:            req.User,
 		SSHPublicKey:    req.PublicKey,
 		Compatibility:   constants.CertificateFormatStandard,
-		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
 		TTL:             sessionTTL,
 		Traits:          req.User.GetTraits(),
 		RouteToCluster:  req.Cluster,
@@ -2785,25 +2839,26 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 // TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
-	SSHPubKey               []byte
-	TLSPubKey               []byte
-	Username                string
-	TTL                     time.Duration
-	Compatibility           string
-	RouteToCluster          string
-	PinnedIP                string
-	MFAVerified             string
-	SSHAttestationStatement *hardwarekey.AttestationStatement
-	TLSAttestationStatement *hardwarekey.AttestationStatement
-	AppName                 string
-	AppSessionID            string
-	DeviceExtensions        DeviceExtensions
-	Renewable               bool
-	Generation              uint64
-	ActiveRequests          []string
-	KubernetesCluster       string
-	Usage                   []string
-	Scope                   string
+	SSHPubKey                []byte
+	TLSPubKey                []byte
+	Username                 string
+	TTL                      time.Duration
+	Compatibility            string
+	RouteToCluster           string
+	PinnedIP                 string
+	MFAVerified              string
+	SSHAttestationStatement  *hardwarekey.AttestationStatement
+	TLSAttestationStatement  *hardwarekey.AttestationStatement
+	AppName                  string
+	AppSessionID             string
+	DeviceExtensions         DeviceExtensions
+	Renewable                bool
+	Generation               uint64
+	ActiveRequests           []string
+	AllowedResourceAccessIDs []types.ResourceAccessID
+	KubernetesCluster        string
+	Usage                    []string
+	Scope                    string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2819,7 +2874,10 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checkerContext, err := a.accessCheckerForScope(ctx, req.Scope, userState)
+	// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
+	// doesn't fall back to role-based checks alone if resource-level restrictions
+	// are present on caller's identity.
+	checkerContext, err := a.accessCheckerForScope(ctx, req.Scope, userState, req.AllowedResourceAccessIDs)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2918,7 +2976,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
@@ -2982,7 +3040,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		TLSPublicKey:   req.PublicKey,
 		LoginIP:        req.PinnedIP,
 		PinIP:          req.PinnedIP != "",
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            time.Hour,
 		Traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
@@ -3316,7 +3374,7 @@ func (a *Server) augmentUserCertificates(
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		checkerContext:       services.NewUnscopedSplitAccessCheckerContext(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
+		checkerContext:       services.NewScopedAccessCheckerContextFromUnscoped(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
@@ -3812,6 +3870,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Traits:            req.Traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
+		WebSessionID:      req.WebSessionID,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:                       req.AppSessionID,
 			URI:                             req.AppURI,
@@ -4001,7 +4060,7 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 
 type verifyLocksForUserCertsReq struct {
 	// checkerContext is a split access checker context which may be scoped or unscoped.
-	checkerContext *services.SplitAccessCheckerContext
+	checkerContext *services.ScopedAccessCheckerContext
 	// defaultMode is the default locking mode, as recorded in the cluster
 	// Auth Preferences.
 	defaultMode constants.LockingMode
@@ -4254,6 +4313,35 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		return nil
 	}
 
+	// If a BrowserMFARequestID is provided, look up the request and apply its challenge extensions.
+	if req.BrowserMFARequestID != "" {
+		if req.ChallengeExtensions != nil {
+			return nil, trace.BadParameter("challenge extensions must not be set when a browser MFA request ID is provided")
+		}
+
+		browserMFAReq, err := a.GetMFASession(ctx, req.BrowserMFARequestID)
+		if err != nil {
+			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
+			return nil, trace.AccessDenied("invalid browser MFA request")
+		}
+
+		chalExts := browserMFAReq.ChallengeExtensions
+		if chalExts == nil {
+			a.logger.WarnContext(ctx, "MFA session for browser MFA recorded with empty challenge extensions", "request_id", req.BrowserMFARequestID)
+			return nil, trace.BadParameter("stored session lacks challenge extensions")
+		}
+
+		// Replace the challenge extensions with the ones found in the SSO MFA object.
+		// These are the ones from the original tsh request.
+		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
+
+		// Used for testing. If observer function is set, call it with
+		// challenge extensions from SSO MFA session.
+		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
+			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
+		}
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
@@ -4312,7 +4400,16 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
+	clientRedirectURL := ""
+	if req.BrowserMFARequestID == "" {
+		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
+		// So we can take either one and generate an auth challenge with it.
+		clientRedirectURL = cmp.Or(req.SSOClientRedirectURL, req.BrowserMFATSHRedirectURL)
+	}
+
+	challenges, err := a.mfaAuthChallenge(ctx, username, clientRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -7848,7 +7945,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -7859,6 +7956,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
 	enableSSO := apref.IsSecondFactorSSOAllowed()
+	enableBrowserMFA := apref.GetAllowCLIAuthViaBrowser()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -7954,15 +8052,32 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
-	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+	if enableSSO && groupedDevs.SSO != nil && clientRedirectURL != "" {
 		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
 			ctx,
 			mfatypes.BeginSSOMFAChallengeParams{
 				User:                 user,
 				SSO:                  groupedDevs.SSO.GetSso(),
-				SSOClientRedirectURL: ssoClientRedirectURL,
+				SSOClientRedirectURL: clientRedirectURL,
 				ProxyAddress:         proxyAddress,
 				Ext:                  challengeExtensions,
+			},
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// If the user has a WebAuthn device, return a Browser MFA challenge. This
+	// challenge is useful in cases where a user only has a browser-associated
+	// WebAuthn device, but is trying to MFA via a CLI tool (tsh, tctl etc.)
+	if enableBrowserMFA && groupedDevs.Browser != nil && clientRedirectURL != "" {
+		if challenge.BrowserMFAChallenge, err = a.BeginBrowserMFAChallenge(
+			ctx,
+			mfatypes.BeginBrowserMFAChallengeParams{
+				User:                     user,
+				BrowserMFATSHRedirectURL: clientRedirectURL,
+				ProxyAddress:             proxyAddress,
+				Ext:                      challengeExtensions,
 			},
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -7995,6 +8110,7 @@ type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
 	SSO      *types.MFADevice
+	Browser  *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice) devicesByType {
@@ -8013,6 +8129,18 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	// Create a synthetic Browser device if the user has a WebAuthn device.
+	// This enables browser-based MFA for users who have WebAuthn/passkey devices.
+	if len(res.Webauthn) > 0 {
+		res.Browser = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Browser{
+				Browser: &types.BrowserMFADevice{},
+			},
+		}
+	}
+
 	return res
 }
 
@@ -8024,7 +8152,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8043,8 +8171,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowCLIAuthViaBrowser() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8113,6 +8242,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.Code = events.ValidateMFAAuthResponseCode
 		auditEvent.Success = true
 		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		deviceMetadata.MFAViaBrowser = authData.MFAViaBrowser
 		auditEvent.MFADevice = &deviceMetadata
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
@@ -8224,6 +8354,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
@@ -8670,4 +8803,15 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// TODO(tigrato): remove Download* methods once e no longer references them.
+func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	reader, err := s.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	_, err = io.Copy(writer, reader)
+	return trace.Wrap(err)
 }

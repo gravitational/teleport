@@ -504,11 +504,26 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// trimStr truncates the length of a string, appending '...' for strings
+// that are truncated. If the string is truncated, the result will have
+// len of max + 3 (for the ellipsis).
+func trimStr(str string, max int) string {
+	if len(str) <= max {
+		return str
+	}
+
+	return str[:max] + "..."
+}
+
 // Validate will preform checks not found in CheckAndSetDefaults
 // that should only be preformed when the OIDC connector resource
 // itself is being created or updated, not when a OIDCConnector
 // object is being created or updated.
 func (o *OIDCConnectorV3) Validate() error {
+	if len(o.GetName()) > constants.MaxAuthConnectorNameLength {
+		return trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(o.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	if o.Spec.ClientRedirectSettings != nil {
 		for _, cidrStr := range o.Spec.ClientRedirectSettings.InsecureAllowedCidrRanges {
 			_, err := netip.ParsePrefix(cidrStr)

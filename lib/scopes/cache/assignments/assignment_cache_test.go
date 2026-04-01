@@ -38,7 +38,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
 			},
@@ -59,7 +60,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
 			},
@@ -80,7 +82,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
 			},
@@ -101,7 +104,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
 			},
@@ -122,7 +126,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-03",
 			},
@@ -143,7 +148,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-03",
 			},
@@ -164,7 +170,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
 			},
@@ -189,7 +196,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -197,7 +205,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 		cache.Put(assignment)
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
@@ -209,7 +218,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-02@/aa",
+		PageToken: "v1:bob-02/dynamic@/aa",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -221,7 +230,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-01@/",
+		PageToken: "v1:bob-01/dynamic@/",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -233,7 +242,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:carol-01@/bb",
+		PageToken: "v1:carol-01/dynamic@/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -245,7 +254,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-01@/",
+		PageToken: "v1:bob-01/dynamic@/",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -258,7 +267,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:bob-03@/aa/bb",
+		PageToken: "v1:bob-03/dynamic@/aa/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -271,7 +280,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v1:carol-01@/bb",
+		PageToken: "v1:carol-01/dynamic@/bb",
 	})
 	require.NoError(t, err)
 	require.Empty(t, rsp.NextPageToken)
@@ -283,7 +292,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
 		},
-		PageToken: "v2:bob-02@/aa",
+		PageToken: "v2:bob-02/dynamic@/aa",
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
@@ -295,7 +304,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 
 	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
 			},
@@ -316,7 +326,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
 			},
@@ -337,7 +348,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
 			},
@@ -358,7 +370,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
 			},
@@ -379,7 +392,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
 			},
@@ -598,7 +612,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -606,7 +621,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		cache.Put(assignment)
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: assignment.GetSubKind(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
@@ -635,6 +651,87 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			require.Equal(t, tt.expect, out)
 		})
 	}
+}
+
+// TestScopedRoleAssignmentSubKinds asserts that assignments with different
+// subkinds are properly fetched and listed with pagination, even if their
+// names collide.
+func TestScopedRoleAssignmentSubKinds(t *testing.T) {
+	t.Parallel()
+
+	cache := NewAssignmentCache(AssignmentCacheConfig{})
+
+	makeAssignment := func(name, subKind, user string) *scopedaccessv1.ScopedRoleAssignment {
+		return &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: subKind,
+			Metadata: &headerpb.Metadata{
+				Name: name,
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user,
+				Assignments: []*scopedaccessv1.Assignment{{
+					Role:  "role-01",
+					Scope: "/foo",
+				}},
+			},
+			Version: types.V1,
+		}
+	}
+
+	// Populate the cache with a dynamic and a materialized assignment with the same name.
+	dynamic := makeAssignment("shared-name", scopedaccess.SubKindDynamic, "alice")
+	materialized := makeAssignment("shared-name", scopedaccess.SubKindMaterialized, "bob")
+	require.NoError(t, cache.Put(dynamic))
+	require.NoError(t, cache.Put(materialized))
+
+	// Make sure getting each assignment by (name, subkind) returns the right one.
+	for _, tt := range []*scopedaccessv1.ScopedRoleAssignment{dynamic, materialized} {
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    tt.GetMetadata().GetName(),
+			SubKind: tt.GetSubKind(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, tt.GetSpec().GetUser(), rsp.GetAssignment().GetSpec().GetUser())
+		require.Equal(t, tt.GetSubKind(), rsp.GetAssignment().GetSubKind())
+	}
+
+	// Trying to get an assignment without specifying a subkind returns NotFound.
+	_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name: "shared-name",
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Make sure paging across assignments does not skip or duplicate
+	// assignments with matching names but different subkinds.
+	var got []string
+	pageToken := ""
+	for {
+		rsp, err := cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
+			PageSize:  1,
+			PageToken: pageToken,
+		})
+		require.NoError(t, err)
+		require.Len(t, rsp.GetAssignments(), 1)
+
+		assignment := rsp.GetAssignments()[0]
+		got = append(got, assignment.GetMetadata().GetName()+"/"+assignment.GetSubKind())
+
+		if rsp.GetNextPageToken() == "" {
+			break
+		}
+		pageToken = rsp.GetNextPageToken()
+	}
+
+	require.ElementsMatch(t,
+		[]string{
+			"shared-name/dynamic",
+			"shared-name/materialized",
+		},
+		got,
+	)
 }
 
 func collectAssignmentNames(assignments []*scopedaccessv1.ScopedRoleAssignment) []string {

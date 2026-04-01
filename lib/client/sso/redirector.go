@@ -94,6 +94,9 @@ const (
 	// on this page in order to capture the SSO MFA response regardless of what page the challenge
 	// was requested from.
 	WebMFARedirect = "/web/sso_confirm"
+
+	// WebBrowserMFAPath is the path for browser-based MFA flows.
+	WebBrowserMFAPath = "/web/mfa/browser/"
 )
 
 // RedirectorConfig is configuration for an sso redirector.
@@ -268,16 +271,16 @@ func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
 
 	// If a command was found to launch the browser, create and start it.
 	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
-		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\n", err)
+		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\r\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
 	if rd.Browser == teleport.BrowserNone {
-		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\r\n %v\r\n", clickableURL)
 	} else {
 		fmt.Fprintf(rd.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(rd.Stderr, "clicking on the link:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "clicking on the link:\r\n %v\r\n", clickableURL)
 	}
 
 	return nil

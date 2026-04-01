@@ -548,7 +548,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		Backend:       localResourceService,
 		Authorizer:    authorizer,
 		Emitter:       emitter,
-		UsageReporter: func() usagereporter.UsageReporter { return usagereporter.DiscardUsageReporter{} },
+		UsageReporter: usagereporter.DiscardUsageReporter{},
 	})
 	require.NoError(t, err)
 

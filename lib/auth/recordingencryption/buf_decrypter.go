@@ -17,18 +17,24 @@
 package recordingencryption
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
 )
 
+// readCloser combines an io.Reader with the Close method of a separate io.Closer.
+type readCloser struct {
+	io.Reader
+	io.Closer
+}
+
 // ageEncryptionPrefix is the prefix used to identify age-encrypted data.
 // age always uses "age-encryption.org/v1" as the prefix for its encrypted files.
 const ageEncryptionPrefix = "age-encryption.org"
-
-var ageEncryptionPrefixBytes = []byte(ageEncryptionPrefix)
 
 // Decrypter wraps an io.Reader with decryption if the data is age-encrypted.
 type Decrypter interface {
@@ -47,7 +53,7 @@ type Decrypter interface {
 // If no Decrypter is configured when encrypted data is detected, an error is
 // returned.
 func DecryptBufferIfEncrypted(ctx context.Context, buf []byte, decrypter Decrypter) ([]byte, error) {
-	if !bytes.HasPrefix(buf, ageEncryptionPrefixBytes) {
+	if !bytes.HasPrefix(buf, []byte(ageEncryptionPrefix)) {
 		return buf, nil
 	}
 
@@ -67,4 +73,47 @@ func DecryptBufferIfEncrypted(ctx context.Context, buf []byte, decrypter Decrypt
 	}
 
 	return decryptedBuf.Bytes(), nil
+}
+
+// DecryptReaderIfEncrypted checks whether the provided reader contains
+// age-encrypted data and decrypts it if necessary.
+//
+// The function reads the first few bytes to look for the standard age
+// encryption header prefix. If not encrypted, it returns a reader that
+// replays those bytes followed by the rest of the original reader.
+//
+// If the data is encrypted, a Decrypter must be provided. If none is
+// configured, an error is returned.
+func DecryptReaderIfEncrypted(ctx context.Context, rc io.ReadCloser, decrypter Decrypter) (io.ReadCloser, error) {
+	prefix := []byte(ageEncryptionPrefix)
+	reader := bufio.NewReader(rc)
+
+	data, err := reader.Peek(len(prefix))
+	// If the buffer is smaller than the prefix, Peek returns an error.
+	// If it's an EOF, we can ignore it since we'll check the prefix match
+	// below and return the original reader if it doesn't match.
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, trace.Wrap(err, "peeking recording data for decryption")
+	}
+
+	if !bytes.Equal(data, prefix) {
+		return &readCloser{
+			Reader: reader,
+			Closer: rc,
+		}, nil
+	}
+
+	if decrypter == nil {
+		return nil, trace.BadParameter("recording decrypter is not configured")
+	}
+
+	decryptedReader, err := decrypter.WithDecryption(ctx, reader)
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting recording")
+	}
+
+	return &readCloser{
+		Reader: decryptedReader,
+		Closer: rc,
+	}, nil
 }

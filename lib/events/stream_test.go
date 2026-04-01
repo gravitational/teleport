@@ -362,13 +362,11 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	case <-doneC:
 	}
 
-	out := fakeWriterAt{
-		buf: &bytes.Buffer{},
-	}
-	err = uploader.Download(ctx, sid, out)
+	rc, err := uploader.StreamSessionRecording(ctx, sid)
 	require.NoError(t, err)
+	defer rc.Close()
 
-	reader := events.NewProtoReader(out.buf, encryptedIO)
+	reader := events.NewProtoReader(rc, encryptedIO)
 
 	decryptedEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
@@ -668,18 +666,6 @@ func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteClo
 
 func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
 	return hex.NewDecoder(reader), f.err
-}
-
-type fakeWriterAt struct {
-	buf *bytes.Buffer
-}
-
-func (f fakeWriterAt) Write(p []byte) (int, error) {
-	return f.buf.Write(p)
-}
-
-func (f fakeWriterAt) WriteAt(p []byte, offset int64) (int, error) {
-	return f.Write(p)
 }
 
 type MockSummarizer struct {

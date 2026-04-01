@@ -1,0 +1,12 @@
+usage: test create <command> [<args> ...]
+
+Create.
+
+Flags:
+
+Commands:
+  create box    Box.
+  create rocket Rocket.
+
+Aliases:
+
