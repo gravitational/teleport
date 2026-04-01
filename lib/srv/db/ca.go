@@ -504,7 +504,7 @@ const (
 	// https://www.amazontrust.com/repository/
 	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
 
-	// azureCAURLDigiCert is the URL of the new CA certificate for validating
+	// azureCAURLDigiCert is the URL of the CA certificate for validating
 	// certificates presented by Azure hosted databases.
 	azureCAURLDigiCert = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
 
