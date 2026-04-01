@@ -8719,7 +8719,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	require.NoError(t, err)
 
-	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
+	tlscfg, err := authServer.TLSConfig(utils.DefaultCipherSuites())
 	require.NoError(t, err)
 	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
 	if insecureMode {

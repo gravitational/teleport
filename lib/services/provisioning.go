@@ -60,6 +60,11 @@ type Provisioner interface {
 
 	// ListProvisionTokens retrieves a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+}
+
+// ProvisionerInternal extends the Provisioner interface with auth-specific internal methods.
+type ProvisionerInternal interface {
+	Provisioner
 
 	// AppendPutProvisionTokenActions adds conditional actions to an atomic write
 	// to create or update a provision token.

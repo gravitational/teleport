@@ -67,6 +67,11 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+}
+
+// IdentityInternal extends the Identity interface with auth-specific internal methods.
+type IdentityInternal interface {
+	Identity
 
 	// AppendPutUserActions adds conditional actions to an atomic write to create
 	// or update the user's params resource.

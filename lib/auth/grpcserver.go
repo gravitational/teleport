@@ -6623,7 +6623,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		AuthServer: cfg.AuthServer,
 		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
-		Identity:   cfg.AuthServer.Identity,
+		Identity:   cfg.AuthServer.IdentityInternal,
 		Storage:    cfg.AuthServer.MFAService,
 	})
 	if err != nil {

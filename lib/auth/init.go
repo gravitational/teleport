@@ -167,13 +167,13 @@ type InitConfig struct {
 	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.AccessInternal
 
 	// DynamicAccessExt is a service that manages dynamic RBAC.
 	DynamicAccessExt services.DynamicAccessExt
@@ -191,7 +191,7 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Applications
+	Apps services.ApplicationsInternal
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
@@ -1785,15 +1785,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
-			err = service.Provisioner.UpsertToken(ctx, r)
+			err = service.UpsertToken(ctx, r)
 		case types.User:
-			err = services.ValidateUserRoles(ctx, r, service.Access)
+			err = services.ValidateUserRoles(ctx, r, service)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			_, err = service.Identity.UpsertUser(ctx, r)
+			_, err = service.UpsertUser(ctx, r)
 		case types.Role:
-			_, err = service.Access.UpsertRole(ctx, r)
+			_, err = service.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:

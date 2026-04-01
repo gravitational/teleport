@@ -70,6 +70,11 @@ type Applications interface {
 	DeleteApp(ctx context.Context, name string) error
 	// DeleteAllApps removes all database resources.
 	DeleteAllApps(context.Context) error
+}
+
+// ApplicationsInternal extends the Access interface with auth-specific internal methods.
+type ApplicationsInternal interface {
+	Applications
 
 	// AppendPutAppActions adds conditional actions to an atomic write to create
 	// or update an application resource.

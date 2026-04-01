@@ -1226,7 +1226,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
-			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+			u, err := authServer.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
 				func(u types.User) (bool, error) {
 					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 					return true, nil

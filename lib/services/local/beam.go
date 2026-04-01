@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 
