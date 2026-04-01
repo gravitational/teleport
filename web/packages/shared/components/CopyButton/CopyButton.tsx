@@ -73,6 +73,7 @@ export function CopyButton(
           size={0}
           onClick={handleCopy}
           aria-label="copy"
+          type="button"
         >
           {copiedText === copySuccess ? (
             <Check size="small" />
