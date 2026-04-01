@@ -4330,12 +4330,12 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.BadParameter("stored session lacks challenge extensions")
 		}
 
-		// Replace the challenge extensions with the ones found in the SSO MFA object.
+		// Replace the challenge extensions with the ones found in the MFA object.
 		// These are the ones from the original tsh request.
 		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
 
 		// Used for testing. If observer function is set, call it with
-		// challenge extensions from SSO MFA session.
+		// challenge extensions from MFA session.
 		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
 			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
 		}
