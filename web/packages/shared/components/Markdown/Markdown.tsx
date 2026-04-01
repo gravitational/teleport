@@ -258,7 +258,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
     }
 
     if (line.trim().startsWith('<details')) {
-      const expanded = line.includes('open');
+      const expanded = /\bopen\b/.test(line);
       let summary = '';
       const content: string[] = [];
       const startI = i;
