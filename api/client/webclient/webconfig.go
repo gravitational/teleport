@@ -95,6 +95,8 @@ type WebConfig struct {
 	// IdentitySecurity contains identity security features and settings.
 	// The individual identity security entitlements should be read from the Entitlements field.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool `json:"beamsUi"`
 }
 
 // IdentitySecurity contains identity security features and settings.

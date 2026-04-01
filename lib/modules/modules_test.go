@@ -144,6 +144,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 2113},
 			string(entitlements.AccessRequests):             {Enabled: true, Limit: 39},
 			string(entitlements.App):                        {Enabled: false},
+			string(entitlements.Beams):                      {Enabled: true},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: true},
 			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 			string(entitlements.DB):                         {Enabled: true},
@@ -175,6 +176,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		},
 		AccessGraphDemoMode:  true,
 		ClientIPRestrictions: true,
+		BeamsUI:              true,
 	}
 
 	f := modules.Features{
@@ -194,6 +196,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
 		CloudAnonymizationKey:      []byte("001"),
+		BeamsUI:                    true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.AccessGraph:                {Enabled: true, Limit: 0},
 			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
@@ -201,6 +204,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.AccessMonitoring:           {Enabled: true, Limit: 2113},
 			entitlements.AccessRequests:             {Enabled: true, Limit: 39},
 			entitlements.App:                        {Enabled: false, Limit: 0},
+			entitlements.Beams:                      {Enabled: true, Limit: 0},
 			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
 			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 0},
 			entitlements.DB:                         {Enabled: true, Limit: 0},

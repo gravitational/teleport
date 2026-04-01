@@ -24,6 +24,7 @@ type entitlement =
   | 'AccessMonitoring'
   | 'AccessRequests'
   | 'App'
+  | 'Beams'
   | 'ClientIPRestrictions'
   | 'CloudAuditLogRetention'
   | 'DB'
@@ -56,6 +57,7 @@ export const defaultEntitlements: Record<
   AccessMonitoring: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
+  Beams: { enabled: false, limit: 0 },
   ClientIPRestrictions: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },
   DB: { enabled: false, limit: 0 },
