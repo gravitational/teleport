@@ -992,6 +992,10 @@ export const azureRegionMap = {
 
 export type AzureRegion = keyof typeof azureRegionMap;
 
+export enum AzureResource {
+  vm = 'vm',
+}
+
 // RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the
 // specified engine.

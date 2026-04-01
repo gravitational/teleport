@@ -37,6 +37,7 @@ import {
   IntegrationKind,
   PluginKind,
   Regions,
+  AzureResource,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { GroupAction } from 'teleport/services/managedUpdates';
@@ -1545,7 +1546,7 @@ const cfg = {
 
   getIntegrationRulesUrl(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ) {
     const clusterId = cfg.proxyCluster;
