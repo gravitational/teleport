@@ -1,6 +1,9 @@
 /**
+ * @jest-environment node
+ */
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,4 +21,4 @@
 
 import { registerDeepLinkTests } from './deepLinks.testcases';
 
-registerDeepLinkTests('jsdom');
+registerDeepLinkTests('node');
