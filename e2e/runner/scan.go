@@ -266,7 +266,7 @@ func stripComments(lines []string) []string {
 			}
 		}
 
-		if idx := strings.Index(line, "/*"); idx >= 0 {
+		if idx := findBlockCommentOpen(line); idx >= 0 {
 			if endIdx := strings.Index(line[idx+2:], "*/"); endIdx >= 0 {
 				// Single-line block comment.
 				line = line[:idx] + line[idx+2+endIdx+2:]
@@ -310,6 +310,36 @@ func findInlineComment(line string) int {
 			quote = ch
 		case '/':
 			if i+1 < len(line) && line[i+1] == '/' {
+				return i
+			}
+		}
+	}
+
+	return -1
+}
+
+// findBlockCommentOpen returns the byte offset of the first /* that is not inside a string literal, or -1.
+func findBlockCommentOpen(line string) int {
+	var quote byte
+
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+			} else if ch == quote {
+				quote = 0
+			}
+
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quote = ch
+		case '/':
+			if i+1 < len(line) && line[i+1] == '*' {
 				return i
 			}
 		}
@@ -387,9 +417,26 @@ func findTestUseCalls(content string) []callRange {
 		// Start paren counting after the opening '(' in "test.use("
 		depth := 1
 		pos := callStart + len(testUseCallPrefix)
+		var quote byte
 
 		for pos < len(content) && depth > 0 {
-			switch content[pos] {
+			ch := content[pos]
+
+			if quote != 0 {
+				if ch == '\\' {
+					pos++ // skip escaped character
+				} else if ch == quote {
+					quote = 0
+				}
+
+				pos++
+
+				continue
+			}
+
+			switch ch {
+			case '\'', '"', '`':
+				quote = ch
 			case '(':
 				depth++
 			case ')':
