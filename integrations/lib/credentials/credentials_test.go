@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
@@ -50,8 +50,8 @@ func (mc *mockTLSCredentials) TLSConfig() (*tls.Config, error) {
 	}}, nil
 }
 
-func (mc *mockTLSCredentials) SSHClientConfig() (apissh.ClientConfig, error) {
-	return apissh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (mc *mockTLSCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 func (mc *mockTLSCredentials) Expiry() (time.Time, bool) {

@@ -118,7 +118,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -407,7 +407,7 @@ type (
 		addr      string
 		tlsConfig *tls.Config
 		dialer    ContextDialer
-		sshConfig apissh.ClientConfig
+		sshConfig ssh.ClientConfig
 	}
 )
 

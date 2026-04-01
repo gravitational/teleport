@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -50,7 +50,7 @@ type TunnelAuthDialerConfig struct {
 	// Resolver retrieves the address of the proxy
 	Resolver Resolver
 	// ClientConfig is SSH tunnel client config
-	ClientConfig apissh.ClientConfig
+	ClientConfig ssh.ClientConfig
 	// Log is used for logging.
 	Log *slog.Logger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.

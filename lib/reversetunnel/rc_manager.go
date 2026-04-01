@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -69,7 +69,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	// values.
 	AccessPoint authclient.ProxyAccessPoint
 	// PublicKeyAuthConfig contains SSH credentials that this pool connects as.
-	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
+	PublicKeyAuthConfig ssh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.

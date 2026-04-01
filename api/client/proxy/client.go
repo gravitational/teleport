@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
@@ -60,8 +60,8 @@ type ClientConfig struct {
 	// StreamInterceptors are optional [grpc.StreamClientInterceptor] to apply
 	// to the gRPC client.
 	StreamInterceptors []grpc.StreamClientInterceptor
-	// SSHConfig is the [apissh.ClientConfig] used to connect to the Proxy SSH server.
-	SSHConfig apissh.ClientConfig
+	// SSHConfig is the [ssh.ClientConfig] used to connect to the Proxy SSH server.
+	SSHConfig ssh.ClientConfig
 	// DialTimeout defines how long to attempt dialing before timing out.
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
@@ -183,8 +183,8 @@ func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (mc insecureCredentials) SSHClientConfig() (apissh.ClientConfig, error) {
-	return apissh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (mc insecureCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry. insecureCredentials never expire.
@@ -436,8 +436,8 @@ func (c *Client) Close() error {
 // SSHConfig returns the [ssh.ClientConfig] for the provided user which
 // should be used when creating a [tracessh.Client] with the returned
 // [net.Conn] from [Client.DialHost].
-func (c *Client) SSHConfig(user string) apissh.ClientConfig {
-	return apissh.ClientConfig{
+func (c *Client) SSHConfig(user string) ssh.ClientConfig {
+	return ssh.ClientConfig{
 		SSHConfig:         c.cfg.SSHConfig.SSHConfig,
 		User:              user,
 		PublicKeyAuth:     c.cfg.SSHConfig.PublicKeyAuth,
