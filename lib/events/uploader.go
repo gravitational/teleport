@@ -31,8 +31,8 @@ type UploadHandler interface {
 	// Upload uploads a session recording and returns a URL with uploaded file in
 	// case of success.
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// Download downloads a session recording and writes it to a writer.
-	Download(ctx context.Context, sessionID session.ID, writer io.Writer) error
+	// StreamSessionRecording streams a session recording and returns a ReadCloser for the content.
+	StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 	// UploadPendingSummary uploads a pending session summary and returns a URL
 	// with uploaded file in case of success. This function can be called
 	// multiple times for a given sessionID to update the state. A pending
@@ -44,23 +44,23 @@ type UploadHandler interface {
 	// uploaded file in case of success. This function can be called only once
 	// for a given sessionID; subsequent calls will return an error.
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// DownloadSummary downloads a session summary and writes it to a writer.
-	// Returns a "not found" error if there's no such summary.
-	DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error
+	// StreamSessionSummary streams a session summary and returns a ReadCloser for
+	// the content. Returns a "not found" error if there's no such summary.
+	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
 	// multiple [recordingmetadatav1.SessionRecordingThumbnail] messages (thumbnails).
 	UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// DownloadMetadata downloads session metadata and writes it to a writer.
-	DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error
+	// StreamSessionMetadata streams session metadata and returns a ReadCloser for the content.
+	StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 	// UploadThumbnail uploads a session thumbnail and returns a URL with uploaded
 	// file in case of success. A thumbnail is [recordingmetadatav1.SessionRecordingThumbnail]
 	// protobuf message which contains the thumbnail as an SVG, and some basic details about the
 	// state of the terminal at the time of the thumbnail capture (terminal size, cursor position).
 	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
-	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error
+	// StreamSessionThumbnail streams a session thumbnail and returns a ReadCloser for the content.
+	StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 }
 
 // MultipartHandler handles both multipart and standalone uploads and
