@@ -28,7 +28,7 @@ import (
 	"slices"
 	"testing"
 
-	yaml "github.com/ghodss/yaml"
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
