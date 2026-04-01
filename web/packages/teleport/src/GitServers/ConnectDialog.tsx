@@ -81,7 +81,7 @@ export function ConnectDialog({
           </Text>
           {' - Clone or configure a repository'}
           <br />
-          {'To clone a new repository, find the SSH url of the repository on '}
+          {'To clone a new repository, find the SSH URL of the repository on '}
           <Link href={repoURL} target="_blank">
             github.com
           </Link>

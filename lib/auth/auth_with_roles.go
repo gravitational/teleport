@@ -1112,7 +1112,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 // NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
 // performance characteristics).
 func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
-	if err := a.authorizeWatchRequest(&watch); err != nil {
+	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.NewStream(ctx, watch)
@@ -1120,21 +1120,21 @@ func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (str
 
 // NewWatcher returns a new event watcher
 func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	if err := a.authorizeWatchRequest(&watch); err != nil {
+	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.NewWatcher(ctx, watch)
 }
 
 // authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
-func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
+func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
 		return trace.AccessDenied("can't setup global watch")
 	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		err := a.hasWatchPermissionForKind(kind)
+		err := a.hasWatchPermissionForKind(ctx, kind)
 		if err != nil {
 			if watch.AllowPartialSuccess {
 				continue
@@ -1160,10 +1160,46 @@ func (a *ServerWithRoles) authorizeWatchRequest(watch *types.Watch) error {
 	return nil
 }
 
+// hasWatchPermissionForKindScoped evaluates whether an identity can watch a
+// specified kind. Must only be called when a.scopedContext != nil -
+// i.e. scopedAuthenticate produced the ServerWithRoles.
+func (a *ServerWithRoles) hasWatchPermissionForKindScoped(
+	ctx context.Context, kind types.WatchKind,
+) error {
+	// Scoped identities currently receive "special" handling. For now, we only
+	// support watching the cert_authority kind, with load_secrets=false.
+	//
+	// For this, we perform a RiskyUnpinnedDecision to permit scoped identities
+	// to read an unscoped resource.
+	if kind.Kind != types.KindCertAuthority {
+		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
+	}
+	if kind.LoadSecrets {
+		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
+	}
+	verb := types.VerbReadNoSecrets
+	ruleCtx := a.scopedContext.RuleContext()
+	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(
+		ctx,
+		scopes.Root,
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
+		},
+	)
+}
+
 // hasWatchPermissionForKind checks the permissions for data of each kind.
 // For watching, most kinds of data just need a Read permission, but some
 // have more complicated logic.
-func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error {
+func (a *ServerWithRoles) hasWatchPermissionForKind(
+	ctx context.Context,
+	kind types.WatchKind,
+) error {
+	// For scoped identities, we perform a different authz check.
+	if a.scopedContext != nil {
+		return trace.Wrap(a.hasWatchPermissionForKindScoped(ctx, kind))
+	}
+
 	verb := types.VerbRead
 	switch kind.Kind {
 	case types.KindCertAuthority:
@@ -4539,16 +4575,20 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 }
 
 func (a *ServerWithRoles) checkGithubConnector(connector types.GithubConnector) error {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	mapping := connector.GetTeamsToLogins()
 	for _, team := range mapping {
 		if len(team.KubeUsers) != 0 || len(team.KubeGroups) != 0 {
-			return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, use it instead of local kubernetes_users and kubernetes_groups ")
+			return trace.BadParameter("use teams_to_logins to reference a role instead of local kubernetes_users and kubernetes_groups")
 		}
 		for _, localRole := range team.Logins {
 			_, err := a.GetRole(context.TODO(), localRole)
 			if err != nil {
 				if trace.IsNotFound(err) {
-					return trace.BadParameter("since 6.0 teleport uses teams_to_logins to reference a role, role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
+					return trace.BadParameter("role %q referenced in mapping for organization %q is not found", localRole, team.Organization)
 				}
 				return trace.Wrap(err)
 			}

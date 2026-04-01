@@ -46,21 +46,21 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/loginuid"
-	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/selinux"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/envutils"
-	"github.com/gravitational/teleport/lib/utils/host"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/auditd"
+	"github.com/gravitational/teleport/session/envutils"
+	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/loginuid"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/selinux"
+	"github.com/gravitational/teleport/session/shell"
+	"github.com/gravitational/teleport/session/uacc"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 const (
@@ -394,7 +394,7 @@ func RunCommand() (exitErr error, err error) {
 	if c.PAMConfig != nil {
 		slog.DebugContext(ctx, "Opening PAM context")
 
-		cfg := &servicecfg.PAMConfig{
+		cfg := &pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -751,7 +751,7 @@ func RunNetworking() (code int, err error) {
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pamcfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,

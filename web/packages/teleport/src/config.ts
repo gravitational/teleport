@@ -265,7 +265,7 @@ const cfg = {
   /** @deprecated Use entitlements instead; remove in v20 */
   saml: false,
   // isPolicyEnabled refers to the Teleport Policy product
-  /** @deprecated Use entitlements instead; remove in v20 */
+  /** @deprecated Use entitlements.Policy.enabled instead;*/
   isPolicyEnabled: false,
 
   ui: {

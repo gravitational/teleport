@@ -53,7 +53,7 @@ export function DeleteLockDialogue(props: Props) {
       <DialogContent width="540px">
         {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
         <P1>
-          Are you sure you want to delete lock for{' '}
+          Are you sure you want to delete the lock for{' '}
           <Pills targets={lock.targets} />?
         </P1>
       </DialogContent>

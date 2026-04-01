@@ -102,13 +102,18 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		switch r.GetResourceID().Kind {
-		// For now, only AWS Console apps are supported, but without fetching the backing resource, the most specific we
-		// can do is check for KindApp.
-		case types.KindApp:
-			continue
+		kind := r.GetResourceID().Kind
+		switch c := r.GetConstraints().Details.(type) {
+		case *types.ResourceConstraints_AwsConsole:
+			if kind != types.KindApp {
+				return trace.BadParameter("aws_console constraints are not valid for resource kind %q", kind)
+			}
+		case *types.ResourceConstraints_Ssh:
+			if kind != types.KindNode {
+				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
+			}
 		default:
-			return trace.BadParameter("resource kind %q does not support resource constraints", r.GetResourceID().Kind)
+			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
 		}
 	}
 
@@ -2491,11 +2496,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
+		// If ResourceConstraints were provided for this Resource, wrap existing
+		// matchers and add constraint-derived matchers. The wrapping gates
+		// principal-bearing matchers on the constraint's allowed set, while the
+		// constraint-derived matchers ensure roles are pruned to only those
+		// granting at least one of the constrained principals (e.g. SSH logins,
+		// AWS role ARNs).
 		if constraints != nil {
 			guard := WithConstraints(constraints)
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
+			}
+			constraintMatcher, err := MatcherFromConstraints(constraints)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if constraintMatcher != nil {
+				matchers = append(matchers, constraintMatcher)
 			}
 		}
 

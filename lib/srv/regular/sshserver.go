@@ -72,9 +72,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -155,7 +156,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -303,7 +304,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -632,7 +633,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -1210,7 +1211,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
-	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer())
 
 	return srv
 }

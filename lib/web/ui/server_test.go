@@ -26,9 +26,11 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestStripProtocolAndPort(t *testing.T) {
@@ -408,7 +410,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, false)
+				server := MakeServer(srv, MakeServerConfig{ClusterName: tc.clusterName, RequiresRequest: false})
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
@@ -586,10 +588,93 @@ func TestSortedLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for i, srv := range tc.servers {
-				server := MakeServer(tc.clusterName, srv, nil, false)
+				server := MakeServer(srv, MakeServerConfig{ClusterName: tc.clusterName, RequiresRequest: false})
 				assert.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
 		})
+	}
+}
+
+func TestMakeServer_SSHLoginsGrantedVsRequestable(t *testing.T) {
+	t.Parallel()
+
+	srv, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "test-node",
+		Addr:     "1.2.3.4:22",
+	})
+	require.NoError(t, err)
+
+	allLogins := set.New("root", "ubuntu", "admin")
+	grantedLogins := set.New("ubuntu")
+
+	server := MakeServer(srv, MakeServerConfig{
+		ClusterName:       "cluster",
+		Logins:            &PrincipalSet{All: allLogins, Granted: grantedLogins},
+		RequiresRequest:   false,
+		SupportedFeatures: nil,
+	})
+
+	// SSHLogins should still contain all logins for backwards compatibility.
+	require.ElementsMatch(t, []string{"root", "ubuntu", "admin"}, server.SSHLogins)
+
+	// SSHLoginDetails should contain per-login metadata.
+	require.Len(t, server.SSHLoginDetails, 3)
+
+	loginMap := make(map[string]SSHLogin)
+	for _, l := range server.SSHLoginDetails {
+		loginMap[l.Login] = l
+	}
+	// ubuntu is granted, so RequiresRequest should be false.
+	assert.False(t, loginMap["ubuntu"].RequiresRequest)
+	// root and admin are not granted, so RequiresRequest should be true.
+	assert.True(t, loginMap["root"].RequiresRequest)
+	assert.True(t, loginMap["admin"].RequiresRequest)
+}
+
+func TestMakeServer_SupportedFeatureIDs(t *testing.T) {
+	t.Parallel()
+
+	srv, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "test-node",
+		Addr:     "1.2.3.4:22",
+	})
+	require.NoError(t, err)
+
+	t.Run("nil features yields empty SupportedFeatureIDs", func(t *testing.T) {
+		server := MakeServer(srv, MakeServerConfig{ClusterName: "cluster", RequiresRequest: false})
+		require.Empty(t, server.SupportedFeatureIDs)
+	})
+
+	t.Run("features are converted to SupportedFeatureIDs", func(t *testing.T) {
+		features := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+		server := MakeServer(srv, MakeServerConfig{ClusterName: "cluster", RequiresRequest: false, SupportedFeatures: features})
+		require.ElementsMatch(t, features.GetFeatures(), server.SupportedFeatureIDs)
+	})
+}
+
+func TestMakeServer_AllLoginsRequireRequest(t *testing.T) {
+	t.Parallel()
+
+	srv, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "test-node",
+		Addr:     "1.2.3.4:22",
+	})
+	require.NoError(t, err)
+
+	allLogins := set.New("root", "ubuntu")
+	grantedLogins := set.New[string]() // empty: all logins require a request
+
+	server := MakeServer(srv, MakeServerConfig{
+		ClusterName:       "cluster",
+		RequiresRequest:   false,
+		Logins:            &PrincipalSet{All: allLogins, Granted: grantedLogins},
+		SupportedFeatures: nil,
+	})
+
+	require.ElementsMatch(t, []string{"root", "ubuntu"}, server.SSHLogins)
+	require.Len(t, server.SSHLoginDetails, 2)
+	for _, detail := range server.SSHLoginDetails {
+		assert.True(t, detail.RequiresRequest, "login %q should require request", detail.Login)
 	}
 }
 

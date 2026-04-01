@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -151,11 +152,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -394,7 +397,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -733,7 +736,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -1251,25 +1254,27 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 2, res.TotalCount)
 	require.ElementsMatch(t, res.Items, []webui.Server{
 		{
-			Kind:        types.KindNode,
-			SubKind:     types.SubKindTeleportNode,
-			ClusterName: clusterName,
-			Name:        server1.GetName(),
-			Hostname:    server1.GetHostname(),
-			Tunnel:      server1.GetUseTunnel(),
-			Addr:        server1.GetAddr(),
-			Labels:      []ui.Label{},
-			SSHLogins:   []string{pack.login},
+			Kind:            types.KindNode,
+			SubKind:         types.SubKindTeleportNode,
+			ClusterName:     clusterName,
+			Name:            server1.GetName(),
+			Hostname:        server1.GetHostname(),
+			Tunnel:          server1.GetUseTunnel(),
+			Addr:            server1.GetAddr(),
+			Labels:          []ui.Label{},
+			SSHLogins:       []string{pack.login},
+			SSHLoginDetails: []webui.SSHLogin{{Login: pack.login}},
 		},
 		{
-			Kind:        types.KindNode,
-			SubKind:     types.SubKindTeleportNode,
-			ClusterName: clusterName,
-			Name:        server2.GetName(),
-			Hostname:    server2.GetHostname(),
-			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-			Tunnel:      false,
-			SSHLogins:   []string{pack.login},
+			Kind:            types.KindNode,
+			SubKind:         types.SubKindTeleportNode,
+			ClusterName:     clusterName,
+			Name:            server2.GetName(),
+			Hostname:        server2.GetHostname(),
+			Labels:          []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:          false,
+			SSHLogins:       []string{pack.login},
+			SSHLoginDetails: []webui.SSHLogin{{Login: pack.login}},
 		},
 	})
 
@@ -1459,7 +1464,9 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	app := resp.Items[0]
 	require.True(t, app.AWSConsole)
 
-	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
+	require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{
+		componentfeaturesv1.ComponentFeatureID(feature1),
+	}, app.SupportedFeatureIDs)
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
@@ -1707,13 +1714,13 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		appRes := appResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
 
+		awsRoleSet := set.New("arn:aws:iam::999999999999:role/ProdInstance")
 		appConfig := webui.MakeAppsConfig{
-			LocalClusterName:      clusterName,
-			LocalProxyDNSName:     "proxy-1.example.com",
-			AppClusterName:        clusterName,
-			RequiresRequest:       false,
-			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
-			GrantedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+			LocalClusterName:  clusterName,
+			LocalProxyDNSName: "proxy-1.example.com",
+			AppClusterName:    clusterName,
+			RequiresRequest:   false,
+			AWSRoles:          &webui.PrincipalSet{All: awsRoleSet, Granted: awsRoleSet},
 		}
 
 		expectedApps := []webui.App{
@@ -8473,7 +8480,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -11128,53 +11135,6 @@ func TestGithubConnector(t *testing.T) {
 
 	assert.Empty(t, authConnectorsResp.Connectors)
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
-}
-
-func TestCalculateAppLogins(t *testing.T) {
-	cases := []struct {
-		name           string
-		allowedLogins  []string
-		expectedLogins []string
-		loginGetter    loginGetterFunc
-	}{
-		{
-			name:           "allowed logins",
-			allowedLogins:  []string{"llama", "fish", "dog"},
-			expectedLogins: []string{"llama", "fish", "dog"},
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name: "no allowed logins",
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:           "no allowed logins with fallback",
-			expectedLogins: []string{"apple", "banana"},
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			logins, err := calculateAppLogins(test.loginGetter, &types.AppServerV3{}, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
-}
-
-type loginGetterFunc func(resource services.AccessCheckable) ([]string, error)
-
-func (f loginGetterFunc) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
-	return f(resource)
 }
 
 func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
