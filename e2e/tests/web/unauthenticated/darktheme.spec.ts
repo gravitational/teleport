@@ -18,6 +18,7 @@
 
 import { login, logout } from '@gravitational/e2e/helpers/login';
 import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
+import { deleteUser } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 
 const lightBody = 'rgb(241, 242, 244)';
@@ -56,4 +57,6 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Switch to Light Theme').click();
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
+
+  deleteUser(username);
 });
