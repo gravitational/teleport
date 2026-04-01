@@ -27,7 +27,7 @@ import { useValidation } from 'shared/components/Validation';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber, CopyTerraformButton } from '../Shared';
+import { CircleNumber, CopyTerraformButton, Divider } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
@@ -55,90 +55,93 @@ export function DeploymentMethodSection({
 
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
         <CircleNumber>3</CircleNumber>
         Apply Terraform
       </Flex>
 
       <Box ml={4}>
-        <Flex flexDirection="column" mb={3} gap={2}>
-          <Text bold={true} fontSize="14px">
-            1. Add the module generated on the right to your Terraform
-            templates.
-          </Text>
-          <Box>
-            <CopyTerraformButton
-              onClick={e => {
-                const isValid = validator.validate();
-                if (!isValid) {
-                  e.preventDefault();
-                } else {
-                  handleCopy();
-                }
-              }}
-            />
-            {validator.state.validating && !validator.state.valid && (
-              <Text color="error.main" mt={2} fontSize={1}>
-                Please complete the required fields
-              </Text>
-            )}
-          </Box>
-          <Text bold={true} fontSize="14px">
-            2. Configure AWS and Teleport providers
-          </Text>
-          <Text color="text.slightlyMuted" fontSize={1}>
-            If you need help configuring providers for your environment, please
-            reference:{' '}
-            <ExternalLink
-              href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/"
-              target="_blank"
-            >
-              <Flex inline alignItems="center">
-                Teleport Terraform provider
-                <ArrowSquareOut size={12} ml={1} />
-              </Flex>
-            </ExternalLink>
-            {' and '}
-            <ExternalLink
-              href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs"
-              target="_blank"
-            >
-              <Flex inline alignItems="center">
-                AWS Terraform provider
-                <ArrowSquareOut size={12} ml={1} />
-              </Flex>
-            </ExternalLink>
-          </Text>
-          <DeploymentList>
-            <li>
-              <Text>Renew the Teleport credentials for Terraform.</Text>
-              <TextSelectCopyMulti
-                lines={[
-                  {
-                    comment: `tsh login --proxy=${cfg.proxyCluster}`,
-                    text: `eval "$(tctl terraform env)"`,
-                  },
-                ]}
+        <Flex flexDirection="column" mb={3}>
+          <Box mt={1} mb={4}>
+            <Text bold={true} fontSize="14px">
+              1. Add the module generated on the right to your Terraform
+              templates.
+            </Text>
+            <Box mt={2}>
+              <CopyTerraformButton
+                onClick={e => {
+                  const isValid = validator.validate();
+                  if (!isValid) {
+                    e.preventDefault();
+                  } else {
+                    handleCopy();
+                  }
+                }}
               />
-            </li>
-          </DeploymentList>
-          <Text bold={true} fontSize="14px">
-            3. Initialize and apply the configuration
-          </Text>
-          <TextSelectCopyMulti
-            lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
-          />
+              {validator.state.validating && !validator.state.valid && (
+                <Text color="error.main" mt={2} fontSize={1}>
+                  Please complete the required fields
+                </Text>
+              )}
+            </Box>
+          </Box>
+          <Box mb={4}>
+            <Text bold={true} fontSize="14px">
+              2. Configure AWS and Teleport providers
+            </Text>
+            <Text color="text.slightlyMuted" fontSize={1}>
+              If you need help configuring providers for your environment,
+              please reference{' '}
+              <ExternalLink
+                href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/"
+                target="_blank"
+              >
+                <Flex inline alignItems="center">
+                  Teleport Terraform provider
+                  <ArrowSquareOut size={12} ml={1} />
+                </Flex>
+              </ExternalLink>
+              {' and '}
+              <ExternalLink
+                href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs"
+                target="_blank"
+              >
+                <Flex inline alignItems="center">
+                  AWS Terraform provider
+                  <ArrowSquareOut size={12} ml={1} />
+                </Flex>
+              </ExternalLink>
+            </Text>
+            <Text mt={1}>Renew the Teleport credentials for Terraform.</Text>
+            <TextSelectCopyMulti
+              lines={[
+                {
+                  comment: `tsh login --proxy=${cfg.proxyCluster}`,
+                  text: `eval "$(tctl terraform env)"`,
+                },
+              ]}
+            />
+          </Box>
+          <Box>
+            <Text bold={true} fontSize="14px" mb={2}>
+              3. Initialize and apply the configuration
+            </Text>
+            <TextSelectCopyMulti
+              lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
+            />
+          </Box>
         </Flex>
       </Box>
 
       {showVerificationStep && (
         <>
-          <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+          <Divider />
+          <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
             <CircleNumber>4</CircleNumber>
             Verify the Integration
           </Flex>
 
-          <Box ml={4} mt={2}>
+          <Box ml={4} mt={1}>
             {integrationExists ? (
               <Alert
                 kind="success"
@@ -224,7 +227,7 @@ const AnimatedSpinner = styled(Spinner)`
 const DeploymentList = styled.ul`
   padding-left: 0px;
   list-style-type: none;
-  margin-top: 0;
+  margin: 0;
 
   li > * {
     margin-bottom: ${p => p.theme.space[2]}px;

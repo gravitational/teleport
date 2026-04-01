@@ -64,14 +64,14 @@ describe('buildTerraformConfig', () => {
     expect(result).not.toContain('eks');
   });
 
-  test('EC2 with no region selection omits regions field', () => {
+  test('EC2 with no region selection uses wildcard regions', () => {
     const result = buildTerraformConfig({
       ...baseConfig,
       matchers: [{ type: 'ec2', regions: [], tags: [] }],
     });
 
-    expect(result).toContain('types = ["ec2"]');
-    expect(result).not.toContain('regions');
+    expect(result).toContain('types   = ["ec2"]');
+    expect(result).toContain('regions = ["*"]');
     expect(result).not.toContain('tags');
   });
 
