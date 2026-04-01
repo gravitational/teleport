@@ -25,6 +25,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -84,6 +85,7 @@ type collections struct {
 	proxyServers                       *collection[types.Server, proxyServerIndex]
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
+	beams                              *collection[*beamsv1.Beam, beamIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
@@ -264,6 +266,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.apps = collect
 			out.byKind[resourceKind] = out.apps
+		case types.KindBeam:
+			collect, err := newBeamCollection(c.Beams, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.beams = collect
+			out.byKind[resourceKind] = out.beams
 		case types.KindAppServer:
 			collect, err := newAppServerCollection(c.Presence, watch)
 			if err != nil {

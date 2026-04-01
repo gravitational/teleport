@@ -655,6 +655,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -718,6 +725,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
 	}
 
 	if cfg.FakePasswordHash == nil {

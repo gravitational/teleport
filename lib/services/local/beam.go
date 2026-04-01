@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -159,4 +160,44 @@ func (s *BeamService) AppendDeleteBeamActions(
 
 func beamAliasKey(alias string) backend.Key {
 	return backend.NewKey(beamAliasPrefix, alias)
+}
+
+func newBeamParser() *beamParser {
+	return &beamParser{
+		baseParser: newBaseParser(backend.NewKey(beamPrefix).ExactKey()),
+	}
+}
+
+type beamParser struct {
+	baseParser
+}
+
+func (p *beamParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(beamPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: strings.TrimPrefix(name, backend.SeparatorString),
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*beamsv1.Beam](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

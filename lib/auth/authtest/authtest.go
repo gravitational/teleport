@@ -604,6 +604,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
+		Beams:                   p.AuthServer.Services.Beams,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
