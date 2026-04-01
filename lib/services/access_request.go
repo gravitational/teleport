@@ -2424,9 +2424,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return roles, nil
 	}
 
-	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
+	roles, mappedRequestedRolesToAllowedKubeKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
 	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
-		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
+		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKubeKinds, false /* requestedRoles */)
 	}
 
 	clusterNameResource, err := m.getter.GetClusterName(ctx)
@@ -2458,7 +2458,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 
 	noRoleAllowingRequestedKubeResource := false
-	hasKubeResourceKindRestrictions := len(mappedRequestedRolesToAllowedKinds) > 0
+	hasKubeResourceKindRestrictions := len(mappedRequestedRolesToAllowedKubeKinds) > 0
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range underlyingResources {
 		var constraints *types.ResourceConstraints
@@ -2553,7 +2553,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		// first gives the user actionable guidance even when non-kube resources were also
 		// requested and similarly unmatched.
 		if noRoleAllowingRequestedKubeResource {
-			return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
+			return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKubeKinds, false /* requestedRoles */)
 		}
 		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
