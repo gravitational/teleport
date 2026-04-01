@@ -1,0 +1,248 @@
+/**
+ * Teleport
+ * Copyright (C) 2026 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { Link as InternalLink } from 'react-router';
+import styled from 'styled-components';
+
+import { Alert, Box, ButtonText, Flex, Text } from 'design';
+import { Notification, Spinner } from 'design/Icon';
+import { rotate360 } from 'design/keyframes';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import { useValidation } from 'shared/components/Validation';
+
+import cfg from 'teleport/config';
+import { IntegrationKind } from 'teleport/services/integrations';
+
+import { CircleNumber, CopyTerraformButton } from '../Shared';
+
+type DeploymentMethodSectionProps = {
+  terraformConfig?: string;
+  handleCopy: () => void;
+  integrationExists?: boolean;
+  integrationName?: string;
+  handleCheckIntegration?: () => void;
+  handleCancelCheckIntegration?: () => void;
+  checkIntegrationError?: boolean;
+  isCheckingIntegration?: boolean;
+  showVerificationStep?: boolean;
+};
+
+export function DeploymentMethodSection({
+  handleCopy,
+  integrationExists,
+  integrationName,
+  handleCheckIntegration,
+  isCheckingIntegration,
+  checkIntegrationError,
+  handleCancelCheckIntegration,
+  showVerificationStep = true,
+}: DeploymentMethodSectionProps) {
+  const validator = useValidation();
+
+  return (
+    <>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+        <CircleNumber>5</CircleNumber>
+        Deployment Method
+      </Flex>
+      <Box ml={4} mb={3}>
+        <Text mb={3}>
+          Deploy the required IAM resources in your Azure account using
+          Terraform.
+        </Text>
+        <Text fontSize={3} fontWeight="regular">
+          Terraform
+        </Text>
+        <Text>
+          Automatically provision IAM roles and policies using Infrastructure as
+          Code.
+          <br />
+          Best for: Teams managing infrastructure with Terraform.
+        </Text>
+      </Box>
+
+      <Box ml={6}>
+        <Flex flexDirection="column" mb={3} gap={2}>
+          <Text bold={true} fontSize="14px">
+            1. Add the Teleport Azure Discovery module to your Terraform
+            configuration
+          </Text>
+          <Text>
+            Copy the module on the right and paste it into your Terraform
+            configuration.
+          </Text>
+          <Box>
+            <CopyTerraformButton
+              onClick={e => {
+                const isValid = validator.validate();
+                if (!isValid) {
+                  e.preventDefault();
+                } else {
+                  handleCopy();
+                }
+              }}
+            />
+            {validator.state.validating && !validator.state.valid && (
+              <Text color="error.main" mt={2} fontSize={1}>
+                Please complete the required fields
+              </Text>
+            )}
+          </Box>
+          <Text bold={true} fontSize="14px">
+            2. Initialize and apply the configuration
+          </Text>
+          <DeploymentList>
+            <li>
+              <Text>
+                In your terminal, initialize Terraform to download the Teleport
+                discovery module.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform init` }]} />
+            </li>
+            <li>
+              <Text>Verify your changes.</Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform plan` }]} />
+            </li>
+            <li>
+              <Text>
+                Apply the configuration to create the integration and configure
+                the discovery service.
+              </Text>
+              <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
+            </li>
+          </DeploymentList>
+          {showVerificationStep && (
+            <Box>
+              <Text bold={true} fontSize="14px" mb={2}>
+                3. Verify the integration
+              </Text>
+              {integrationExists ? (
+                <Alert
+                  kind="success"
+                  mb={2}
+                  primaryAction={{
+                    content: 'View Integration',
+                    linkTo: cfg.getIaCIntegrationRoute(
+                      IntegrationKind.AzureOidc,
+                      integrationName
+                    ),
+                  }}
+                >
+                  Integration Detected
+                  <Text fontWeight="regular">Azure successfully added</Text>
+                </Alert>
+              ) : (
+                <>
+                  <Box mb={3}>
+                    {isCheckingIntegration ? (
+                      <Alert
+                        kind="info"
+                        icon={AnimatedSpinner}
+                        primaryAction={{
+                          content: 'Cancel',
+                          onClick: handleCancelCheckIntegration,
+                        }}
+                        mb={0}
+                      >
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Checking for integration{' '}
+                          <Text as="span" fontWeight="bold">
+                            {integrationName}
+                          </Text>
+                          ...
+                        </Text>
+                      </Alert>
+                    ) : checkIntegrationError ? (
+                      <Alert
+                        kind="danger"
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
+                      >
+                        Failed to detect integration
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          Unable to detect the Azure integration "
+                          {integrationName}". Please check your Terraform
+                          configuration and try again.
+                        </Text>
+                      </Alert>
+                    ) : (
+                      <Alert
+                        kind="neutral"
+                        icon={Notification}
+                        mb={0}
+                        primaryAction={{
+                          content: 'Check Integration',
+                          onClick: handleCheckIntegration,
+                        }}
+                      >
+                        <Text fontWeight="regular" color="text.slightlyMuted">
+                          After applying your Terraform configuration, verify
+                          your integration was created successfully.
+                        </Text>
+                      </Alert>
+                    )}
+                  </Box>
+                  <Box
+                    pl={3}
+                    borderLeft="2px solid"
+                    borderColor="interactive.tonal.neutral.0"
+                  >
+                    <Flex gap={2} flexDirection="column">
+                      <Text bold={true} fontSize={1}>
+                        Don't want to wait?
+                      </Text>
+                      <Text>
+                        Once you've successfully applied your Terraform
+                        configuration, the integration will be available on the
+                        Integrations page.
+                      </Text>
+                      <Box css={{ position: 'relative', left: '-8px' }}>
+                        <InternalLink to={cfg.routes.integrations}>
+                          <ButtonText intent="primary" size="small">
+                            View Integrations
+                          </ButtonText>
+                        </InternalLink>
+                      </Box>
+                    </Flex>
+                  </Box>
+                </>
+              )}
+            </Box>
+          )}
+        </Flex>
+      </Box>
+    </>
+  );
+}
+
+const AnimatedSpinner = styled(Spinner)`
+  animation: ${rotate360} 1.5s linear infinite;
+`;
+
+const DeploymentList = styled.ul`
+  padding-left: 0px;
+  list-style-type: none;
+  margin-top: 0;
+
+  li > * {
+    margin-bottom: ${p => p.theme.space[2]}px;
+  }
+`;
