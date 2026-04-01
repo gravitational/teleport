@@ -162,9 +162,8 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	if len(originalResourcesMap) != len(originalResources) {
 		slog.DebugContext(ctx, "tctl edit clobbered resources on originalResourcesMap",
 			"ref", e.ref,
-			//nolint:sloglint // Log matching variable names.
-			"originalResourcesMap", len(originalResourcesMap),
-			"originalResources", len(originalResources),
+			"original_resources_map_len", len(originalResourcesMap),
+			"original_resources_len", len(originalResources),
 		)
 		return trace.BadParameter(
 			"tctl edit cannot handle multiple resources of kind %q, please specify a single resource to edit",
