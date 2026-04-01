@@ -797,4 +797,22 @@ describe('collapsible sections', () => {
     await user.click(screen.getByText('title goes here'));
     expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
   });
+
+  it('renders a malformed/incomplete closed section', () => {
+    const text = `<details>
+some other content`;
+
+    renderMarkdown(text);
+
+    expect(screen.queryByText('some other content')).not.toBeInTheDocument();
+  });
+
+  it('renders a malformed/incomplete open section', () => {
+    const text = `<details open>
+some other content`;
+
+    renderMarkdown(text);
+
+    expect(screen.getByText('some other content')).toBeInTheDocument();
+  });
 });

@@ -263,8 +263,8 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const startI = i;
       i += 1; // skip the opening tag
 
-      if (lines[i].trim().startsWith('<summary>')) {
-        summary = lines[i].replaceAll(/<\/?summary>/g, '');
+      if (lines[i]?.trim().startsWith('<summary>')) {
+        summary = lines[i]?.replaceAll(/<\/?summary>/g, '');
         i += 1;
       }
 
