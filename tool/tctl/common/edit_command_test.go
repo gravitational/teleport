@@ -756,6 +756,33 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 	t.Parallel()
 
+	overwriteFile := func(f *os.File, valsYAML [][]byte) error {
+		if err := f.Truncate(0); err != nil {
+			return fmt.Errorf("truncate: %w", err)
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			return fmt.Errorf("seek to zero: %w", err)
+		}
+
+		for i, val := range valsYAML {
+			if i > 0 {
+				if _, err := f.WriteString("---\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+			if _, err := f.Write(val); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+			if !bytes.HasSuffix(val, []byte("\n")) {
+				if _, err := f.WriteString("\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+		}
+
+		return nil
+	}
+
 	// Test add/remove detection when the number of resources stays the same.
 	t.Run("add/remove", func(t *testing.T) {
 		t.Parallel()
@@ -782,6 +809,50 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 		// Edit cas/host, then replace it with cas/windows.
 		_, err = runEditCommand(t, clt, []string{"edit", "cas/host"}, withEditor(editor))
 		assert.ErrorContains(t, err, "was added or removed", "tctl edit error mismatch")
+	})
+
+	// Test replacing one of the resources with a duplicate of another.
+	t.Run("duplicate", func(t *testing.T) {
+		t.Parallel()
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Read CA YAMLs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				casYAML = append(casYAML, raw.Raw)
+			}
+
+			// Replace an item with a duplicate.
+			casYAML[0] = casYAML[1]
+
+			// Overwrite.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		// Edit all CAs, then replace one of them with a duplicate.
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		assert.ErrorContains(t, err, "duplicate kind/sub_kind/name", "tctl edit error mismatch")
 	})
 
 	t.Run("edit", func(t *testing.T) {
@@ -814,7 +885,7 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 		ca2.SetMetadata(md)
 
 		editor := func(name string) error {
-			f, err := os.Open(name)
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
 			if err != nil {
 				return fmt.Errorf("read editor file: %w", err)
 			}
@@ -866,28 +937,9 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 				return fmt.Errorf("edit count mismatch (want %d, got %d)", wantEdits, editCount)
 			}
 
-			_ = f.Close()
-			f, err = os.Create(name)
-			if err != nil {
-				return fmt.Errorf("truncate editor file: %w", err)
-			}
-			defer f.Close()
-
 			// Write edited CAs.
-			for i, caYAML := range casYAML {
-				if i > 0 {
-					if _, err := f.WriteString("---\n"); err != nil {
-						return fmt.Errorf("write: %w", err)
-					}
-				}
-				if _, err := f.Write(caYAML); err != nil {
-					return fmt.Errorf("write: %w", err)
-				}
-				if !bytes.HasSuffix(caYAML, []byte("\n")) {
-					if _, err := f.WriteString("\n"); err != nil {
-						return fmt.Errorf("write: %w", err)
-					}
-				}
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
 			}
 			if err := f.Close(); err != nil {
 				return fmt.Errorf("close editor file: %w", err)

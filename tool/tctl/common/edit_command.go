@@ -191,9 +191,18 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if len(newResources) != len(originalResources) {
 		return trace.BadParameter("one or more resources were added or removed, renaming resources is not supported with tctl edit")
+	}
+
+	// Verify keying of new resources, similarly to originalResources.
+	newResourcesMap := make(map[string]struct{}, len(newResources))
+	for _, r := range newResources {
+		newResourcesMap[key(r)] = struct{}{}
+	}
+	if len(newResourcesMap) != len(newResources) {
+		return trace.BadParameter(
+			"one or more edited resources have duplicate kind/sub_kind/name keys, each resource must be unique")
 	}
 
 	for _, newResource := range newResources {
