@@ -1289,7 +1289,7 @@ func closeAll(closers ...io.Closer) error {
 func newUaccMetadata(c *ServerContext) (*reexec.UaccMetadata, error) {
 	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &reexec.UaccMetadata{
-		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
+		RemoteAddr: reexec.NetAddrFromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
