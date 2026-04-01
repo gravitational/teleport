@@ -163,7 +163,8 @@ func TestCreateBot(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
@@ -1267,7 +1268,8 @@ func TestUpsertBot(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
@@ -2053,7 +2055,8 @@ func TestGetBot(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
@@ -2340,7 +2343,8 @@ func TestListBots(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			Scope:   "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
@@ -2361,7 +2365,8 @@ func TestListBots(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser2.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
@@ -2620,7 +2625,8 @@ func TestDeleteBot(t *testing.T) {
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
-			Scope: "/scopes",
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
