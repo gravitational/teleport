@@ -270,7 +270,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       }
 
       if (nextLine.trim().startsWith('<summary>')) {
-        summary = nextLine.replaceAll(/<\/?summary>/g, '');
+        summary = nextLine.replaceAll(/<\/?summary>/g, '').trim();
         i += 1;
       }
 
