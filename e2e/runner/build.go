@@ -200,8 +200,12 @@ func shouldBuild(path string, noBuild bool) bool {
 		return true
 	}
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		slog.Info("binary missing, rebuilding despite --no-build", "path", path)
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			slog.Info("binary missing, rebuilding", "path", path)
+		} else {
+			slog.Warn("error checking binary, rebuilding just in case", "path", path, "error", err)
+		}
 
 		return true
 	}
