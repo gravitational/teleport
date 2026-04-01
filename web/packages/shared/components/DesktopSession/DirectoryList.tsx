@@ -23,6 +23,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
+import { useTheme } from 'styled-components';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -44,6 +45,7 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canSharedDirectories,
 }: SharedDirectoriesProps) {
+  
   return (
     <MenuIcon
       Icon={props => <FolderPlus {...props} size="large" />}
@@ -70,14 +72,14 @@ export function SharedDirectoryList({
       }
     >
       <Container>
-        <Stack gap={1} fullWidth>
-          {/* Header row */}
-          {sharedDirectoryHeader(sharedDirectories.length)}
+        <Stack gap={2} fullWidth>
+          {/* Header/Share Button */}
+          {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
 
           {/* Directory list */}
           {sharedDirectories.map(dir => (
             <Flex justifyContent="space-between" alignItems="center">
-              <Text fontSize={3}>{dir.name}</Text>
+                <Text  fontFamily={useTheme().fonts.mono} fontSize={3}>{dir.name}</Text>
               <HoverTooltip
                 placement="bottom"
                 tipContent={
@@ -90,7 +92,6 @@ export function SharedDirectoryList({
                   <ButtonSecondary
                     size="small"
                     compact={true}
-                    title={'Unshare Directory'}
                     onClick={() => onRemoveSharedDirectory(dir.id)}
                     disabled={!canRemoveSharedDirectory}
                   >
@@ -99,10 +100,7 @@ export function SharedDirectoryList({
                 </Flex>
               </HoverTooltip>
             </Flex>
-          ))}
-
-          {/* Share Button */}
-          {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
+          ))}          
         </Stack>
       </Container>
     </MenuIcon>
@@ -111,10 +109,9 @@ export function SharedDirectoryList({
 
 function addDirectoryButton(directoryCount: number, onClick: () => void) {
   return (
+    <div>
     <Flex justifyContent="space-between" alignItems="center">
-      <PurpleText $purple={directoryCount > 0}>
-        <Text fontSize={3}>Connect a shared directory</Text>
-      </PurpleText>
+      {sharedDirectoryHeader(directoryCount)}
       <ButtonPrimary
         size="small"
         onClick={onClick}
@@ -124,34 +121,32 @@ function addDirectoryButton(directoryCount: number, onClick: () => void) {
         <Plus size="small" />
       </ButtonPrimary>
     </Flex>
+    {directoryCount > 0 ? <hr></hr> : null}
+    </div>
   );
 }
 
 function sharedDirectoryHeader(directoryCount: number) {
   if (directoryCount == 0) {
-    return;
+    return (
+          <Text fontSize={3}>Connect a shared directory</Text>
+      )
   }
-
   const headerText =
-    directoryCount == 1 ? 'Shared Directory' : 'Shared Directories';
+    directoryCount == 1 ? 'shared directory' : 'shared directories';
   return (
-    <div>
-      <Flex justifyContent="space-between" alignItems="center">
-        <Text typography="h2">
-          {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
-        </Text>
-      </Flex>
-      <hr></hr>
-    </div>
+    <Text typography="h2">
+      {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
+    </Text>
   );
 }
 
 const Container = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
-  padding: ${props => props.theme.space[4]}px;
+  padding: ${props => props.theme.space[3]}px;
   width: 370px;
 `;
 
-const PurpleText = styled.div<{ $purple: boolean }>`
-  color: ${p => (p.$purple ? p.theme.colors.brand : 'inherit')};
+const SpaceText = styled.div`
+  space: 10;
 `;
