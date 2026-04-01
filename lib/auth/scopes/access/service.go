@@ -117,6 +117,13 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	if err := scopes.AssertFeatureEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// If SRA assigns to Bot, then we also need to validate that MWI scopes
+	// is opted-in:
+	if req.GetAssignment().GetSpec().GetBotName() != "" {
+		if err := scopes.AssertMWIFeatureEnabled(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	authzContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
