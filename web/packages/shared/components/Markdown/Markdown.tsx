@@ -19,6 +19,7 @@
 import {
   createElement,
   PropsWithChildren,
+  useId,
   useMemo,
   useState,
   type ReactNode,
@@ -407,13 +408,15 @@ function Section(
 ) {
   const { children, title, expanded: preExpanded } = props;
   const [expanded, setExpanded] = useState(preExpanded);
+  const accessibilityId = useId();
+
   return (
     <SectionContainer>
       <SectionHeadingContainer
         onClick={() => setExpanded(prev => !prev)}
         role="button"
         aria-expanded={expanded}
-        aria-controls="section-content"
+        aria-controls={accessibilityId}
       >
         {expanded ? (
           <ChevronDown size="medium" />
@@ -425,7 +428,7 @@ function Section(
         </P2>
       </SectionHeadingContainer>
       {expanded ? (
-        <SectionContentContainer id="section-content">
+        <SectionContentContainer id={accessibilityId}>
           {children}
         </SectionContentContainer>
       ) : undefined}
