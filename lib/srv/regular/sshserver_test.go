@@ -19,6 +19,7 @@
 package regular
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -1314,9 +1315,9 @@ func TestAgentForward(t *testing.T) {
 	se, err = f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
 
-	buf, err := se.Output(context.Background(), "printenv "+teleport.SSHAuthSock)
+	buf, err := se.Output(ctx, "printenv "+teleport.SSHAuthSock)
 	require.NoError(t, err)
-	socketPath := strings.TrimSpace(string(buf))
+	socketPath := string(bytes.TrimSpace(buf))
 
 	// Close out this session. Calling Close() after Output() is expected to
 	// return EOF. See the following for more details:
@@ -1329,6 +1330,9 @@ func TestAgentForward(t *testing.T) {
 	// All sessions have been closed, verify agent can still be connected to.
 	file, err := net.Dial("unix", socketPath)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, file.Close())
+	})
 
 	clientAgent := agent.NewClient(file)
 
@@ -1621,7 +1625,6 @@ func TestAllowedLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
