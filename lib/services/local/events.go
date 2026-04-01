@@ -1115,12 +1115,30 @@ type scopedRoleAssignmentParser struct {
 func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).String(), backend.SeparatorString)
-		if name == "" || strings.Contains(name, "/") {
+		components := event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).Components()
+		name := ""
+		subKind := ""
+		switch len(components) {
+		case 1:
+			name = components[0]
+		case 2:
+			name = components[0]
+			subKind = components[1]
+		default:
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		if subKind == scopedaccess.SubKindMaterialized {
+			// Materialized assignments are filtered out from backend events in
+			// case a future version persists materialized assignments to the
+			// backend.
+			return nil, nil
+		}
 		return &types.ResourceHeader{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: subKind,
 			Metadata: types.Metadata{
 				Name: name,
 			},
@@ -1129,6 +1147,12 @@ func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource,
 		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if assignment.GetSubKind() == scopedaccess.SubKindMaterialized {
+			// Materialized assignments are filtered out from backend events in
+			// case a future version persists materialized assignments to the
+			// backend.
+			return nil, nil
 		}
 		return types.Resource153ToLegacy(assignment), nil
 	default:
