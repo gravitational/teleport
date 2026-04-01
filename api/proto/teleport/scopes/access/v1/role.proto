@@ -117,17 +117,19 @@ message ScopedRoleSSH {
   // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
   optional SSHPortForwarding ssh_port_forwarding = 7;
 
-  // CreateHostUser
+  // CreateHostUser configures the creation of host users.
   optional CreateHostUser create_host_user = 8;
+
+  // MaxSessions defines the maximum number of
+  // concurrent sessions per connection.
+  optional int64 max_sessions = 9;
 }
 
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 // over an SSH session. It defaults to true unless explicitly set to false.
 message SSHFileCopy {
-  // specifies that user is only allowed to download
-  optional bool download = 1;
-  // specifies that user is only allowed to upload
-  optional bool upload = 2;
+  // Allow for remote file operations via SCP or SFTP.
+  optional bool enabled = 1;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block

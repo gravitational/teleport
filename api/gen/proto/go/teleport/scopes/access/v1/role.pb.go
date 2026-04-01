@@ -347,10 +347,13 @@ type ScopedRoleSSH struct {
 	ForwardAgent *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 	SshPortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=ssh_port_forwarding,json=sshPortForwarding,proto3,oneof" json:"ssh_port_forwarding,omitempty"`
-	// CreateHostUser
+	// CreateHostUser configures the creation of host users.
 	CreateHostUser *CreateHostUser `protobuf:"bytes,8,opt,name=create_host_user,json=createHostUser,proto3,oneof" json:"create_host_user,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// MaxSessions defines the maximum number of
+	// concurrent sessions per connection.
+	MaxSessions   *int64 `protobuf:"varint,9,opt,name=max_sessions,json=maxSessions,proto3,oneof" json:"max_sessions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleSSH) Reset() {
@@ -439,14 +442,19 @@ func (x *ScopedRoleSSH) GetCreateHostUser() *CreateHostUser {
 	return nil
 }
 
+func (x *ScopedRoleSSH) GetMaxSessions() int64 {
+	if x != nil && x.MaxSessions != nil {
+		return *x.MaxSessions
+	}
+	return 0
+}
+
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 // over an SSH session. It defaults to true unless explicitly set to false.
 type SSHFileCopy struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// specifies that user is only allowed to download
-	Download *bool `protobuf:"varint,1,opt,name=download,proto3,oneof" json:"download,omitempty"`
-	// specifies that user is only allowed to upload
-	Upload        *bool `protobuf:"varint,2,opt,name=upload,proto3,oneof" json:"upload,omitempty"`
+	// Allow for remote file operations via SCP or SFTP.
+	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -481,16 +489,9 @@ func (*SSHFileCopy) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SSHFileCopy) GetDownload() bool {
-	if x != nil && x.Download != nil {
-		return *x.Download
-	}
-	return false
-}
-
-func (x *SSHFileCopy) GetUpload() bool {
-	if x != nil && x.Upload != nil {
-		return *x.Upload
+func (x *SSHFileCopy) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
@@ -698,7 +699,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03sshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xe5\x04\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\x9e\x05\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
@@ -707,17 +708,18 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\rssh_file_copy\x18\x05 \x01(\v2&.teleport.scopes.access.v1.SSHFileCopyH\x01R\vsshFileCopy\x88\x01\x01\x12(\n" +
 	"\rforward_agent\x18\x06 \x01(\bH\x02R\fforwardAgent\x88\x01\x01\x12a\n" +
 	"\x13ssh_port_forwarding\x18\a \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingH\x03R\x11sshPortForwarding\x88\x01\x01\x12X\n" +
-	"\x10create_host_user\x18\b \x01(\v2).teleport.scopes.access.v1.CreateHostUserH\x04R\x0ecreateHostUser\x88\x01\x01B\x18\n" +
+	"\x10create_host_user\x18\b \x01(\v2).teleport.scopes.access.v1.CreateHostUserH\x04R\x0ecreateHostUser\x88\x01\x01\x12&\n" +
+	"\fmax_sessions\x18\t \x01(\x03H\x05R\vmaxSessions\x88\x01\x01B\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_ssh_file_copyB\x10\n" +
 	"\x0e_forward_agentB\x16\n" +
 	"\x14_ssh_port_forwardingB\x13\n" +
-	"\x11_create_host_user\"c\n" +
-	"\vSSHFileCopy\x12\x1f\n" +
-	"\bdownload\x18\x01 \x01(\bH\x00R\bdownload\x88\x01\x01\x12\x1b\n" +
-	"\x06upload\x18\x02 \x01(\bH\x01R\x06upload\x88\x01\x01B\v\n" +
-	"\t_downloadB\t\n" +
-	"\a_upload\"@\n" +
+	"\x11_create_host_userB\x0f\n" +
+	"\r_max_sessions\"8\n" +
+	"\vSSHFileCopy\x12\x1d\n" +
+	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabled\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
