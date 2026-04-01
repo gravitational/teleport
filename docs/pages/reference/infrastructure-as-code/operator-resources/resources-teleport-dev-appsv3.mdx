@@ -51,6 +51,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |external_id|string|ExternalID is the AWS External ID used when assuming roles in this app.|
 |roles_anywhere_profile|[object](#specawsroles_anywhere_profile)|RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|
+|source_identity|bool|When true, sets the Teleport username as the AWS STS source identity on assumed role sessions. Persists across role chaining and is logged in CloudTrail. Requires `sts:SetSourceIdentity` in the target role's trust policy.|
 
 ### spec.aws.roles_anywhere_profile
 

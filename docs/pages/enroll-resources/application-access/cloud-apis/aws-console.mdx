@@ -543,6 +543,12 @@ For AWS accounts that require external IDs for accessing their resources, set
 the `external_id` field, which the Application Service uses when assuming the
 AWS roles in these accounts.
 
+To track the identity of the Teleport user across AWS role chaining in
+CloudTrail, set `source_identity: true`. This sets the Teleport username as the
+[AWS STS source identity](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_monitor.html)
+on assumed role sessions. The target role's trust policy must include the
+`sts:SetSourceIdentity` permission.
+
 </details>
 
 ### Start the Teleport Application Service
