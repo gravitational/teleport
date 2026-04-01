@@ -771,19 +771,20 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 
 	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
 	// legacy clients is no longer supported.
-	switch {
-	case !forceInBandMFA && isLegacyClient && isRegularSSHCert:
+	if isLegacyClient {
+		if forceInBandMFA {
+			// In-band MFA is required and is a legacy client that doesn't support in-band MFA, deny.
+			return nil, trace.AccessDenied(
+				"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
+			)
+		}
+
+		if isPerSessionMFACert {
+			return perms, nil
+		}
+
 		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
 		return nil, services.ErrSessionMFARequired
-
-	case !forceInBandMFA && isLegacyClient && isPerSessionMFACert:
-		return perms, nil
-
-	case forceInBandMFA && isLegacyClient:
-		// In-band MFA is required and is a legacy client that doesn't support in-band MFA, deny.
-		return nil, trace.AccessDenied(
-			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
-		)
 	}
 
 	// Proceed to keyboard-interactive auth to ensure all preconditions are met.

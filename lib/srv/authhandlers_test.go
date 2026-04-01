@@ -1299,8 +1299,10 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, mfaCert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+		require.Nil(t, outPerms)
 	})
 
 	t.Run("permit with MFA required preconditions and legacy client with hardware-key MFA cert is allowed", func(t *testing.T) {
@@ -1327,8 +1329,10 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		}
 
 		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
-		require.NoError(t, err)
-		require.Same(t, inPerms, outPerms)
+		var partialSuccessErr *ssh.PartialSuccessError
+		require.ErrorAs(t, err, &partialSuccessErr)
+		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
+		require.Nil(t, outPerms)
 	})
 
 	t.Run("permit with MFA required preconditions and forced in-band MFA denies legacy client", func(t *testing.T) {
