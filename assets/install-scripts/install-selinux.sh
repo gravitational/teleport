@@ -15,17 +15,21 @@
 
 # This script installs the SELinux module for Teleport SSH.
 
-set -euo pipefail
+set -uo pipefail
 
 if [[ ! -f "/usr/share/selinux/devel/Makefile" ]]; then
     echo "SELinux Makefile not found, please install selinux-policy-devel"
     exit 1
 fi
 
-TELEPORT="teleport"
+TELEPORT="$(which teleport 2>/dev/null || echo -n UNKNOWN)"
 TELEPORT_ARGS=""
 
-while getopts "c:t:" opt; do
+set -e
+
+USAGE="Usage: $0 [-c config_path] [-t teleport_path]"
+
+while getopts "c:t:h" opt; do
     case "${opt}" in
         c)
             TELEPORT_ARGS="-c ${OPTARG}"
@@ -33,12 +37,21 @@ while getopts "c:t:" opt; do
         t)
             TELEPORT="${OPTARG}"
             ;;
+        h)
+            echo "${USAGE}"
+            exit 0
+            ;;
         *)
-            echo "Usage: $0 [-c config_path] [-t teleport_path]"
+            echo "${USAGE}"
             exit 2
             ;;
     esac
 done
+
+if [[ "${TELEPORT}" == "UNKNOWN" ]]; then
+    echo "Teleport binary not found, please specify with -t"
+    exit 1
+fi
 
 # Write SELinux module source to a temporary directory
 WORK_DIR="$(mktemp -d -t teleport-selinux.XXXXXXXX)"
@@ -52,6 +65,7 @@ DIRS=$(${TELEPORT} selinux-ssh dirs ${TELEPORT_ARGS})
 pushd "${WORK_DIR}"
 make -f /usr/share/selinux/devel/Makefile teleport_ssh.pp
 semodule -i teleport_ssh.pp
+popd
 
 # Ensure necessary directories exist and are labeled correctly
 while IFS= read -r dir; do
@@ -60,5 +74,7 @@ while IFS= read -r dir; do
     restorecon -rv "${dir}"
 done <<< "$DIRS"
 
-popd
+# Label the Teleport binary
+restorecon -v "${TELEPORT}"
+
 rm -rf "${WORK_DIR}"
