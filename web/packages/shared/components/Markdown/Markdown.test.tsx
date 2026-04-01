@@ -803,7 +803,7 @@ more content here`;
       expect(screen.queryByText('content goes here')).not.toBeVisible();
     });
 
-    it('renders an empty section', async () => {
+    it('renders an empty section', () => {
       const text = `
 <details open>
   <summary>title goes here</summary>
@@ -814,7 +814,7 @@ more content here`;
       expect(screen.getByText('title goes here')).toBeInTheDocument();
     });
 
-    it('renders stacked sections', async () => {
+    it('renders stacked sections', () => {
       const text = `
 <details open>
   <summary>section 1</summary>
