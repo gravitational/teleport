@@ -256,8 +256,14 @@ export default class Modal extends React.Component<ModalProps> {
       return;
     }
 
-    const focusable = this.modalEl.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    // Select focusable elements that are visible and not disabled.
+    const focusable = [
+      ...this.modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ),
+    ].filter(
+      el =>
+        el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden'
     );
     if (focusable.length === 0) {
       return;

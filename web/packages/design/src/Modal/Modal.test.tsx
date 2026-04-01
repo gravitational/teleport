@@ -177,6 +177,33 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 });
 
 describe('trapFocus', () => {
+  let originalOffsetParent: PropertyDescriptor | undefined;
+
+  beforeAll(() => {
+    // JSDOM doesn't implement layout, so offsetParent is always null. Mock it so that the
+    // focusable-element filter in handleFocusTrapTab can work.
+    originalOffsetParent = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      get() {
+        return this.parentElement;
+      },
+      configurable: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalOffsetParent) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetParent',
+        originalOffsetParent
+      );
+    }
+  });
+
   test('returns focus to the modal when an outside element steals it', () => {
     render(<ModalWithOutsideButton trapFocus />);
 
