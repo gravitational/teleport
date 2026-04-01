@@ -232,7 +232,7 @@ export function getOverview({
           href: 'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/Welcome.html',
         },
         howEnrollmentWorks: {
-          title: 'How AWS OIDC RDS enrollment work',
+          title: 'How AWS OIDC RDS enrollment works',
           href: 'https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/',
         },
       };
