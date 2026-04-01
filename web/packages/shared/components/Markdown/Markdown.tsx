@@ -314,7 +314,7 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const currentLine = lines[i];
 
       if (
-        headerRegex.test(currentLine) ||
+        headerRegex.test(currentLine.trim()) ||
         currentLine.trim().startsWith('- ') ||
         fencedCodeRegex.test(currentLine.trim()) ||
         currentLine.trim().startsWith('<details')
