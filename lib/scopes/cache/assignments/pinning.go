@@ -231,6 +231,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 				}
 				// Skip assignments where scope of effect is above the Bot as
 				// per the RFD.
+				// nb: we may eventually loosen up this restriction.
 				rel := scopes.Compare(botScope, scopeOfEffect)
 				if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
 					continue

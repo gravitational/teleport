@@ -470,8 +470,8 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Version: types.V1,
 		},
-		// Scope of effect above Bot Scope is ignored.
-		// nb: maybe incorrect? discussion with forrest april 1st.
+		// SRA above bot scope ignored.
+		// nb: we may eventually loosen this to behave more like users.
 		{
 			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
