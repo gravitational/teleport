@@ -826,7 +826,7 @@ tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
 
 For information on enabling Redis Cluster bus communication TLS, see:
-https://goteleport.com/docs/database-access/guides/redis-cluster
+https://goteleport.com/docs/enroll-resources/database-access/enrollment/self-hosted/redis-cluster/
 `))
 
 	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
