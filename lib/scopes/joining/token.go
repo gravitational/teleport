@@ -170,15 +170,21 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 // validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
 // returned true).
 func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
-	if token.GetSpec().GetBotName() == "" {
+	spec := token.GetSpec()
+
+	if spec.GetBotName() == "" {
 		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
 	}
 
-	if token.GetSpec().GetBotScope() == "" {
+	if spec.GetBotScope() == "" {
 		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
 	}
 
-	if token.GetSpec().GetUsageMode() != TokenUsageModeBot {
+	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+		return trace.Wrap(err, "validating scoped token bot_scope")
+	}
+
+	if spec.GetUsageMode() != TokenUsageModeBot {
 		return trace.BadParameter("usage_mode must be '%s' for a scoped bot token", TokenUsageModeBot)
 	}
 
@@ -186,12 +192,13 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ResourceScope(token.GetSpec().GetBotScope()).IsSubjectToPolicyScope(token.GetScope()) {
-		return trace.BadParameter("scoped token bot scope must be descendant of its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
+		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
 	}
 
-	// TODO: verify AssignedScope is empty for bots (currently required for all)
-	// TODO: verify BotScope is the same as the bot resource's scope (or user label value)
+	if spec.AssignedScope != "" {
+		return trace.BadParameter("scoped tokens for bots cannot have an assigned_scope")
+	}
 
 	return nil
 }
@@ -199,16 +206,26 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 // validateNonBot performs checks for scoped tokens that explicitly should not
 // exist for non-bot tokens.
 func validateNonBotToken(token *joiningv1.ScopedToken) error {
-	if token.GetSpec().GetBotName() != "" {
+	spec := token.GetSpec()
+
+	if spec.GetBotName() != "" {
 		return trace.BadParameter("bot_name cannot be set for a non-bot token")
 	}
 
-	if token.GetSpec().GetBotScope() != "" {
+	if spec.GetBotScope() != "" {
 		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
 	}
 
-	if token.GetSpec().GetUsageMode() == TokenUsageModeBot {
+	if spec.GetUsageMode() == TokenUsageModeBot {
 		return trace.BadParameter("usage_mode cannot be 'bot' for a non-bot token")
+	}
+
+	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
+		return trace.Wrap(err, "validating scoped token assigned scope")
+	}
+
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
+		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
 	return nil
@@ -244,14 +261,6 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 
 	if err := scopes.StrongValidate(token.GetScope()); err != nil {
 		return trace.Wrap(err, "validating scoped token resource scope")
-	}
-
-	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
-		return trace.Wrap(err, "validating scoped token assigned scope")
-	}
-
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
-		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
 	if err := validateJoinMethod(token); err != nil {
