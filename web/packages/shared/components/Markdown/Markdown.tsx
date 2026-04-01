@@ -380,6 +380,7 @@ const StyledPre = styled.pre`
   overflow-x: auto;
   white-space: pre;
   padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[6]}px;
   margin: 0;
 `;
 
