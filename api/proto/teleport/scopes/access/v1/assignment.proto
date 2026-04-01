@@ -47,10 +47,20 @@ message ScopedRoleAssignment {
 // ScopedRoleAssignmentSpec is the specification of a scoped role.
 message ScopedRoleAssignmentSpec {
   // User is the user to whom all contained assignments apply.
+  // Mutually exclusive with `bot_name`.
   string user = 1;
 
   // Assignments is a list of individual role @ scope assignments.
   repeated Assignment assignments = 2;
+
+  // Name of the Bot to whom all contained assignments apply.
+  // Mutually exclusive with `user`.
+  string bot_name = 3;
+
+  // Scope of the Bot to whom all contained assignments apply.
+  // Required if `bot_name` is set.
+  // If specified, assignment scopes must be equal or descendent of this scope.
+  string bot_scope = 4;
 }
 
 // Assignment is a role/scope pair that defines an individual assignment.
