@@ -781,7 +781,7 @@ more content here`;
       expect(screen.getByText('more content here')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'title goes here' }));
-      expect(screen.getByText('content goes here')).toBeInTheDocument();
+      expect(screen.getByText('content goes here')).toBeVisible();
     });
 
     it('renders an open section', async () => {
