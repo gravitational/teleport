@@ -85,39 +85,24 @@ func (h *tcpDBHandler) getOrInitializeLocalProxy(ctx context.Context) (*alpnprox
 		dbInfo:     h.cfg.dbInfo,
 	}
 	certChecker := client.NewCertChecker(dbCertIssuer, h.cfg.clock)
-	middleware := &dbLocalProxyMiddleware{
+	middleware := &vnetLocalProxyMiddleware{
 		certChecker: certChecker,
-		dbProvider:  h.cfg.dbProvider,
-		dbKey:       h.cfg.dbInfo.GetDatabaseKey(),
-	}
-
-	dialOptions := h.cfg.dbInfo.GetDialOptions()
-	localProxyConfig := alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:         dialOptions.GetWebProxyAddr(),
-		Protocols:               []alpncommon.Protocol{alpnProtocol},
-		ParentContext:           ctx,
-		SNI:                     dialOptions.GetSni(),
-		ALPNConnUpgradeRequired: dialOptions.GetAlpnConnUpgradeRequired(),
-		Middleware:              middleware,
-		InsecureSkipVerify:      dialOptions.GetInsecureSkipVerify(),
-		Clock:                   h.cfg.clock,
-	}
-	if dialOptions.GetAlpnConnUpgradeRequired() || h.cfg.alwaysTrustRootClusterCA {
-		certPoolPEM := dialOptions.GetRootClusterCaCertPool()
-		if len(certPoolPEM) == 0 {
-			return nil, trace.BadParameter("ALPN conn upgrade required but no root CA cert pool provided")
-		}
-		caPool := x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(certPoolPEM) {
-			return nil, trace.Errorf("failed to parse root cluster CA certs")
-		}
-		localProxyConfig.RootCAs = caPool
+		onNewConnection: func(ctx context.Context) error {
+			return h.cfg.dbProvider.OnNewDBConnection(ctx, h.cfg.dbInfo.GetDatabaseKey())
+		},
 	}
 
 	h.log.DebugContext(ctx, "Creating local proxy for database")
-	lp, err := alpnproxy.NewLocalProxy(localProxyConfig)
+	lp, err := newLocalProxyForVnet(localProxyConfig{
+		dialOptions:              h.cfg.dbInfo.GetDialOptions(),
+		protocols:                []alpncommon.Protocol{alpnProtocol},
+		parentContext:            ctx,
+		middleware:               middleware,
+		clock:                    h.cfg.clock,
+		alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating local proxy")
+		return nil, trace.Wrap(err)
 	}
 	h.localProxy = lp
 	return lp, nil
@@ -154,26 +139,6 @@ func (i *dbCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 		return i.dbProvider.ReissueDBCert(ctx, i.dbInfo)
 	})
 	return cert.(tls.Certificate), trace.Wrap(err)
-}
-
-// dbLocalProxyMiddleware wraps around [client.CertChecker] and additionally
-// calls OnNewDBConnection on [dbProvider] for observability.
-type dbLocalProxyMiddleware struct {
-	dbKey       *vnetv1.DatabaseKey
-	certChecker *client.CertChecker
-	dbProvider  *dbProvider
-}
-
-func (m *dbLocalProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	err := m.certChecker.OnNewConnection(ctx, lp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(m.dbProvider.OnNewDBConnection(ctx, m.dbKey))
-}
-
-func (m *dbLocalProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
 }
 
 // RouteToDatabase returns a proto.RouteToDatabase populated from dbInfo.
