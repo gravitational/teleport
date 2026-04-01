@@ -37,7 +37,8 @@ import (
 type mockAssumeRoleAPIClient struct{}
 
 func (m *mockAssumeRoleAPIClient) AssumeRole(_ context.Context, params *sts.AssumeRoleInput, optFns ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
-	fakeKeyID := fmt.Sprintf("role: %s, externalID: %s", aws.ToString(params.RoleArn), aws.ToString(params.ExternalId))
+	fakeKeyID := fmt.Sprintf("role: %s, externalID: %s, sourceIdentity: %s",
+		aws.ToString(params.RoleArn), aws.ToString(params.ExternalId), aws.ToString(params.SourceIdentity))
 	return &sts.AssumeRoleOutput{
 		AssumedRoleUser: &ststypes.AssumedRoleUser{
 			Arn:           params.RoleArn,
@@ -207,8 +208,28 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 		require.NoError(t, err)
 		creds, err := cfg.Credentials.Retrieve(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "role: roleA, externalID: abc123", creds.AccessKeyID)
+		require.Equal(t, "role: roleA, externalID: abc123, sourceIdentity: ", creds.AccessKeyID)
 		require.Equal(t, "fake-session-token", creds.SessionToken)
+	})
+
+	t.Run("with detailed assume role and source identity, must pass source identity to STS", func(t *testing.T) {
+		ctx := context.Background()
+
+		cfg, err := provider.GetConfig(ctx, dummyRegion,
+			WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}),
+			WithOIDCIntegrationClient(&fakeIntegrationClt),
+			WithDetailedAssumeRole(AssumeRole{
+				RoleARN:        "roleA",
+				ExternalID:     "abc123",
+				SessionName:    "user@example.com",
+				SourceIdentity: "user@example.com",
+			}),
+			WithSTSClientProvider(stsClt),
+		)
+		require.NoError(t, err)
+		creds, err := cfg.Credentials.Retrieve(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "role: roleA, externalID: abc123, sourceIdentity: user@example.com", creds.AccessKeyID)
 	})
 
 	t.Run("with an integration credential provider assuming a role, must limit role chain length", func(t *testing.T) {
@@ -273,7 +294,7 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 
 		creds, err := cfg.Credentials.Retrieve(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "role: roleA, externalID: abc123", creds.AccessKeyID)
+		require.Equal(t, "role: roleA, externalID: abc123, sourceIdentity: ", creds.AccessKeyID)
 		require.Equal(t, "fake-session-token", creds.SessionToken)
 	})
 

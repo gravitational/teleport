@@ -4306,9 +4306,15 @@ type AppAWS struct {
 	// RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application.
 	// These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.
 	RolesAnywhereProfile *AppAWSRolesAnywhereProfile `protobuf:"bytes,2,opt,name=RolesAnywhereProfile,proto3" json:"roles_anywhere_profile,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
-	XXX_unrecognized     []byte                      `json:"-"`
-	XXX_sizecache        int32                       `json:"-"`
+	// SourceIdentity when true, sets the Teleport username as the AWS STS
+	// source identity on assumed role sessions. The source identity persists
+	// across role chaining and is logged in CloudTrail, enabling actions to
+	// be traced back to the original user.
+	// Requires sts:SetSourceIdentity permission in the target role's trust policy.
+	SourceIdentity       bool     `protobuf:"varint,3,opt,name=SourceIdentity,proto3" json:"source_identity,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *AppAWS) Reset()         { *m = AppAWS{} }
@@ -33953,6 +33959,16 @@ func (m *AppAWS) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.SourceIdentity {
+		i--
+		if m.SourceIdentity {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
+	}
 	if m.RolesAnywhereProfile != nil {
 		{
 			size, err := m.RolesAnywhereProfile.MarshalToSizedBuffer(dAtA[:i])
@@ -60671,6 +60687,9 @@ func (m *AppAWS) Size() (n int) {
 		l = m.RolesAnywhereProfile.Size()
 		n += 1 + l + sovTypes(uint64(l))
 	}
+	if m.SourceIdentity {
+		n += 2
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -83687,6 +83706,26 @@ func (m *AppAWS) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceIdentity", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SourceIdentity = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])

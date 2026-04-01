@@ -66,6 +66,9 @@ type AWSSigninRequest struct {
 	// RolesAnywhereMetadata contains the Profile/Role information to use when
 	// sourcing the credentials from a Roles Anywhere integration.
 	RolesAnywhereMetadata awsconfig.RolesAnywhereMetadata
+	// SourceIdentity when true, sets the Teleport username as the AWS STS
+	// source identity on assumed role sessions.
+	SourceIdentity bool
 }
 
 // CheckAndSetDefaults validates the request.
@@ -310,6 +313,12 @@ func getAssumeDetailedRolesOption(ctx context.Context, req *AWSSigninRequest, te
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
 		SessionName: req.Identity.Username,
+	}
+	if req.SourceIdentity {
+		// Setting source identity to Teleport username so that it persists
+		// across role chaining and is logged in CloudTrail for all subsequent
+		// actions, allowing them to be traced back to the original user.
+		assumeRole.SourceIdentity = req.Identity.Username
 	}
 
 	// Setting web console session duration through AssumeRole call for AWS

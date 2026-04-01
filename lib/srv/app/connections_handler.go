@@ -502,11 +502,12 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	)
 
 	url, err := c.cfg.Cloud.GetAWSSigninURL(r.Context(), AWSSigninRequest{
-		Identity:    identity,
-		TargetURL:   app.GetURI(),
-		Issuer:      app.GetPublicAddr(),
-		ExternalID:  app.GetAWSExternalID(),
-		Integration: app.GetIntegration(),
+		Identity:       identity,
+		TargetURL:      app.GetURI(),
+		Issuer:         app.GetPublicAddr(),
+		ExternalID:     app.GetAWSExternalID(),
+		Integration:    app.GetIntegration(),
+		SourceIdentity: app.GetAWSSourceIdentity(),
 		RolesAnywhereMetadata: awsconfig.RolesAnywhereMetadata{
 			ProfileARN:                    app.GetAWSRolesAnywhereProfileARN(),
 			ProfileAcceptsRoleSessionName: app.GetAWSRolesAnywhereAcceptRoleSessionName(),

@@ -101,6 +101,11 @@ type AssumeRole struct {
 	// Duration is the expiry duration of the generated credentials. Empty
 	// value will use the AWS SDK default expiration time.
 	Duration time.Duration `json:"duration,omitempty"`
+	// SourceIdentity is an optional source identity to set on the STS session.
+	// It persists across role chaining and is logged in CloudTrail, allowing
+	// actions to be traced back to the original user.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_monitor.html
+	SourceIdentity string `json:"source_identity,omitempty"`
 }
 
 // options is a struct of additional options for assuming an AWS role
@@ -472,6 +477,9 @@ func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient
 		}
 		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
 		aro.Duration = role.Duration
+		if role.SourceIdentity != "" {
+			aro.SourceIdentity = aws.String(role.SourceIdentity)
+		}
 		for k, v := range role.Tags {
 			aro.Tags = append(aro.Tags, ststypes.Tag{
 				Key:   aws.String(k),
