@@ -790,10 +790,11 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 		cn, err := clt.GetClusterName(t.Context())
 		require.NoError(t, err, "read cluster name")
 
+		const loadKeys = false
 		winCA, err := clt.GetCertAuthority(t.Context(), types.CertAuthID{
 			Type:       types.WindowsCA,
 			DomainName: cn.GetClusterName(),
-		}, true /* loadKeys */)
+		}, loadKeys)
 		require.NoError(t, err, "read Windows CA")
 
 		winJSON, err := services.MarshalCertAuthority(winCA)
@@ -863,12 +864,13 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 
 		getCAs := func(t *testing.T) (_, _ types.CertAuthority) {
 			ctx := t.Context()
+			const loadKeys = false
 
-			cas1, err := clt.GetCertAuthorities(ctx, caType1, false /* loadKeys */)
+			cas1, err := clt.GetCertAuthorities(ctx, caType1, loadKeys)
 			require.NoError(t, err, "CA not found: %s", caType1)
 			require.Len(t, cas1, 1)
 
-			cas2, err := clt.GetCertAuthorities(ctx, caType2, false /* loadKeys */)
+			cas2, err := clt.GetCertAuthorities(ctx, caType2, loadKeys)
 			require.NoError(t, err, "CA not found: %s", caType2)
 			require.Len(t, cas2, 1)
 
