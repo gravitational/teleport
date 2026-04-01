@@ -132,7 +132,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return c.checker.scopedCompatChecker.HostSudoers(srv)
+	return c.checker.role.GetSpec().GetSsh().GetHostSudoers(), nil
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
