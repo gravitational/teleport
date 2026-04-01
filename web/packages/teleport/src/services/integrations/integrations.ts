@@ -40,6 +40,7 @@ import {
   AwsOidcPingResponse,
   AwsRdsDatabase,
   AwsRolesAnywherePingResponse,
+  AzureResource,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -473,7 +474,7 @@ export const integrationService = {
 
   fetchIntegrationRules(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ): Promise<IntegrationDiscoveryRules> {
     return api
@@ -543,6 +544,12 @@ export const integrationService = {
           databases: resp.discoverRds?.databases || {},
           account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
+        },
+        discoverAzureVm: {
+          instances: resp.discoverAzureVm?.instances || {},
+          subscription_id: resp.discoverAzureVm?.subscription_id,
+          resource_group: resp.discoverAzureVm?.resource_group,
+          region: resp.discoverAzureVm?.region,
         },
       };
     });
@@ -640,10 +647,12 @@ function makeIntegration(json: any): Integration {
     name,
     subKind,
     awsoidc,
+    azureoidc,
     github,
     awsra,
     isManagedByTerraform,
     summary,
+    metadata,
   } = json;
 
   const commonFields = {
@@ -658,6 +667,7 @@ function makeIntegration(json: any): Integration {
     statusCode: IntegrationStatusCode.Running,
     isManagedByTerraform,
     summary,
+    labels: metadata?.labels,
   };
 
   if (subKind === IntegrationKind.AwsOidc) {
@@ -686,6 +696,18 @@ function makeIntegration(json: any): Integration {
           roleArn: awsra.profileSyncConfig.roleArn,
           filters: awsra.profileSyncConfig.filters,
         },
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.AzureOidc) {
+    return {
+      ...commonFields,
+      details: 'Enroll Azure resources into Teleport.',
+      spec: {
+        tenantId: azureoidc.tenantId,
+        clientId: azureoidc.clientId,
+        managedIdentity: azureoidc.managedIdentity,
       },
     };
   }
