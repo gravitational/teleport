@@ -23,7 +23,6 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { minWidth, width } from 'design/system';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -75,12 +74,11 @@ export function SharedDirectoryList({
           {/* Header row */}
           {sharedDirectoryHeader(sharedDirectories.length)}
 
-          {/* Directory list */}
-          <Stack gap={1} fullWidth>
+          {/* Directory list */}          
             {sharedDirectories.map(dir => (
               <div>
               <Flex justifyContent="space-between" alignItems="center" overflow="hidden">
-                <Text style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} fontSize={3}>{dir.name}</Text>
+                <Text fontSize={3}>{dir.name}</Text>
                 <HoverTooltip
                   placement="bottom"
                   tipContent={
@@ -109,8 +107,7 @@ export function SharedDirectoryList({
             ))}
 
             {/* Share Button */}
-            {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
-          </Stack>
+            {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}          
         </Stack>
       </Container>
     </MenuIcon>
