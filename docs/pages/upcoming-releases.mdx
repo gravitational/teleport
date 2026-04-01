@@ -32,8 +32,8 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                   |
 |---------|------------------------|
-| 18.8.0  | Week of March 30, 2026 |
-| 18.9.0  | Week of April 27, 2026 |
+| 18.8.0  | Week of April 20, 2026 |
+| 18.9.0  | Week of May 4, 2026    |
 | 19.0.0  | August 2026            |
 
 ### 18.8.0
@@ -46,24 +46,41 @@ Teleport VNet support will be extended to Linux workstations.
 
 #### Improvements to access list creation UX
 
-Teleport will provide guided in-product UX for creating common types of access lists
-centered around granting users permissions to resources and permissions to request
-access to resources.
+Teleport will provide guided in-product UX for creating common types of access
+lists centered around granting users permissions to resources and permissions
+to request access to resources.
 
 *Delayed from 18.7.0.*
 
 #### `tsh` MFA via browser
 
-`tsh` will be able to delegate MFA checks (both on login and for per-session MFA) to the
-browser, enabling the use of browser based passkeys or password managers with `tsh`.
+`tsh` will be able to delegate MFA checks (both on login and for per-session
+MFA) to the browser, enabling the use of browser based passkeys or password
+managers with `tsh`.
+
+#### Multi-domain support for Windows desktop access
+
+Teleport will support RDP connections to Windows hosts where the Windows users
+belong to different Active Directory domains than the target hosts.
+
+#### Bound keypair joining for agents
+
+Teleport's bound keypair join method will be extended to support arbitrary
+Teleport agents in addition to bots.
 
 ### 18.9.0
 
 #### Device Bound Session Credentials for App Access
 
-Application access session cookies will be compatible with Google's
-[Device Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
+Application access session cookies will be compatible with Google's [Device
+Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
 adding a layer of protection against session hijacking and cookie theft.
+
+#### Directory sharing enhancements for Windows desktop access
+
+Teleport will support sharing multiple directories in a single RDP session.  In
+addition, users will be able to unmount shared directories without terminating
+the session.
 
 ## Teleport Cloud
 
@@ -71,8 +88,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of          | Description                                                 |
 |------------------|-------------------------------------------------------------|
-| April 6, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
-| April 6, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| April 27, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
+| April 27, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
