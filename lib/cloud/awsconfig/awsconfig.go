@@ -478,7 +478,7 @@ func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient
 		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
 		aro.Duration = role.Duration
 		if role.SourceIdentity != "" {
-			aro.SourceIdentity = aws.String(role.SourceIdentity)
+			aro.SourceIdentity = aws.String(maybeHashRoleSessionName(role.SourceIdentity))
 		}
 		for k, v := range role.Tags {
 			aro.Tags = append(aro.Tags, ststypes.Tag{
