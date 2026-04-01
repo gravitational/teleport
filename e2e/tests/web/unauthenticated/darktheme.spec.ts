@@ -62,6 +62,7 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 });
 
+// oxlint-disable-next-line no-empty-pattern
 test.afterEach(({}, testInfo) => {
   deleteUser(username(testInfo));
 });

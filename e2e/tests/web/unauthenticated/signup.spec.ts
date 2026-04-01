@@ -45,6 +45,7 @@ test('verify that a user can sign up with webauthn and login', async ({
   await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
 });
 
+// oxlint-disable-next-line no-empty-pattern
 test.afterEach(({}, testInfo) => {
   deleteUser(username(testInfo));
 });
