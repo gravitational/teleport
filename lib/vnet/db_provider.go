@@ -19,7 +19,6 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 
 	"github.com/gravitational/trace"
 
@@ -58,21 +57,13 @@ func (p *dbProvider) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseI
 }
 
 func (p *dbProvider) newDBCertSigner(cert []byte, dbInfo *vnetv1.DatabaseInfo) (*rpcSigner, error) {
-	x509Cert, err := x509.ParseCertificate(cert)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing x509 certificate")
-	}
-	pub := x509Cert.PublicKey
-	return &rpcSigner{
-		pub: pub,
-		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
-			return p.clt.SignForDB(context.TODO(), &vnetv1.SignForDBRequest{
-				DatabaseKey: dbInfo.GetDatabaseKey(),
-				Username:    dbInfo.GetUsername(),
-				Sign:        req,
-			})
-		},
-	}, nil
+	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
+		return p.clt.SignForDB(context.TODO(), &vnetv1.SignForDBRequest{
+			DatabaseKey: dbInfo.GetDatabaseKey(),
+			Username:    dbInfo.GetUsername(),
+			Sign:        req,
+		})
+	})
 }
 
 // OnNewDBConnection reports a new TCP connection to the target database.

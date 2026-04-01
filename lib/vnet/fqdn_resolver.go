@@ -177,7 +177,7 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 		// Check if fqdn looks like a database FQDN using the root proxy address
 		rootProxyHost := rootProxyHostFromProfile(profileName)
-		fqdnMatchesDBZone := strings.HasSuffix(fqdn, dbFQDNInfix+fullyQualify(rootProxyHost))
+		fqdnMatchesDBZone := hasDBZoneSuffix(fqdn, rootProxyHost)
 
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {

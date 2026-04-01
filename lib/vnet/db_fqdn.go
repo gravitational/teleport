@@ -27,48 +27,41 @@ import (
 // FQDNs.
 const dbFQDNInfix = ".db."
 
+// hasDBZoneSuffix checks if fqdn ends with .db.<zone>. Used for lightweight
+func hasDBZoneSuffix(fqdn string, zone string) bool {
+	return strings.HasSuffix(fqdn, dbFQDNInfix+fullyQualify(zone))
+}
+
+// splitDBUserAndName splits a prefix (the part before .db.<zone>) into a
+// database user and database resource name.
+func splitDBUserAndName(prefix string) (dbUser, dbName string) {
+	if lastDot := strings.LastIndex(prefix, "."); lastDot >= 0 {
+		return prefix[:lastDot], prefix[lastDot+1:]
+	}
+	// No dot — the entire prefix is the database name with no user
+	// (auto-user provisioning or single allowed user).
+	return "", prefix
+}
+
 // parseDatabaseFQDN attempts to parse fqdn as a database FQDN of the form
 // [<db-user>.]<db-resource-name>.db.<zone>. where zone is a fully-qualified
 // proxy address.
-//
-// It returns the database user (may be empty if omitted), the database resource
-// name, or errNoMatch if fqdn does not match the expected pattern for the given
-// zone.
-//
-// Since database resource names cannot contain dots (enforced by
-// ValidateDatabaseName), parsing splits the prefix on the last dot to separate
-// the optional database user from the resource name.
-//
-// Note: DNS labels are limited to 63 characters. Database resource names or
-// usernames longer than 63 characters cannot be used in VNet FQDNs. Database
-// usernames with characters invalid in DNS labels (such as '@') also cannot be
-// used. Those users must connect via other means such as 'tsh db connect' or through the proxy's API.
 func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err error) {
-	suffix := dbFQDNInfix + fullyQualify(zone)
-	if !strings.HasSuffix(fqdn, suffix) {
+	if !hasDBZoneSuffix(fqdn, zone) {
 		return "", "", errNoMatch
 	}
-	prefix := strings.TrimSuffix(fqdn, suffix)
+	prefix := strings.TrimSuffix(fqdn, dbFQDNInfix+fullyQualify(zone))
 	if prefix == "" {
 		return "", "", errNoMatch
 	}
 
-	// Database resource names cannot contain dots. If there's a dot in the
-	// prefix, everything after the last dot is the db name and everything
-	// before is the db user (which can contain dots).
-	if lastDot := strings.LastIndex(prefix, "."); lastDot >= 0 {
-		dbUser = prefix[:lastDot]
-		dbName = prefix[lastDot+1:]
-	} else {
-		// for auto-user provisioning, the db name is the prefix as there is no user
-		dbName = prefix
-	}
-
+	dbUser, dbName = splitDBUserAndName(prefix)
 	if dbName == "" {
 		return "", "", errNoMatch
 	}
 
-	// This avoids unnecessary cluster API calls for obviously invalid database names
+	// Validate that dbName looks like a valid database resource name. This
+	// avoids unnecessary cluster API calls for invalid names
 	if err := types.ValidateDatabaseName(dbName); err != nil {
 		return "", "", errNoMatch
 	}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/x509"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -259,6 +260,21 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 		DatabaseKey: dbKey,
 	})
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
+// newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a
+// function that sends sign requests over gRPC. It parses the x509 certificate
+// to extract the public key. This is the shared implementation used by both
+// [appProvider] and [dbProvider].
+func newRPCCertSigner(certDER []byte, sendRequest func(*vnetv1.SignRequest) ([]byte, error)) (*rpcSigner, error) {
+	x509Cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 certificate")
+	}
+	return &rpcSigner{
+		pub:         x509Cert.PublicKey,
+		sendRequest: sendRequest,
+	}, nil
 }
 
 // rpcSigner implements [crypto.Signer] for signatures that are issued by the
