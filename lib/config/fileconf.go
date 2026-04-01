@@ -2489,6 +2489,9 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// SourceIdentity when true, sets the Teleport username as the AWS STS
+	// source identity on assumed role sessions.
+	SourceIdentity bool `yaml:"source_identity,omitempty"`
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
