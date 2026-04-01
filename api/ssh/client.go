@@ -230,6 +230,9 @@ func (c ClientConfig) IsEmpty() bool {
 		c.HostKeyCallback == nil
 }
 
+// Client is a thin wrapper around tracessh.Client.
+type Client = tracessh.Client
+
 // Dial dials an SSH server using the client config.
 func Dial(
 	ctx context.Context,
@@ -237,7 +240,7 @@ func Dial(
 	addr string,
 	config ClientConfig,
 	opts ...tracing.Option,
-) (*tracessh.Client, error) {
+) (*Client, error) {
 	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,7 +266,7 @@ func NewClient(
 	addr string,
 	config ClientConfig,
 	opts ...tracing.Option,
-) (*tracessh.Client, error) {
+) (*Client, error) {
 	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
