@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"os"
@@ -64,7 +64,7 @@ func init() {
 // passed to reexecCommandOSTweaks, if not empty.
 var reexecPath string
 
-func reexecCommandOSTweaks(cmd *exec.Cmd) {
+func CommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)
 	}
@@ -85,7 +85,7 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 // we should rework the parker to block on a pipe so it can exit when its parent
 // is terminated
 func parkerCommandOSTweaks(cmd *exec.Cmd) {
-	reexecCommandOSTweaks(cmd)
+	CommandOSTweaks(cmd)
 
 	// parker processes can leak if their PDEATHSIG is SIGQUIT, otherwise we
 	// could just use reexecCommandOSTweaks

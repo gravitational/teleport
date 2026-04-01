@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -43,8 +44,8 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if IsReexec() {
-		RunAndExit(os.Args[1])
+	if reexec.IsReexec() {
+		reexec.RunAndExit(os.Args[1])
 		return
 	}
 
@@ -123,17 +124,6 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
 		require.NotEmpty(t, events.EventID)
 	}
-}
-
-func TestLoginDefsParser(t *testing.T) {
-	t.Parallel()
-
-	expectedEnvSuPath := "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bar"
-	expectedSuPath := "PATH=/usr/local/bin:/usr/bin:/bin:/foo"
-
-	require.Equal(t, expectedEnvSuPath, getDefaultEnvPath("0", "../../fixtures/login.defs"))
-	require.Equal(t, expectedSuPath, getDefaultEnvPath("1000", "../../fixtures/login.defs"))
-	require.Equal(t, defaultEnvPath, getDefaultEnvPath("1000", "bad/file"))
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
