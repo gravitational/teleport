@@ -24,36 +24,38 @@ import { Info as InfoAlert } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
-import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
+import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Azure/DeploymentMethodSection';
 import {
   ConfigurationScopeSection,
   IntegrationSection,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
-import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Aws/RegionsSection';
-import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
-import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
-import { Ec2Config } from 'teleport/Integrations/Enroll/Cloud/Aws/types';
+} from 'teleport/Integrations/Enroll/Cloud/Azure/EnrollAzure';
+import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Azure/InfoGuide';
+import { RegionsSection } from 'teleport/Integrations/Enroll/Cloud/Azure/RegionsSection';
+import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ResourcesSection';
+import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Azure/tf_module';
 import {
-  Divider,
-  RegionOrWildcard,
-} from 'teleport/Integrations/Enroll/Cloud/Shared';
+  AzureScope,
+  VmConfig,
+} from 'teleport/Integrations/Enroll/Cloud/Azure/types';
+import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
+import { RegionOrWildcard } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
   IntegrationDiscoveryRule,
-  integrationService,
   IntegrationWithSummary,
-  Regions as AwsRegion,
+  integrationService,
+  AzureRegion,
+  AzureResource,
 } from 'teleport/services/integrations';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
-import { SETTINGS_PANEL_WIDTH } from '../SettingsTab';
+
+export const SETTINGS_PANEL_WIDTH = 500;
 
 export function SettingsTab({
   stats,
@@ -67,34 +69,34 @@ export function SettingsTab({
   const integrationName = stats.name;
   const { clusterVersion } = useClusterVersion();
 
-  const { data: ec2Rules, isLoading } = useQuery({
-    queryKey: ['integrationRules', stats.name, AwsResource.ec2],
+  const { data: vmRules, isLoading } = useQuery({
+    queryKey: ['integrationRules', stats.name, 'vm'],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
-        AwsResource.ec2
+        AzureResource.vm
       ),
     enabled: true,
   });
 
   const getRegionsFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): RegionOrWildcard<AwsRegion>[] => {
+  ): RegionOrWildcard<AzureRegion>[] => {
     if (!rules || rules.length === 0) {
       return ['*'];
     }
     const regions = rules.map(rule => rule.region);
 
-    if (regions.includes('*') || regions.includes('aws-global')) {
+    if (regions.includes('*')) {
       return ['*'];
     }
 
-    return regions as RegionOrWildcard<AwsRegion>[];
+    return regions as RegionOrWildcard<AzureRegion>[];
   };
 
-  const getEc2ConfigFromRules = (
+  const getVmConfigFromRules = (
     rules?: IntegrationDiscoveryRule[]
-  ): Ec2Config => ({
+  ): VmConfig => ({
     enabled: rules !== undefined && rules.length > 0,
     tags:
       rules && rules.length > 0
@@ -105,23 +107,33 @@ export function SettingsTab({
         : [],
   });
 
-  const [updatedRegions, setRegions] = useState<
-    RegionOrWildcard<AwsRegion>[] | null
-  >(null);
-  const [updatedEc2Config, setEc2Config] = useState<Ec2Config | null>(null);
+  const getDefaultConfigScope = (): AzureScope => ({
+    resource_group: '',
+    managed_identity_region: 'eastus',
+  });
 
-  const regions = updatedRegions ?? getRegionsFromRules(ec2Rules?.rules);
-  const ec2Config = updatedEc2Config ?? getEc2ConfigFromRules(ec2Rules?.rules);
+  const [updatedRegions, setRegions] = useState<
+    RegionOrWildcard<AzureRegion>[] | null
+  >(null);
+  const [updatedVmConfig, setVmConfig] = useState<VmConfig | null>(null);
+  const [updatedConfigScope, setConfigScope] = useState<AzureScope | null>(
+    null
+  );
+
+  const regions = updatedRegions ?? getRegionsFromRules(vmRules?.rules);
+  const vmConfig = updatedVmConfig ?? getVmConfigFromRules(vmRules?.rules);
+  const configScope = updatedConfigScope ?? getDefaultConfigScope();
 
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
         regions: regions,
-        ec2Config: ec2Config,
+        vmConfig: vmConfig,
+        configScope: configScope,
         version: clusterVersion,
       }),
-    [integrationName, regions, ec2Config, clusterVersion]
+    [integrationName, regions, vmConfig, configScope, clusterVersion]
   );
 
   if (isLoading) {
@@ -157,13 +169,14 @@ export function SettingsTab({
               </Box>
               <Divider />
               <Box>
-                <ConfigurationScopeSection />
+                <ConfigurationScopeSection
+                  configScope={configScope}
+                  onChange={setConfigScope}
+                  disabled={false}
+                />
               </Box>
               <Divider />
-              <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
-              />
+              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
               <Divider />
               <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
