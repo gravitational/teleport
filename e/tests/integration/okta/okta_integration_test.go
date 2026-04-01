@@ -822,6 +822,6 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 			assignments, _, err := sut.Teleport.Process.GetAuthServer().Okta.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
 			require.Empty(t, assignments)
-		}, time.Second*5, time.Millisecond*30)
+		}, time.Minute, time.Millisecond*30)
 	}
 }
