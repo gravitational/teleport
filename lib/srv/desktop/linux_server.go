@@ -27,7 +27,7 @@ import (
 	"os/user"
 	"slices"
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -263,7 +263,9 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 
 func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
-	ctx := s.closeCtx
+
+	ctx, cancel := context.WithCancel(s.closeCtx)
+	defer cancel()
 
 	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	defer tdpConn.Close()
@@ -335,12 +337,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	}
 	defer backend.Close()
 
-	proxyConn.SetDeadline(time.Time{})
-
-	var mu sync.Mutex
-	width := uint16(8192)
-	height := uint16(8192)
-	resized := true
+	var screenSize atomic.Pointer[xproto.Rectangle]
 
 	xsessions, err := x11.GetAvailableXSessions(nil, nil)
 	if err != nil {
@@ -362,11 +359,13 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		}
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
+			username = m.Username
+
 			state := authCtx.GetAccessState(authPref)
 			if err := authCtx.Checker.CheckAccess(
 				types.Resource153ToResourceWithLabels(desktop),
 				state,
-				services.NewLinuxDesktopLoginMatcher(m.Username)); err != nil {
+				services.NewLinuxDesktopLoginMatcher(username)); err != nil {
 				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 				sendTDPError("Connection authorization failed.")
 			}
@@ -375,10 +374,10 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				log.ErrorContext(ctx, "failed to get current user", "error", err)
 				sendTDPError("Internal server error")
 			}
-			targetUser, err := user.Lookup(m.Username)
+			targetUser, err := user.Lookup(username)
 			if err != nil {
 				log.WarnContext(ctx, "couldn't lookup user", "error", err)
-				sendTDPError(fmt.Sprintf("Couldn't find user: %s", m.Username))
+				sendTDPError(fmt.Sprintf("Couldn't find user: %s", username))
 				return
 			}
 			if currentUser.Uid != targetUser.Uid {
@@ -402,12 +401,12 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				}
 			}
 
-			username = m.Username
-
-			mu.Lock()
-			width = uint16(m.ScreenSpec.Width)
-			height = uint16(m.ScreenSpec.Height)
-			mu.Unlock()
+			width := uint16(m.ScreenSpec.Width)
+			height := uint16(m.ScreenSpec.Height)
+			screenSize.Store(&xproto.Rectangle{
+				Width:  width,
+				Height: height,
+			})
 			if err := backend.Resize(width, height); err != nil {
 				log.ErrorContext(ctx, "failed to resize screen", "error", err)
 				sendTDPError("Couldn't resize backend.")
@@ -426,68 +425,12 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				log.WarnContext(ctx, "failed to send server hello", "error", err)
 				return
 			}
-			go func() {
-				for {
-					start := time.Now()
-					qoiz := time.Duration(0)
-					writing := time.Duration(0)
-					image := time.Duration(0)
-					size := 0
-					changes, err := backend.GetChanges()
-					if err != nil {
-						log.ErrorContext(ctx, "failed to get changes from backend", "error", err)
-						return
-					}
-					mu.Lock()
-					width := width
-					height := height
-					r := resized
-					resized = false
-					mu.Unlock()
-					if r {
-						changes = []xproto.Rectangle{{
-							Width:  width,
-							Height: height,
-						}}
-					}
-					for _, change := range changes {
-						size += int(change.Width) * int(change.Height)
-						bi := time.Now()
-						img, err := backend.GetImage(change)
-						if err != nil {
-							log.ErrorContext(ctx, "failed to get image from backend", "error", err)
-							return
-						}
-						image += time.Since(bi)
-						fs := time.Now()
-						frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
-						if err != nil {
-							log.ErrorContext(ctx, "failed to encode FastPathPDUs", "error", err)
-							return
-						}
-						qoiz += time.Since(fs)
-						for _, frame := range frames {
-							bi = time.Now()
-							if err := tdpConn.WriteMessage(frame); err != nil {
-								log.ErrorContext(ctx, "failed to send frame", "error", err)
-								return
-							}
-							writing += time.Since(bi)
-						}
-					}
-					delta := time.Since(start)
-					//log.DebugContext(ctx, "Frame encoding", "delta", delta, "qoiz", qoiz, "writing", writing, "image", image, "size", size)
-					if delta > 40*time.Millisecond {
-						continue
-					}
-					time.Sleep(40*time.Millisecond - delta)
-				}
-			}()
+			go s.processScreenChanges(backend, log, ctx, &screenSize, tdpConn)
 		case *tdpb.SessionSelection:
 			xsession, ok := xsessions[m.Name]
 			if !ok {
 				log.WarnContext(ctx, "failed to get xsession", "error", err)
-				sendTDPError(fmt.Sprintf("Couldn't get xsession %s.", m.Name))
+				sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
 				return
 			}
 			xsessionCmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
@@ -501,6 +444,9 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 			})
 			go func() {
 				err := xsessionCmd.Wait()
+				if ctx.Err() != nil {
+					return
+				}
 				if err == nil {
 					sendTDPError("Xsession was terminated")
 				} else {
@@ -547,11 +493,10 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				return
 			}
 		case *tdpb.ClientScreenSpec:
-			mu.Lock()
-			width = uint16(m.Width)
-			height = uint16(m.Height)
-			resized = true
-			mu.Unlock()
+			screenSize.Store(&xproto.Rectangle{
+				Width:  uint16(m.Width),
+				Height: uint16(m.Height),
+			})
 			if err := backend.Resize(uint16(m.Width), uint16(m.Height)); err != nil {
 				log.ErrorContext(ctx, "failed to resize screen", "error", err)
 				sendTDPError("Couldn't resize backend.")
@@ -569,6 +514,59 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 			}
 		default:
 			log.InfoContext(s.closeCtx, "Ignoring message", "message", fmt.Sprintf("%T", msg))
+		}
+	}
+}
+
+func (s *LinuxService) processScreenChanges(backend *x11.Backend, log *slog.Logger, ctx context.Context, screenSize *atomic.Pointer[xproto.Rectangle], tdpConn *tdp.Conn) {
+	var lastScreenSize *xproto.Rectangle
+	for {
+		start := time.Now()
+		qoiz := time.Duration(0)
+		writing := time.Duration(0)
+		image := time.Duration(0)
+		size := 0
+		changes, err := backend.GetChanges()
+		if err != nil {
+			log.ErrorContext(ctx, "failed to get changes from backend", "error", err)
+			return
+		}
+		currentScreenSize := screenSize.Load()
+		if lastScreenSize != currentScreenSize && currentScreenSize != nil {
+			lastScreenSize = currentScreenSize
+			changes = []xproto.Rectangle{*currentScreenSize}
+		}
+		for _, change := range changes {
+			size += int(change.Width) * int(change.Height)
+			bi := time.Now()
+			img, err := backend.GetImage(change)
+			if err != nil {
+				log.ErrorContext(ctx, "failed to get image from backend", "error", err)
+				return
+			}
+			image += time.Since(bi)
+			fs := time.Now()
+			frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+			if err != nil {
+				log.ErrorContext(ctx, "failed to encode FastPathPDUs", "error", err)
+				return
+			}
+			qoiz += time.Since(fs)
+			for _, frame := range frames {
+				bi = time.Now()
+				if err := tdpConn.WriteMessage(frame); err != nil {
+					log.ErrorContext(ctx, "failed to send frame", "error", err)
+					return
+				}
+				writing += time.Since(bi)
+			}
+		}
+		delta := time.Since(start)
+		log.Log(ctx, logutils.TraceLevel, "Frame encoding", "delta", delta, "qoiz", qoiz, "writing", writing, "image", image, "size", size)
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.cfg.Clock.After(40*time.Millisecond - delta):
 		}
 	}
 }

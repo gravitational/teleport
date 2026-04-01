@@ -112,14 +112,14 @@ export function DesktopSession() {
     fetchAcl();
   }, [username, clusterId, fetchAcl]);
 
-  const sessions = useRef([]);
+  const [sessions, setSessions] = useState([])
   useListener(client.onAvailableSessions, (s)=>{
-    sessions.current = s;
+    setSessions(s);
   });
 
   const onConnect = useCallback((session: string) => {
+    setSessions([]);
     client.sendSessionSelection(session);
-    sessions.current = [];
   }, [client])
 
   return (
@@ -128,11 +128,11 @@ export function DesktopSession() {
       username={username}
       desktop={desktopName}
       customConnectionState={({ retry }) => {
-        if (sessions.current.length > 0) {
+        if (sessions.length > 0) {
           return (
             <SessionSelection
               desktopName={desktopName}
-              sessions={sessions.current}
+              sessions={sessions}
               onConnect={onConnect}
             />
           )
