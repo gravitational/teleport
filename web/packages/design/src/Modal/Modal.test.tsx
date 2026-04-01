@@ -177,6 +177,43 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 });
 
 describe('trapFocus', () => {
+  let originalOffsetParent: PropertyDescriptor | undefined;
+
+  beforeAll(() => {
+    // JSDOM doesn't implement layout, so offsetParent is always null. Mock it to return the
+    // parent element (non-null) for elements that aren't hidden via display:none on themselves or
+    // an ancestor.
+    originalOffsetParent = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      get(this: HTMLElement) {
+        // Walk up the ancestor chain — in real browsers, offsetParent is null when any
+        // ancestor has display:none.
+        let el: HTMLElement | null = this;
+        while (el) {
+          if (el.style.display === 'none') {
+            return null;
+          }
+          el = el.parentElement; // eslint-disable-line testing-library/no-node-access
+        }
+        return this.parentElement; // eslint-disable-line testing-library/no-node-access
+      },
+      configurable: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalOffsetParent) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetParent',
+        originalOffsetParent
+      );
+    }
+  });
+
   // In the following describe group, the focused element is removed during a re-render, leaving
   // lastModalFocus as a stale detached reference. Explicit keys ensure React unmounts the Removable
   // button rather than reconciling it with Stable.
@@ -330,6 +367,28 @@ describe('trapFocus', () => {
     expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
   });
 
+  test('does not interfere with Tab when defaultPrevented', () => {
+    render(<TwoButtonModalWithOutsideButton />);
+
+    const lastButton = screen.getByRole('button', { name: 'Last' });
+    lastButton.focus();
+
+    // Simulate a component inside the modal calling preventDefault on Tab (e.g., a rich-text
+    // editor using Tab for indentation). The handler runs before the modal's document-level
+    // listener because it's registered on the element itself.
+    const preventTab = (e: Event) => {
+      if ((e as KeyboardEvent).key === 'Tab') {
+        e.preventDefault();
+      }
+    };
+    lastButton.addEventListener('keydown', preventTab);
+    fireEvent.keyDown(lastButton, { key: 'Tab' });
+    lastButton.removeEventListener('keydown', preventTab);
+
+    // Focus should stay on Last — the trap should not have intercepted the event.
+    expect(lastButton).toHaveFocus();
+  });
+
   test('wraps focus from first to last element on Shift+Tab', () => {
     render(<TwoButtonModalWithOutsideButton />);
 
@@ -365,6 +424,26 @@ describe('trapFocus', () => {
           <button style={{ display: 'none' }}>Hidden</button>
           <button>Visible</button>
         </ModalWithOutsideButton>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Visible' })).toHaveFocus();
+    });
+
+    test('Tab skips elements inside a hidden parent', () => {
+      render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <div style={{ display: 'none' }}>
+                <button>HiddenChild</button>
+              </div>
+              <button>Visible</button>
+            </div>
+          </Modal>
+        </>
       );
 
       fireEvent.keyDown(document, { key: 'Tab' });

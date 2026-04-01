@@ -304,7 +304,7 @@ export default class Modal extends React.Component<ModalProps> {
   };
 
   handleFocusTrapTab = (event: KeyboardEvent) => {
-    if (!this.props.trapFocus || !this.modalEl) {
+    if (!this.props.trapFocus || !this.modalEl || event.defaultPrevented) {
       return;
     }
 
@@ -341,6 +341,13 @@ export default class Modal extends React.Component<ModalProps> {
       ),
     ].filter(el => {
       const style = getComputedStyle(el);
+      // offsetParent is null for elements hidden via an ancestor's display:none (which
+      // getComputedStyle on the element itself won't catch, since display isn't inherited).
+      // However, offsetParent is also null for position:fixed elements, so exclude those from
+      // the check.
+      if (el.offsetParent === null && style.position !== 'fixed') {
+        return false;
+      }
       return style.display !== 'none' && style.visibility !== 'hidden';
     });
   };
