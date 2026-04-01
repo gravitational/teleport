@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -50,7 +49,7 @@ type CertAuthorityOverrideID struct {
 
 // displayName returns a user-friendly string for the ID.
 func (id *CertAuthorityOverrideID) displayName() string {
-	return fmt.Sprintf("%s/%s", id.CAType, id.ClusterName)
+	return id.CAType + "/" + id.ClusterName
 }
 
 // CertAuthorityOverrideIDFromResource returns the id of the specified resource.
@@ -159,6 +158,7 @@ func (s *SubCAService) GetCertAuthorityOverride(
 	}
 
 	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
 	name := id.displayName()
 
 	resource, err := service.GetResource(ctx, name)
@@ -190,6 +190,7 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 	}
 
 	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
 	name := id.displayName()
 
 	return trace.Wrap(service.DeleteResource(ctx, name))
