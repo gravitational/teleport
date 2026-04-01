@@ -68,7 +68,7 @@ type callRange struct {
 func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 	targets, err := resolveFilesToScan(e2eDir, testFiles)
 	if err != nil {
-		slog.Debug("fixture scan: error resolving files", "error", err)
+		slog.Warn("fixture scan: error resolving files", "error", err)
 
 		return nil
 	}
