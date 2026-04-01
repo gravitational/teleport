@@ -45,7 +45,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	apiconstants "github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/host"
@@ -244,7 +243,7 @@ type PAMConfig struct {
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr utils.NetAddr `json:"remote_addr"`
+	RemoteAddr NetAddr `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`
@@ -257,6 +256,28 @@ type UaccMetadata struct {
 
 	// WtmpdbPath is the path of the system wtmpdb database.
 	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
+}
+
+// NetAddrFromAddr returns NetAddr from golang standard net.Addr
+func NetAddrFromAddr(a net.Addr) NetAddr {
+	return NetAddr{AddrNetwork: a.Network(), Addr: a.String()}
+}
+
+type NetAddr struct {
+	AddrNetwork string `json:"network"`
+	Addr        string `json:"addr"`
+}
+
+var _ net.Addr = (*NetAddr)(nil)
+
+// Network implements [net.Addr].
+func (n *NetAddr) Network() string {
+	return n.AddrNetwork
+}
+
+// String implements [net.Addr].
+func (n *NetAddr) String() string {
+	return n.Addr
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -864,7 +885,7 @@ func RunNetworking() (code int, err error) {
 		fbuf := make([]*os.File, 1)
 		n, fn, err := uds.ReadWithFDs(parentConn, buf, fbuf)
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
+			if isOKNetworkError(err) {
 				// parent connection closed, process should exit.
 				return reexecconstants.RemoteCommandSuccess, nil
 			}
@@ -1549,4 +1570,37 @@ func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
 	default:
 		return
 	}
+}
+
+// isUseOfClosedNetworkError is [utils.IsUseOfClosedNetworkError].
+func isUseOfClosedNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), apiconstants.UseOfClosedNetworkConnection)
+}
+
+// isFailedToSendCloseNotifyError is [utils.IsFailedToSendCloseNotifyError].
+func isFailedToSendCloseNotifyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), apiconstants.FailedToSendCloseNotify)
+}
+
+// isOKNetworkError is [utils.IsOKNetworkError].
+func isOKNetworkError(err error) bool {
+	// trace.Aggregate contains at least one error and all the errors are
+	// non-nil
+	var a trace.Aggregate
+	if errors.As(trace.Unwrap(err), &a) {
+		for _, err := range a.Errors() {
+			if !isOKNetworkError(err) {
+				return false
+			}
+		}
+		return true
+	}
+	return errors.Is(err, io.EOF) || isUseOfClosedNetworkError(err) || isFailedToSendCloseNotifyError(err)
 }
