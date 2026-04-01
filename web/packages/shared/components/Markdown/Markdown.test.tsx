@@ -767,35 +767,71 @@ details <script>alert('xss')</script>
 
 describe('collapsible sections', () => {
   it('renders a closed section', async () => {
-    const text = `<details>
+    const text = `
+<details>
   <summary>title goes here</summary>
   content goes here
-</details>`;
+</details>
+more content here`;
 
     const user = userEvent.setup();
     renderMarkdown(text);
 
     expect(screen.getByText('title goes here')).toBeInTheDocument();
     expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+    expect(screen.getByText('more content here')).toBeInTheDocument();
 
     await user.click(screen.getByText('title goes here'));
     expect(screen.getByText('content goes here')).toBeInTheDocument();
   });
 
   it('renders an open section', async () => {
-    const text = `<details open>
+    const text = `
+<details open>
   <summary>title goes here</summary>
   content goes here
-</details>`;
+</details>
+more content here`;
 
     const user = userEvent.setup();
     renderMarkdown(text);
 
     expect(screen.getByText('title goes here')).toBeInTheDocument();
     expect(screen.getByText('content goes here')).toBeInTheDocument();
+    expect(screen.getByText('more content here')).toBeInTheDocument();
 
     await user.click(screen.getByText('title goes here'));
     expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+  });
+
+  it('renders an empty section', async () => {
+    const text = `
+<details open>
+    <summary>title goes here</summary>
+  </details>`;
+
+    renderMarkdown(text);
+
+    expect(screen.getByText('title goes here')).toBeInTheDocument();
+  });
+
+  it('renders stacked sections', async () => {
+    const text = `
+<details open>
+  <summary>section 1</summary>
+  section content 1
+</details>
+<details open>
+  <summary>section 2</summary>
+  section content 2
+</details>`;
+
+    renderMarkdown(text);
+
+    expect(screen.getByText('section 1')).toBeInTheDocument();
+    expect(screen.getByText('section 2')).toBeInTheDocument();
+    expect(screen.getByText('section content 1')).toBeInTheDocument();
+    expect(screen.getByText('section content 2')).toBeInTheDocument();
   });
 
   it('renders a malformed/incomplete closed section', () => {

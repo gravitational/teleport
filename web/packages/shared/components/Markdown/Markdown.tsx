@@ -291,6 +291,8 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
           <Markdown text={content.join('\n')} />
         </Section>
       );
+
+      continue;
     }
 
     const paragraphLines: string[] = [];
