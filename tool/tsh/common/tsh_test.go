@@ -94,13 +94,13 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -239,8 +239,8 @@ func handleReexec() {
 	}
 
 	// Re-exec teleport commands. Used to test tsh ssh command.
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+	if reexec.IsReexec() {
+		reexec.RunAndExit(os.Args[1])
 	}
 }
 
