@@ -645,6 +645,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "valid bot assignment",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -668,6 +669,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "bot_name and user both set",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -692,6 +694,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "bot_name without bot_scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -714,6 +717,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "bot_scope without bot_name",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -737,6 +741,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "invalid bot_scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -760,6 +765,7 @@ func TestValidateAsssignment(t *testing.T) {
 			name: "sub-assignment scope outside bot scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
