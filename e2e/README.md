@@ -64,6 +64,9 @@ Available fixtures:
 | `ssh-node`   | Start and connect a Teleport SSH node (runs in Docker)                               |
 | `connect`    | Build Teleport Connect. Auto-detected from Connect test helpers.                     |
 
+Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
+which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
+
 ### Common Commands
 
 Typically, you'll want to run with `--no-build` during test development to skip rebuilding Teleport binaries on every
