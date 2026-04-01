@@ -1175,8 +1175,8 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Wrap(err)
 	}
 
-	file, err = utils.OpenFileNoUnsafeLinks(path)
-	return file, trace.Wrap(err)
+	file, err = os.Open(path)
+	return file, trace.ConvertSystemError(err)
 }
 
 func readUserEnv(localUser *user.User, path string) ([]string, error) {
