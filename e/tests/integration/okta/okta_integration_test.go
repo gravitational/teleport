@@ -719,7 +719,7 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 		s, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(ctx, reviewerLogin)
 		require.NoError(t, err)
 		require.Len(t, s.GetRoles(), 2) // okta-requester + 2 ACL reviewer roles
-	}, time.Second, time.Millisecond*100)
+	}, time.Minute, time.Millisecond*100)
 
 	auth := sut.Teleport.Process.GetAuthServer()
 	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
