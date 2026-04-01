@@ -61,7 +61,7 @@ const (
 	samlCertMonitorLockRefreshInterval = 20 * time.Second
 	// retryJitter is the jitter duration applied when restarting the monitor after failure.
 	retryJitter = 5 * time.Second
-	// samlCertExpiryAlertLink is the documentation linked to from the "Learn More" link on the alert
+	// samlCertExpiryAlertLink is the documentation linked to from the link on the alert
 	samlCertExpiryAlertLink = "https://goteleport.com/docs/zero-trust-access/sso/saml-cert-rotation/"
 	// samlCertExpiryAlertLabel is the label for the documentation link on the alert
 	samlCertExpiryAlertLabel = "Learn More"
@@ -287,7 +287,7 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message str
 func (m *SAMLCertExpiryMonitor) buildAlertMessage(connectorName string, cert *x509.Certificate) string {
 	expiredTemplate := "SAML SSO users are no longer able to authenticate to Teleport. Connector '%s' references a certificate that expired at %s. Please rotate the expired certificate. %s"
 	expiringTemplate := "SAML SSO users will no longer be able to authenticate to Teleport in %d days. Connector '%s' references a certificate that expires at %s. Please rotate the expiring certificate. %s"
-	learnMore := "Click 'Learn More' for more details about rotating certificates."
+	learnMore := fmt.Sprintf("Click '%s' for more details about rotating certificates.", samlCertExpiryAlertLabel)
 
 	remaining := cert.NotAfter.Sub(m.Clock.Now())
 	expiry := cert.NotAfter.UTC().Format("2006-01-02 15:04:05")
