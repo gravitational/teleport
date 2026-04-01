@@ -212,9 +212,12 @@ func parseHelperImports(path string) []string {
 		return nil
 	}
 
+	lines := strings.Split(string(data), "\n")
+	cleaned := strings.Join(stripComments(lines), "\n")
+
 	var helpers []string
-	for _, match := range helperImportRe.FindAllSubmatch(data, -1) {
-		helpers = append(helpers, string(match[1]))
+	for _, match := range helperImportRe.FindAllStringSubmatch(cleaned, -1) {
+		helpers = append(helpers, match[1])
 	}
 
 	return helpers
