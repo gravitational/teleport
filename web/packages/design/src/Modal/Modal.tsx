@@ -16,12 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  cloneElement,
-  ComponentProps,
-  MutableRefObject,
-  Ref,
-} from 'react';
+import React, { cloneElement, ComponentProps, Ref, RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { StyleFunction } from 'styled-components';
 
@@ -339,8 +334,7 @@ export default class Modal extends React.Component<ModalProps> {
             if (typeof modalRef === 'function') {
               modalRef(el);
             } else {
-              (modalRef as MutableRefObject<HTMLDivElement | null>).current =
-                el;
+              (modalRef as RefObject<HTMLDivElement | null>).current = el;
             }
           }
         }}
