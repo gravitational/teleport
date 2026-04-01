@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,55 +20,74 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Box, Card, Flex, Indicator } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Info } from 'design/Alert';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
-import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
-import { IntegrationSection } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
-import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
-import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
-import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
+import { ApplyTerraformSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ApplyTerraformSection';
 import {
-  buildMatchers,
-  ServiceConfig,
-  ServiceConfigs,
-  ServiceType,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/types';
+  ManagedIdentitySection,
+  IntegrationSection,
+} from 'teleport/Integrations/Enroll/Cloud/Azure/EnrollAzure';
+import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Azure/InfoGuide';
+import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Azure/ResourcesSection';
+import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Azure/tf_module';
+import {
+  AzureManagedIdentity,
+  VmConfig,
+} from 'teleport/Integrations/Enroll/Cloud/Azure/types';
 import { Divider } from 'teleport/Integrations/Enroll/Cloud/Shared';
 import {
   InfoGuideTab,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
+  IntegrationAzureOidc,
   IntegrationDiscoveryRule,
-  integrationService,
   IntegrationWithSummary,
-  Regions,
+  integrationService,
+  AzureRegion,
+  AzureResource,
 } from 'teleport/services/integrations';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
 
-const configFromRules = (rules: IntegrationDiscoveryRule[]): ServiceConfig => {
-  const regions = rules.map(r => r.region);
-  const isWildcard = regions.includes('*') || regions.includes('aws-global');
+const vmConfigFromRules = (rules?: IntegrationDiscoveryRule[]): VmConfig => {
+  const regions: (AzureRegion | '*')[] =
+    !rules?.length || rules.some(r => r.region === '*')
+      ? ['*']
+      : rules.map(r => r.region as AzureRegion);
+
+  const subscriptions = [
+    ...new Set((rules || []).flatMap(r => r.subscriptions || [])),
+  ];
+
+  const resourceGroups = [
+    ...new Set((rules || []).flatMap(r => r.resourceGroups || [])),
+  ].filter(g => g !== '*');
 
   return {
-    enabled: rules.length > 0,
-    regions: isWildcard || rules.length === 0 ? [] : (regions as Regions[]),
+    type: 'vm',
+    enabled: rules !== undefined && rules.length > 0,
+    regions,
+    subscriptions,
+    resourceGroups,
     tags:
-      rules.length > 0
-        ? rules[0].labelMatcher.map(l => ({
-            name: l.name,
-            value: l.value,
-          }))
+      rules && rules.length > 0
+        ? rules[0].labelMatcher.map(l => ({ name: l.name, value: l.value }))
         : [],
-    kubeAppDiscovery: rules[0]?.kubeAppDiscovery ?? false,
   };
 };
+
+const managedIdentityFromIntegration = (
+  integration?: IntegrationAzureOidc
+): AzureManagedIdentity => ({
+  resourceGroup: integration?.spec?.managedIdentity?.resourceGroup || '',
+  region: (integration?.spec?.managedIdentity?.region ||
+    'eastus') as AzureRegion,
+});
 
 export function SettingsTab({
   stats,
@@ -83,36 +102,35 @@ export function SettingsTab({
   const { clusterVersion } = useClusterVersion();
 
   const {
-    data: ec2Rules,
-    isLoading: isLoadingEc2,
-    isError: isEc2Error,
+    data: integration,
+    isLoading: isIntegrationLoading,
+    isError: isIntegrationError,
   } = useQuery({
-    queryKey: ['integrationRules', stats.name, AwsResource.ec2],
+    queryKey: ['integration', integrationName],
     queryFn: () =>
-      integrationService.fetchIntegrationRules(
-        integrationName,
-        AwsResource.ec2
+      integrationService.fetchIntegration<IntegrationAzureOidc>(
+        integrationName
       ),
   });
 
   const {
-    data: eksRules,
-    isLoading: isLoadingEks,
-    isError: isEksError,
+    data: vmRules,
+    isLoading: isRulesLoading,
+    isError: isRulesError,
   } = useQuery({
-    queryKey: ['integrationRules', stats.name, AwsResource.eks],
+    queryKey: ['integrationRules', stats.name, 'vm'],
     queryFn: () =>
       integrationService.fetchIntegrationRules(
         integrationName,
-        AwsResource.eks
+        AzureResource.vm
       ),
   });
 
-  const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
-    {}
-  );
+  const [updatedVmConfig, setVmConfig] = useState<VmConfig | null>(null);
+  const [updatedManagedIdentity, setManagedIdentity] =
+    useState<AzureManagedIdentity | null>(null);
 
-  if (isLoadingEc2 || isLoadingEks) {
+  if (isRulesLoading || isIntegrationLoading) {
     return (
       <Flex justifyContent="center" mt={6}>
         <Indicator />
@@ -120,25 +138,26 @@ export function SettingsTab({
     );
   }
 
-  if (isEc2Error || isEksError) {
+  if (isIntegrationError || isRulesError) {
     return <Danger>Failed to load the integration settings.</Danger>;
   }
 
-  const configs: ServiceConfigs = {
-    ec2: updatedConfigs.ec2 ?? configFromRules(ec2Rules.rules),
-    eks: updatedConfigs.eks ?? configFromRules(eksRules.rules),
-  };
+  const hasWildcardSubscription =
+    vmRules?.rules?.some(r => r.subscriptions?.includes('*')) ?? false;
 
-  const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
-    setUpdatedConfigs(prev => ({
-      ...prev,
-      [type]: { ...configs[type], ...patch },
-    }));
-  };
+  // relax uuid validation if wildcard subscription returned in rules
+  const allowWildcardSubscriptions = updatedVmConfig
+    ? false
+    : hasWildcardSubscription;
+
+  const vmConfig = updatedVmConfig ?? vmConfigFromRules(vmRules?.rules);
+  const managedIdentity =
+    updatedManagedIdentity ?? managedIdentityFromIntegration(integration);
 
   const terraformConfig = buildTerraformConfig({
     integrationName,
-    matchers: buildMatchers(configs),
+    vmConfig,
+    managedIdentity,
     version: clusterVersion,
   });
 
@@ -147,6 +166,13 @@ export function SettingsTab({
       {({ validator }) => (
         <Flex>
           <Box flex="1">
+            {hasWildcardSubscription && (
+              <Info mb={3}>
+                This integration was configured with a wildcard subscription
+                matcher in Terraform, which is currently unsupported by this
+                form. Please update your Terraform configuration directly.
+              </Info>
+            )}
             <Card p={4} mb={3}>
               <Box mb={4}>
                 <IntegrationSection
@@ -156,13 +182,21 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
+              <Box>
+                <ManagedIdentitySection
+                  managedIdentity={managedIdentity}
+                  onChange={setManagedIdentity}
+                  disabled={false}
+                />
+              </Box>
+              <Divider />
               <ResourcesSection
-                configs={configs}
-                onConfigChange={updateConfig}
+                vmConfig={vmConfig}
+                onVmChange={setVmConfig}
+                allowWildcardSubscriptions={allowWildcardSubscriptions}
               />
               <Divider />
-              <DeploymentMethodSection
-                terraformConfig={terraformConfig}
+              <ApplyTerraformSection
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
                     copyToClipboard(terraformConfig);
