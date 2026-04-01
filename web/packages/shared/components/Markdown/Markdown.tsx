@@ -263,22 +263,33 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
       const startI = i;
       i += 1; // skip the opening tag
 
-      if (lines[i]?.trim().startsWith('<summary>')) {
-        summary = lines[i]?.replaceAll(/<\/?summary>/g, '');
+      const nextLine = lines.at(i);
+      if (nextLine === undefined) {
+        break;
+      }
+
+      if (nextLine.trim().startsWith('<summary>')) {
+        summary = nextLine.replaceAll(/<\/?summary>/g, '');
         i += 1;
       }
 
       while (true) {
+        const nextLine = lines.at(i);
+        if (nextLine === undefined) {
+          break;
+        }
+
         if (i - startI > MAX_ITERATIONS) {
           break;
         }
 
-        if (lines[i]?.trim() == '</details>') {
+        // Simple check for section end prevents nested sections
+        if (nextLine.trim() == '</details>') {
           i += 1;
           break;
         }
 
-        content.push(lines[i]);
+        content.push(nextLine);
         i += 1;
       }
 
