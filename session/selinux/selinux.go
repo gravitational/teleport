@@ -24,3 +24,10 @@ type filePaths struct {
 	ConfigPath     string
 	UpgradeUnitDir string
 }
+
+const (
+	// UnitConfigDir is lib/versioncontrol.UnitConfigDir but inlined to avoid
+	// circular module requirements. Asserted to be the same as its original
+	// const in lib/versioncontrol.
+	UnitConfigDir = "/etc/teleport-upgrade.d"
+)

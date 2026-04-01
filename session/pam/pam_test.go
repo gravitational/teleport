@@ -20,7 +20,9 @@ package pam
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -29,12 +31,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	if !testing.Verbose() {
+		slog.SetDefault(slog.New(slog.DiscardHandler))
+	} else {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
 
 	// Skip this test if the binary was not built with PAM support.
 	if !BuildHasPAM() || !SystemHasPAM() {
@@ -64,7 +72,7 @@ func TestEcho(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-acct-echo",
 		Login:       username,
@@ -105,7 +113,7 @@ func TestEnvironment(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-session-environment",
 		Login:       username,
@@ -125,7 +133,7 @@ func TestSuccess(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-success",
 		Login:       username,
@@ -150,7 +158,7 @@ func TestAccountFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-acct-failure",
 		Login:       username,
@@ -167,7 +175,7 @@ func TestAuthFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -185,7 +193,7 @@ func TestAuthDisabled(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -209,7 +217,7 @@ func TestSessionFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "teleport-session-failure",
 		Login:       username,
