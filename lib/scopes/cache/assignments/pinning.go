@@ -164,7 +164,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 		return trace.BadParameter("missing bot scope in scoped assignment population request for bot %q", botName)
 	}
 	if pin == nil {
-		return trace.BadParameter("missing scope pin in assignment population request for user %q", botName)
+		return trace.BadParameter("missing scope pin in assignment population request for bot %q", botName)
 	}
 	if pin.GetAssignmentTree() != nil {
 		return trace.BadParameter("assignment population attempted with pin that already contains an assignment tree (this is a bug)")
@@ -174,7 +174,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 	// already done strong validation, but a malformed scope pin would be a bad thing to have and catching the malformed scope
 	// during later pin validation steps produces confusing error messages.
 	if err := scopes.WeakValidate(pin.GetScope()); err != nil {
-		return trace.Errorf("invalid scope %q in assignment population request for user %q: %w", pin.GetScope(), botName, err)
+		return trace.Errorf("invalid scope %q in assignment population request for bot %q: %w", pin.GetScope(), botName, err)
 	}
 	if err := scopes.WeakValidate(botScope); err != nil {
 		return trace.Errorf("invalid bot scope %q in assignment population request for bot %q: %w", botScope, botName, err)
@@ -207,7 +207,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 		return matchesBotName && matchesBotScope
 	}))
 
-	// iterate over all potentially relevant assignments and store each assigned role in the ephemeral cache
+	// iterate over all potentially relevant assignments and populate the assignment tree
 	for scope := range assignments {
 		for assignment := range scope.Items() {
 			// Scope of Origin is the scope of the assignment resource itself - this represents
@@ -229,7 +229,8 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 					// point in the future.
 					continue
 				}
-				// ignore assignments where assigned scope is not descendent or equiv to bot scope.
+				// Skip assignments where scope of effect is above the Bot as
+				// per the RFD.
 				rel := scopes.Compare(botScope, scopeOfEffect)
 				if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
 					continue

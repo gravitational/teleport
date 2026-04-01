@@ -470,13 +470,14 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Version: types.V1,
 		},
-		// Assignment above bot scope
+		// Scope of effect above Bot Scope is ignored.
+		// nb: maybe incorrect? discussion with forrest april 1st.
 		{
 			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-02",
 			},
-			Scope: bernardScope,
+			Scope: "/",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				BotName:  "bernard",
 				BotScope: bernardScope,
