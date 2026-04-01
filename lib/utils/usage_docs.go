@@ -452,7 +452,7 @@ func makeDefaultArgValueOverrider(overrides []argDefaultOverride) func(fullComma
 // signature of UpdateAppUsageTemplate consistent with the one included without
 // build tags, i.e., with no return value. Writes error messages to stdout to
 // separate them from the help text, which kingpin writes to stderr.
-func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+func UpdateAppUsageTemplate(app *kingpin.Application) {
 	config, err := loadConfig(app.Name)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "Unable to load the docs generator configuration for %v: %v", app.Name, err)

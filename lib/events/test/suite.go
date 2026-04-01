@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -58,18 +57,11 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
 	require.Error(t, err)
 
-	f, err := os.CreateTemp("", string(id))
+	rc, err := handler.StreamSessionRecording(ctx, id)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
+	defer rc.Close()
 
-	err = handler.Download(ctx, id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(rc)
 	require.NoError(t, err)
 	require.Equal(t, val, string(data))
 }
@@ -82,20 +74,24 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadPendingSummary(ctx, id, strings.NewReader("pending summary"))
 	require.NoError(t, err)
 
-	var pendingBuf events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &pendingBuf)
+	pendingRC, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
-	assert.Equal(t, "pending summary", string(pendingBuf.Bytes()))
+	pendingData, err := io.ReadAll(pendingRC)
+	require.NoError(t, pendingRC.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "pending summary", string(pendingData))
 
 	// Override previous pending state.
 	_, err = handler.UploadPendingSummary(ctx, id, strings.NewReader("updated pending summary"))
 	require.NoError(t, err)
 
 	// Download the pending version.
-	var pendingBuf2 events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &pendingBuf2)
+	pendingRC2, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
-	assert.Equal(t, "updated pending summary", string(pendingBuf2.Bytes()))
+	pendingData2, err := io.ReadAll(pendingRC2)
+	require.NoError(t, pendingRC2.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "updated pending summary", string(pendingData2))
 
 	// Upload the final version.
 	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
@@ -106,10 +102,12 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.Error(t, err)
 
 	// Download the final version.
-	var finalBuf events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &finalBuf)
+	finalRC, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)
-	assert.Equal(t, "final summary", string(finalBuf.Bytes()))
+	finalData, err := io.ReadAll(finalRC)
+	require.NoError(t, finalRC.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "final summary", string(finalData))
 
 	// Upload one more file, this time right to the final state (test if it's
 	// possible to upload one without a pending state).
@@ -118,10 +116,12 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 
 	// Download the final version of the second file.
-	var finalBuf2 events.MemBuffer
-	err = handler.DownloadSummary(ctx, id2, &finalBuf2)
+	finalRC2, err := handler.StreamSessionSummary(ctx, id2)
 	require.NoError(t, err)
-	assert.Equal(t, "final summary 2", string(finalBuf2.Bytes()))
+	finalData2, err := io.ReadAll(finalRC2)
+	require.NoError(t, finalRC2.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "final summary 2", string(finalData2))
 }
 
 // UploadDownloadMetadata tests metadata uploads and downloads
@@ -131,18 +131,11 @@ func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", string(id))
+	rc, err := handler.StreamSessionMetadata(t.Context(), id)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
+	defer rc.Close()
 
-	err = handler.DownloadMetadata(t.Context(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(rc)
 	require.NoError(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -154,18 +147,11 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", string(id))
+	rc, err := handler.StreamSessionThumbnail(t.Context(), id)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
+	defer rc.Close()
 
-	err = handler.DownloadThumbnail(t.Context(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
+	data, err := io.ReadAll(rc)
 	require.NoError(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -174,12 +160,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.Download(t.Context(), id, f)
+	_, err := handler.StreamSessionRecording(t.Context(), id)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -692,7 +673,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 							MapRef: &types.WhereExpr2{
 								L: &types.WhereExpr{Field: "server_labels"},
 								R: &types.WhereExpr{Literal: key},
-							}},
+							},
+						},
 						R: &types.WhereExpr{Literal: value},
 					},
 				},

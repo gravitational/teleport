@@ -184,8 +184,8 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
 		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
 		const msg = "" +
-			"Available MFA methods [%v]. Continuing with %v.\n" +
-			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\n\n"
+			"Available MFA methods [%v]. Continuing with %v.\r\n" +
+			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\r\n\r\n"
 		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), availableMethodsString, availableMethodsString)
 	}
 
@@ -195,7 +195,7 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.cfg.PromptReason != "" {
-		fmt.Fprintln(c.writer(), c.cfg.PromptReason)
+		fmt.Fprintf(c.writer(), "%s\r\n", c.cfg.PromptReason)
 	}
 
 	// Initialize prompt state from the challenge.
@@ -303,7 +303,7 @@ func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthe
 
 		// If we're retrying after a failure, inform the user.
 		if lastErr != nil {
-			fmt.Fprintf(c.writer(), "Attempting MFA authentication with %s\n", currentMethod)
+			fmt.Fprintf(c.writer(), "Attempting MFA authentication with %s\r\n", currentMethod)
 		}
 
 		// Perform the chosen ceremony based on the filtered state.
@@ -346,7 +346,7 @@ func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthe
 		}
 
 		// Print error message about the failure.
-		fmt.Fprintf(c.writer(), "MFA authentication with %s failed, check logs for details\n", currentMethod)
+		fmt.Fprintf(c.writer(), "MFA authentication with %s failed, check logs for details\r\n", currentMethod)
 
 		// Don't fall back if the context is done (e.g. user canceled or request timed out).
 		if ctx.Err() != nil {
@@ -426,7 +426,7 @@ func (c *CLIPrompt) promptWebauthnAndOTP(ctx context.Context, chal *proto.MFAAut
 	} else {
 		message = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
 	}
-	fmt.Fprintln(c.writer(), message)
+	fmt.Fprintf(c.writer(), "%s\r\n", message)
 
 	// Prepare to fire OTP goroutine.
 	otpCtx, otpCancel := context.WithCancel(ctx)

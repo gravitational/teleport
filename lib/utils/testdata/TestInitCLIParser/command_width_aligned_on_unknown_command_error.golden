@@ -1,0 +1,16 @@
+Usage: test <command> [<args> ...]
+
+some help message
+
+Flags:
+
+Commands:
+  help                    Show help.
+  hello                   Hello.
+  create box              Box.
+  create rocket           Rocket.
+  start legacy            (Default) Legacy.
+  start workload-identity Workload identity.
+
+Try 'test help [command]' to get help for a given command.
+

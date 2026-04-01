@@ -171,7 +171,7 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, args)
+	utils.UpdateAppUsageTemplate(app)
 	selectedCmd, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
