@@ -4464,31 +4464,53 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 // convertEnrichedResource extracts the resource and any enriched information from the
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
+	var rwl types.ResourceWithLabels
 	if r := resource.GetNode(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetDatabaseServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest, DatabaseUsers: resource.DatabaseUsers, DatabaseNames: resource.DatabaseNames, DatabaseRoles: resource.DatabaseRoles}, nil
+		rwl = r
 	} else if r := resource.GetDatabaseService(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetKubeCluster(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetKubernetesServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetUserGroup(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else if r := resource.GetGitServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+		rwl = r
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
+
+	return &types.EnrichedResource{
+		ResourceWithLabels: rwl,
+		Logins:             resource.Logins,
+		RequiresRequest:    resource.RequiresRequest,
+		Principals:         protoPrincipalsToMap(resource.Principals),
+	}, nil
+}
+
+// protoPrincipalsToMap converts the proto Principals map to a plain Go map.
+func protoPrincipalsToMap(principals map[string]*wrappers.StringValues) map[string][]string {
+	if len(principals) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(principals))
+	for k, v := range principals {
+		if v != nil {
+			out[k] = v.Values
+		}
+	}
+	return out
 }
 
 // GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.

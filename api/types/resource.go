@@ -140,26 +140,48 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+type PrincipalKind string
+
+// Well-known principal dimension keys for [EnrichedResource.Principals].
+const (
+	// PrincipalKindSSHLogins identifies SSH login principals.
+	PrincipalKindSSHLogins PrincipalKind = "ssh_logins"
+	// PrincipalKindWindowsLogins identifies Windows Desktop login principals.
+	PrincipalKindWindowsLogins PrincipalKind = "windows_logins"
+	// PrincipalKindAWSRoleARNs identifies AWS Console role ARN principals.
+	PrincipalKindAWSRoleARNs PrincipalKind = "aws_role_arns"
+	// PrincipalKindDBUsers identifies database user principals.
+	PrincipalKindDBUsers PrincipalKind = "db_users"
+	// PrincipalKindDBNames identifies database name principals.
+	PrincipalKindDBNames PrincipalKind = "db_names"
+	// PrincipalKindDBRoles identifies database role principals.
+	PrincipalKindDBRoles PrincipalKind = "db_roles"
+)
+
 // EnrichedResource is a [ResourceWithLabels] wrapped with
 // additional user-specific information.
 type EnrichedResource struct {
 	// ResourceWithLabels is the underlying resource.
 	ResourceWithLabels
 	// Logins that the user is allowed to access the above resource with.
+	// Deprecated: Use Principals with the appropriate PrincipalKind* key instead.
 	Logins []string
 	// RequiresRequest is true if a resource is being returned to the user but requires
 	// an access request to access. This is done during `ListUnifiedResources` when
 	// searchAsRoles is true
 	RequiresRequest bool
-	// DatabaseUsers is the list of database users visible to the user (including requestable).
-	// Only populated for database servers when IncludeRequestable is true.
-	DatabaseUsers []string
-	// DatabaseNames is the list of database names visible to the user (including requestable).
-	// Only populated for database servers when IncludeRequestable is true.
-	DatabaseNames []string
-	// DatabaseRoles is the list of database roles visible to the user (including requestable).
-	// Only populated for database servers when IncludeRequestable is true.
-	DatabaseRoles []string
+	// Principals maps principal dimension keys (PrincipalKind* constants) to the
+	// list of allowed values for that dimension.
+	Principals map[PrincipalKind][]string
+}
+
+// GetPrincipals returns the allowed principals for the given dimension,
+// or nil if none are set.
+func (e *EnrichedResource) GetPrincipals(kind PrincipalKind) []string {
+	if e.Principals == nil {
+		return nil
+	}
+	return e.Principals[kind]
 }
 
 // EnrichedResources is a wrapper of []*EnrichedResource.
