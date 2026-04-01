@@ -312,6 +312,66 @@ describe('trapFocus', () => {
     expect(outsideButton).toHaveFocus();
   });
 
+  test('enables focus trap when trapFocus changes to true while modal is open', () => {
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={false}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={true}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(screen.getByRole('button', { name: 'Inside' })).toHaveFocus();
+  });
+
+  test('disables focus trap when trapFocus changes to false while modal is open', () => {
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={true}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={false}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+
   test('cleans up focus trap listeners on close', () => {
     // Use keepInDOMAfterClose so that the modal stays in the DOM when closed. Without it, the modal
     // is fully unmounted and the focusin handler would early-return due to modalEl being null,

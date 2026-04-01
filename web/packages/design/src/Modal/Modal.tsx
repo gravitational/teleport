@@ -125,6 +125,16 @@ export default class Modal extends React.Component<ModalProps> {
     } else if (!prevProps.open && this.props.open) {
       this.lastFocus = document.activeElement as HTMLElement;
       this.handleOpen();
+    } else if (
+      this.props.open &&
+      prevProps.trapFocus !== this.props.trapFocus
+    ) {
+      // open didn't change but trapFocus did — toggle the trap without a full open/close cycle.
+      if (this.props.trapFocus) {
+        this.enableFocusTrap();
+      } else {
+        this.disableFocusTrap();
+      }
     }
   }
 
