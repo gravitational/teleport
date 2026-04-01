@@ -284,18 +284,12 @@ type Identity interface {
 	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
 	// storage, for the purpose of later verifying an SSO MFA authentication
 	// attempt.
-	//
-	// Deprecated: use UpsertMFASessionData.
 	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
 
 	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
-	//
-	// Deprecated: use GetMFASessionData.
 	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
 
 	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
-	//
-	// Deprecated: use DeleteMFASessionData.
 	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.
