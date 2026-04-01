@@ -95,7 +95,7 @@ const regions: { name: string; regions: AzureRegion[] }[] = [
   },
 ];
 
-export const azureRegionOptions = regions.map(({ name, regions }) => ({
+export const azureRegionOptionGroups = regions.map(({ name, regions }) => ({
   label: name,
   options: regions
     .filter(id => id in azureRegionMap)
@@ -104,3 +104,7 @@ export const azureRegionOptions = regions.map(({ name, regions }) => ({
       label: azureRegionMap[id],
     })),
 }));
+
+export const azureRegionOptions = azureRegionOptionGroups.flatMap(
+  group => group.options
+);

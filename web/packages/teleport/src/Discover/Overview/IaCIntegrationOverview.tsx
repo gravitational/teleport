@@ -382,6 +382,7 @@ function getIntegrationLastScan(
     getTimestamp(stats.awsec2?.discoverLastSync),
     getTimestamp(stats.awsrds?.discoverLastSync),
     getTimestamp(stats.awseks?.discoverLastSync),
+    getTimestamp(stats.azurevm?.discoverLastSync),
     getTimestamp(stats.rolesAnywhereProfileSync?.syncEndTime)
   );
 
@@ -430,7 +431,8 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   const ec2Count = stats.awsec2?.resourcesFound || 0;
   const rdsCount = stats.awsrds?.resourcesFound || 0;
   const eksCount = stats.awseks?.resourcesFound || 0;
-  const total = ec2Count + rdsCount + eksCount;
+  const azureVmCount = stats.azurevm?.resourcesFound || 0;
+  const total = ec2Count + rdsCount + eksCount + azureVmCount;
 
   if (total === 0) {
     return 'No resources discovered';
@@ -445,6 +447,9 @@ function formatResourceCounts(stats: IntegrationWithSummary): string {
   }
   if (eksCount > 0) {
     parts.push(`EKS: ${eksCount}`);
+  }
+  if (azureVmCount > 0) {
+    parts.push(`Azure VMs: ${azureVmCount}`);
   }
 
   return `${total} Discovered (${parts.join(', ')})`;
