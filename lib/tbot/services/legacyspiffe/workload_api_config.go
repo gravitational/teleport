@@ -163,7 +163,10 @@ func (s *WorkloadAPIConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (s *WorkloadAPIConfig) CheckAndSetDefaults() error {
+func (s *WorkloadAPIConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", WorkloadAPIServiceType)
+	}
 	if s.Listen == "" {
 		return trace.BadParameter("listen: should not be empty")
 	}

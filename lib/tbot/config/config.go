@@ -216,7 +216,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	namer := newServiceNamer()
 	for i, service := range conf.Services {
-		if err := service.CheckAndSetDefaults(); err != nil {
+		if err := service.CheckAndSetDefaults(conf.Scoped); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
@@ -321,7 +321,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 // ServiceConfig is an interface over the various service configurations.
 type ServiceConfig interface {
 	Type() string
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 
 	// GetCredentialLifetime returns the service's custom certificate TTL and
 	// RenewalInterval. It's used for validation purposes; services that do not

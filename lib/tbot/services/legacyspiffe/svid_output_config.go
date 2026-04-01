@@ -142,7 +142,10 @@ func (o *SVIDOutputConfig) GetDestination() destination.Destination {
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *SVIDOutputConfig) CheckAndSetDefaults() error {
+func (o *SVIDOutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", SVIDOutputServiceType)
+	}
 	if err := o.SVID.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating svid")
 	}

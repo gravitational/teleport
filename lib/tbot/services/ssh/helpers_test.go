@@ -67,7 +67,7 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 }
 
 type checkAndSetDefaulter interface {
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 }
 
 type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
@@ -87,7 +87,7 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()
-			err := got.CheckAndSetDefaults()
+			err := got.CheckAndSetDefaults(false)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return

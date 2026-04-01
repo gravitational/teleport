@@ -93,7 +93,10 @@ func (s *TunnelConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (s *TunnelConfig) CheckAndSetDefaults() error {
+func (s *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", TunnelServiceType)
+	}
 	switch {
 	case s.Listen == "" && s.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
