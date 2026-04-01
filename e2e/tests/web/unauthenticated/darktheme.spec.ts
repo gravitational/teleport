@@ -17,13 +17,16 @@
  */
 
 import { login, logout } from '@gravitational/e2e/helpers/login';
+import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 
 const lightBody = 'rgb(241, 242, 244)';
 const darkBody = 'rgb(12, 20, 61)';
 
-test('switching between dark and light theme', async ({ page }) => {
-  await page.goto('/');
+test('switching between dark and light theme', async ({ page }, testInfo) => {
+  const username = `testuser-${testInfo.workerIndex}`;
+
+  await signup(page, username, defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 
   // Switch to dark theme. Make sure that the change gets persisted in user
@@ -44,9 +47,9 @@ test('switching between dark and light theme', async ({ page }) => {
 
   // Make sure that the theme was actually saved in the backend. Simulate
   // signing in on a fresh browser.
-  await page.context().clearCookies();
+  // await page.context().clearCookies();
   await page.evaluate(() => localStorage.clear());
-  await login(page);
+  await login(page, username, defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
   // Switch to light theme.
