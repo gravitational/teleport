@@ -26,7 +26,7 @@ import Modal, { ModalProps } from './Modal';
 
 const renderModal = (props: Omit<ModalProps, 'open'>) => {
   return render(
-    <Modal open={true} {...props}>
+    <Modal open {...props}>
       <div>Hello</div>
     </Modal>
   );
@@ -160,7 +160,7 @@ test('restores focus on close', async () => {
 
 test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
   const { rerender } = render(
-    <Modal open={true} keepInDOMAfterClose>
+    <Modal open keepInDOMAfterClose>
       <div>Hello</div>
     </Modal>
   );
@@ -288,7 +288,7 @@ describe('trapFocus', () => {
     render(
       <>
         <button>Outside</button>
-        <Modal open={true} trapFocus>
+        <Modal open trapFocus>
           <div>
             <button>First</button>
             <button autoFocus>Second</button>
@@ -444,7 +444,7 @@ describe('trapFocus', () => {
     const { rerender } = render(
       <>
         <button>Outside</button>
-        <Modal open={true} trapFocus keepInDOMAfterClose>
+        <Modal open trapFocus keepInDOMAfterClose>
           <div>
             <button>Inside</button>
           </div>
