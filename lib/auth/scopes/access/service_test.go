@@ -411,6 +411,59 @@ func TestRoleBasics(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "prod-admin", rrsp.GetRole().GetMetadata().GetName())
+
+	// verify expected successful upsert (creates new role)
+	ursp2, err := srv.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-upserted",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+			},
+			Version: types.V1,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "staging-upserted", ursp2.GetRole().GetMetadata().GetName())
+
+	// wait for upserted role to appear in cache
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		for _, role := range roles {
+			if role.GetMetadata().GetName() == "staging-upserted" {
+				return true
+			}
+		}
+		return false
+	})
+
+	// verify expected successful upsert (updates existing role)
+	ursp2.Role.Metadata.Labels = map[string]string{"upserted": "true"}
+	ursp3, err := srv.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: ursp2.GetRole(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "staging-upserted", ursp3.GetRole().GetMetadata().GetName())
+	require.Equal(t, "true", ursp3.GetRole().GetMetadata().GetLabels()["upserted"])
+
+	// verify expected denied upsert (out of scope)
+	_, err = srv.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "prod-upserted",
+			},
+			Scope: "/prod",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/prod"},
+			},
+			Version: types.V1,
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 }
 
 // TestAssignmentBasics verifies that basic CRUD operations on scoped role assignments work as expected, with a focus on ensuring that
@@ -461,14 +514,12 @@ func TestAssignmentBasics(t *testing.T) {
 		},
 	}
 
-	roleRevisions := make(map[string]string)
 	for _, role := range initialRoles {
 		// bootstrap in an initial role so that we can start using scoped permissions for our tests
-		crsp, err := bk.service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := bk.service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: role,
 		})
 		require.NoError(t, err)
-		roleRevisions[role.GetMetadata().GetName()] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// wait for roles to be populated into cache
@@ -484,8 +535,7 @@ func TestAssignmentBasics(t *testing.T) {
 
 	for _, assignment := range initialAssignments {
 		_, err := bk.service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment:    assignment,
-			RoleRevisions: roleRevisions, // when bypassing rbac layer, revisions must be explicit
+			Assignment: assignment,
 		})
 		require.NoError(t, err)
 	}
@@ -590,6 +640,106 @@ func TestAssignmentBasics(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, initialAssignments[1].GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
+
+	// verify expected successful update
+
+	// create an assignment to update
+	a3 := newScopedRoleAssignmentAtScope("staging-admin", "/staging")
+	ca3rsp, err := srv.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: a3,
+	})
+	require.NoError(t, err)
+
+	// wait for assignment to be populated into cache
+	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
+		for _, a := range assignments {
+			if a.GetMetadata().GetName() == a3.GetMetadata().GetName() {
+				return true
+			}
+		}
+		return false
+	})
+
+	// add a label and update
+	ca3rsp.Assignment.Metadata.Labels = map[string]string{"key": "val"}
+	ua3rsp, err := srv.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: ca3rsp.GetAssignment(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, a3.GetMetadata().GetName(), ua3rsp.GetAssignment().GetMetadata().GetName())
+	require.NotEqual(t, ca3rsp.GetAssignment().GetMetadata().GetRevision(), ua3rsp.GetAssignment().GetMetadata().GetRevision())
+
+	// observe change in cache
+	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
+		for _, a := range assignments {
+			if a.GetMetadata().GetName() == a3.GetMetadata().GetName() {
+				if val, ok := a.GetMetadata().GetLabels()["key"]; ok && val == "val" {
+					return true
+				}
+			}
+		}
+		return false
+	})
+
+	// verify expected denied update (out of scope)
+
+	// start by getting the existing assignment (requires using backend service
+	// directly since our server is using a scoped identity)
+	garsp, err = bk.service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name: initialAssignments[1].GetMetadata().GetName(),
+	})
+	require.NoError(t, err)
+
+	// attempt to update the out-of-scope assignment
+	garsp.Assignment.Metadata.Labels = map[string]string{"key": "val"}
+	uarsp, err := srv.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: garsp.GetAssignment(),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
+	require.Nil(t, uarsp)
+
+	// verify that denied update really didn't update the assignment
+	garsp, err = bk.service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name: initialAssignments[1].GetMetadata().GetName(),
+	})
+	require.NoError(t, err)
+	require.Nil(t, garsp.GetAssignment().GetMetadata().GetLabels())
+
+	// verify expected successful upsert (creates new assignment)
+	a4 := newScopedRoleAssignmentAtScope("staging-admin", "/staging")
+	ua4rsp, err := srv.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: a4,
+	})
+	require.NoError(t, err)
+	require.Equal(t, a4.GetMetadata().GetName(), ua4rsp.GetAssignment().GetMetadata().GetName())
+
+	// wait for upserted assignment to appear in cache
+	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
+		for _, a := range assignments {
+			if a.GetMetadata().GetName() == a4.GetMetadata().GetName() {
+				return true
+			}
+		}
+		return false
+	})
+
+	// verify expected successful upsert (updates existing assignment)
+	ua4rsp.Assignment.Metadata.Labels = map[string]string{"upserted": "true"}
+	ua4rsp2, err := srv.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: ua4rsp.GetAssignment(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, a4.GetMetadata().GetName(), ua4rsp2.GetAssignment().GetMetadata().GetName())
+	require.Equal(t, "true", ua4rsp2.GetAssignment().GetMetadata().GetLabels()["upserted"])
+
+	// verify expected denied upsert (out of scope)
+	a5 := newScopedRoleAssignmentAtScope("prod-admin", "/prod")
+	_, err = srv.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: a5,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 }
 
 func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccessv1.ScopedRoleAssignment {
@@ -897,6 +1047,138 @@ func TestUnscopedBasics(t *testing.T) {
 		}
 		return true
 	})
+}
+
+// TestAccessChecksSkipInconsistentAssignments verifies that role assignments which fail cross-resource
+// consistency checks during access evaluation are silently skipped rather than treated as hard errors.
+// Earlier iterations of scoped APIs used transactional logic to prevent malformed assignments, but that
+// presented usability and maintainability issues.
+func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bk := newBackendPack(t)
+	defer bk.Close()
+
+	// staging-reader grants only read access; staging-admin grants full read/write access.
+	// alice is assigned both. When staging-admin is later made inconsistent, alice should
+	// retain read access from staging-reader but lose write access.
+	initialRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-reader",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+					},
+				},
+			},
+		},
+		{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-admin",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+					},
+				},
+			},
+		},
+	}
+
+	for _, role := range initialRoles {
+		_, err := bk.service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{Role: role})
+		require.NoError(t, err)
+	}
+
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		return len(roles) == 2
+	})
+
+	// alice is assigned both roles at /staging (this is the "certificate" state — it does not change
+	// even after we make staging-admin inconsistent below).
+	aliceAccessInfo := &services.AccessInfo{
+		ScopePin: &scopesv1.Pin{
+			Scope: "/staging",
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/staging": {"/staging": {"staging-reader", "staging-admin"}},
+			}),
+		},
+		Username: "alice",
+	}
+
+	// with both roles consistent, alice has full read/write access.
+	srv := newServerForIdentity(t, bk, aliceAccessInfo)
+
+	_, err := srv.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-probe",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+			},
+		},
+	})
+	require.NoError(t, err, "alice should have write access when both roles are consistent")
+
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		return len(roles) == 3
+	})
+
+	// now update staging-admin to change its assignable scopes so that it no longer covers /staging.
+	// this makes the assignment inconsistent: the role is still referenced in alice's certificate, but
+	// it will fail RoleIsEnforceableAt during access checks and be skipped.
+	adminRole, err := bk.service.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{Name: "staging-admin"})
+	require.NoError(t, err)
+	// /staging/sub is a valid sub-scope of the role's resource scope /staging, so it passes
+	// StrongValidateRole — but it no longer covers /staging as a scope of effect, making the
+	// existing assignment inconsistent.
+	adminRole.Role.Spec.AssignableScopes = []string{"/staging/sub"}
+	_, err = bk.service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: adminRole.GetRole()})
+	require.NoError(t, err)
+
+	// wait for the updated role to be visible in cache
+	waitForRoleCondition(t, bk.cache, func(roles []*scopedaccessv1.ScopedRole) bool {
+		for _, role := range roles {
+			if role.GetMetadata().GetName() == "staging-admin" {
+				return role.GetSpec().GetAssignableScopes()[0] == "/staging/sub"
+			}
+		}
+		return false
+	})
+
+	// build a new server for alice with the *same* certificate (same assignment tree).
+	// staging-admin is now inconsistent and must be skipped at the PDP.
+	srv = newServerForIdentity(t, bk, aliceAccessInfo)
+
+	// read access should still succeed — staging-reader is still consistent and grants it.
+	_, err = srv.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{Name: "staging-probe"})
+	require.NoError(t, err, "alice should retain read access from the still-consistent staging-reader role")
+
+	// write access should now be denied — staging-admin is skipped, and staging-reader does not grant write.
+	_, err = srv.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{Name: "staging-probe"})
+	require.Error(t, err, "alice should lose write access when the write-granting role becomes inconsistent")
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 }
 
 func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condition func([]*scopedaccessv1.ScopedRole) bool) {

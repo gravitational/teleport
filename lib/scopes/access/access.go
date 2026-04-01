@@ -88,6 +88,16 @@ func RoleIsAssignableFromScopeOfOrigin(role *scopedaccessv1.ScopedRole, scopeOfO
 	return scopes.PolicyResourceScope(scopeOfOrigin).CanDependOnStateFromPolicyResourceAtScope(role.GetScope())
 }
 
+// RoleIsEnforceableAt reports whether the given role is validly assigned at the specified
+// enforcement point. This is the authoritative combined check for whether a cross-resource role
+// assignment is allowable via scoping rules. This check *must* be performed prior to the policies
+// and privileges of a role being considered for enforcement in any context. Assignments that do not
+// pass this check must have no effect.
+func RoleIsEnforceableAt(role *scopedaccessv1.ScopedRole, point scopes.EnforcementPoint) bool {
+	return RoleIsAssignableFromScopeOfOrigin(role, point.ScopeOfOrigin) &&
+		RoleIsAssignableToScopeOfEffect(role, point.ScopeOfEffect)
+}
+
 // WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.
 func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[string] {
 	return func(yield func(string) bool) {
@@ -156,6 +166,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	for _, scopeGlob := range role.GetSpec().GetAssignableScopes() {
 		if err := scopes.StrongValidateGlob(scopeGlob); err != nil {
 			return trace.BadParameter("scoped role %q has invalid assignable scope %q: %v", role.GetMetadata().GetName(), scopeGlob, err)
+		}
+
+		if scopes.Compare(scopeGlob, scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scoped role %q has root scope as an assignable scope, which is not permitted (use '/**' to allow assignment to all non-root scopes)", role.GetMetadata().GetName())
 		}
 
 		if !scopes.ScopeOfEffectGlob(scopeGlob).IsAlwaysAssignableFromScopeOfOrigin(role.GetScope()) {
@@ -348,6 +362,10 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 		if err := scopes.StrongValidate(subAssignment.GetScope()); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid scope in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
+		}
+
+		if scopes.Compare(subAssignment.GetScope(), scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with root scope, which is not permitted (root scope cannot be used as a scope of effect)", assignment.GetMetadata().GetName(), i)
 		}
 
 		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {

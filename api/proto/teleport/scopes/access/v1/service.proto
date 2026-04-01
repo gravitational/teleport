@@ -36,9 +36,11 @@ service ScopedAccessService {
   // UpdateScopedRole updates a scoped role.
   rpc UpdateScopedRole(UpdateScopedRoleRequest) returns (UpdateScopedRoleResponse);
 
+  // UpsertScopedRole creates or updates a scoped role.
+  rpc UpsertScopedRole(UpsertScopedRoleRequest) returns (UpsertScopedRoleResponse);
+
   // DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
-  // conditional. Scoped roles cannot be deleted if referenced by any existing assignment
-  // and deletes may fail due to concurrent modification.
+  // conditional and may fail due to concurrent modification.
   rpc DeleteScopedRole(DeleteScopedRoleRequest) returns (DeleteScopedRoleResponse);
 
   // GetScopedRoleAssignment gets a scoped role assignment by name.
@@ -49,6 +51,12 @@ service ScopedAccessService {
 
   // CreateScopedRoleAssignment creates a new scoped role assignment.
   rpc CreateScopedRoleAssignment(CreateScopedRoleAssignmentRequest) returns (CreateScopedRoleAssignmentResponse);
+
+  // UpdateScopedRoleAssignment updates a scoped role assignment.
+  rpc UpdateScopedRoleAssignment(UpdateScopedRoleAssignmentRequest) returns (UpdateScopedRoleAssignmentResponse);
+
+  // UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+  rpc UpsertScopedRoleAssignment(UpsertScopedRoleAssignmentRequest) returns (UpsertScopedRoleAssignmentResponse);
 
   // DeleteScopedRoleAssignment deletes a scoped role assignment.
   rpc DeleteScopedRoleAssignment(DeleteScopedRoleAssignmentRequest) returns (DeleteScopedRoleAssignmentResponse);
@@ -111,6 +119,18 @@ message UpdateScopedRoleRequest {
 // UpdateScopedRoleResponse is the response to update a scoped role.
 message UpdateScopedRoleResponse {
   // Role is the post-update scoped role.
+  ScopedRole role = 1;
+}
+
+// UpsertScopedRoleRequest is the request to upsert a scoped role.
+message UpsertScopedRoleRequest {
+  // Role is the scoped role to upsert.
+  ScopedRole role = 1;
+}
+
+// UpsertScopedRoleResponse is the response to upsert a scoped role.
+message UpsertScopedRoleResponse {
+  // Role is the post-upsert scoped role.
   ScopedRole role = 1;
 }
 
@@ -179,14 +199,35 @@ message ListScopedRoleAssignmentsResponse {
 message CreateScopedRoleAssignmentRequest {
   // Assignment is the scoped role assignment to create.
   ScopedRoleAssignment assignment = 1;
-
-  // RoleRevisions asserts the revisions of the roles assigned by the assignments (optional).
-  map<string, string> role_revisions = 2;
 }
 
 // CreateScopedRoleAssignmentResponse is the response to create a scoped role assignment.
 message CreateScopedRoleAssignmentResponse {
   // Assignment is the scoped role assignment that was created.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpdateScopedRoleAssignmentRequest is the request to update a scoped role assignment.
+message UpdateScopedRoleAssignmentRequest {
+  // Assignment is the scoped role assignment to update.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpdateScopedRoleAssignmentResponse is the response to update a scoped role assignment.
+message UpdateScopedRoleAssignmentResponse {
+  // Assignment is the post-update scoped role assignment.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpsertScopedRoleAssignmentRequest is the request to upsert a scoped role assignment.
+message UpsertScopedRoleAssignmentRequest {
+  // Assignment is the scoped role assignment to upsert.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpsertScopedRoleAssignmentResponse is the response to upsert a scoped role assignment.
+message UpsertScopedRoleAssignmentResponse {
+  // Assignment is the post-upsert scoped role assignment.
   ScopedRoleAssignment assignment = 1;
 }
 

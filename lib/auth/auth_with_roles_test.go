@@ -10260,9 +10260,6 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-		RoleRevisions: map[string]string{
-			role.Metadata.Name: crsp.Role.Metadata.Revision,
-		},
 	})
 	require.NoError(t, err)
 

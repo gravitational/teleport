@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,6 +43,14 @@ import (
 var ErrScopedIdentity = &trace.AccessDeniedError{
 	Message: "scoped identities not supported",
 }
+
+// errUnenforcceableAssignment indicates that the role assignment us unenforceable due to scoping rules. This error
+// is only emitted in contexts where it will be logged by the caller with the role's name and assignment scope.
+var errUnenforcceableAssignment = errors.New("role's scoping does not permit enforcement as assigned")
+
+// errMissingAssignedRole indicates that the role assigned to a scoped identity was not found. This error is only
+// emitted in contexts where it will be logged by the caller with the role's name and assignment scope.
+var errMissingAssignedRole = errors.New("assigned role was not found")
 
 // scopedAccessCheckerBuilder is a helper that builds scoped access checkers.
 type scopedAccessCheckerBuilder struct {
@@ -79,17 +88,20 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		Name: key.roleName,
 	})
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, errMissingAssignedRole
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	// ensure that the role's resource scope makes it assignable from the scope of origin
-	if !scopedaccess.RoleIsAssignableFromScopeOfOrigin(rsp.Role, key.scopeOfOrigin) {
-		return nil, trace.BadParameter("scoped role %q is not assignable from scope of origin %q", key.roleName, key.scopeOfOrigin)
-	}
-
-	// ensure the role's configuration makes it assignable at the scope of effect
-	if !scopedaccess.RoleIsAssignableToScopeOfEffect(rsp.Role, key.scopeOfEffect) {
-		return nil, trace.BadParameter("scoped role %q is not assignable to scope of effect %q", key.roleName, key.scopeOfEffect)
+	// verify that the role is enforceable at this enforcement point. if not, the assignment is
+	// skipped. this check is a critical part of the scopes security model and must always be
+	// performed prior to any enforcement logic related to a scoped role.
+	if !scopedaccess.RoleIsEnforceableAt(rsp.Role, scopes.EnforcementPoint{
+		ScopeOfOrigin: key.scopeOfOrigin,
+		ScopeOfEffect: key.scopeOfEffect,
+	}) {
+		return nil, errUnenforcceableAssignment
 	}
 
 	// Convert the scoped role to a classic role using the scope of effect.

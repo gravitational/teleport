@@ -37,10 +37,13 @@ const (
 	ScopedAccessService_ListScopedRoles_FullMethodName            = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoles"
 	ScopedAccessService_CreateScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRole"
 	ScopedAccessService_UpdateScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedRole"
+	ScopedAccessService_UpsertScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/UpsertScopedRole"
 	ScopedAccessService_DeleteScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRole"
 	ScopedAccessService_GetScopedRoleAssignment_FullMethodName    = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedRoleAssignment"
 	ScopedAccessService_ListScopedRoleAssignments_FullMethodName  = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoleAssignments"
 	ScopedAccessService_CreateScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRoleAssignment"
+	ScopedAccessService_UpdateScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedRoleAssignment"
+	ScopedAccessService_UpsertScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/UpsertScopedRoleAssignment"
 	ScopedAccessService_DeleteScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRoleAssignment"
 )
 
@@ -58,9 +61,10 @@ type ScopedAccessServiceClient interface {
 	CreateScopedRole(ctx context.Context, in *CreateScopedRoleRequest, opts ...grpc.CallOption) (*CreateScopedRoleResponse, error)
 	// UpdateScopedRole updates a scoped role.
 	UpdateScopedRole(ctx context.Context, in *UpdateScopedRoleRequest, opts ...grpc.CallOption) (*UpdateScopedRoleResponse, error)
+	// UpsertScopedRole creates or updates a scoped role.
+	UpsertScopedRole(ctx context.Context, in *UpsertScopedRoleRequest, opts ...grpc.CallOption) (*UpsertScopedRoleResponse, error)
 	// DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
-	// conditional. Scoped roles cannot be deleted if referenced by any existing assignment
-	// and deletes may fail due to concurrent modification.
+	// conditional and may fail due to concurrent modification.
 	DeleteScopedRole(ctx context.Context, in *DeleteScopedRoleRequest, opts ...grpc.CallOption) (*DeleteScopedRoleResponse, error)
 	// GetScopedRoleAssignment gets a scoped role assignment by name.
 	GetScopedRoleAssignment(ctx context.Context, in *GetScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*GetScopedRoleAssignmentResponse, error)
@@ -68,6 +72,10 @@ type ScopedAccessServiceClient interface {
 	ListScopedRoleAssignments(ctx context.Context, in *ListScopedRoleAssignmentsRequest, opts ...grpc.CallOption) (*ListScopedRoleAssignmentsResponse, error)
 	// CreateScopedRoleAssignment creates a new scoped role assignment.
 	CreateScopedRoleAssignment(ctx context.Context, in *CreateScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*CreateScopedRoleAssignmentResponse, error)
+	// UpdateScopedRoleAssignment updates a scoped role assignment.
+	UpdateScopedRoleAssignment(ctx context.Context, in *UpdateScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*UpdateScopedRoleAssignmentResponse, error)
+	// UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+	UpsertScopedRoleAssignment(ctx context.Context, in *UpsertScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*UpsertScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(ctx context.Context, in *DeleteScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*DeleteScopedRoleAssignmentResponse, error)
 }
@@ -120,6 +128,16 @@ func (c *scopedAccessServiceClient) UpdateScopedRole(ctx context.Context, in *Up
 	return out, nil
 }
 
+func (c *scopedAccessServiceClient) UpsertScopedRole(ctx context.Context, in *UpsertScopedRoleRequest, opts ...grpc.CallOption) (*UpsertScopedRoleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertScopedRoleResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_UpsertScopedRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scopedAccessServiceClient) DeleteScopedRole(ctx context.Context, in *DeleteScopedRoleRequest, opts ...grpc.CallOption) (*DeleteScopedRoleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteScopedRoleResponse)
@@ -160,6 +178,26 @@ func (c *scopedAccessServiceClient) CreateScopedRoleAssignment(ctx context.Conte
 	return out, nil
 }
 
+func (c *scopedAccessServiceClient) UpdateScopedRoleAssignment(ctx context.Context, in *UpdateScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*UpdateScopedRoleAssignmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateScopedRoleAssignmentResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_UpdateScopedRoleAssignment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) UpsertScopedRoleAssignment(ctx context.Context, in *UpsertScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*UpsertScopedRoleAssignmentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertScopedRoleAssignmentResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_UpsertScopedRoleAssignment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *scopedAccessServiceClient) DeleteScopedRoleAssignment(ctx context.Context, in *DeleteScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*DeleteScopedRoleAssignmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DeleteScopedRoleAssignmentResponse)
@@ -184,9 +222,10 @@ type ScopedAccessServiceServer interface {
 	CreateScopedRole(context.Context, *CreateScopedRoleRequest) (*CreateScopedRoleResponse, error)
 	// UpdateScopedRole updates a scoped role.
 	UpdateScopedRole(context.Context, *UpdateScopedRoleRequest) (*UpdateScopedRoleResponse, error)
+	// UpsertScopedRole creates or updates a scoped role.
+	UpsertScopedRole(context.Context, *UpsertScopedRoleRequest) (*UpsertScopedRoleResponse, error)
 	// DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
-	// conditional. Scoped roles cannot be deleted if referenced by any existing assignment
-	// and deletes may fail due to concurrent modification.
+	// conditional and may fail due to concurrent modification.
 	DeleteScopedRole(context.Context, *DeleteScopedRoleRequest) (*DeleteScopedRoleResponse, error)
 	// GetScopedRoleAssignment gets a scoped role assignment by name.
 	GetScopedRoleAssignment(context.Context, *GetScopedRoleAssignmentRequest) (*GetScopedRoleAssignmentResponse, error)
@@ -194,6 +233,10 @@ type ScopedAccessServiceServer interface {
 	ListScopedRoleAssignments(context.Context, *ListScopedRoleAssignmentsRequest) (*ListScopedRoleAssignmentsResponse, error)
 	// CreateScopedRoleAssignment creates a new scoped role assignment.
 	CreateScopedRoleAssignment(context.Context, *CreateScopedRoleAssignmentRequest) (*CreateScopedRoleAssignmentResponse, error)
+	// UpdateScopedRoleAssignment updates a scoped role assignment.
+	UpdateScopedRoleAssignment(context.Context, *UpdateScopedRoleAssignmentRequest) (*UpdateScopedRoleAssignmentResponse, error)
+	// UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+	UpsertScopedRoleAssignment(context.Context, *UpsertScopedRoleAssignmentRequest) (*UpsertScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error)
 	mustEmbedUnimplementedScopedAccessServiceServer()
@@ -218,6 +261,9 @@ func (UnimplementedScopedAccessServiceServer) CreateScopedRole(context.Context, 
 func (UnimplementedScopedAccessServiceServer) UpdateScopedRole(context.Context, *UpdateScopedRoleRequest) (*UpdateScopedRoleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateScopedRole not implemented")
 }
+func (UnimplementedScopedAccessServiceServer) UpsertScopedRole(context.Context, *UpsertScopedRoleRequest) (*UpsertScopedRoleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertScopedRole not implemented")
+}
 func (UnimplementedScopedAccessServiceServer) DeleteScopedRole(context.Context, *DeleteScopedRoleRequest) (*DeleteScopedRoleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedRole not implemented")
 }
@@ -229,6 +275,12 @@ func (UnimplementedScopedAccessServiceServer) ListScopedRoleAssignments(context.
 }
 func (UnimplementedScopedAccessServiceServer) CreateScopedRoleAssignment(context.Context, *CreateScopedRoleAssignmentRequest) (*CreateScopedRoleAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateScopedRoleAssignment not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) UpdateScopedRoleAssignment(context.Context, *UpdateScopedRoleAssignmentRequest) (*UpdateScopedRoleAssignmentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateScopedRoleAssignment not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) UpsertScopedRoleAssignment(context.Context, *UpsertScopedRoleAssignmentRequest) (*UpsertScopedRoleAssignmentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertScopedRoleAssignment not implemented")
 }
 func (UnimplementedScopedAccessServiceServer) DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedRoleAssignment not implemented")
@@ -326,6 +378,24 @@ func _ScopedAccessService_UpdateScopedRole_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScopedAccessService_UpsertScopedRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertScopedRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).UpsertScopedRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_UpsertScopedRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).UpsertScopedRole(ctx, req.(*UpsertScopedRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScopedAccessService_DeleteScopedRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteScopedRoleRequest)
 	if err := dec(in); err != nil {
@@ -398,6 +468,42 @@ func _ScopedAccessService_CreateScopedRoleAssignment_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScopedAccessService_UpdateScopedRoleAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateScopedRoleAssignmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).UpdateScopedRoleAssignment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_UpdateScopedRoleAssignment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).UpdateScopedRoleAssignment(ctx, req.(*UpdateScopedRoleAssignmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_UpsertScopedRoleAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertScopedRoleAssignmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).UpsertScopedRoleAssignment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_UpsertScopedRoleAssignment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).UpsertScopedRoleAssignment(ctx, req.(*UpsertScopedRoleAssignmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ScopedAccessService_DeleteScopedRoleAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteScopedRoleAssignmentRequest)
 	if err := dec(in); err != nil {
@@ -440,6 +546,10 @@ var ScopedAccessService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ScopedAccessService_UpdateScopedRole_Handler,
 		},
 		{
+			MethodName: "UpsertScopedRole",
+			Handler:    _ScopedAccessService_UpsertScopedRole_Handler,
+		},
+		{
 			MethodName: "DeleteScopedRole",
 			Handler:    _ScopedAccessService_DeleteScopedRole_Handler,
 		},
@@ -454,6 +564,14 @@ var ScopedAccessService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateScopedRoleAssignment",
 			Handler:    _ScopedAccessService_CreateScopedRoleAssignment_Handler,
+		},
+		{
+			MethodName: "UpdateScopedRoleAssignment",
+			Handler:    _ScopedAccessService_UpdateScopedRoleAssignment_Handler,
+		},
+		{
+			MethodName: "UpsertScopedRoleAssignment",
+			Handler:    _ScopedAccessService_UpsertScopedRoleAssignment_Handler,
 		},
 		{
 			MethodName: "DeleteScopedRoleAssignment",

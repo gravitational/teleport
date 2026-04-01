@@ -77,13 +77,24 @@ func scopedRoleHandler() Handler {
 }
 
 func createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	if opts.Force {
-		return trace.BadParameter("scoped role creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if opts.Force {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+			Role: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRole,
+			rsp.GetRole().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{

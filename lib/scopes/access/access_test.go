@@ -261,6 +261,22 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name: "root assignable scope",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/"},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
 			name: "invalid ssh.client_idle_timeout",
 			role: &scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
@@ -580,6 +596,28 @@ func TestValidateAsssignment(t *testing.T) {
 						{
 							Role:  "test",
 							Scope: "foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "root scope of effect",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/",
 						},
 					},
 				},
