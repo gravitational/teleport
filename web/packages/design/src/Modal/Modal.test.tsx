@@ -191,7 +191,7 @@ describe('trapFocus', () => {
         if (this.style.display === 'none') {
           return null;
         }
-        return this.parentElement;
+        return this.parentElement; // oxlint-disable-line testing-library/no-node-access
       },
       configurable: true,
     });
