@@ -1362,6 +1362,9 @@ type Cache interface {
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
+	// GetAccessListOwners returns a list of owners for a particular access list.
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
+
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 

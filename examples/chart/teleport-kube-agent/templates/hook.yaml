@@ -1,3 +1,4 @@
+{{- if not .Values.skipHooks }}
 {{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace .Release.Name ) -}}
 {{- if $deployment }}
 apiVersion: v1
@@ -106,4 +107,5 @@ spec:
         {{- if .Values.resources }}
         resources: {{- toYaml .Values.resources | nindent 10 }}
         {{- end }}
+{{- end}}
 {{- end}}

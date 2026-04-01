@@ -2926,6 +2926,23 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.MonitorSystemTime(process.GracefulExitContext()))
 	})
 
+	samlCertExpiryMonitor, err := auth.NewSAMLCertExpiryMonitor(auth.SAMLCertExpiryMonitorConfig{
+		Connectors: authServer.Services,
+		Alerts:     authServer.Services,
+		Events:     process.GetAuthServer().Services,
+		Clock:      process.Clock,
+		Backend:    process.backend,
+		Logger: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "saml-cert-expiry-monitor"),
+		),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.saml.cert-expiry-monitor", func() error {
+		return trace.Wrap(samlCertExpiryMonitor.Run(process.GracefulExitContext()))
+	})
+
 	expiry, err := expiry.New(&expiry.Config{
 		Log: logger.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "expiry_service"),
@@ -3102,6 +3119,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.ProcessID = process.id
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
+	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()
@@ -6127,7 +6145,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
-				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy server exited with error.", "error", err)
+				logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy server exited with error.", "error", err)
 			}
 			return nil
 		})
@@ -6148,7 +6166,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy.reverseTunnel", func() error {
 				logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI reverse tunnel proxy server.", "listen_address", listeners.reverseTunnelALPN.Addr())
 				if err := reverseTunnelALPNServer.Serve(process.ExitContext()); err != nil {
-					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy proxy on reverse tunnel server exited with error.", "error", err)
+					logger.WarnContext(process.ExitContext(), "TLS ALPN SNI proxy on reverse tunnel server exited with error.", "error", err)
 				}
 				return nil
 			})

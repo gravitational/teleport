@@ -94,7 +94,13 @@ export const CanvasRenderer = forwardRef<
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
       },
       focus: () => canvasRef.current.focus(),
-      getSize: () => canvasRef.current.getBoundingClientRect(),
+      getSize: () => {
+        const rect = canvasRef.current.getBoundingClientRect();
+        return {
+          height: Math.round(rect.height),
+          width: Math.round(rect.width),
+        };
+      },
     };
   }, []);
 
@@ -111,8 +117,8 @@ export const CanvasRenderer = forwardRef<
     const observer = new ResizeObserver(([entry]) => {
       if (entry && entry.contentRect.height !== 0) {
         debouncedOnResize({
-          height: entry.contentRect.height,
-          width: entry.contentRect.width,
+          height: Math.round(entry.contentRect.height),
+          width: Math.round(entry.contentRect.width),
         });
       }
     });

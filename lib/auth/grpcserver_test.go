@@ -31,6 +31,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -964,6 +965,104 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 			require.NotNil(t, block, "Decode failed")
 			gotCert, err := x509.ParseCertificate(block.Bytes)
 			require.NoError(t, err, "ParserCertificate failed")
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
+func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	user, _, err := authtest.CreateUserAndRole(authServer, "teleport-user", []string{"teleport-user"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "someapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "someapp.example.com",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	wantResourceAccessIDs := []types.ResourceAccessID{
+		{
+			Id: types.ResourceID{
+				ClusterName: testServer.ClusterName(),
+				Kind:        types.KindApp,
+				Name:        "someapp",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/someapprole"},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *authtest.TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "identity with no AllowedResourceAccessIDs",
+		},
+		{
+			name: "identity with AllowedResourceAccessIDs",
+			modifyUser: func(u *authtest.TestIdentity) {
+				lu := u.I.(authz.LocalUser)
+				lu.Identity.AllowedResourceAccessIDs = wantResourceAccessIDs
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(wantResourceAccessIDs, gotIdentity.AllowedResourceAccessIDs, protocmp.Transform()))
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := authtest.TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err)
+
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+				Username:    user.GetName(),
+				PublicAddr:  app.GetPublicAddr(),
+				ClusterName: testServer.ClusterName(),
+			})
+			require.NoError(t, err)
+
+			block, _ := pem.Decode(session.GetTLSCert())
+			require.NotNil(t, block)
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err)
 
 			if test.assertCert != nil {
 				test.assertCert(t, gotCert)
@@ -4648,62 +4747,50 @@ func TestListResources(t *testing.T) {
 }
 
 func TestCustomRateLimiting(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*authclient.Client) error
+		fn    func(context.Context, *authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
-			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
-			fn: func(clt *authclient.Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
-				return err
-			},
-		},
-		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
 	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+		synctestCase := func(t *testing.T) {
 			// Create new instance per test case, to troubleshoot which test case
 			// specifically failed, otherwise multiple cases can fail from running
 			// cases in parallel.
-			srv := newTestTLSServer(t)
+			srv := newTestTLSServer(t, withBufconnListener())
+			defer srv.Close()
 			clt, err := srv.NewClient(authtest.TestNop())
 			require.NoError(t, err)
+			defer clt.Close()
 
 			var attempts int
 			if test.burst == 0 {
@@ -4712,14 +4799,84 @@ func TestCustomRateLimiting(t *testing.T) {
 				attempts = test.burst
 			}
 
-			for i := 0; i < attempts; i++ {
-				err = test.fn(clt)
-				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+			for range attempts {
+				err = test.fn(t.Context(), clt)
+				require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 			}
 
-			err = test.fn(clt)
-			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+			err = test.fn(t.Context(), clt)
+			require.ErrorAs(t, err, new(*trace.LimitExceededError))
+		}
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, synctestCase)
 		})
+	}
+
+	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
+	})
+}
+
+func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t, withBufconnListener())
+	defer srv.Close()
+	clt, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer clt.Close()
+
+	nonContextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: new(proto.UserCredentials),
+		},
+	}
+	contextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: new(proto.ContextUser),
+		},
+	}
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	time.Sleep(defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst - defaults.LimiterAverage {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
+		"Waiting 1000 periods should bring us to LimiterBurst but no higher")
+	time.Sleep(1000 * defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	// no time has passed, but we can do a full burst and more if we pretend to
+	// have a user context (the request will fail, but not due to the rate
+	// limiter)
+
+	for range defaults.LimiterBurst + 1 {
+		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
 }
 

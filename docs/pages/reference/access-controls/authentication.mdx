@@ -1,5 +1,5 @@
 ---
-title: Authentication options
+title: Authentication Options
 description: A reference for Teleport's authentication connectors
 tags:
  - reference
@@ -10,6 +10,14 @@ tags:
 Teleport authenticates users either via the Proxy Service or with an identity
 provider via **authentication connectors**.
 
+<Admonition type="tip">
+
+This guide explains authentication options for human users. For AI agents and
+machines, see [Machine & Workload
+ID](../../machine-workload-identity/introduction.mdx).
+
+</Admonition>
+
 ## Local (no authentication connector)
 
 Local authentication is used to authenticate against a local Teleport user
@@ -18,9 +26,9 @@ users`](../cli/tctl.mdx) command. Teleport also supports
 multi-factor authentication (MFA) for the local connector. There are several
 possible values (types) of MFA:
 
-- `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+- `otp` is the default for self-hosted Teleport deployments. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy](https://www.authy.com/) or any other TOTP client.
-- `webauthn` implements the [Web Authentication standard](https://webauthn.guide) for utilizing
+- `webauthn` is the default for cloud-hosted Teleport Enterprise accounts. It implements the [Web Authentication standard](https://webauthn.guide) for utilizing
   multi-factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
@@ -51,7 +59,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factors: ["webauthn"]
+      second_factors: ["webauthn"] # Possible values: "otp", "webauthn", and "sso".
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -106,7 +114,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factors: ["webauthn"] # Possible values: "otp", "webauthn", and "sso".
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -276,7 +284,7 @@ See [GitHub OAuth 2.0](../../zero-trust-access/sso/integrate-idp/github-sso.mdx)
 ## Require displaying a message of the day
 
 Teleport can display a custom message of the day (MOTD) for users prior to authenticating
-in the Teleport Web UI and CLI. 
+in the Teleport Web UI and CLI.
 
 ### Self-Hosted
 

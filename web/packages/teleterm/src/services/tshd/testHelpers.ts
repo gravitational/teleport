@@ -90,6 +90,7 @@ export const makeApp = (props: Partial<App> = {}): App => ({
   tcpPorts: [],
   permissionSets: [],
   subKind: '',
+  supportedFeatureIds: [],
   ...props,
 });
 

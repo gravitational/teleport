@@ -131,7 +131,7 @@ func ValidateAccessListMember(
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberBasic(member); err != nil {
+	if err := validateAccessListMemberBasic(parentList, member); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, member.GetName(), RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
@@ -140,8 +140,9 @@ func ValidateAccessListMember(
 	return nil
 }
 
-// validateAccessListMemberBasic performs basic fields validation for AccessListMember.
-func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
+// validateAccessListMemberBasic performs basic fields validation for AccessListMember
+// and performs the cross membership integrity check.
+func validateAccessListMemberBasic(parent *accesslist.AccessList, member *accesslist.AccessListMember) error {
 	if member.Spec.AccessList == "" {
 		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
 	}
@@ -153,6 +154,10 @@ func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
 	}
 	if member.Spec.AddedBy == "" {
 		return trace.BadParameter("member %s: added_by field is empty", member.Metadata.Name)
+	}
+	// The member must belong to the parent access list.
+	if member.Spec.AccessList != parent.GetName() {
+		return trace.BadParameter("member %s: spec.access_list field %q doesn't match parent list name %q", member.Metadata.Name, member.Spec.AccessList, parent.GetName())
 	}
 	return nil
 }

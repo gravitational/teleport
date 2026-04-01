@@ -122,6 +122,10 @@ Above, any argument named `list` can accept a list of values (like the list of
 values for a specific user trait) or a single value (like the value of a
 resource label or a string literal).
 
+Note that expressions used in `regexp` functions support globbing (e.g., `"env-*"`),
+or they can be wrapped with `^` and `$` to use standard regular expression syntax
+(e.g., `"^env-.*$"`).
+
 ## Access Monitoring Rules
 
 Access Monitoring Rules use the predicate language to define conditions for
@@ -162,3 +166,7 @@ The language also supports the following functions:
 | `set.contains(item)` | Returns true if `set` contains an exact match for `item` | `access_request.spec.roles.contains("example_role")` |
 | `regexp.match(set, re)` | Returns true if `set` contains a match for `re` | `regexp.match(set(access_request.spec.request_reason), "*on-call*")` |
 | `is_empty(set)`| Returns true if `set` contains no elements | `is_empty(access_request.spec.roles)` |
+
+Note that expressions used in `regexp` functions support globbing (e.g., `"env-*"`),
+or they can be wrapped with `^` and `$` to use standard regular expression syntax
+(e.g., `"^env-.*$"`).

@@ -70,6 +70,9 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
+
+	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
+	SAMLCertExpiryAlertID   = samlCertExpiryAlertIDPrefix
 )
 
 var (
@@ -193,7 +196,7 @@ func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBou
 	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessCheckerContext, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 
@@ -253,8 +256,9 @@ func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuth
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
-	updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, promotions)
+// UpdateAccessRequestWithAdditionalReviewers updates the access request with the suggested reviewers.
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
+	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
 
 func EncodeProquint(x uint16) string {

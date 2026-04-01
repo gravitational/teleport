@@ -56,6 +56,17 @@ if (!process.defaultApp) {
 // https://github.com/electron/electron/issues/46538#issuecomment-2808806722
 app.commandLine.appendSwitch('gtk-version', '3');
 
+// On macOS, when the app is launched via a deep link, the 'open-url' event can be emitted very
+// early — before initializeApp finishes its async work and registers the real handler.
+// Buffer the URL at the module level so it's not lost.
+let bufferedOpenUrl: string | undefined;
+function bufferOpenUrl(_event: Electron.Event, url: string) {
+  bufferedOpenUrl = url;
+}
+if (process.platform === 'darwin') {
+  app.on('open-url', bufferOpenUrl);
+}
+
 if (app.requestSingleInstanceLock()) {
   initializeApp().catch(error =>
     showDialogWithError('Could not initialize the app', error)
@@ -117,9 +128,8 @@ async function initializeApp(): Promise<void> {
   // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
   // window before processing the listener for deep links.
   //
-  // This must be called as early as possible, before an async code.
-  // Otherwise, if the app is launched via a macOS deep link, the 'open-url' event may be emitted
-  // before a handler is registered, causing the link to be lost.
+  // On macOS, the 'open-url' event may be emitted before this point (during the async work above).
+  // A module-level listener buffers the URL so it's not lost. setUpDeepLinks drains the buffer.
   setUpDeepLinks(logger, windowsManager, settings);
 
   const tshHome = configService.get('tshHome').value;
@@ -131,7 +141,12 @@ async function initializeApp(): Promise<void> {
   // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
   // Also remove TshHomeMigrationBanner component, relevant properties from app_state.json,
   // and address the TODO in teleport-connect.mdx > ##Troubleshooting.
-  await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
+  await migrateOldTshHomeOnce(
+    logger,
+    tshHome,
+    appStateFileStorage,
+    settings.userDataDir
+  );
 
   let mainProcess: MainProcess;
   try {
@@ -268,6 +283,10 @@ function setUpDeepLinks(
   // https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
 
   if (settings.platform === 'darwin') {
+    // Remove the early buffering listener registered at the module level and replace it with the
+    // real handler.
+    app.off('open-url', bufferOpenUrl);
+
     // Deep link click on macOS.
     app.on('open-url', (event, url) => {
       // When macOS launches an app as a result of a deep link click, macOS does bring focus to the
@@ -278,6 +297,15 @@ function setUpDeepLinks(
       logger.info(`Deep link launch from open-url, URL: ${url}`);
       launchDeepLink(logger, windowsManager, url);
     });
+
+    // Drain URL that arrived while initializeApp was doing async work.
+    if (bufferedOpenUrl) {
+      logger.info(
+        `Deep link launch from buffered open-url, URL: ${bufferedOpenUrl}`
+      );
+      launchDeepLink(logger, windowsManager, bufferedOpenUrl);
+      bufferedOpenUrl = undefined;
+    }
     return;
   }
 
@@ -367,9 +395,10 @@ function showDialogWithError(title: string, unknownError: unknown) {
 async function migrateOldTshHomeOnce(
   logger: Logger,
   tshHome: string,
-  appStorage: FileStorage
+  appStorage: FileStorage,
+  userDataDir: string
 ): Promise<void> {
-  const oldTshHome = path.resolve(app.getPath('userData'), 'tsh');
+  const oldTshHome = path.resolve(userDataDir, 'tsh');
   const tshHomeMigrationKey = 'tshHomeMigration';
   const tshMigration: TshHomeMigration =
     appStorage.get()?.[tshHomeMigrationKey];

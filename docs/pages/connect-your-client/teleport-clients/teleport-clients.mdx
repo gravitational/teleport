@@ -104,7 +104,7 @@ If browser window does not open automatically, open it by clicking on the link:
 ```
 
 Depending on how Teleport was configured for your network, you may not need
-the additional flags `--auth`. Your administrator should provide the details
+the additional flag `--auth`. Your administrator should provide the details
 required for your particular use case.
 
 </TabItem>
@@ -113,7 +113,7 @@ required for your particular use case.
 ### Teleport Connect
 
 The Teleport Connect app provides all the same access to resources as `tsh` in
-a friendly graphic user interface. After [downloading](https://goteleport.com/download/)
+a friendly graphical user interface. After [downloading](https://goteleport.com/download/)
 and installing Teleport Connect, you can log in and initiate sessions for
 server and database access within a single window.
 
@@ -142,7 +142,7 @@ but you should confirm the Web UI URL with the team that manages your Teleport
 deployment.
 
 The Web UI provides similar access to resources as Teleport Connect, and
-additional access to to Request and Activity logs for users with the right
+additional access to Request and Activity logs for users with the right
 permissions.
 
 ## Connecting to resources
@@ -328,7 +328,7 @@ create a local tunnel to point your software to:
 
 ```code
 $ tsh proxy db myelastic --db-user=alice --tunnel
-Started authenticated tunnel for the Elasticsearch database "myelastic" in cluster "example.come" on 192.0.2.58:52669.
+Started authenticated tunnel for the Elasticsearch database "myelastic" in cluster "example.com" on 192.0.2.58:52669.
 
 Use one of the following commands to connect to the database:
 
@@ -393,7 +393,7 @@ either directly or through proxy tunnels.
 
   Learn more about it from [Using the tsh Command Line Tool](./tsh.mdx).
 
-- Teleport Connect is a graphic utility for connecting to resources through
+- Teleport Connect is a graphical utility for connecting to resources through
   Teleport. You use it to connect to servers, databases, and Kubernetes
   clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 

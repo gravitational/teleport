@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -491,11 +492,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "basic allow",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: true,
 		},
@@ -503,11 +502,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "too narrow scope",
 			pin: &scopesv1.Pin{
 				Scope: "/staging/west/narrow",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -515,11 +512,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "label mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-blue"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-blue"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -527,11 +522,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "scope permission mismatch",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/east": {
-						Roles: []string{"staging-east-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/east": {"/staging/east": {"staging-east-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -539,11 +532,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "orthogonal scope",
 			pin: &scopesv1.Pin{
 				Scope: "/prod",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/prod/west": {
-						Roles: []string{"prod-west-red"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/prod/west": {"/prod/west": {"prod-west-red"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -551,11 +542,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "no labels",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-no-labels"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -563,11 +552,9 @@ func TestScopedRBAC(t *testing.T) {
 			name: "wrong login",
 			pin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/west": {
-						Roles: []string{"staging-west-wrong-login"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
+				}),
 			},
 			allowed: false,
 		},
@@ -914,14 +901,29 @@ func TestRBACJoinMFA(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, joinRole)
 	require.NoError(t, err)
 
+	pinJoinRole, err := types.NewRole("pinJoin", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, pinJoinRole)
+	require.NoError(t, err)
+
 	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
 	tests := []struct {
-		name      string
-		authPref  types.AuthPreference
-		role      string
-		testError func(t *testing.T, err error)
+		name              string
+		authPref          types.AuthPreference
+		role              string
+		expectPinSourceIP bool
+		testError         func(t *testing.T, err error)
 	}{
 		{
 			name:     "MFA cluster auth, MFA role",
@@ -954,6 +956,15 @@ func TestRBACJoinMFA(t *testing.T) {
 			name:     "no MFA cluster auth, no MFA role",
 			authPref: noMFAAuthPref,
 			role:     joinRole.GetName(),
+			testError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:              "no MFA cluster auth, pin source IP role",
+			authPref:          noMFAAuthPref,
+			role:              pinJoinRole.GetName(),
+			expectPinSourceIP: true,
 			testError: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
@@ -991,8 +1002,13 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
+			if err == nil && tt.expectPinSourceIP {
+				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
+					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+				})
+			}
 		})
 	}
 }

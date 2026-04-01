@@ -44,7 +44,7 @@ export type DeviceSource = {
    * When using the Jamf or Intune integrations with default settings, it's set to "jamf" and
    * "intune" respectively.
    *
-   * [1]: https://goteleport.com/docs/identity-governance/device-trust/jamf-integration/#optional-sync-multiple-sources
+   * [1]: https://goteleport.com/docs/zero-trust-access/device-trust/jamf-integration/#optional-sync-multiple-sources
    */
   name: string;
   origin: DeviceOrigin;

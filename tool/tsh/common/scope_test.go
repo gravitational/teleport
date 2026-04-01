@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -51,7 +52,7 @@ func TestResolveDesiredScope(t *testing.T) {
 		{
 			name:            "no flag, scoped profile -> inherit scope, no change",
 			cf:              &CLIConf{},
-			profile:         &client.ProfileStatus{Scope: "/staging/west"},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: "/staging/west"}},
 			wantScope:       "/staging/west",
 			wantScopeChange: false,
 		},
@@ -81,7 +82,7 @@ func TestResolveDesiredScope(t *testing.T) {
 				Scope:          "/staging/east",
 				ScopeSetByUser: true,
 			},
-			profile:         &client.ProfileStatus{Scope: "/staging/east"},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: "/staging/east"}},
 			wantScope:       "/staging/east",
 			wantScopeChange: false,
 		},
@@ -91,7 +92,7 @@ func TestResolveDesiredScope(t *testing.T) {
 				Scope:          "/staging/east",
 				ScopeSetByUser: true,
 			},
-			profile:         &client.ProfileStatus{Scope: "/staging/west"},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: "/staging/west"}},
 			wantScope:       "/staging/east",
 			wantScopeChange: true,
 		},
@@ -101,7 +102,7 @@ func TestResolveDesiredScope(t *testing.T) {
 				Scope:          "",
 				ScopeSetByUser: true,
 			},
-			profile:         &client.ProfileStatus{Scope: "/staging/west"},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: "/staging/west"}},
 			wantScope:       "",
 			wantScopeChange: true,
 		},
@@ -111,7 +112,7 @@ func TestResolveDesiredScope(t *testing.T) {
 				Scope:          "",
 				ScopeSetByUser: true,
 			},
-			profile:         &client.ProfileStatus{Scope: ""},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: ""}},
 			wantScope:       "",
 			wantScopeChange: false,
 		},

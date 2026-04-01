@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/profile"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -214,6 +216,8 @@ type CLIConf struct {
 	NodePort int32
 	// Login on a remote SSH host
 	NodeLogin string
+	// DryRun prints the configuration without applying it
+	DryRun bool
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
 	// SessionID identifies the session tsh is operating on.
@@ -491,6 +495,8 @@ type CLIConf struct {
 	// proxy instead of an HTTPS proxy.
 	// TODO(gabrielcorado): DELETE IN 19.0.0
 	AWSEndpointURLMode bool
+	// AWSSSORegion is the AWS region used for SSO.
+	AWSSSORegion string
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
 	AzureIdentity string
@@ -1026,6 +1032,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
+	// Generate AWS profiles via AWS Identity Center integration.
+	awsProfile := app.Command("aws-profile", "Generate AWS config profiles by syncing with your integrated AWS IAM Identity Center account(s). Other profiles in the config file are left untouched.")
+	awsProfile.Flag("aws-sso-region", "AWS region for SSO. Auto-detected from cluster if not specified.").StringVar(&cf.AWSSSORegion)
+	awsProfile.Flag("dry-run", "Print the configuration that will be applied without modifying the AWS config file.").BoolVar(&cf.DryRun)
+
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1455,7 +1466,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
 	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
+	reqDrop := req.Command("drop", "Drop one or more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
@@ -1894,6 +1905,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case awsProfile.FullCommand():
+		err = onAWSProfile(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
@@ -2228,16 +2241,16 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 		targetScope := cf.Scope
 
 		currentScope := ""
-		if profile != nil && profile.Scope != "" {
-			currentScope = profile.Scope
+		if profile != nil && profile.ScopePin != nil {
+			currentScope = profile.ScopePin.Scope
 		}
 
 		return targetScope, targetScope != currentScope
 	}
 
 	// --scope not provided, inherit from profile.
-	if profile != nil && profile.Scope != "" {
-		return profile.Scope, false
+	if profile != nil && profile.ScopePin != nil {
+		return profile.ScopePin.Scope, false
 	}
 
 	return "", false
@@ -3160,7 +3173,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4105,7 +4118,7 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 
 func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requestResourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5491,15 +5504,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if cluster != "" {
 		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
-	if p.Scope != "" {
-		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+	if p.ScopePin != nil {
+		fmt.Fprintf(w, "  Scope:              %v\n", p.ScopePin.GetScope())
 		fmt.Fprintf(w, "  Scoped Roles:\n")
-
-		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
-		slices.Sort(assignedScopes)
-		for _, scope := range assignedScopes {
-			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
-		}
+		fmt.Fprintf(w, "%v", pinning.FormatAssignmentTree(p.ScopePin.GetAssignmentTree(), "  "))
 	} else {
 		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
@@ -5537,8 +5545,8 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if len(p.Databases) != 0 {
 		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
-	if len(p.AllowedResourceIDs) > 0 {
-		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+	if len(p.AllowedResourceAccessIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(p.AllowedResourceAccessIDs))
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
@@ -5697,27 +5705,26 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string                 `json:"profile_url"`
-	RelayAddr          string                 `json:"relay_addr,omitempty"`
-	DefaultRelayAddr   string                 `json:"default_relay_addr,omitempty"`
-	Username           string                 `json:"username"`
-	ActiveRequests     []string               `json:"active_requests,omitempty"`
-	Cluster            string                 `json:"cluster"`
-	Roles              []string               `json:"roles,omitempty"`
-	Scope              string                 `json:"scope,omitempty"`
-	ScopedRoles        map[string][]string    `json:"scoped_roles,omitempty"`
-	Traits             wrappers.Traits        `json:"traits,omitempty"`
-	Logins             []string               `json:"logins,omitempty"`
-	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
-	KubernetesCluster  string                 `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string               `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string               `json:"kubernetes_groups,omitempty"`
-	Databases          []string               `json:"databases,omitempty"`
-	ValidUntil         time.Time              `json:"valid_until"`
-	Extensions         []string               `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string      `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceID     `json:"allowed_resources,omitempty"`
-	GitHubIdentity     *client.GitHubIdentity `json:"github_identity,omitempty"`
+	ProxyURL                 string                   `json:"profile_url"`
+	RelayAddr                string                   `json:"relay_addr,omitempty"`
+	DefaultRelayAddr         string                   `json:"default_relay_addr,omitempty"`
+	Username                 string                   `json:"username"`
+	ActiveRequests           []string                 `json:"active_requests,omitempty"`
+	Cluster                  string                   `json:"cluster"`
+	Roles                    []string                 `json:"roles,omitempty"`
+	ScopePin                 *scopesv1.Pin            `json:"scope_pin,omitempty"`
+	Traits                   wrappers.Traits          `json:"traits,omitempty"`
+	Logins                   []string                 `json:"logins,omitempty"`
+	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
+	KubernetesCluster        string                   `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers          []string                 `json:"kubernetes_users,omitempty"`
+	KubernetesGroups         []string                 `json:"kubernetes_groups,omitempty"`
+	Databases                []string                 `json:"databases,omitempty"`
+	ValidUntil               time.Time                `json:"valid_until"`
+	Extensions               []string                 `json:"extensions,omitempty"`
+	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
+	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
+	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5751,27 +5758,26 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 
 	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
-		ProxyURL:           p.ProxyURL.String(),
-		RelayAddr:          p.RelayAddr,
-		DefaultRelayAddr:   p.DefaultRelayAddr,
-		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests,
-		Cluster:            p.Cluster,
-		Roles:              p.Roles,
-		Scope:              p.Scope,
-		ScopedRoles:        p.ScopedRoles,
-		Traits:             p.Traits,
-		Logins:             logins,
-		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster,
-		KubernetesUsers:    p.KubeUsers,
-		KubernetesGroups:   p.KubeGroups,
-		Databases:          p.DatabaseServices(),
-		ValidUntil:         p.ValidUntil,
-		Extensions:         p.Extensions,
-		CriticalOptions:    p.CriticalOptions,
-		AllowedResourceIDs: p.AllowedResourceIDs,
-		GitHubIdentity:     p.GitHubIdentity,
+		ProxyURL:                 p.ProxyURL.String(),
+		RelayAddr:                p.RelayAddr,
+		DefaultRelayAddr:         p.DefaultRelayAddr,
+		Username:                 p.Username,
+		ActiveRequests:           p.ActiveRequests,
+		Cluster:                  p.Cluster,
+		Roles:                    p.Roles,
+		ScopePin:                 p.ScopePin,
+		Traits:                   p.Traits,
+		Logins:                   logins,
+		KubernetesEnabled:        p.KubeEnabled,
+		KubernetesCluster:        selectedKubeCluster,
+		KubernetesUsers:          p.KubeUsers,
+		KubernetesGroups:         p.KubeGroups,
+		Databases:                p.DatabaseServices(),
+		ValidUntil:               p.ValidUntil,
+		Extensions:               p.Extensions,
+		CriticalOptions:          p.CriticalOptions,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
+		GitHubIdentity:           p.GitHubIdentity,
 	}
 
 	// update active profile info from env

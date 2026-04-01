@@ -272,6 +272,21 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	lock = payload{
+		Name:                   "Lock",
+		TypeName:               "LockV2",
+		VarName:                "lock",
+		GetMethod:              "GetLock",
+		CreateMethod:           "UpsertLock",
+		UpdateMethod:           "UpsertLock",
+		DeleteMethod:           "DeleteLock",
+		ID:                     `lock.Metadata.Name`,
+		Kind:                   "lock",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_lock",
+		HasCheckAndSetDefaults: true,
+	}
+
 	oidcConnector = payload{
 		Name:                   "OIDCConnector",
 		TypeName:               "OIDCConnectorV3",
@@ -303,6 +318,22 @@ var (
 		Kind:                   "saml",
 		HasStaticID:            true,
 		TerraformResourceType:  "teleport_saml_connector",
+		HasCheckAndSetDefaults: true,
+	}
+
+	samlIdPServiceProvider = payload{
+		Name:                   "SAMLIdPServiceProvider",
+		TypeName:               "SAMLIdPServiceProviderV1",
+		VarName:                "samlIdPServiceProvider",
+		IfaceName:              "SAMLIdPServiceProvider",
+		GetMethod:              "GetSAMLIdPServiceProvider",
+		CreateMethod:           "CreateSAMLIdPServiceProvider",
+		UpdateMethod:           "UpdateSAMLIdPServiceProvider",
+		DeleteMethod:           "DeleteSAMLIdPServiceProvider",
+		ID:                     "samlIdPServiceProvider.Metadata.Name",
+		Kind:                   "saml_idp_service_provider",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -882,10 +913,14 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
+	generateResource(lock, pluralResource)
+	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
 	generateDataSource(oidcConnector, pluralDataSource)
 	generateResource(samlConnector, pluralResource)
 	generateDataSource(samlConnector, pluralDataSource)
+	generateResource(samlIdPServiceProvider, pluralResource)
+	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
 	generateDataSource(provisionToken, pluralDataSource)
 	generateResource(role, pluralResource)

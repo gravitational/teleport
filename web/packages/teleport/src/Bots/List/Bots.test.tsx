@@ -24,6 +24,7 @@ import {
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -105,8 +106,9 @@ describe('Bots', () => {
     expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
     await userEvent.click(actionCells[0]);
 
-    expect(screen.getByText('Delete...')).toBeInTheDocument();
-    await userEvent.click(screen.getByText('Delete...'));
+    // Wait for the options menu to appear
+    const menu = await screen.findByTestId('Modal');
+    await userEvent.click(within(menu).getByText('Delete...'));
 
     expect(
       screen.getByText(

@@ -343,6 +343,9 @@ type Role struct {
 	ARN string `json:"arn"`
 	// AccountID is the AWS Account ID this role refers to.
 	AccountID string `json:"accountId"`
+	// RequiresRequest indicates whether this role requires an access request
+	// to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // Roles is a slice of roles.

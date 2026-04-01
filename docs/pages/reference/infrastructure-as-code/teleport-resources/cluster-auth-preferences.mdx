@@ -13,7 +13,7 @@ metadata:
 spec:
   # Sets the list of allowed second factors for the cluster.
   # Possible values: "otp", "webauthn", and "sso".
-  # Defaults to ["otp"].
+  # Defaults to ["otp"] for self-hosted Teleport deployments and ["webauthn"] for cloud-hosted Teleport Enterprise accounts.
   second_factors: ["webauthn", "otp"]
 
   # second_factors is the list of allowed second factors for the cluster.

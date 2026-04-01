@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.6.4",
+      "version": "18.7.3",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -67,17 +67,17 @@
     },
     "teleport": {
       "major_version": "18",
-      "version": "18.7.2",
+      "version": "18.7.3",
       "url": "teleport.example.com",
       "golang": "1.25.8",
       "plugin": {
-        "version": "18.7.2"
+        "version": "18.7.3"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.7.2",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.7.2",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.7.2",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.7.2",
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:18.7.3",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:18.7.3",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:18.7.3",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:18.7.3",
       "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
@@ -247,7 +247,12 @@
     },
     {
       "source": "/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
@@ -467,27 +472,52 @@
     },
     {
       "source": "/admin-guides/access-controls/device-trust/device-management/",
-      "destination": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/device-management/",
+      "destination": "/zero-trust-access/device-trust/device-management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/",
-      "destination": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/",
+      "destination": "/zero-trust-access/device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
-      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/enforcing-device-trust/",
+      "destination": "/zero-trust-access/device-trust/enforcing-device-trust/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/guide/",
-      "destination": "/identity-governance/device-trust/guide/",
+      "destination": "/zero-trust-access/device-trust/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
-      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/jamf-integration/",
+      "destination": "/zero-trust-access/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/device-trust/intune-integration/",
+      "destination": "/zero-trust-access/device-trust/intune-integration/",
       "permanent": true
     },
     {

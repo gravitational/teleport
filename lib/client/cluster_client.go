@@ -767,16 +767,18 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
+	var mfaKnownToBeRequired bool
 	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
-			return nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
 		case !mfaRequiredResp.Required:
 			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
 		mfaRequiredReq = nil // Already checked, don't check again at root.
+		mfaKnownToBeRequired = true
 	}
 
 	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
@@ -784,7 +786,20 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
-	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
+	params.MFACeremony.CreateAuthenticateChallenge = func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+		chal, err := rootClient.CreateAuthenticateChallenge(ctx, req)
+		if err != nil {
+			// not an exhaustive list, but connection problem and limit exceeded are
+			// almost surely caused by network conditions or general problems rather
+			// than being from the actual handling of the request
+			if !mfaKnownToBeRequired && (trace.IsConnectionProblem(err) || trace.IsLimitExceeded(err)) {
+				return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
+			}
+			return nil, trace.Wrap(err)
+		}
+		return chal, nil
+	}
+
 	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},

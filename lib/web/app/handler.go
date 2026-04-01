@@ -460,8 +460,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ws.GetBearerToken() != subjectValue {
-		err := trace.AccessDenied("subject session token does not match")
+	if err := checkSubjectToken(subjectValue, ws); err != nil {
 		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,

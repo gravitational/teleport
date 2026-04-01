@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -236,14 +237,13 @@ type ProfileStatus struct {
 	// Username is the Teleport username.
 	Username string
 
-	// Roles is a list of Teleport Roles this user has been assigned.
+	// Roles is a list of Teleport Roles this user has been assigned. Mutually
+	// exclusive with the ScopePin field.
 	Roles []string
 
-	// Scope is the scope that this profile is pinned to.
-	Scope string
-
-	// ScopedRoles is a map of scopes to scoped role assignments.
-	ScopedRoles map[string][]string
+	// ScopePin describes the scope that this profile is pinned to, if any, and
+	// encodes scoped role assignments. Mutually exclusive with the Roles field.
+	ScopePin *scopesv1.Pin
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -295,9 +295,9 @@ type ProfileStatus struct {
 	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
 	GCPServiceAccounts []string
 
-	// AllowedResourceIDs is a list of resources the user can access. An empty
+	// AllowedResourceAccessIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
-	AllowedResourceIDs []types.ResourceID
+	AllowedResourceAccessIDs []types.ResourceAccessID
 
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
@@ -366,20 +366,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	roles := slices.Clone(sshIdent.Roles)
 	sort.Strings(roles)
 
-	var scope string
-	var scopedRoles map[string][]string
-	if pin := sshIdent.ScopePin; pin != nil {
-		scope = pin.GetScope()
-		scopedRoles = make(map[string][]string)
-		for scope, assigned := range pin.GetAssignments() {
-			if len(assigned.GetRoles()) == 0 {
-				continue
-			}
-
-			scopedRoles[scope] = assigned.GetRoles()
-		}
-	}
-
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
@@ -440,33 +426,32 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		RelayAddr:               opts.RelayAddr,
-		DefaultRelayAddr:        opts.DefaultRelayAddr,
-		Username:                opts.Username,
-		Logins:                  sshCert.ValidPrincipals,
-		ValidUntil:              validUntil,
-		Extensions:              extensions,
-		CriticalOptions:         sshCert.CriticalOptions,
-		Roles:                   roles,
-		Scope:                   scope,
-		ScopedRoles:             scopedRoles,
-		Cluster:                 opts.SiteName,
-		Traits:                  sshIdent.Traits,
-		ActiveRequests:          sshIdent.ActiveRequests,
-		KubeEnabled:             opts.KubeProxyAddr != "",
-		KubeUsers:               tlsID.KubernetesUsers,
-		KubeGroups:              tlsID.KubernetesGroups,
-		Databases:               databases,
-		Apps:                    apps,
-		AWSRolesARNs:            tlsID.AWSRoleARNs,
-		AzureIdentities:         tlsID.AzureIdentities,
-		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
-		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
-		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
-		SSOHost:                 opts.SSOHost,
-		GitHubIdentity:          gitHubIdentity,
-		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
+		RelayAddr:                opts.RelayAddr,
+		DefaultRelayAddr:         opts.DefaultRelayAddr,
+		Username:                 opts.Username,
+		Logins:                   sshCert.ValidPrincipals,
+		ValidUntil:               validUntil,
+		Extensions:               extensions,
+		CriticalOptions:          sshCert.CriticalOptions,
+		Roles:                    roles,
+		ScopePin:                 sshIdent.ScopePin,
+		Cluster:                  opts.SiteName,
+		Traits:                   sshIdent.Traits,
+		ActiveRequests:           sshIdent.ActiveRequests,
+		KubeEnabled:              opts.KubeProxyAddr != "",
+		KubeUsers:                tlsID.KubernetesUsers,
+		KubeGroups:               tlsID.KubernetesGroups,
+		Databases:                databases,
+		Apps:                     apps,
+		AWSRolesARNs:             tlsID.AWSRoleARNs,
+		AzureIdentities:          tlsID.AzureIdentities,
+		GCPServiceAccounts:       tlsID.GCPServiceAccounts,
+		IsVirtual:                opts.IsVirtual,
+		AllowedResourceAccessIDs: sshIdent.AllowedResourceAccessIDs,
+		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
+		SSOHost:                  opts.SSOHost,
+		GitHubIdentity:           gitHubIdentity,
+		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -739,9 +724,9 @@ func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, 
 // AccessInfo returns the complete services.AccessInfo for this profile.
 func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 	return &services.AccessInfo{
-		Username:           p.Username,
-		Roles:              p.Roles,
-		Traits:             p.Traits,
-		AllowedResourceIDs: p.AllowedResourceIDs,
+		Username:                 p.Username,
+		Roles:                    p.Roles,
+		Traits:                   p.Traits,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 	}
 }

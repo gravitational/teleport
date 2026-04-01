@@ -1,4 +1,13 @@
 node_modules/
 test-results/
 playwright-report/
+blob-reports/
 playwright/.cache/
+runner/e2e
+runner/runner
+certs/
+data/
+config/*.yaml
+node/*.yaml
+*.log
+.auth/
