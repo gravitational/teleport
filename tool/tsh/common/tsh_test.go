@@ -8315,3 +8315,175 @@ func TestListNodesCLIFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestReexecErrorPropagation(t *testing.T) {
+	ctx := t.Context()
+	connector := mockConnector(t)
+
+	createAgent(t)
+
+	// Use a non-existent OS user to force reexec failures in the node.
+	missingLogin := "does-not-exist"
+	roleNodeAccessMissingLogin, err := types.NewRole("node-access-missing-login", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			ForwardAgent:        types.NewBool(true),
+			PermitX11Forwarding: types.NewBool(true),
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{missingLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	userMissingLogin, err := types.NewUser("user-missing-login")
+	require.NoError(t, err)
+	userMissingLogin.SetRoles([]string{roleNodeAccessMissingLogin.GetName()})
+
+	// When the user has mixed host user creation modes the error should be given additional context.
+	roleHostUserAllow, err := types.NewRole("node-access-allow-host-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{missingLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	userHostUserCreationContext, err := types.NewUser("user-host-user-creation-context")
+	require.NoError(t, err)
+	userHostUserCreationContext.SetRoles([]string{roleNodeAccessMissingLogin.GetName(), roleHostUserAllow.GetName()})
+
+	sshHostname := "test-ssh-server"
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, roleNodeAccessMissingLogin, roleHostUserAllow, userMissingLogin, userHostUserCreationContext),
+		testserver.WithHostname(sshHostname),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.X11 = &x11.ServerConfig{
+				Enabled:       true,
+				DisplayOffset: x11.DefaultDisplayOffset,
+				MaxDisplay:    x11.DefaultMaxDisplays,
+			}
+		}),
+	}
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	login := func(t *testing.T, loginUser types.User) string {
+		t.Helper()
+		homePath := t.TempDir()
+		err := Run(ctx, []string{
+			"login",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(homePath), setMockSSOLogin(authServer, loginUser, connector.GetName()))
+		require.NoError(t, err)
+		return homePath
+	}
+
+	userMissingLoginHomePath := login(t, userMissingLogin)
+	userHostUserCreationContextHomePath := login(t, userHostUserCreationContext)
+
+	type testCase struct {
+		name          string
+		tty           bool
+		remoteCommand []string
+	}
+
+	sshShell := testCase{name: "ssh shell"}
+	sshCommand := testCase{
+		name:          "ssh command",
+		remoteCommand: []string{"echo", "hello"},
+	}
+	sshCommandTTY := testCase{
+		name:          "ssh command w/ tty",
+		remoteCommand: []string{"echo", "hello"},
+		tty:           true,
+	}
+
+	runSSH := func(t *testing.T, tc testCase, homePath string, login string) (string, error) {
+		stdout := &output{buf: bytes.Buffer{}}
+
+		args := []string{"ssh", "--insecure"}
+		if tc.tty {
+			args = append(args, "--tty")
+		}
+		args = append(args, fmt.Sprintf("%s@%s", login, sshHostname))
+		args = append(args, tc.remoteCommand...)
+
+		// The shell should succeed even though agent/x11 forwarding will be denied.
+		err := Run(ctx, args,
+			setHomePath(homePath),
+			func(conf *CLIConf) error {
+				conf.OverrideStdout = stdout
+				return nil
+			},
+		)
+		return stdout.String(), err
+	}
+
+	t.Run("unknown user error", func(t *testing.T) {
+		t.Parallel()
+		homePath := userMissingLoginHomePath
+
+		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stdout, err := runSSH(t, tc, homePath, missingLogin)
+
+				var exitCodeErr *common.ExitCodeError
+				require.ErrorAs(t, err, &exitCodeErr)
+				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
+
+				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+
+				// Check for exact match to catch regressions with new lines.
+				require.Equal(t, expectStdout, stdout)
+			})
+		}
+	})
+
+	t.Run("error with host user creation context", func(t *testing.T) {
+		t.Parallel()
+		homePath := userHostUserCreationContextHomePath
+
+		for _, tc := range []testCase{sshCommand} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				stdout, err := runSSH(t, tc, homePath, missingLogin)
+
+				var exitCodeErr *common.ExitCodeError
+				require.ErrorAs(t, err, &exitCodeErr)
+				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
+
+				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
+					user.UnknownUserError(missingLogin),
+					types.KindRole,
+					roleNodeAccessMissingLogin.GetName(),
+				)
+
+				// Check for exact match to catch regressions with new lines.
+				require.Equal(t, expectStdout, stdout)
+			})
+		}
+	})
+}

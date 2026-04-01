@@ -1,62 +1,358 @@
 name: E2E Tests
 run-name: E2E Tests
 on:
-  # Only allow manual triggers
-  workflow_dispatch:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - master
+      - branch/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build binaries
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+  changes:
+    name: Check for relevant changes
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
+      pull-requests: read
 
-    container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport19-amd64
-      env:
-        GOCACHE: /tmp/gocache
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
 
     steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v6 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+      - name: Checkout
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/e2e-tests.yaml'
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - '**/*.rs'
+              - 'rust-toolchain.toml'
+              - 'Cargo.toml'
+              - '**/Cargo.toml'
+              - 'Cargo.lock'
+              - 'e2e/**'
+              - 'web/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.pnpmfile.cjs'
+              - '.npmrc'
+              - 'tsconfig*.json'
+              - 'gen/proto/ts/**'
+              - '.github/actions/prepare-workspace/action.yml'
+              - 'common.mk'
+              - 'build.assets/Makefile'
+              - 'build.assets/versions.mk'
+              - 'build.assets/Dockerfile*'
+              - 'build.assets/build-webassets-if-changed.sh'
+              - 'build.assets/build-e2e-binaries.sh'
+              - 'Makefile'
+
+  build:
+    name: Build Teleport
+    needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    outputs:
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
 
-      - name: Run make
+      - name: Get go mod cache path
+        id: cache-paths
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check e2e tests
+        run: pnpm --filter=@gravitational/e2e type-check
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        working-directory: e2e
+
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-
+
+      - name: Restore Rust output cache
+        id: rust-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Build Teleport, tctl, and tsh
+        run: make e2e-binaries
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Print build logs
+        if: failure()
         run: |
-          make binaries
+          for log in build-logs/*.log; do
+            echo "::group::$(basename "$log" .log) build log"
+            cat "$log"
+            echo "::endgroup::"
+          done
+
+      - name: Build e2e runner
+        run: cd e2e/runner && go build -o e2e .
+
+      - name: Build Connect
+        run: pnpm --filter=@gravitational/teleterm build
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
 
       - name: Upload binaries
         uses: actions/upload-artifact@v7
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binaries
+          path: |
+            build/teleport
+            build/tctl
+            build/tsh-e2e-webauthnmock
+            e2e/runner/e2e
+            web/packages/teleterm/build/
           retention-days: 1
+
+      - name: Save Go module cache
+        if: github.event_name == 'push' && steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: Save Rust output cache
+        if: github.event_name == 'push' && steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
 
   test:
     name: E2E Tests
-    needs: build
-    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: ${{ needs.changes.outputs.changed == 'true' && needs.build.result == 'success' }}
+    runs-on: ubuntu-22.04-8core
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    env:
+      HOME: /root
+      E2E_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.build.outputs.playwright-version }}-noble
+      options: --init --ipc=host
+      env:
+        DOCKER_HOST: tcp://docker:2375
+
+    services:
+      docker:
+        image: docker:dind
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+        ports:
+          - 2375:2375
+
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Docker CLI
+        run: |
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update && apt-get install -y docker-ce-cli
+
+      - name: Setup e2e environment
+        shell: bash
+        run: |
+          set -o pipefail
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break || sleep 1; done
+          docker info >/dev/null 2>&1 || { echo "Docker failed to start"; exit 1; }
+          mkdir -p setup-logs
+          docker pull debian:bookworm-slim 2>&1 | tee setup-logs/docker-pull.log & pid_docker=$!
+
+          corepack enable
+          pnpm install --frozen-lockfile 2>&1 | tee setup-logs/pnpm-install.log & pid_pnpm=$!
+
+          failed=0
+          wait $pid_docker || { echo "::error::docker pull failed with exit code $?"; failed=1; }
+          wait $pid_pnpm   || { echo "::error::pnpm install failed with exit code $?"; failed=1; }
+          exit $failed
+
+      - name: Upload setup logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: setup-logs
+          path: setup-logs/
+          retention-days: 7
 
       - uses: actions/download-artifact@v8
         with:
-          name: build
-          path: ${{ github.workspace }}/build/
+          name: teleport-binaries
+          path: ${{ github.workspace }}
 
       - name: Chmod binaries
         run: |
           chmod +x build/teleport
           chmod +x build/tctl
-          chmod +x build/tsh
+          chmod +x build/tsh-e2e-webauthnmock
+          chmod +x e2e/runner/e2e
 
-      - name: Build Images
+      - name: Create Docker config
+        run: mkdir -p ~/.docker && echo '{}' > ~/.docker/config.json
+
+      - name: Run tests
+        run: xvfb-run e2e/runner/e2e --no-build --full
+        env:
+          E2E_CALLER_DIR: ${{ github.workspace }}
+
+      - name: Publish GitHub report
+        if: ${{ !cancelled() }}
+        run: e2e/runner/e2e --github-report
+
+      - name: Upload PR comment
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-comment
+          path: e2e/test-results/pr-comment.md
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: e2e/test-results/
+          retention-days: 7
+
+      - name: Upload Teleport logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-logs
+          path: e2e/teleport-*.log
+          retention-days: 7
+
+      - name: Upload Docker node logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: docker-node-logs
+          path: e2e/docker-node-*.log
+          retention-days: 7
+
+  update-pr-comment:
+    name: Update PR comment
+    needs: test
+    if: ${{ always() && needs.test.result != 'skipped' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download PR comment artifact
+        id: download
+        uses: actions/download-artifact@v8
+        with:
+          name: pr-comment
+          path: pr-comment
+        continue-on-error: true
+
+      - name: Update PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          make -C e2e build
-      - name: Run Tests
-        run: |
-          make test-e2e
+          comment_file="pr-comment/pr-comment.md"
+          marker="<!-- e2e-test-results -->"
+          pr_number="${{ github.event.pull_request.number }}"
+
+          # Find existing comment ID with the marker.
+          comment_id=$(gh api "repos/${{ github.repository }}/issues/${pr_number}/comments" \
+            --paginate --jq ".[] | select(.user.type == \"Bot\") | select(.body | contains(\"${marker}\")) | .id" \
+            | head -n1)
+
+          if [ "${{ steps.download.outcome }}" == "success" ] && [ -f "$comment_file" ] && [ -s "$comment_file" ]; then
+            # File has content — update or create comment.
+            if [ -n "$comment_id" ]; then
+              gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${comment_id}" \
+                -F body=@"$comment_file"
+              echo "Updated E2E results PR comment"
+            else
+              gh api -X POST "repos/${{ github.repository }}/issues/${pr_number}/comments" \
+                -F body=@"$comment_file"
+              echo "Created E2E results PR comment"
+            fi
+          elif [ -n "$comment_id" ]; then
+            # No file or empty file — delete existing comment.
+            gh api -X DELETE "repos/${{ github.repository }}/issues/comments/${comment_id}"
+            echo "Deleted existing E2E results PR comment"
+          else
+            echo "No comment to update"
+          fi

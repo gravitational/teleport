@@ -1535,7 +1535,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 		s.term = term
 	}
 
-	if err := s.term.Run(ctx); err != nil {
+	if err := s.term.Run(ctx, s.io); err != nil {
 		s.logger.ErrorContext(ctx, "Unable to run shell command.", "error", err)
 		return trace.ConvertSystemError(err)
 	}
