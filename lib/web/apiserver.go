@@ -2162,6 +2162,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
+		IsPolicyEnabled:                modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
 		// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
 		// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
