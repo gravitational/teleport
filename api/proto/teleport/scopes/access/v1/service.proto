@@ -130,6 +130,8 @@ message DeleteScopedRoleResponse {}
 message GetScopedRoleAssignmentRequest {
   // Name is the name of the scoped role assignment.
   string name = 1;
+  // SubKind is the sub kind of the scoped role assignment.
+  string sub_kind = 2;
 }
 
 // GetScopedRoleAssignmentResponse is the response to get a scoped role assignment.
@@ -197,6 +199,9 @@ message DeleteScopedRoleAssignmentRequest {
 
   // Revision asserts the revision of the scoped role assignment to delete (optional).
   string revision = 2;
+
+  // SubKind is the sub kind of the scoped role assignment.
+  string sub_kind = 3;
 }
 
 // DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.

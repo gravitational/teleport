@@ -407,8 +407,15 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 	if assignmentName == "" {
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
+	subKind := req.GetSubKind()
+	if subKind == scopedaccess.SubKindMaterialized {
+		return nil, trace.BadParameter(`reading scoped role assignments with sub_kind "materialized" from the backend is not supported`)
+	}
 
-	item, err := s.bk.Get(ctx, scopedRoleAssignmentKey(assignmentName))
+	item, err := s.bk.Get(ctx, scopedRoleAssignmentKey{
+		name:    assignmentName,
+		subKind: subKind,
+	}.Key())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
@@ -462,7 +469,7 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 // Returned assignments have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedRoleAssignments(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedRoleAssignment] {
 	return func(yield func(*scopedaccessv1.ScopedRoleAssignment, error) bool) {
-		startKey := scopedRoleAssignmentKey("")
+		startKey := scopedRoleAssignmentWatchPrefix()
 		params := backend.ItemsParams{
 			StartKey: startKey,
 			EndKey:   backend.RangeEnd(startKey),
@@ -479,6 +486,14 @@ func (s *ScopedAccessService) StreamScopedRoleAssignments(ctx context.Context) s
 			if err != nil {
 				// per-assignment errors are logged and skipped
 				s.logger.WarnContext(ctx, "skipping scoped role assignment due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if assignment.GetSubKind() == scopedaccess.SubKindMaterialized {
+				// Reading materialized assignments from the backend is not
+				// currently supported, we skip them in case materialized
+				// assignments are persisted to the backend in a future
+				// version.
 				continue
 			}
 
@@ -503,6 +518,12 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 
 	if err := scopedaccess.StrongValidateAssignment(assignment); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	switch assignment.GetSubKind() {
+	case scopedaccess.SubKindDynamic:
+	default:
+		return nil, trace.BadParameter("creating scoped role assignments with sub_kind %q is not supported", assignment.GetSubKind())
 	}
 
 	// independently enforce the max number of roles per assignment limit here since not all validation
@@ -605,12 +626,22 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.BadParameter("missing scoped role assignment name in delete request")
 	}
 
+	subKind := req.GetSubKind()
+	switch subKind {
+	case scopedaccess.SubKindDynamic, "":
+	case scopedaccess.SubKindMaterialized:
+		return nil, trace.BadParameter(`deleting scoped role assignments with sub_kind "materialized" is not supported`)
+	default:
+		return nil, trace.BadParameter("unhandled sub_kind %q in scoped role assignment delete request", subKind)
+	}
+
 	extant, err := s.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignmentName,
+		Name:    assignmentName,
+		SubKind: subKind,
 	})
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.CompareFailed("scoped role assignment %q was concurrently delete", assignmentName)
+			return nil, trace.CompareFailed("scoped role assignment %q was concurrently deleted", assignmentName)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -649,7 +680,8 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 				// skip assignments related to other users
 				continue
 			}
-			if assignment.GetMetadata().GetName() == extant.Assignment.GetMetadata().GetName() {
+			if assignment.GetMetadata().GetName() == extant.Assignment.GetMetadata().GetName() &&
+				assignment.GetSubKind() == extant.Assignment.GetSubKind() {
 				// skip the assignment we're currently deleting
 				continue
 			}
@@ -667,7 +699,10 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 
 	condacts := []backend.ConditionalAction{
 		{
-			Key:       scopedRoleAssignmentKey(assignmentName),
+			Key: scopedRoleAssignmentKey{
+				name:    assignmentName,
+				subKind: extant.Assignment.GetSubKind(),
+			}.Key(),
 			Condition: backend.Revision(extant.Assignment.GetMetadata().GetRevision()),
 			Action:    backend.Delete(),
 		},
@@ -837,8 +872,17 @@ func scopedRoleWatchPrefix() backend.Key {
 	return backend.ExactKey(scopedRolePrefix, scopedRoleRoleComponent)
 }
 
-func scopedRoleAssignmentKey(assignmentID string) backend.Key {
-	return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, assignmentID)
+type scopedRoleAssignmentKey struct {
+	name    string
+	subKind string
+}
+
+func (k scopedRoleAssignmentKey) Key() backend.Key {
+	if k.subKind == "" {
+		// Supports reading old scoped role assignments created without a subkind.
+		return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, k.name)
+	}
+	return backend.NewKey(scopedRolePrefix, scopedRoleAssignmentComponent, k.name, k.subKind)
 }
 
 func scopedRoleAssignmentWatchPrefix() backend.Key {
@@ -926,13 +970,20 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 		return backend.Item{}, trace.BadParameter("scoped role assignments do not support expiration")
 	}
 
+	if assignment.GetSubKind() == "" {
+		return backend.Item{}, trace.BadParameter("scoped role assignments must have a sub_kind")
+	}
+
 	data, err := protojson.Marshal(assignment)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return backend.Item{
-		Key:      scopedRoleAssignmentKey(assignment.GetMetadata().GetName()),
+		Key: scopedRoleAssignmentKey{
+			name:    assignment.GetMetadata().GetName(),
+			subKind: assignment.GetSubKind(),
+		}.Key(),
 		Value:    data,
 		Revision: assignment.GetMetadata().GetRevision(),
 	}, nil
