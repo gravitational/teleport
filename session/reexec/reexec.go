@@ -42,10 +42,8 @@ import (
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport"
 	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/host"
@@ -53,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
@@ -1398,6 +1397,9 @@ func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 	}
 }
 
+// TODO(espadolini): pass slog records in a fixed format to the parent process
+// rather than handling the formatting here, so we can get rid of
+// internal/logutils
 func initLogger(name string, cfg ExecLogConfig) {
 	logWriter := os.NewFile(LogFile, fdName(LogFile))
 	if logWriter == nil {
@@ -1417,13 +1419,13 @@ func initLogger(name string, cfg ExecLogConfig) {
 			ConfiguredFields: fields,
 			Padding:          cfg.Padding,
 		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+		slog.SetDefault(logger.With(logutils.TeleportComponentKey, name))
 	case "json":
 		logger := slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
 			Level:            cfg.Level,
 			ConfiguredFields: fields,
 		}))
-		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+		slog.SetDefault(logger.With(logutils.TeleportComponentKey, name))
 	default:
 		return
 	}
