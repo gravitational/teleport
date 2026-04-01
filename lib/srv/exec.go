@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/session/envutils"
 	sessionreexec "github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // ExecResult is used internally to send the result of a command execution from
@@ -619,7 +620,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 func exitCode(err error) int {
 	// If no error occurred, return 0 (success).
 	if err == nil {
-		return teleport.RemoteCommandSuccess
+		return reexecconstants.RemoteCommandSuccess
 	}
 
 	var execExitErr *exec.ExitError
@@ -629,7 +630,7 @@ func exitCode(err error) int {
 	case errors.As(err, &execExitErr):
 		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
-			return teleport.RemoteCommandFailure
+			return reexecconstants.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
 	// Remote execution.
@@ -638,7 +639,7 @@ func exitCode(err error) int {
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
-		return teleport.RemoteCommandFailure
+		return reexecconstants.RemoteCommandFailure
 	}
 }
 
@@ -675,10 +676,10 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch ctx.ExecType {
-	case teleport.NetworkingSubCommand:
-		subCommand = teleport.NetworkingSubCommand
+	case reexecconstants.NetworkingSubCommand:
+		subCommand = reexecconstants.NetworkingSubCommand
 	default:
-		subCommand = teleport.ExecSubCommand
+		subCommand = reexecconstants.ExecSubCommand
 	}
 
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag

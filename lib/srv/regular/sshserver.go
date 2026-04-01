@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -1304,7 +1305,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apiconstants "github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -157,7 +158,7 @@ type userCloser struct {
 }
 
 func (u *userCloser) Close() error {
-	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
+	teleportGroup, err := u.backend.LookupGroup(apiconstants.TeleportDropGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,7 +302,7 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 	)
 
 	if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP {
-		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
+		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
 		if !hasKeepGroup {
 			home, err := u.backend.GetDefaultHomeDirectory(hostUser.Name)
 			if err != nil {
@@ -587,10 +588,10 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
+	teleportGroup, err := u.backend.LookupGroup(apiconstants.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, types.TeleportDropGroup) {
-			u.log.DebugContext(u.ctx, "Target group not found, not deleting users", "group", types.TeleportDropGroup)
+		if isUnknownGroupError(err, apiconstants.TeleportDropGroup) {
+			u.log.DebugContext(u.ctx, "Target group not found, not deleting users", "group", apiconstants.TeleportDropGroup)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -747,23 +748,23 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 	}
 
 	// because teleport-keep migration requires adding the group to host_groups, we need to note that before wiping the teleport system groups
-	_, hasExplicitKeepGroup := groups[types.TeleportKeepGroup]
+	_, hasExplicitKeepGroup := groups[apiconstants.TeleportKeepGroup]
 
 	// only one teleport system group should be resolved for a given user, so we remove any of them that might occur within the configured host
 	// groups since we'll compute the correct group below
-	delete(groups, types.TeleportKeepGroup)
-	delete(groups, types.TeleportDropGroup)
-	delete(groups, types.TeleportStaticGroup)
+	delete(groups, apiconstants.TeleportKeepGroup)
+	delete(groups, apiconstants.TeleportDropGroup)
+	delete(groups, apiconstants.TeleportStaticGroup)
 
 	// if we assign a teleport group, it will always coincide with the mode we're currently in, so we can compute it right away
 	teleportGroup := ""
 	switch ui.Mode {
 	case decisionpb.HostUserMode_HOST_USER_MODE_DROP:
-		teleportGroup = types.TeleportDropGroup
+		teleportGroup = apiconstants.TeleportDropGroup
 	case decisionpb.HostUserMode_HOST_USER_MODE_KEEP:
-		teleportGroup = types.TeleportKeepGroup
+		teleportGroup = apiconstants.TeleportKeepGroup
 	case decisionpb.HostUserMode_HOST_USER_MODE_STATIC:
-		teleportGroup = types.TeleportStaticGroup
+		teleportGroup = apiconstants.TeleportStaticGroup
 	}
 
 	log := logger.With("teleport_group", teleportGroup)
@@ -774,14 +775,14 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 		// 2. We reconcile an existing managed user
 		// 3. We migrate an existing unmanaged user
 		// functionally, there's no difference between 2 and 3 so if we check against all failure modes we can handle all other cases at once
-		_, hasDropGroup := hostUser.Groups[types.TeleportDropGroup]
-		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
+		_, hasDropGroup := hostUser.Groups[apiconstants.TeleportDropGroup]
+		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
 
 		migrateStaticUser := takeOwnership && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
 		migrateKeepUser := hasExplicitKeepGroup && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 
 		managedUser := hasKeepGroup || hasDropGroup
-		_, staticUser := hostUser.Groups[types.TeleportStaticGroup]
+		_, staticUser := hostUser.Groups[apiconstants.TeleportStaticGroup]
 		inStaticMode := ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
 
 		if (inStaticMode && managedUser) || (!inStaticMode && staticUser) {

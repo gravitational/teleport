@@ -37,13 +37,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/session/host"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
@@ -90,7 +90,7 @@ func testNetworkingCommand(t *testing.T, login string) {
 	srv := newMockServer(t)
 
 	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
-	scx.ExecType = teleport.NetworkingSubCommand
+	scx.ExecType = reexecconstants.NetworkingSubCommand
 	if login != "" {
 		scx.Identity.Login = login
 	}
