@@ -195,7 +195,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle partial deletes for assignments
 	for _, name := range expectedAssignmentNames[0:10] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: name,
+			Name:    name,
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}
@@ -216,7 +217,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle delete of all assignments
 	for _, name := range expectedAssignmentNames[10:] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: name,
+			Name:    name,
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}
@@ -409,7 +411,8 @@ func newScopedRole(name string) *scopedaccessv1.ScopedRole {
 
 func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignment {
 	return &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},

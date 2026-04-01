@@ -156,6 +156,7 @@ import (
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -394,7 +395,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -733,7 +734,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -2425,7 +2426,7 @@ func TestTerminal(t *testing.T) {
 
 func TestTerminalRouting(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	// add nodes with conflicting hostnames
 	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
@@ -2458,7 +2459,6 @@ func TestTerminalRouting(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		i, tt := i, tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8474,7 +8474,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),

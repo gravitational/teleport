@@ -332,7 +332,7 @@ assignments as usual.
 
 We will introduce `sub_kind: materialized` to distinguish materialized
 scoped_role_assignments from user-created ones and prevent name collisions.
-We will use `sub_kind: static` for the current user or automation-created
+We will use `sub_kind: dynamic` for the current user or automation-created
 scoped_role_assignments (this will be a breaking change that has been deemed
 acceptable at this early stage).
 Scoped role assignments will use `<name>/<sub_kind>` as a primary key in the

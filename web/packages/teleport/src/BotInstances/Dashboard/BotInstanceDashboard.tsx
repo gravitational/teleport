@@ -205,7 +205,7 @@ function UpgradeStatusChart(props: {
               ? onFilterSelected(data.requires_upgrade?.filter)
               : undefined,
           tooltip:
-            'Instances requiring an upgrade are running the one major version behind the Teleport cluster.',
+            'Instances requiring an upgrade are running one major version behind the Teleport cluster.',
         },
         {
           name: 'Unsupported',
