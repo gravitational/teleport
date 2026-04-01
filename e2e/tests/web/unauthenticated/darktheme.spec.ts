@@ -48,7 +48,7 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
 
   // Make sure that the theme was actually saved in the backend. Simulate
   // signing in on a fresh browser.
-  // await page.context().clearCookies();
+  await page.context().clearCookies();
   await page.evaluate(() => localStorage.clear());
   await login(page, username, defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
