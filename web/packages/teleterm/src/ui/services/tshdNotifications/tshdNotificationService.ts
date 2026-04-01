@@ -108,13 +108,10 @@ export class TshdNotificationsService {
               return;
             }
             const { error } = reason.certReissueError;
-            const targetName = routeToApp
-              ? publicAddrWithTargetPort(routeToApp)
-              : getTargetNameFromUri(targetUri);
 
             return {
-              title: `Cannot connect to ${targetName}`,
-              description: `A connection attempt to a resource in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
+              title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
+              description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
               key: [
                 'cannotProxyVnetConnection',
                 'certReissueError',
@@ -132,25 +129,16 @@ export class TshdNotificationsService {
               .map(portRange => formatPortRange(portRange))
               .join(', ');
 
-            let description: string;
-            if (routeToApp) {
-              description =
-                `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
-                `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`;
-            } else {
-              description = `A connection attempt was refused for a resource in the cluster ${clusterName}.`;
-            }
+            let description =
+              `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
+              `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`;
 
             if (ports) {
               description += ` Valid ports: ${ports}.`;
             }
 
-            const targetName = routeToApp
-              ? publicAddrWithTargetPort(routeToApp)
-              : getTargetNameFromUri(targetUri);
-
             return {
-              title: `Invalid port for ${targetName}`,
+              title: `Invalid port for ${publicAddrWithTargetPort(routeToApp)}`,
               description,
               // 3rd-party clients can potentially make dozens of attempts to connect to an invalid
               // port within a short time. As all notifications from this service go as errors, we
