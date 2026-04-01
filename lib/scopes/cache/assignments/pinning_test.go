@@ -368,3 +368,186 @@ func TestAssignmentTreePruning(t *testing.T) {
 	require.Equal(t, expectedTree, actualTree,
 		"pruning should preserve highest authority assignments (root level)")
 }
+
+func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
+	t.Parallel()
+
+	bernardScope := "/aa"
+	assignments := []*scopedaccessv1.ScopedRoleAssignment{
+		// Very "normal" assignment. Scope of SRA matches Bot scope, and
+		// assigned scope is same.
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-01",
+			},
+			Scope: bernardScope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: bernardScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "role-01",
+						Scope: bernardScope,
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		// Assignment to child-scope of main scope
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-02",
+			},
+			Scope: bernardScope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: bernardScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "role-02",
+						Scope: bernardScope + "/child",
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		// SRA in parent scope, assigning to bot scope.
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-03",
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: bernardScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "role-03",
+						Scope: bernardScope,
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		// SRA in parent scope, assigning to bot's child scope
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-04",
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: bernardScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "role-04",
+						Scope: bernardScope + "/child",
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		// `bot_scope` mismatches bot's actual scope - this should be ignored.
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-invalid-01",
+			},
+			Scope: bernardScope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: "/mismatched",
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "bernard-invalid-01",
+						Scope: bernardScope,
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		// Assignment above bot scope
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "bernard-invalid-02",
+			},
+			Scope: bernardScope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "bernard",
+				BotScope: bernardScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{
+						Role:  "bernard-invalid-02",
+						Scope: "/",
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	cache := NewAssignmentCache(AssignmentCacheConfig{})
+	for _, assignment := range assignments {
+		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+		cache.Put(assignment)
+
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, rsp.GetAssignment())
+	}
+
+	tts := []struct {
+		name     string
+		botName  string
+		botScope string
+		pin      *scopesv1.Pin
+		ok       bool
+		expect   *scopesv1.Pin
+	}{
+		{
+			name:     "standard",
+			botName:  "bernard",
+			botScope: bernardScope,
+			pin: &scopesv1.Pin{
+				Scope: bernardScope,
+			},
+			ok: true,
+			expect: &scopesv1.Pin{
+				Scope: bernardScope,
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":          {bernardScope: {"role-03"}, bernardScope + "/child": {"role-04"}},
+					bernardScope: {bernardScope: {"role-01"}, bernardScope + "/child": {"role-02"}},
+				}),
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			pin := proto.CloneOf(tt.pin)
+			err := cache.PopulatePinnedAssignmentsForBot(
+				t.Context(), tt.botName, tt.botScope, pin,
+			)
+			if tt.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				return
+			}
+			require.NotNil(t, pin)
+			require.Empty(t, cmp.Diff(pin, tt.expect, protocmp.Transform()))
+		})
+	}
+}
