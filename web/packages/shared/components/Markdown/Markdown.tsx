@@ -433,11 +433,9 @@ function Section(
           <strong>{title}</strong>
         </P2>
       </SectionHeadingContainer>
-      {expanded ? (
-        <SectionContentContainer id={accessibilityId}>
-          {children}
-        </SectionContentContainer>
-      ) : undefined}
+      <SectionContentContainer id={accessibilityId} hidden={!expanded}>
+        {children}
+      </SectionContentContainer>
     </SectionContainer>
   );
 }

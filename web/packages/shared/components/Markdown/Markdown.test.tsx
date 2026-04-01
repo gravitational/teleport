@@ -777,7 +777,7 @@ more content here`;
       renderMarkdown(text);
 
       expect(screen.getByText('title goes here')).toBeInTheDocument();
-      expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
       expect(screen.getByText('more content here')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'title goes here' }));
@@ -796,11 +796,11 @@ more content here`;
       renderMarkdown(text);
 
       expect(screen.getByText('title goes here')).toBeInTheDocument();
-      expect(screen.getByText('content goes here')).toBeInTheDocument();
+      expect(screen.getByText('content goes here')).toBeVisible();
       expect(screen.getByText('more content here')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'title goes here' }));
-      expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
     });
 
     it('renders an empty section', async () => {
@@ -829,8 +829,8 @@ more content here`;
 
       expect(screen.getByText('section 1')).toBeInTheDocument();
       expect(screen.getByText('section 2')).toBeInTheDocument();
-      expect(screen.getByText('section content 1')).toBeInTheDocument();
-      expect(screen.getByText('section content 2')).toBeInTheDocument();
+      expect(screen.getByText('section content 1')).toBeVisible();
+      expect(screen.getByText('section content 2')).toBeVisible();
     });
 
     it('renders a malformed/incomplete closed section', () => {
@@ -840,7 +840,7 @@ more content here`;
 
       renderMarkdown(text);
 
-      expect(screen.queryByText('some other content')).not.toBeInTheDocument();
+      expect(screen.queryByText('some other content')).not.toBeVisible();
     });
 
     it('renders a malformed/incomplete open section', () => {
@@ -850,7 +850,7 @@ more content here`;
 
       renderMarkdown(text);
 
-      expect(screen.getByText('some other content')).toBeInTheDocument();
+      expect(screen.getByText('some other content')).toBeVisible();
     });
   });
 });
