@@ -171,10 +171,12 @@ func TestNewAnonimizer(t *testing.T) {
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:       t.TempDir(),
 				ClusterID: "cluster-id",
+				Modules:   &tt.testModules,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
+			// TODO(tross): remove this once auth accepts modules.
 			modulestest.SetTestModules(t, tt.testModules)
 
 			anonymizer, err := newAnonimizer(testAuthServer.AuthServer, tt.license)
