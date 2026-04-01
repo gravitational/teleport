@@ -21,11 +21,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -49,7 +49,7 @@ func getDefaultEnvPathWithLoginDefs(uid string, loginDefsPath string) string {
 	envRootPath := defaultEnvRootPath
 
 	// open file, if it doesn't exist return a default path and move on
-	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
+	f, err := os.Open(loginDefsPath)
 	if err != nil {
 		if uid == "0" {
 			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
