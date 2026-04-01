@@ -65,6 +65,7 @@ import { RequestableResourceKind } from 'shared/components/AccessRequests/NewReq
 import {
   formatAWSRoleARNForDisplay,
   toggleAWSConsoleConstraint,
+  toggleSSHConstraint,
 } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
@@ -197,13 +198,11 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
   createAttempt,
   clearAttempt,
   setResourceConstraints,
-  addedResourceConstraints,
 }: {
   item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
   createAttempt: RequestCheckoutProps<T>['createAttempt'];
   clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
   setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
-  addedResourceConstraints: RequestCheckoutProps<T>['addedResourceConstraints'];
 }) => (
   <Flex flexDirection="column" gap={1} mt={1} width="100%">
     <Text bold>Role ARNs</Text>
@@ -222,18 +221,48 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
             title="Remove Role ARN"
             onClick={() => {
               clearAttempt();
-              const ridStr = getResourceIDString({
-                cluster: item.clusterName,
-                kind: item.kind,
-                name: item.id,
-              });
-              console.log('toggling role arn', {
-                ridStr,
-                curConstraints: item.constraints,
-                addedResourceConstraints,
-                setResourceConstraints,
-              });
               toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const SSHConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'ssh', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>SSH Logins</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.ssh.logins.map((login, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={login}
+          $idx={idx}
+          $len={item.constraints.ssh.logins.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{login}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Login"
+            onClick={() => {
+              clearAttempt();
+              toggleSSHConstraint(item, login, setResourceConstraints);
             }}
             disabled={createAttempt.status === 'processing'}
             css={`
@@ -442,7 +471,22 @@ export function RequestCheckout<T extends PendingListItem>({
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}
                 createAttempt={createAttempt}
-                addedResourceConstraints={addedResourceConstraints}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'ssh')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
               />
             </Flex>
           </td>
@@ -1186,11 +1230,18 @@ const StyledTable = styled(Table)`
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
 
+  tr,
+  [data-render-after-row] {
+    transition: background-color 150ms ease;
+  }
+
   // Handle hovering/focusing constraint rows / their parent row the same.
   tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
   tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
   [data-render-after-row]:hover,
   [data-render-after-row]:focus-visible,
+  tr:hover:has(+ [data-render-after-row]),
+  tr:focus-visible:has(+ [data-render-after-row]),
   tr:has(+ [data-render-after-row]:hover),
   tr:has(+ [data-render-after-row]:focus-visible) {
     background-color: ${({ theme }) => theme.colors.levels.surface};

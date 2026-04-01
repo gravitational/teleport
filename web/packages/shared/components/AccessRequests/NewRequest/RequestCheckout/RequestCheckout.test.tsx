@@ -17,7 +17,11 @@
  */
 
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
-import { RequestState } from 'shared/services/accessRequests';
+import {
+  getResourceIDString,
+  RequestState,
+  ResourceConstraintsMap,
+} from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
@@ -178,3 +182,73 @@ const props: RequestCheckoutWithSliderProps = {
   addedResourceConstraints: {},
   setResourceConstraints: () => null,
 };
+
+test('renders SSH constraint logins for a node resource', () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'node' as const,
+      id: 'test-node',
+      name: 'test-node',
+      clusterName: 'cluster',
+    },
+  ];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'node',
+      name: 'test-node',
+      cluster: 'cluster',
+    })]: {
+      ssh: { logins: ['root', 'ubuntu'] },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  render(
+    <RequestCheckoutComp
+      {...props}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{ status: 'success' }}
+      pendingAccessRequests={pendingAccessRequests}
+      addedResourceConstraints={addedResourceConstraints}
+      setResourceConstraints={() => null}
+    />
+  );
+
+  expect(screen.getByText('SSH Logins')).toBeInTheDocument();
+  expect(screen.getByText('root')).toBeInTheDocument();
+  expect(screen.getByText('ubuntu')).toBeInTheDocument();
+  expect(screen.getAllByTitle('Remove Login')).toHaveLength(2);
+});
+
+test('renders AWS Console constraint ARNs for an app resource', () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'app' as const,
+      id: 'aws-console',
+      name: 'aws-console',
+      clusterName: 'cluster',
+    },
+  ];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'app',
+      name: 'aws-console',
+      cluster: 'cluster',
+    })]: {
+      aws_console: { role_arns: ['arn:aws:iam::123456789012:role/Admin'] },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  render(
+    <RequestCheckoutComp
+      {...props}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{ status: 'success' }}
+      pendingAccessRequests={pendingAccessRequests}
+      addedResourceConstraints={addedResourceConstraints}
+      setResourceConstraints={() => null}
+    />
+  );
+
+  expect(screen.getByText('Role ARNs')).toBeInTheDocument();
+  expect(screen.getAllByTitle('Remove Role ARN')).toHaveLength(1);
+});
