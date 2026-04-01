@@ -164,7 +164,7 @@ Run:
 ```code
 $ gcloud iam service-accounts get-iam-policy \
   spanner-user@<Var name="project-id" />.iam.gserviceaccount.com \
-  --format=json | grep teleport-db-service
+  --format=json | grep role
 ```
 
 You should see the `roles/iam.serviceAccountTokenCreator` role.
