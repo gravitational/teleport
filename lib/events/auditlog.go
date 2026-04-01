@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
@@ -545,7 +546,7 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
+	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID), "start_index", startIndex)
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
@@ -561,6 +562,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
+
 	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
@@ -585,7 +587,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
 
-		firstEvent := true
+		startEventSent := false
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
@@ -602,9 +604,19 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				return
 			}
 
-			if firstEvent {
-				sessionStartCh <- event
-				firstEvent = false
+			// Send the first event that carries enough information to determine
+			// the session type to the session start channel. SessionJoin may
+			// appear before SessionStart sometimes so we can't select first by index
+			if !startEventSent {
+				switch event.(type) {
+				case *apievents.SessionStart,
+					*apievents.DatabaseSessionStart,
+					*apievents.AppSessionStart,
+					*apievents.WindowsDesktopSessionStart:
+					l.log.DebugContext(ctx, "Found session start event", "session_id", string(sessionID), "event_type", fmt.Sprintf("%T", event))
+					sessionStartCh <- event
+					startEventSent = true
+				}
 			}
 
 			if event.GetIndex() >= startIndex {
