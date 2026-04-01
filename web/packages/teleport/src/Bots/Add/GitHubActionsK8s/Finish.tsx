@@ -211,7 +211,7 @@ export function Finish(props: FlowStepProps) {
             )}
 
             <P2>
-              <strong>To complete the setup</strong>;
+              <strong>To complete the setup:</strong>
             </P2>
             <ol>
               <li>
