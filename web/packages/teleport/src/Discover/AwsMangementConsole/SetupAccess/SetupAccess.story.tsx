@@ -68,9 +68,9 @@ const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
 );
 
 export const NoTraits = () => (
-    <Provider awsRoles={[]}>
-      <SetupAccess />
-    </Provider>
+  <Provider awsRoles={[]}>
+    <SetupAccess />
+  </Provider>
 );
 NoTraits.parameters = {
   msw: {
@@ -79,9 +79,9 @@ NoTraits.parameters = {
 };
 
 export const WithTraits = () => (
-    <Provider awsRoles={awsRoles}>
-      <SetupAccess />
-    </Provider>
+  <Provider awsRoles={awsRoles}>
+    <SetupAccess />
+  </Provider>
 );
 WithTraits.parameters = {
   msw: {
@@ -103,9 +103,9 @@ WithTraits.parameters = {
 };
 
 export const NoAccess = () => (
-    <Provider awsRoles={awsRoles} noAccess={true}>
-      <SetupAccess />
-    </Provider>
+  <Provider awsRoles={awsRoles} noAccess={true}>
+    <SetupAccess />
+  </Provider>
 );
 NoAccess.parameters = {
   msw: {
@@ -114,9 +114,9 @@ NoAccess.parameters = {
 };
 
 export const SsoUser = () => (
-    <Provider awsRoles={awsRoles} isSso={true}>
-      <SetupAccess />
-    </Provider>
+  <Provider awsRoles={awsRoles} isSso={true}>
+    <SetupAccess />
+  </Provider>
 );
 SsoUser.parameters = {
   msw: {
