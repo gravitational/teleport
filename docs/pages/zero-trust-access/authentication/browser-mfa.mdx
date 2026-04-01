@@ -8,11 +8,10 @@ tags:
 ---
 
 Browser MFA enables users of `tsh`, `tctl`, and Teleport Connect to complete
-MFA checks in the browser using a
-[WebAuthn](../management/security/idp-compromise.mdx#set-up-cluster-wide-webauthn)
-device. This is particularly useful when a user's only registered MFA device is
-browser-based (e.g. a passkey or TouchID), which would otherwise prevent them
-from authenticating via the CLI entirely.
+MFA checks in the browser using a WebAuthn device. This is particularly useful
+when a user's only registered MFA device is browser-based (e.g. a passkey or
+Touch ID), which would otherwise prevent them from authenticating via the CLI
+entirely.
 
 Example usage:
 ```code
@@ -22,17 +21,17 @@ $ tsh login --proxy example.teleport.sh --user alice --mfa-mode=browser
 # SSH in to a node
 $ tsh ssh --mfa-mode=browser alice@node
 
-# Add a new MFA method
+# Add a new MFA device
 $ tsh mfa add --mfa-mode=browser
 
-# Edit teleport configuration file
+# Edit a Teleport resource
 $ tctl edit --mfa-mode=browser cluster_auth_preference
 ```
 
 ## How it works
 
 In the Browser MFA flow, a user runs a command requiring MFA but only has a
-browser-based WebAuthn device (such as a passkey or TouchID) registered. The CLI
+browser-based WebAuthn device (such as a passkey or Touch ID) registered. The CLI
 tool requests an MFA challenge from Teleport, then opens the user's browser to
 `/web/mfa/browser/[request_id]` where they are prompted to complete the
 challenge. The browser performs the WebAuthn verification, and the response is
@@ -55,7 +54,7 @@ A Teleport cluster with WebAuthn configured is automatically capable of Browser
 MFA without any additional configuration.
 
 <details>
-<summary>Enable Webauthn</summary>
+<summary>Enable WebAuthn</summary>
 
 To enable WebAuthn support, create a `cap.yaml` file or get the existing
 configuration using `tctl get cluster_auth_preference`:
@@ -130,7 +129,7 @@ be authenticated and allowed to proceed.
 
 The `--mfa-mode` flag is optional. If omitted, it defaults to `auto`, which
 tries each authentication mode in order until one succeeds:
-1. WebAuthn
+1. WebAuthn (with TOTP if available)
 1. SSO
 1. Browser MFA
 1. TOTP

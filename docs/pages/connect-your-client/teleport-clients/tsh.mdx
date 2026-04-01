@@ -360,7 +360,7 @@ When a command requires MFA, `tsh` uses the `--mfa-mode` flag to determine how
 to complete the MFA check. If omitted, it defaults to `auto`, which tries each
 method in order until one succeeds:
 
-1. WebAuthn
+1. WebAuthn (with TOTP if available)
 1. SSO
 1. Browser MFA
 1. TOTP
