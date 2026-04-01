@@ -1207,7 +1207,7 @@ const cfg = {
   // This is a temporary patch that does not encode segments (same behavior pre-React Router v7)
   // to provide backwards compatibility.
   getUserWithUsernameTemporaryPatchedUrl(username: string) {
-     return cfg.api.userWithUsernamePath.replace(':username', username)
+    return cfg.api.userWithUsernamePath.replace(':username', username);
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
