@@ -211,7 +211,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
 		ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbRead)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
 		},
 	); err != nil {
 		// Return NotFound rather than Forbidden to avoid leaking existence of
