@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/diag"
@@ -494,21 +494,23 @@ func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.Da
 	var cert tls.Certificate
 
 	reissueCert := func() error {
-		cluster, _, err := p.daemonService.ResolveClusterURI(clusterURI)
+		clusterClient, err := p.daemonService.GetCachedClient(ctx, clusterURI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		client, err := p.daemonService.GetCachedClient(ctx, clusterURI)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		cert, err = cluster.ReissueDBCerts(ctx, client, tlsca.RouteToDatabase{
-			ServiceName: routeToDatabase.ServiceName,
-			Protocol:    routeToDatabase.Protocol,
-			Username:    routeToDatabase.Username,
+		// Using IssueUserCertsWithMFA over cluster.ReissueDBCerts because the latter
+		// rejects empty usernames which is correct for database gateways but not for VNet
+		// as for vnet, the username may come from the wire protocol.
+		result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+			RouteToCluster:  dbKey.GetLeafCluster(),
+			RouteToDatabase: *routeToDatabase,
+			RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cert, err = result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
 		return trace.Wrap(err)
 	}
 
