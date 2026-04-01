@@ -18,7 +18,7 @@
 
 import { screen } from '@testing-library/react';
 
-import { render } from 'design/utils/testing';
+import { render, userEvent } from 'design/utils/testing';
 
 import { Markdown, MarkdownOptions } from './Markdown';
 
@@ -762,5 +762,39 @@ details <script>alert('xss')</script>
         screen.getByText("details <script>alert('xss')</script>")
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe('collapsible sections', () => {
+  it('renders a closed section', async () => {
+    const text = `<details>
+  <summary>title goes here</summary>
+  content goes here
+</details>`;
+
+    const user = userEvent.setup();
+    renderMarkdown(text);
+
+    expect(screen.getByText('title goes here')).toBeInTheDocument();
+    expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('title goes here'));
+    expect(screen.getByText('content goes here')).toBeInTheDocument();
+  });
+
+  it('renders an open section', async () => {
+    const text = `<details open>
+  <summary>title goes here</summary>
+  content goes here
+</details>`;
+
+    const user = userEvent.setup();
+    renderMarkdown(text);
+
+    expect(screen.getByText('title goes here')).toBeInTheDocument();
+    expect(screen.getByText('content goes here')).toBeInTheDocument();
+
+    await user.click(screen.getByText('title goes here'));
+    expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
   });
 });
