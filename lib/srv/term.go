@@ -202,8 +202,9 @@ func (t *terminal) AddParty(delta int) {
 // Replace \n with \r\n so the message is correctly aligned.
 var crlfReplacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
-// Run will run the terminal. If the shell fails to start due to a [teleport.RemoteCommandFailure],
-// the error will be written to the given error writer.
+// Run will run the terminal. If the shell fails to start due to a
+// [reexecconstants.RemoteCommandFailure], the error will be written to the
+// given error writer.
 func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	select {
 	case <-ctx.Done():
