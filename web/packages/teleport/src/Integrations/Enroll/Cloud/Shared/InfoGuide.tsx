@@ -56,10 +56,9 @@ export const ContentWithSidePanel = styled(Box)<{
     })}
 `;
 
-export function useTerraformInfoGuide(defaultOpen = true) {
-  const [activeInfoGuideTab, setActiveInfoGuideTab] = useState<InfoGuideTab>(
-    defaultOpen ? 'terraform' : null
-  );
+export function useTerraformInfoGuide(defaultTab: InfoGuideTab = 'terraform') {
+  const [activeInfoGuideTab, setActiveInfoGuideTab] =
+    useState<InfoGuideTab>(defaultTab);
 
   const isPanelOpen = activeInfoGuideTab !== null;
 
@@ -207,7 +206,7 @@ export const InfoGuideSwitch = ({
 };
 
 type TerraformInfoGuideSidePanelProps = {
-  panelWidth: number;
+  panelWidth?: number;
   activeTab: InfoGuideTab;
   onTabChange: (tab: InfoGuideTab) => void;
   InfoGuideContent: ReactNode;
@@ -215,7 +214,8 @@ type TerraformInfoGuideSidePanelProps = {
 };
 
 export function TerraformInfoGuideSidePanel({
-  panelWidth,
+  // TODO(alexhemard): remove panelWidth prop after responsive width support is added.
+  panelWidth = 500,
   activeTab,
   onTabChange,
   InfoGuideContent,
