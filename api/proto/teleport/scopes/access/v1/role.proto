@@ -110,6 +110,9 @@ message ScopedRoleSSH {
   // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
   // over an SSH session. It defaults to true unless explicitly set to false.
   optional bool ssh_file_copy = 5;
+
+  // ForwardAgent is SSH agent forwarding.
+  optional bool forward_agent = 6;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block

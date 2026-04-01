@@ -108,7 +108,7 @@ func (c *SSHAccessChecker) CanForwardAgents() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanForwardAgents()
 	}
-	return c.checker.scopedCompatChecker.CanForwardAgents()
+	return c.checker.role.GetSpec().GetSsh().GetForwardAgent()
 }
 
 // PermitX11Forwarding returns true if X11 forwarding is permitted.
@@ -192,5 +192,5 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
-	return c.checker.role.Spec.Ssh.GetSshFileCopy()
+	return c.checker.role.GetSpec().GetSsh().GetSshFileCopy()
 }

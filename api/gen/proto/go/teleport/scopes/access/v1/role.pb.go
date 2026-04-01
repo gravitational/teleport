@@ -283,7 +283,9 @@ type ScopedRoleSSH struct {
 	PermitX11Forwarding *bool `protobuf:"varint,4,opt,name=permit_x11_forwarding,json=permitX11Forwarding,proto3,oneof" json:"permit_x11_forwarding,omitempty"`
 	// SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 	// over an SSH session. It defaults to true unless explicitly set to false.
-	SshFileCopy   *bool `protobuf:"varint,5,opt,name=ssh_file_copy,json=sshFileCopy,proto3,oneof" json:"ssh_file_copy,omitempty"`
+	SshFileCopy *bool `protobuf:"varint,5,opt,name=ssh_file_copy,json=sshFileCopy,proto3,oneof" json:"ssh_file_copy,omitempty"`
+	// ForwardAgent is SSH agent forwarding.
+	ForwardAgent  *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -349,6 +351,13 @@ func (x *ScopedRoleSSH) GetPermitX11Forwarding() bool {
 func (x *ScopedRoleSSH) GetSshFileCopy() bool {
 	if x != nil && x.SshFileCopy != nil {
 		return *x.SshFileCopy
+	}
+	return false
+}
+
+func (x *ScopedRoleSSH) GetForwardAgent() bool {
+	if x != nil && x.ForwardAgent != nil {
+		return *x.ForwardAgent
 	}
 	return false
 }
@@ -428,15 +437,17 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03sshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\x97\x02\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xd3\x02\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
 	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x127\n" +
 	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12'\n" +
-	"\rssh_file_copy\x18\x05 \x01(\bH\x01R\vsshFileCopy\x88\x01\x01B\x18\n" +
+	"\rssh_file_copy\x18\x05 \x01(\bH\x01R\vsshFileCopy\x88\x01\x01\x12(\n" +
+	"\rforward_agent\x18\x06 \x01(\bH\x02R\fforwardAgent\x88\x01\x01B\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
-	"\x0e_ssh_file_copy\"@\n" +
+	"\x0e_ssh_file_copyB\x10\n" +
+	"\x0e_forward_agent\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
