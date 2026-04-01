@@ -16,16 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
-
-export type RegionId = AwsRegion; // | AzureRegion | GcpRegion, etc
-
-export interface Region {
-  id: RegionId;
-  name: string;
-}
-
-export interface RegionGroup {
-  name: string;
-  regions: readonly Region[];
-}
+export { RegionSelect } from './RegionSelect';
