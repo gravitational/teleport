@@ -193,7 +193,12 @@ func (p *playwrightRunner) ui(ctx context.Context) error {
 		return err
 	}
 
-	return p.pnpm(ctx, []string{"exec", "playwright", "test", "--ui"}, env)
+	args := []string{"exec", "playwright", "test", "--ui"}
+	if len(p.config.testFiles) > 0 {
+		args = append(args, p.config.testFiles...)
+	}
+
+	return p.pnpm(ctx, args, env)
 }
 
 func (p *playwrightRunner) codegen(ctx context.Context) error {
