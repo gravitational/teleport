@@ -50,6 +50,7 @@ func TestWaitReady(t *testing.T) {
 
 		err := proc.waitReady(t.Context())
 		require.NoError(t, err)
+		<-proc.done
 	})
 
 	t.Run("process cancellation", func(t *testing.T) {
@@ -64,6 +65,7 @@ func TestWaitReady(t *testing.T) {
 		err := proc.waitReady(t.Context())
 		require.Error(t, err)
 		require.ErrorContains(t, err, "networking process exited before signaling ready")
+		<-proc.done
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
@@ -86,6 +88,7 @@ func TestWaitReady(t *testing.T) {
 
 		err := proc.waitReady(ctx)
 		require.ErrorIs(t, err, context.Canceled)
+		<-proc.done
 	})
 }
 
@@ -107,9 +110,6 @@ func TestReexecHelperProcess(t *testing.T) {
 
 	switch os.Getenv(reexecWaitHelperEnv) {
 	case reexecWaitHelperEnvWaitClose:
-		// Wait for the other side of the connection to close and exit immediately.
-		ffd.Read(make([]byte, 1))
-		os.Exit(1)
 	case reexecWaitHelperEnvSignalReady:
 		// Signal ready.
 		parentConn, err := uds.FromFile(ffd)
@@ -121,4 +121,8 @@ func TestReexecHelperProcess(t *testing.T) {
 			os.Exit(1)
 		}
 	}
+
+	// Wait for the other side of the connection to close and exit immediately.
+	ffd.Read(make([]byte, 1))
+	os.Exit(1)
 }

@@ -175,6 +175,7 @@ func (p *Process) start(ctx context.Context, reexecErrorContext *reexec.ErrorCon
 
 		childErr, err := reexec.ReadChildError(stderrReader, reexecErrorContext)
 		if err == nil && childErr != "" {
+			slog.DebugContext(ctx, "Networking process exited with error", "error", childErr)
 			p.childErr = errors.New(strings.TrimRight(childErr, "\r\n"))
 			return
 		}

@@ -631,6 +631,10 @@ func TestSessionAuditLog(t *testing.T) {
 }
 
 func TestX11AuditLog(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping x11 test as xauth is not enabled")
+	}
+
 	ctx := t.Context()
 	t.Parallel()
 
