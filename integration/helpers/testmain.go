@@ -26,8 +26,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -42,7 +42,7 @@ func TestMainImplementation(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if srv.IsReexec() {
+	if reexec.IsReexec() {
 		defer cancel()
 		common.Run(common.Options{Args: os.Args[1:]})
 		return

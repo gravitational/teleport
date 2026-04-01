@@ -157,6 +157,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -187,8 +188,8 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+	if reexec.IsReexec() {
+		reexec.RunAndExit(os.Args[1])
 		return
 	}
 

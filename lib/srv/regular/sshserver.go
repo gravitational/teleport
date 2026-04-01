@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -370,7 +371,7 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{},
+		ExecLogConfig: reexec.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
 }
@@ -824,7 +825,7 @@ func SetImmutableLabels(labels map[string]string) ServerOption {
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			ExecLogConfig: reexec.ExecLogConfig{
 				Level:        cfg.LoggerLevel.Level(),
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,

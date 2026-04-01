@@ -52,12 +52,12 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/selinux"
 )
 
@@ -747,13 +747,13 @@ Examples:
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
-		srv.RunAndExit(teleport.ExecSubCommand)
+		reexec.RunAndExit(teleport.ExecSubCommand)
 	case networking.FullCommand():
-		srv.RunAndExit(teleport.NetworkingSubCommand)
+		reexec.RunAndExit(teleport.NetworkingSubCommand)
 	case checkHomeDir.FullCommand():
-		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
+		reexec.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
-		srv.RunAndExit(teleport.ParkSubCommand)
+		reexec.RunAndExit(teleport.ParkSubCommand)
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():

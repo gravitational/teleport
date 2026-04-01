@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // BenchmarkRootExecCommand measures performance of running multiple exec requests
@@ -70,7 +71,7 @@ func BenchmarkRootExecCommand(b *testing.B) {
 				// Re-enable once we have a better way to benchmark with logging enabled.
 				func(s *Server) error {
 					s.childLogConfig = &srv.ChildLogConfig{
-						ExecLogConfig: srv.ExecLogConfig{
+						ExecLogConfig: reexec.ExecLogConfig{
 							Level: slog.LevelError,
 						},
 						Writer: io.Discard,
