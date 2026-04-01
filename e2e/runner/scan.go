@@ -40,7 +40,7 @@ var fixtureArrayRe = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
 var lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
 
 // fixtureRefRe extracts individual quoted fixture names from the matched array contents.
-var fixtureRefRe = regexp.MustCompile(`'([^']+)'`)
+var fixtureRefRe = regexp.MustCompile(`['"]([^'"]+)['"]`)
 
 // helperImportRe matches imports from the e2e helpers package and captures the module name.
 // e.g. `from '@gravitational/e2e/helpers/connect'` → "connect"
