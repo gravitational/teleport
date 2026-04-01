@@ -18,6 +18,8 @@
 
 package fixtures
 
+import "flag"
+
 var (
 	SSHNode = register("ssh-node")
 	Connect = register("connect")
@@ -40,6 +42,12 @@ func register(name string) *Fixture {
 
 func All() []*Fixture {
 	return all
+}
+
+func BindFlags(fs *flag.FlagSet) {
+	for _, f := range all {
+		fs.BoolVar(&f.Enabled, "with-"+f.Name, false, "enable the "+f.Name+" fixture")
+	}
 }
 
 func FindByName(name string) *Fixture {

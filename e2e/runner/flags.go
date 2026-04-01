@@ -91,6 +91,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.StringVar(&f.reportRepo, "repo", "", "GitHub repo name (e.g. teleport.e), auto-detected if omitted")
 	flag.StringVar(&f.reportSHA, "sha", "", "commit SHA to download artifacts for (overrides PR head SHA)")
 
+	fixtures.BindFlags(flag.CommandLine)
 	modes.bindFlags(flag.CommandLine)
 
 	flag.Parse()
