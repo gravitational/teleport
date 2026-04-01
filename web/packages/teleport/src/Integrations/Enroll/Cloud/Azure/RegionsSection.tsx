@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -24,32 +24,33 @@ import { FieldRadio } from 'design/FieldRadio';
 import { Option } from 'shared/components/Select';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { Regions as AwsRegion } from 'teleport/services/integrations';
+import { AzureRegion } from 'teleport/services/integrations';
 
 import { CircleNumber, RegionOrWildcard } from '../Shared';
 import { RegionSelect } from '../Shared/RegionSelect';
-import { awsRegionOptions } from './regions';
+import { azureRegionOptions } from './regions';
 
 type RegionsSectionProps = {
-  regions: RegionOrWildcard<AwsRegion>[];
-  onChange: (regions: RegionOrWildcard<AwsRegion>[]) => void;
+  regions: RegionOrWildcard<AzureRegion>[];
+  onChange: (regions: RegionOrWildcard<AzureRegion>[]) => void;
 };
 
-const isWildcard = (regions: RegionOrWildcard<AwsRegion>[]) =>
+const isWildcard = (regions: RegionOrWildcard<AzureRegion>[]) =>
   regions.some(region => region === '*');
 
 export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
-  const selectedOptions: Option<AwsRegion>[] = useMemo(() => {
+  const selectedOptions: Option<AzureRegion>[] = useMemo(() => {
     if (isWildcard(regions)) {
       return [];
     }
 
-    const allOptions = awsRegionOptions.flatMap(group => group.options);
-    return allOptions.filter(opt => regions.includes(opt.value));
+    return azureRegionOptions
+      .flatMap(group => group.options)
+      .filter(opt => regions.includes(opt.value));
   }, [regions]);
 
-  const requiredAtLeastOneRegion: Rule<Option<AwsRegion>[]> =
-    (options: Option<AwsRegion>[]) => () => {
+  const requiredAtLeastOneRegion: Rule<Option<AzureRegion>[]> =
+    (options: Option<AzureRegion>[]) => () => {
       if (!options || options.length === 0) {
         return {
           valid: false,
@@ -96,9 +97,9 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
 
         {!isWildcard(regions) && (
           <Box mt={3} width={400}>
-            <RegionSelect
+            <RegionSelect<AzureRegion>
               isMulti={true}
-              options={awsRegionOptions}
+              options={azureRegionOptions}
               value={selectedOptions}
               onChange={options => onChange(options.map(opt => opt.value))}
               isDisabled={false}

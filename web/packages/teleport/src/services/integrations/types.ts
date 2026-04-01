@@ -612,6 +612,8 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+  // azurevm contains the summary for the Azure VM resources for this integration.
+  azurevm: ResourceTypeSummary;
   // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
   rolesAnywhereProfileSync: RolesAnywhereProfileSync;
   isManagedByTerraform?: boolean;
@@ -991,6 +993,10 @@ export const azureRegionMap = {
 };
 
 export type AzureRegion = keyof typeof azureRegionMap;
+
+export enum AzureResource {
+  vm = 'vm',
+}
 
 // RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the
