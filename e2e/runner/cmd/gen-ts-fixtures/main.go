@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"text/template"
 
@@ -77,15 +76,6 @@ func main() {
 	outPath := filepath.Join("..", "helpers", "fixtures.ts")
 	if err := os.WriteFile(outPath, buf.Bytes(), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "writing %s: %v\n", outPath, err)
-		os.Exit(1)
-	}
-
-	cmd := exec.Command("pnpm", "format", filepath.Join("e2e", "helpers", "fixtures.ts"))
-	cmd.Dir = filepath.Join("..", "..")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "formatting %s: %v\n", outPath, err)
 		os.Exit(1)
 	}
 

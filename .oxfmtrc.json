@@ -12,6 +12,7 @@
     "**/*_pb.*",
     "**/ironrdp/pkg/**",
     "web/.storybook/public/mockServiceWorker.js",
+    "e2e/helpers/fixtures.ts"
   ],
   "sortPackageJson": false,
   "sortImports": {
