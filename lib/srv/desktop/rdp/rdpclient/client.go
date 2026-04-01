@@ -1052,7 +1052,8 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
 		},
-		ClipboardEnabled: true,
+		ClipboardEnabled:         true,
+		DirectoryRemoveSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure
