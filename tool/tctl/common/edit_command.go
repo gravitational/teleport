@@ -152,11 +152,22 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	key := func(r services.UnknownResource) string {
-		return fmt.Sprintf("%s/%s", r.Kind, r.GetName())
+		return r.Kind + "/" + r.SubKind + "/" + r.GetName()
 	}
 	originalResourcesMap := make(map[string][]byte)
 	for _, r := range originalResources {
 		originalResourcesMap[key(r)] = r.Raw
+	}
+	if len(originalResourcesMap) != len(originalResources) {
+		slog.DebugContext(ctx, "tctl edit clobbered resources on originalResourcesMap",
+			"ref", e.ref,
+			"original_resources_map_len", len(originalResourcesMap),
+			"original_resources_len", len(originalResources),
+		)
+		return trace.BadParameter(
+			"tctl edit cannot handle multiple resources of kind %q, please specify a single resource to edit",
+			e.ref.Kind,
+		)
 	}
 
 	if err := e.runEditor(ctx, f.Name()); err != nil {
@@ -178,9 +189,18 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if len(newResources) != len(originalResources) {
 		return trace.BadParameter("one or more resources were added or removed, renaming resources is not supported with tctl edit")
+	}
+
+	// Verify keying of new resources, similarly to originalResources.
+	newResourcesMap := make(map[string]struct{}, len(newResources))
+	for _, r := range newResources {
+		newResourcesMap[key(r)] = struct{}{}
+	}
+	if len(newResourcesMap) != len(newResources) {
+		return trace.BadParameter(
+			"one or more edited resources have duplicate kind/sub_kind/name keys, each resource must be unique")
 	}
 
 	for _, newResource := range newResources {
