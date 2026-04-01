@@ -28,11 +28,6 @@ import (
 )
 
 const (
-	TeleportComponentKey    = "trace.component"
-	TeleportComponentFields = "trace.fields"
-)
-
-const (
 	// TraceLevel is the logging level when set to Trace verbosity.
 	TraceLevel = slog.LevelDebug - 1
 

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/session/auditd"
 	"github.com/gravitational/teleport/session/envutils"
 	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/logconstants"
 	"github.com/gravitational/teleport/session/loginuid"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -1560,13 +1561,13 @@ func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
 			ConfiguredFields: fields,
 			Padding:          cfg.Padding,
 		}))
-		slog.SetDefault(logger.With(logutils.TeleportComponentKey, name))
+		slog.SetDefault(logger.With(logconstants.ComponentKey, name))
 	case "json":
 		logger := slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
 			Level:            cfg.Level,
 			ConfiguredFields: fields,
 		}))
-		slog.SetDefault(logger.With(logutils.TeleportComponentKey, name))
+		slog.SetDefault(logger.With(logconstants.ComponentKey, name))
 	default:
 		return
 	}

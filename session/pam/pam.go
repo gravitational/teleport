@@ -59,7 +59,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/session/logutils"
+	"github.com/gravitational/teleport/session/logconstants"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
@@ -102,7 +102,7 @@ func init() {
 }
 
 // logComponent is the value for the component attribute in logs for this
-// package; it should be paired with [logutils.ComponentKey]. Using a
+// package; it should be paired with [logconstants.ComponentKey]. Using a
 // package-level logger with this attribute created with [slog.With] would not
 // synchronize correctly with [slog.SetDefault] and copying the packagelogger
 // construction from lib/utils/log doesn't seem to be worth it when we have
@@ -154,7 +154,7 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 	if err != nil {
 		slog.ErrorContext(context.Background(),
 			"Unable to write to output stream",
-			logutils.ComponentKey, logComponent,
+			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
 		return
@@ -174,7 +174,7 @@ func readCallback(index C.int, e C.int) *C.char {
 	if err != nil {
 		slog.ErrorContext(context.Background(),
 			"Unable to read from input stream",
-			logutils.ComponentKey, logComponent,
+			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
 		return nil
@@ -190,7 +190,7 @@ func readCallback(index C.int, e C.int) *C.char {
 	if err != nil {
 		slog.ErrorContext(context.Background(),
 			"Unable to read from input stream",
-			logutils.ComponentKey, logComponent,
+			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
 		return nil
@@ -456,7 +456,7 @@ func (p *PAM) free() {
 		if retval != C.PAM_SUCCESS {
 			slog.WarnContext(context.Background(),
 				"Failed to end PAM transaction",
-				logutils.ComponentKey, logComponent,
+				logconstants.ComponentKey, logComponent,
 				"error", p.codeToError(retval),
 			)
 		}
