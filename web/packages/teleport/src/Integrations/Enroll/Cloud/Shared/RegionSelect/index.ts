@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { RegionMultiSelector } from './RegionMultiSelector';
-export type { RegionMultiSelectorProps } from './RegionMultiSelector';
+export { RegionSelect } from './RegionSelect';

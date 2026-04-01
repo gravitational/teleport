@@ -39,8 +39,8 @@ import {
   CircleNumber,
   Container,
   Divider,
-  WildcardRegion,
   useEnrollCloudIntegration,
+  RegionOrWildcard,
 } from '../Shared';
 import {
   ContentWithSidePanel,
@@ -74,7 +74,7 @@ export function EnrollAws() {
     cancelCheckIntegration,
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>(['*']);
+  const [regions, setRegions] = useState<RegionOrWildcard<AwsRegion>[]>(['*']);
 
   const [ec2Config, setEc2Config] = useState<Ec2Config>({
     enabled: true,

@@ -21,8 +21,6 @@ import {
   Regions as AwsRegion,
 } from 'teleport/services/integrations';
 
-import { RegionGroup } from '../Shared';
-
 const regions: { name: string; regions: AwsRegion[] }[] = [
   {
     name: 'North America',
@@ -76,16 +74,16 @@ const regions: { name: string; regions: AwsRegion[] }[] = [
   },
 ];
 
-function createAwsRegionGroups(): readonly RegionGroup<AwsRegion>[] {
+function createAwsRegionOptions() {
   return regions.map(({ name, regions }) => ({
-    name,
-    regions: regions
+    label: name,
+    options: regions
       .filter(id => id in awsRegionMap)
       .map(id => ({
-        id,
-        name: awsRegionMap[id],
+        value: id,
+        label: awsRegionMap[id],
       })),
   }));
 }
 
-export const awsRegionGroups = createAwsRegionGroups();
+export const awsRegionOptions = createAwsRegionOptions();
