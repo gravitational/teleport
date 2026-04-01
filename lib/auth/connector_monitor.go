@@ -61,6 +61,10 @@ const (
 	samlCertMonitorLockRefreshInterval = 20 * time.Second
 	// retryJitter is the jitter duration applied when restarting the monitor after failure.
 	retryJitter = 5 * time.Second
+	// alertLink is the documentation linked to from the "Learn More" link on the alert
+	alertLink = "https://goteleport.com/docs/zero-trust-access/sso/saml-cert-rotation/"
+	// alertLabel is the label for the documentation link on the alert
+	alertLabel = "Learn More"
 )
 
 // SAMLCertExpiryMonitorConfig is embedded in the SAMLCertExpiryMonitor to provide access
@@ -269,9 +273,8 @@ func (m *SAMLCertExpiryMonitor) upsertAlert(ctx context.Context, id, message str
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindSAML, types.VerbRead)),
 		types.WithAlertExpires(m.Clock.Now().Add(samlCertExpiryAlertExpires)),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
-		// TODO(nixpig): Link to better documentation page when it's created.
-		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/docs/reference/infrastructure-as-code/teleport-resources/saml-connector-v2/#saml-connector-spec-v2"),
-		types.WithAlertLabel(types.AlertLinkText, "Learn More"),
+		types.WithAlertLabel(types.AlertLink, alertLink),
+		types.WithAlertLabel(types.AlertLinkText, alertLabel),
 	)
 	if err != nil {
 		return trace.Wrap(err)
