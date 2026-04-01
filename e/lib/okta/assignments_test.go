@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -36,7 +37,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		return mustAppName(t, name, link)
 	}
 
-	reconciler := newAssignmentReconciler(testClusterName, svc)
+	reconciler := newAssignmentReconciler(svc)
 	reconciler.onReconcileCh = onReconcileCh
 	reconciler.noAssignmentProcessorLoop = true
 	require.NoError(t, reconciler.start(ctx))
@@ -45,9 +46,6 @@ func TestAssignmentReconciler(t *testing.T) {
 	})
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
-
-	// Reconciler should be empty to start
-	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
 
 	t.Run("finalized assignment should be deleted from backend", func(t *testing.T) {
 		cleanedUpAssignment := assignment(t, "cleaned-up-assignment", testUser, clock.Now(), constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
@@ -61,7 +59,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		// Assignment Creation
 		// Assignment Deletion
 		waitForResult(t, onReconcileCh, struct{}{}, 2)
-		assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
+		assertOktaAssignments(t, ap, types.OktaAssignments{})
 
 	})
 
@@ -91,7 +89,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 	)
-	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{assignment1})
+	assertOktaAssignments(t, ap, types.OktaAssignments{assignment1})
 
 	foundAssignment, err := ap.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
@@ -120,17 +118,25 @@ func TestAssignmentReconciler(t *testing.T) {
 	})
 
 	assertAssignmentDoesntExist(t, ap, assignment1.GetName())
-	assertRecNewAndCurAssignments(t, reconciler, types.OktaAssignments{})
+	assertOktaAssignments(t, ap, types.OktaAssignments{})
 }
 
 func assertAssignmentDoesntExist(t *testing.T, ap *testAccessPoint, name string) {
-	_, err := ap.GetOktaAssignment(context.Background(), name)
+	t.Helper()
+	ctx := t.Context()
+	_, err := ap.GetOktaAssignment(ctx, name)
 	require.True(t, trace.IsNotFound(err))
 }
 
-func assertRecNewAndCurAssignments(t *testing.T, reconciler *assignmentReconciler, want types.OktaAssignments) {
-	assertAssignments(t, want, reconciler.getAssignments())
-	assertAssignments(t, want, reconciler.getNewAssignments())
+func assertOktaAssignments(t *testing.T, ap *testAccessPoint, want types.OktaAssignments) {
+	t.Helper()
+	ctx := t.Context()
+	actual := make([]types.OktaAssignment, 0, len(want))
+	for oa, err := range clientutils.Resources(ctx, ap.ListOktaAssignments) {
+		require.NoError(t, err)
+		actual = append(actual, oa)
+	}
+	assertAssignments(t, want, actual)
 }
 
 func assertAssignments(t *testing.T, want, got types.OktaAssignments) {

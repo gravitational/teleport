@@ -486,9 +486,7 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClient := newTestOktaClient()
 			svc, emitter := newTestService(t, ap, oktaClient)
 			svc.clock = clock
-			a := newAssignmentProcessor(svc, func() types.OktaAssignments {
-				return test.assignments
-			})
+			a := newAssignmentProcessor(svc)
 
 			oktaClient.AddUserID(testUser, testOktaUserID)
 
@@ -528,7 +526,7 @@ func TestProcessAssignments(t *testing.T) {
 
 			clock.Advance(test.incrementTimeDuration)
 
-			a.processAllAssignments(ctx)
+			a.processTimerEvent(ctx)
 
 			actual, _, err := ap.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
@@ -648,18 +646,22 @@ func Test_assignmentProcessor_processAssignments_priority(t *testing.T) {
 	}
 
 	// Now let's check if sortAssignmentsByProcessingPriority is used during processing.
-	svc.assignmentReconciler.assignmentProcessor.assignmentGetter = func() types.OktaAssignments {
-		assignments := mustGetAllOktaAssignments(t, ap)
-		rand.Shuffle(len(assignments), func(i, j int) {
-			assignments[i], assignments[j] = assignments[j], assignments[i]
-		})
-		return assignments
-	}
+	svc.assignmentReconciler.assignmentProcessor.accessPoint.oktaAssignmentService = &shufflingOktaAssignmentService{svc.assignmentReconciler.assignmentProcessor.accessPoint.oktaAssignmentService}
 	svc.assignmentReconciler.assignmentProcessor.emitter = dummyEmitter{}
-	svc.assignmentReconciler.assignmentProcessor.processAllAssignments(ctx)
+	svc.assignmentReconciler.assignmentProcessor.processTimerEvent(ctx)
 	sortedProcessedAssignments := mustGetAllOktaAssignments(t, ap)
 	sortByLastTransition(sortedProcessedAssignments) // oldest LastTransition was processed first
 	require.Equal(t, getOktaAssignmentNames(expectedAssignments), getOktaAssignmentNames(sortedProcessedAssignments))
+}
+
+type shufflingOktaAssignmentService struct {
+	oktaAssignmentService
+}
+
+func (s *shufflingOktaAssignmentService) ListOktaAssignments(ctx context.Context, limit int, pageToken string) ([]types.OktaAssignment, string, error) {
+	page, nextPageToken, err := s.oktaAssignmentService.ListOktaAssignments(ctx, limit, pageToken)
+	rand.Shuffle(len(page), func(i, j int) { page[i], page[j] = page[j], page[i] })
+	return page, nextPageToken, err
 }
 
 // This test makes sure we don't skip Okta-side cleanup of okta_assignment resources that expired

@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	ossaccesslist "github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/teleport"
@@ -66,6 +67,8 @@ type assignmentProcessorAccessPoint struct {
 }
 
 type oktaAssignmentService interface {
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
@@ -92,7 +95,6 @@ type assignmentProcessor struct {
 	syncedAppServers *utils.SyncMap[string, types.AppServer]
 	// syncedUserGroups are shared with [Service]. They should not be modified.
 	syncedUserGroups   *utils.SyncMap[string, types.UserGroup]
-	assignmentGetter   func() types.OktaAssignments
 	rateLimiter        *rate.Limiter
 	oktaClient         oktaapi.Interface
 	assignmentClientMu sync.RWMutex
@@ -112,7 +114,7 @@ type assignmentProcessor struct {
 	userTargetCounter map[string]map[string]struct{}
 }
 
-func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
+func newAssignmentProcessor(svc *Service) *assignmentProcessor {
 	return &assignmentProcessor{
 		leader:     svc.leader,
 		logger:     svc.logger,
@@ -126,7 +128,6 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		},
 		syncedAppServers:                  &svc.appServers,
 		syncedUserGroups:                  &svc.groups,
-		assignmentGetter:                  assignmentGetter,
 		oktaClient:                        svc.client,
 		assignmentClient:                  newAssignmentClient(svc.logger, svc.client),
 		stopCh:                            make(chan struct{}, 1),
@@ -142,6 +143,9 @@ func (a *assignmentProcessor) start(ctx context.Context) {
 
 // loop runs the main body of the processing loop.
 func (a *assignmentProcessor) loop(ctx context.Context) {
+	a.logger.DebugContext(ctx, "Starting time-based Okta assignments reconciler")
+	defer a.logger.DebugContext(ctx, "Stopped time-based Okta assignments reconciler")
+
 	timer := a.clock.NewTimer(a.timeBetweenAssignmentProcessLoops)
 	defer timer.Stop()
 
@@ -159,12 +163,7 @@ func (a *assignmentProcessor) loop(ctx context.Context) {
 			continue
 		}
 
-		// Refresh the assignment client every loop.
-		a.assignmentClientMu.Lock()
-		a.assignmentClient = newAssignmentClient(a.logger, a.oktaClient)
-		a.assignmentClientMu.Unlock()
-
-		a.processAllAssignments(ctx)
+		a.processTimerEvent(ctx)
 
 		timer.Reset(a.timeBetweenAssignmentProcessLoops)
 	}
@@ -175,31 +174,76 @@ func (a *assignmentProcessor) stop() {
 	close(a.stopCh)
 }
 
-// processAllAssignments will iterate through and process all of the assignments.
-func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
-	loopID := newLoopID(sourceTimer, a.clock.Now())
-	assignments := a.assignmentGetter()
+// processWatcherEvent processes all Okta assignments coming from a watcher event. It will only
+// process assignments which are pending or require cleanup.
+func (a *assignmentProcessor) processWatcherEvent(ctx context.Context, assignments []types.OktaAssignment) {
+	const source = sourceWatcher
+	loopID := newLoopID(source, a.clock.Now())
+
+	logger := a.logger.With("loop_id", loopID)
 
 	start := time.Now()
-	a.logger.DebugContext(ctx, "Started processing Okta assignments", "loop_id", loopID)
+	logger.DebugContext(ctx, "Started processing Okta assignments")
 	defer func() {
 		took := time.Since(start)
 		a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID, "took", logutils.StringerAttr(took))
 	}()
 
-	// Rebuild the target counter in a fresh loop.
-	a.rebuildTargetCounter(assignments)
-
-	sortAssignmentsByProcessingPriority(a.clock.Now(), assignments)
+	// Note that this loop is using a.assignmentClient which is reset only during
+	// [processTimerEvent]. There is also NO target counter re-building here.  Watcher-based
+	// loops are only processing assignments that are pending or scheduled for cleanup. Those
+	// are excluded during target counter building.
 
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentsLoopTimeout)
 	defer cancel()
 
 	for _, assignment := range assignments {
-		// processAssignment does not return error, it only returns a
-		// result to signal if the assignment was processed or not so the
-		// return value can be ignored here.
-		_ = a.processAssignment(ctx, loopID, assignment, sourceTimer)
+		// TODO(kopiczko): Get rid of the processAssignment return value.
+		_ = a.processAssignment(ctx, logger, assignment, source)
+	}
+}
+
+// processTimerEvent is supposed to be called in a periodic loop and re-processes all assignments
+// stored in Teleport cache. It also resets the cached assignment client (which is also used for
+// watcher events).
+func (a *assignmentProcessor) processTimerEvent(ctx context.Context) {
+	const source = sourceTimer
+	loopID := newLoopID(source, a.clock.Now())
+
+	logger := a.logger.With("loop_id", loopID)
+
+	start := time.Now()
+	logger.DebugContext(ctx, "Started processing Okta assignments")
+	defer func() {
+		took := time.Since(start)
+		a.logger.DebugContext(ctx, "Finished processing Okta assignments", "loop_id", loopID, "took", logutils.StringerAttr(took))
+	}()
+
+	// Cached assignments client is reset periodically at the beginning of every timer-based
+	// loop.
+	a.resetAssignmentClient()
+
+	var assignments []types.OktaAssignment
+	for assignment, err := range clientutils.Resources(ctx, a.accessPoint.ListOktaAssignments) {
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to list Okta assignments", "error", err)
+			return
+		}
+		assignments = append(assignments, assignment)
+	}
+	sortAssignmentsByProcessingPriority(a.clock.Now(), assignments)
+
+	// Target counter are re-build only during full re-processing timer-based loops.
+	// Watcher-based loops are only processing assignments that are pending or scheduled for
+	// cleanup. Those are excluded during target counter building.
+	a.rebuildTargetCounter(assignments)
+
+	ctx, cancel := context.WithTimeout(ctx, processAssignmentsLoopTimeout)
+	defer cancel()
+
+	for _, assignment := range assignments {
+		// TODO(kopiczko): Get rid of the processAssignment return value.
+		_ = a.processAssignment(ctx, logger, assignment, source)
 	}
 }
 
@@ -215,7 +259,8 @@ const (
 // processAssignment processes the assignment creating Okta-side assignments according to the spec.
 // If the assignment has a cleanup time set in the past it will be scheduled for cleanup and
 // eventually removed from the backend.
-func (a *assignmentProcessor) processAssignment(ctx context.Context, loopID string, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
+// NOTE: This should not be used directly. [processTimerEvent] or [processWatcherEvent] should be used instead.
+func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, source processorSource) processAssignmentResult {
 	// Skip processing if the leadership has not been acquired.
 	if !a.leader.IsLeader() {
 		return processAssignmentSkipped
@@ -224,8 +269,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, loopID stri
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
 
-	logger := a.logger.With(
-		"loop_id", loopID,
+	logger = logger.With(
 		"assignment", assignment.GetName(),
 		"user", assignment.GetUser(),
 	)
@@ -259,6 +303,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, loopID stri
 	startStatus := assignment.GetStatus()
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 
+	// TODO(kopiczko): Get rid of OktaAssignment.Finalizer and move the simplified assignment filtering here form [processAssignment]. That should allow removing `source` parameter from [processAssignment].
 	if shouldProcess := a.shouldProcess(ctx, logger, assignment, needsCleanup); !shouldProcess {
 		return processAssignmentSkipped
 	}
@@ -525,6 +570,7 @@ func (a *assignmentProcessor) rebuildTargetCounter(assignments []types.OktaAssig
 		// assignments are attempting to clean up the same target, then they'll
 		// all be able to issue the cleanup command since there won't be multiple
 		// assignments holding onto a target.
+		// TODO(kopiczko): Get rid of the OktaAssignment.Finalized filed and create a common method which matches assignments considered during watcher loops and then replace the condition below.
 		if !needsCleanup && status != constants.OktaAssignmentStatusPending {
 			for _, target := range assignment.GetTargets() {
 				targetName := userTargetName(assignment, target)
@@ -575,7 +621,15 @@ func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignme
 	return len(assignments)
 }
 
-// getAssignmentClient returns the assignment client.
+// resetAssignmentClient resets the caching assignment client.
+func (a *assignmentProcessor) resetAssignmentClient() {
+	a.assignmentClientMu.Lock()
+	defer a.assignmentClientMu.Unlock()
+
+	a.assignmentClient = newAssignmentClient(a.logger, a.oktaClient)
+}
+
+// getAssignmentClient returns the caching assignment client.
 func (a *assignmentProcessor) getAssignmentClient() *assignmentClient {
 	a.assignmentClientMu.RLock()
 	defer a.assignmentClientMu.RUnlock()

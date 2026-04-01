@@ -542,11 +542,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		}
 
 		if bidirectionalSyncEnabled {
-			clusterName, err := s.accessPoint.GetClusterName(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			s.assignmentReconciler = newAssignmentReconciler(clusterName.GetClusterName(), s)
+			s.assignmentReconciler = newAssignmentReconciler(s)
 		}
 	} else {
 		config.Logger.InfoContext(ctx, "App and Group sync is disabled")

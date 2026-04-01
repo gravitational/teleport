@@ -13,7 +13,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AssignmentReconcilerAccessPoint is a client that consists of only the interfaces
@@ -39,80 +38,47 @@ type AssignmentReconcilerAccessPoint interface {
 type assignmentReconciler struct {
 	logger              *slog.Logger
 	clock               clockwork.Clock
-	clusterName         string
 	accessPoint         AssignmentReconcilerAccessPoint
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
-
-	// assignmentProcessorID is not thread safe and it's supposed to be used by
-	// onCreate/onUpdate/onDelete methods for the underlying generic reconciler.
-	assignmentProcessorID string
-
-	reconcileCh chan struct{}
 
 	startedCh chan struct{}
 	stopCh    chan struct{}
 	stopOnce  sync.Once
 
-	assignmentsMu sync.RWMutex
-	assignments   map[string]types.OktaAssignment
-
-	newAssignmentsMu sync.RWMutex
-	newAssignments   map[string]types.OktaAssignment
-
 	// These are used for testing.
-	onReconcile               func(types.OktaAssignments)
 	onReconcileCh             chan struct{}
 	noAssignmentProcessorLoop bool
 }
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
-func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconciler {
-	a := &assignmentReconciler{
-		logger:                slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
-		clock:                 svc.clock,
-		clusterName:           clusterName,
-		accessPoint:           svc.accessPoint,
-		reconcileCh:           make(chan struct{}),
-		assignmentProcessorID: "unset_id",
-		startedCh:             make(chan struct{}),
-		stopCh:                make(chan struct{}),
-		assignments:           make(map[string]types.OktaAssignment),
-		newAssignments:        make(map[string]types.OktaAssignment),
+func newAssignmentReconciler(svc *Service) *assignmentReconciler {
+	return &assignmentReconciler{
+		logger:              slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
+		clock:               svc.clock,
+		accessPoint:         svc.accessPoint,
+		assignmentProcessor: newAssignmentProcessor(svc),
+		startedCh:           make(chan struct{}),
+		stopCh:              make(chan struct{}),
 	}
-
-	a.assignmentProcessor = newAssignmentProcessor(svc, a.getAssignments)
-
-	return a
 }
 
 // Start will start the reconciler.
 func (a *assignmentReconciler) start(ctx context.Context) error {
 	defer close(a.startedCh)
-
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.OktaAssignment]{
-		Matcher: func(assignment types.OktaAssignment) bool {
-			return a.matcher(ctx, assignment)
+	var err error
+	a.watcher, err = services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
+			Component: eteleport.ComponentOktaAssignmentReconciler,
+			Logger:    a.logger,
+			Client:    a.accessPoint,
 		},
-		CompareResources:    func(oa1, oa2 types.OktaAssignment) int { return services.EqualFromBool(oa1.IsEqual(oa2)) },
-		GetCurrentResources: toResourcesLabelMap(a.getAssignments),
-		GetNewResources:     toResourcesLabelMap(a.getNewAssignments),
-		OnCreate:            a.onCreate,
-		OnUpdate:            a.onUpdate,
-		OnDelete:            a.onDelete,
-		Logger:              a.logger.With("kind", types.KindOktaAssignment),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "creating Okta assignments watcher")
 	}
 
-	watcher, err := a.startResourceWatcher(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	a.watcher = watcher
-
-	go a.reconcile(ctx, reconciler)
+	go a.reconcileLoop(ctx)
 
 	if !a.noAssignmentProcessorLoop {
 		// Start the assignment processor. This will run periodically to retry calls
@@ -123,22 +89,14 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 	return nil
 }
 
-// reconcile will perform the actual assignment reconciliation.
-func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *services.Reconciler[types.OktaAssignment]) {
+func (a *assignmentReconciler) reconcileLoop(ctx context.Context) {
+	a.logger.DebugContext(ctx, "Starting watcher-based Okta assignments reconciler")
+	defer a.logger.DebugContext(ctx, "Stopped watcher-based Okta assignments reconciler")
+
 	for {
 		select {
-		case _, ok := <-a.reconcileCh:
-			if !ok {
-				return
-			}
-			a.assignmentProcessorID = newLoopID(sourceWatcher, a.clock.Now())
-			if err := reconciler.Reconcile(ctx); err != nil {
-				a.logger.ErrorContext(ctx, "Failed to reconcile", "error", err)
-			} else if a.onReconcile != nil {
-				a.assignmentsMu.RLock()
-				a.onReconcile(copyAssignmentsMapToOktaAssignments(a.assignments))
-				a.assignmentsMu.RUnlock()
-			}
+		case newAssignments := <-a.watcher.CollectorChan():
+			a.assignmentProcessor.processWatcherEvent(ctx, newAssignments)
 			if a.onReconcileCh != nil {
 				a.onReconcileCh <- struct{}{}
 			}
@@ -150,7 +108,7 @@ func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *servic
 	}
 }
 
-// Wait will wait for the reconciler to complete.
+// wait will wait for the reconciler to complete.
 func (a *assignmentReconciler) wait(ctx context.Context) {
 	select {
 	case <-a.stopCh:
@@ -158,7 +116,7 @@ func (a *assignmentReconciler) wait(ctx context.Context) {
 	}
 }
 
-// Stop will stop and close any lingering resources in the assignmentReconciler.
+// stop will stop and close any lingering resources in the assignmentReconciler.
 func (a *assignmentReconciler) stop() {
 	// Make sure start() returned in case Okta plugin was stopped right after start to avoid
 	// races in accessing assignmentReconciler fields.
@@ -178,123 +136,4 @@ func (a *assignmentReconciler) stop() {
 			a.assignmentProcessor.stop()
 		}
 	})
-}
-
-// getAssignments returns the list of assignments currently known to the reconciler.
-func (a *assignmentReconciler) getAssignments() types.OktaAssignments {
-	a.assignmentsMu.RLock()
-	defer a.assignmentsMu.RUnlock()
-
-	return copyAssignmentsMapToOktaAssignments(a.assignments)
-}
-
-// getNewAssignments returns the list of new assignments that the reconciler has yet to act on.
-func (a *assignmentReconciler) getNewAssignments() types.OktaAssignments {
-	a.newAssignmentsMu.RLock()
-	defer a.newAssignmentsMu.RUnlock()
-
-	return copyAssignmentsMapToOktaAssignments(a.newAssignments)
-}
-
-// startResourceWatcher starts watching changes to assignment resources.
-func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*services.OktaAssignmentWatcher, error) {
-	a.logger.DebugContext(ctx, "Initializing assignment resource watcher")
-	watcher, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
-		RWCfg: services.ResourceWatcherConfig{
-			Component: eteleport.ComponentOktaAssignmentReconciler,
-			Logger:    a.logger,
-			Client:    a.accessPoint,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	go func() {
-		defer func() {
-			a.logger.DebugContext(ctx, "Access request resource watcher finished")
-		}()
-
-		for {
-			select {
-			case newAssignments := <-watcher.CollectorChan():
-				a.newAssignmentsMu.Lock()
-				a.newAssignments = map[string]types.OktaAssignment{}
-				for _, newAssignment := range newAssignments {
-					a.newAssignments[newAssignment.GetName()] = newAssignment
-				}
-				a.newAssignmentsMu.Unlock()
-
-				select {
-				case a.reconcileCh <- struct{}{}:
-				case <-a.stopCh:
-					return
-				case <-ctx.Done():
-					return
-				}
-			case <-a.stopCh:
-				return
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return watcher, nil
-}
-
-// onCreate will update the Okta API based on newly created Okta assignments.
-func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types.OktaAssignment) error {
-	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, newAssignment.Copy(), sourceWatcher); r != processAssignmentFailed {
-		a.assignmentsMu.Lock()
-		a.assignments[newAssignment.GetName()] = newAssignment
-		a.assignmentsMu.Unlock()
-	}
-	return nil
-}
-
-// onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
-func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, _ types.OktaAssignment) error {
-	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, updatedAssignment.Copy(), sourceWatcher); r != processAssignmentFailed {
-		a.assignmentsMu.Lock()
-		a.assignments[updatedAssignment.GetName()] = updatedAssignment
-		a.assignmentsMu.Unlock()
-	}
-	return nil
-}
-
-// onDelete will perform necessary Okta assignment operations based on deleted Okta assignments.
-// NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
-func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
-	a.assignmentsMu.Lock()
-	defer a.assignmentsMu.Unlock()
-	// No call a.assignmentProcessor.processAssignment here, because the assignment is already
-	// deleted form the backend. Assignments are deleted by setting spec.cleanup_time.  When
-	// cleanup_time is in the past then the assignmentProcessor will clean the assignment and
-	// delete it from the backend.
-	// On top of that, when the assignment is not in the backend anymore then it can't be
-	// processed because the assignmentProcessor will fail when trying to set its status to
-	// "processing".
-	delete(a.assignments, deletedAssignment.GetName())
-	return nil
-}
-
-// matcher will match all Okta assignments.
-func (a *assignmentReconciler) matcher(_ context.Context, _ types.ResourceWithLabels) bool {
-	return true
-}
-
-// toResourcesLabelMap is used by the reconciler. It will call a function that returns OktaAssignments
-// and then convert those into a ResourcesWithLabelMap.
-func toResourcesLabelMap(fn func() types.OktaAssignments) func() map[string]types.OktaAssignment {
-	return func() map[string]types.OktaAssignment {
-		return utils.FromSlice(fn(), types.OktaAssignment.GetName)
-	}
-}
-
-func copyAssignmentsMapToOktaAssignments(assignments map[string]types.OktaAssignment) types.OktaAssignments {
-	assignmentsCopy := types.OktaAssignments(make([]types.OktaAssignment, 0, len(assignments)))
-	for _, assignment := range assignments {
-		assignmentsCopy = append(assignmentsCopy, assignment.Copy())
-	}
-
-	return assignmentsCopy
 }
