@@ -781,7 +781,7 @@ more content here`;
     expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
     expect(screen.getByText('more content here')).toBeInTheDocument();
 
-    await user.click(screen.getByText('title goes here'));
+    await user.click(screen.getByRole('button', { name: 'title goes here' }));
     expect(screen.getByText('content goes here')).toBeInTheDocument();
   });
 
@@ -800,7 +800,7 @@ more content here`;
     expect(screen.getByText('content goes here')).toBeInTheDocument();
     expect(screen.getByText('more content here')).toBeInTheDocument();
 
-    await user.click(screen.getByText('title goes here'));
+    await user.click(screen.getByRole('button', { name: 'title goes here' }));
     expect(screen.queryByText('content goes here')).not.toBeInTheDocument();
   });
 

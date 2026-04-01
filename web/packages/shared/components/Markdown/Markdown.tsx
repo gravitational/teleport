@@ -397,7 +397,12 @@ function Section(
   const [expanded, setExpanded] = useState(preExpanded);
   return (
     <SectionContainer>
-      <SectionHeadingContainer onClick={() => setExpanded(prev => !prev)}>
+      <SectionHeadingContainer
+        onClick={() => setExpanded(prev => !prev)}
+        role="button"
+        aria-expanded={expanded}
+        aria-controls="section-content"
+      >
         {expanded ? (
           <ChevronDown size="medium" />
         ) : (
@@ -408,7 +413,9 @@ function Section(
         </P2>
       </SectionHeadingContainer>
       {expanded ? (
-        <SectionContentContainer>{children}</SectionContentContainer>
+        <SectionContentContainer id="section-content">
+          {children}
+        </SectionContentContainer>
       ) : undefined}
     </SectionContainer>
   );
