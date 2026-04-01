@@ -291,7 +291,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "basic",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -331,7 +332,7 @@ func TestValidateAsssignment(t *testing.T) {
 				Version: types.V1,
 			},
 			strongOk: false,
-			weakOk:   false,
+			weakOk:   true,
 		},
 		{
 			name: "missing name",
@@ -375,9 +376,32 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "missing scope",
+			name: "missing sub_kind",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "missing scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -398,7 +422,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "missing version",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -419,7 +444,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "malformed name",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: "not-a-uuid",
 				},
@@ -463,7 +489,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "slightly malformed scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -485,7 +512,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "significantly malformed scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -507,7 +535,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "impermissable assigned scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -529,7 +558,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "malformed assigned scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -551,7 +581,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "basic",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},

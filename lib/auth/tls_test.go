@@ -1499,6 +1499,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -2584,6 +2585,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
