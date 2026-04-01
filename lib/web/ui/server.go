@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // SSHLogin describes an SSH login available on a server.
@@ -146,67 +148,39 @@ func MakeServer(clusterName string, server types.Server, allLogins []string, gra
 }
 
 func buildSshLoginDetails(allLogins, grantedLogins []string) []SSHLogin {
-	grantedSet := make(map[string]struct{}, len(grantedLogins))
-	for _, login := range grantedLogins {
-		grantedSet[login] = struct{}{}
-	}
-	out := make([]SSHLogin, 0, len(allLogins))
-	for _, login := range allLogins {
-		_, isGranted := grantedSet[login]
-		out = append(out, SSHLogin{
-			Login:           login,
-			RequiresRequest: !isGranted,
-		})
-	}
-	return out
+	return sliceutils.Map(allLogins, func(s string) SSHLogin {
+		return SSHLogin{
+			Login:           s,
+			RequiresRequest: !slices.Contains(grantedLogins, s),
+		}
+	})
 }
 
-func BuildDatabaseUserDetails(allUsers, grantedUsers []string) []DatabaseUserDetail {
-	grantedSet := make(map[string]struct{}, len(grantedUsers))
-	for _, u := range grantedUsers {
-		grantedSet[u] = struct{}{}
-	}
-	out := make([]DatabaseUserDetail, 0, len(allUsers))
-	for _, u := range allUsers {
-		_, isGranted := grantedSet[u]
-		out = append(out, DatabaseUserDetail{
+func buildDatabaseUserDetails(allUsers, grantedUsers []string) []DatabaseUserDetail {
+	return sliceutils.Map(allUsers, func(u string) DatabaseUserDetail {
+		return DatabaseUserDetail{
 			User:            u,
-			RequiresRequest: !isGranted,
-		})
-	}
-	return out
+			RequiresRequest: !slices.Contains(grantedUsers, u),
+		}
+	})
 }
 
-func BuildDatabaseNameDetails(allNames, grantedNames []string) []DatabaseNameDetail {
-	grantedSet := make(map[string]struct{}, len(grantedNames))
-	for _, n := range grantedNames {
-		grantedSet[n] = struct{}{}
-	}
-	out := make([]DatabaseNameDetail, 0, len(allNames))
-	for _, n := range allNames {
-		_, isGranted := grantedSet[n]
-		out = append(out, DatabaseNameDetail{
+func buildDatabaseNameDetails(allNames, grantedNames []string) []DatabaseNameDetail {
+	return sliceutils.Map(allNames, func(n string) DatabaseNameDetail {
+		return DatabaseNameDetail{
 			Name:            n,
-			RequiresRequest: !isGranted,
-		})
-	}
-	return out
+			RequiresRequest: !slices.Contains(grantedNames, n),
+		}
+	})
 }
 
-func BuildDatabaseRoleDetails(allRoles, grantedRoles []string) []DatabaseRoleDetail {
-	grantedSet := make(map[string]struct{}, len(grantedRoles))
-	for _, r := range grantedRoles {
-		grantedSet[r] = struct{}{}
-	}
-	out := make([]DatabaseRoleDetail, 0, len(allRoles))
-	for _, r := range allRoles {
-		_, isGranted := grantedSet[r]
-		out = append(out, DatabaseRoleDetail{
+func buildDatabaseRoleDetails(allRoles, grantedRoles []string) []DatabaseRoleDetail {
+	return sliceutils.Map(allRoles, func(r string) DatabaseRoleDetail {
+		return DatabaseRoleDetail{
 			Role:            r,
-			RequiresRequest: !isGranted,
-		})
-	}
-	return out
+			RequiresRequest: !slices.Contains(grantedRoles, r),
+		}
+	})
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
@@ -474,25 +448,34 @@ type DatabaseInteractiveChecker interface {
 	IsSupported(protocol string) bool
 }
 
+type MakeDatabaseConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// GetPrincipals is a getter to fetch Principals of the provided kind
+	GetPrincipals func(types.PrincipalKind) []string
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	var (
 		autoUserEnabled bool
 		dbUsers         []string
 		dbRoles         []string
 	)
-	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
+	dbNamesResult := c.AccessChecker.EnumerateDatabaseNames(database)
 	dbNames, _ := dbNamesResult.ToEntities()
-	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+	if res, err := c.AccessChecker.EnumerateDatabaseUsers(database); err == nil {
 		dbUsers, _ = res.ToEntities()
 	}
-	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
+	if roles, err := c.AccessChecker.CheckDatabaseRoles(database, nil); err == nil {
 		// Avoid assigning empty slice to keep the resulting roles nil.
 		if len(roles) > 0 {
 			dbRoles = roles
 		}
 	}
-	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
+	if autoUser, err := c.AccessChecker.DatabaseAutoUserMode(database); err == nil {
 		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
 	}
 
@@ -510,8 +493,8 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		DatabaseRoles:       dbRoles,
 		Hostname:            stripProtocolAndPort(database.GetURI()),
 		URI:                 database.GetURI(),
-		RequiresRequest:     requiresRequest,
-		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
+		RequiresRequest:     c.RequiresRequest,
+		SupportsInteractive: c.InteractiveChecker.IsSupported(database.GetProtocol()),
 		AutoUsersEnabled:    autoUserEnabled,
 	}
 
@@ -526,18 +509,48 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 
+	// When enriched database principals are available (from search_as_roles),
+	// populate per-principal detail objects with requiresRequest metadata.
+	// The base accessChecker's results (db.DatabaseUsers/Names/Roles) are the granted set;
+	// enriched principals are the full set (granted + requestable).
+	if enrichedDBUsers := c.GetPrincipals(types.PrincipalKindDBUsers); len(enrichedDBUsers) > 0 {
+		db.DatabaseUserDetails = buildDatabaseUserDetails(enrichedDBUsers, db.DatabaseUsers)
+	}
+	if enrichedDBNames := c.GetPrincipals(types.PrincipalKindDBNames); len(enrichedDBNames) > 0 {
+		db.DatabaseNameDetails = buildDatabaseNameDetails(enrichedDBNames, db.DatabaseNames)
+	}
+	if enrichedDBRoles := c.GetPrincipals(types.PrincipalKindDBRoles); len(enrichedDBRoles) > 0 {
+		db.DatabaseRoleDetails = buildDatabaseRoleDetails(enrichedDBRoles, db.DatabaseRoles)
+	}
+
 	return db
+}
+
+type MakeDatabaseFromDatabaseServerConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// SupportedFeatures contains ComponentFeatures supported by this DB Server and all other involved components.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+	// GetPrincipals is a getter to fetch Principals of the provided kind
+	GetPrincipals func(types.PrincipalKind) []string
 }
 
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
 // If intersectedFeatures is provided, it is used instead of the server's own component features
 // (e.g. after intersecting with cluster-level auth/proxy features).
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool, intersectedFeatures ...*componentfeaturesv1.ComponentFeatures) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, c MakeDatabaseFromDatabaseServerConfig) Database {
+	db := MakeDatabase(dbServer.GetDatabase(), MakeDatabaseConfig{
+		AccessChecker:      c.AccessChecker,
+		InteractiveChecker: c.InteractiveChecker,
+		RequiresRequest:    c.RequiresRequest,
+		GetPrincipals:      c.GetPrincipals,
+	})
 	db.TargetHealth = dbServer.GetTargetHealth()
 	cf := dbServer.GetComponentFeatures()
-	if len(intersectedFeatures) > 0 && intersectedFeatures[0] != nil {
-		cf = intersectedFeatures[0]
+	if len(c.SupportedFeatures.GetFeatures()) > 0 {
+		cf = c.SupportedFeatures
 	}
 	if cf != nil {
 		db.SupportedFeatureIDs = componentfeatures.ToIntegers(cf)
@@ -549,7 +562,11 @@ func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker
 func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
+		db := MakeDatabase(database, MakeDatabaseConfig{
+			AccessChecker:      accessChecker,
+			InteractiveChecker: interactiveChecker,
+			RequiresRequest:    false,
+		})
 		uiServers = append(uiServers, db)
 	}
 

@@ -1256,6 +1256,18 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+// setPrincipal sets a principal dimension on a PaginatedResource's Principals map.
+// It initializes the map if needed. If values is empty, it is a no-op.
+func setPrincipal(r *proto.PaginatedResource, kind types.PrincipalKind, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	if r.Principals == nil {
+		r.Principals = make(map[string]*wrappers.StringValues)
+	}
+	r.Principals[string(kind)] = &wrappers.StringValues{Values: values}
+}
+
 // unifiedResourceLister is used to check if an unified resource should be listed. It also
 // memorizes all the resources which are requestable-only in the requestableMap.
 type unifiedResourceLister struct {
@@ -1560,6 +1572,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindSSHLogins, logins)
 			} else if d := r.GetWindowsDesktop(); d != nil {
 				logins, err := resourceLister.getAllowedLogins(d)
 				if err != nil {
@@ -1570,11 +1583,12 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindWindowsLogins, logins)
 			} else if d := r.GetDatabaseServer(); d != nil {
 				users, dbNames, dbRoles := resourceLister.getEnrichedDatabasePrincipals(d.GetDatabase())
-				r.DatabaseUsers = users
-				r.DatabaseNames = dbNames
-				r.DatabaseRoles = dbRoles
+				setPrincipal(r, types.PrincipalKindDBUsers, users)
+				setPrincipal(r, types.PrincipalKindDBNames, dbNames)
+				setPrincipal(r, types.PrincipalKindDBRoles, dbRoles)
 			} else if d := r.GetAppServer(); d != nil {
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent
@@ -1598,6 +1612,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindAWSRoleARNs, logins)
 			}
 		}
 	}

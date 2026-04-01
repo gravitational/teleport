@@ -3482,22 +3482,16 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			databaseComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest, databaseComponentFeatures)
-			// When enriched database principals are available (from search_as_roles),
-			// populate per-principal detail objects with requiresRequest metadata.
-			// The base accessChecker's results (db.DatabaseUsers/Names/Roles) are the granted set;
-			// enriched.DatabaseUsers/Names/Roles are the full set (granted + requestable).
-			if len(enriched.DatabaseUsers) > 0 || len(enriched.DatabaseNames) > 0 || len(enriched.DatabaseRoles) > 0 {
-				db.DatabaseUserDetails = ui.BuildDatabaseUserDetails(enriched.DatabaseUsers, db.DatabaseUsers)
-				db.DatabaseNameDetails = ui.BuildDatabaseNameDetails(enriched.DatabaseNames, db.DatabaseNames)
-				db.DatabaseRoleDetails = ui.BuildDatabaseRoleDetails(enriched.DatabaseRoles, db.DatabaseRoles)
-				// Update the flat lists to the full (enriched) set for backwards compat.
-				db.DatabaseUsers = enriched.DatabaseUsers
-				db.DatabaseNames = enriched.DatabaseNames
-				db.DatabaseRoles = enriched.DatabaseRoles
-			}
-			unifiedResources = append(unifiedResources, db)
+			unifiedResources = append(
+				unifiedResources,
+				ui.MakeDatabaseFromDatabaseServer(r, ui.MakeDatabaseFromDatabaseServerConfig{
+					AccessChecker:      accessChecker,
+					InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+					RequiresRequest:    enriched.RequiresRequest,
+					SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+					GetPrincipals:      enriched.GetPrincipals,
+				}),
+			)
 		case types.AppServer:
 			// Get all (granted ∪ requestable) logins
 			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
@@ -3527,23 +3521,20 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
 
-			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
-			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
-			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-
-			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
-				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     proxyDNSName,
-				AppClusterName:        cluster.GetName(),
-				AllowedAWSRolesLookup: allowedAWSRolesLookup,
-				GrantedAWSRolesLookup: grantedAWSRolesLookup,
-				UserGroupLookup:       getUserGroupLookup(),
-				Logger:                h.logger,
-				RequiresRequest:       enriched.RequiresRequest,
-				SupportedFeatures:     appComponentFeatures,
-			})
-			unifiedResources = append(unifiedResources, app)
+			unifiedResources = append(
+				unifiedResources,
+				ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
+					LocalClusterName:      h.auth.clusterName,
+					LocalProxyDNSName:     proxyDNSName,
+					AppClusterName:        cluster.GetName(),
+					AllowedAWSRolesLookup: allowedAWSRolesLookup,
+					GrantedAWSRolesLookup: grantedAWSRolesLookup,
+					UserGroupLookup:       getUserGroupLookup(),
+					Logger:                h.logger,
+					RequiresRequest:       enriched.RequiresRequest,
+					SupportedFeatures:     componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+				}),
+			)
 		case types.SAMLIdPServiceProvider:
 			// SAMLIdPServiceProvider resources are shown as
 			// "apps" in the UI.
