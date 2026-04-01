@@ -88,8 +88,6 @@ func certAuthorityOverrideHandler() Handler {
 		createHandler: createCertAuthorityOverride,
 		updateHandler: updateCertAuthorityOverride,
 		deleteHandler: deleteCertAuthorityOverride,
-		singleton:     false,
-		mfaRequired:   false,
 		description:   "CA overrides for Teleport CA certificates. Allows admins to chain Teleport CAs to an external trust root.",
 	}
 }
