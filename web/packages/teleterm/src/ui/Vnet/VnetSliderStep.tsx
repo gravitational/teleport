@@ -95,9 +95,9 @@ export const VnetSliderStep = (props: StepComponentProps) => {
               'missing-windows-service' && (
               <ErrorText>
                 VNet system service is not installed. <br />
-                To use VNet, reinstall Teleport Connect selecting &apos;Anyone
-                who uses this computer&apos; option. Administrator privileges
-                will be required.
+                To use VNet, uninstall Teleport Connect and install it again
+                selecting &apos;Anyone who uses this computer&apos; option.
+                Administrator privileges will be required.
               </ErrorText>
             )}
             {installTimeRequirementsCheck.reason.kind ===
@@ -106,9 +106,10 @@ export const VnetSliderStep = (props: StepComponentProps) => {
                 The VNet system service version does not match the application
                 version. <br />
                 This can happen if Teleport Connect is installed both per-user
-                and per-machine. To use VNet, reinstall Teleport Connect
-                selecting &apos;Anyone who uses this computer&apos; option.
-                Administrator privileges will be required.
+                and per-machine. To use VNet, uninstall Teleport Connect and
+                install it again selecting &apos;Anyone who uses this
+                computer&apos; option. Administrator privileges will be
+                required.
               </ErrorText>
             )}
             {installTimeRequirementsCheck.reason.kind === 'error' && (

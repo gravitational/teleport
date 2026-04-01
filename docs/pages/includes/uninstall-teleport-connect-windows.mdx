@@ -1,5 +1,14 @@
-  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
+You can uninstall Teleport Connect from the "Programs and Features" section of the Control Panel.
 
-  For reference, Teleport Connect binaries are installed to:
-  * Per-machine install (default): `%PROGRAMFILES%\Teleport Connect`
-  * Per-user install: `%LOCALAPPDATA%\Teleport Connect`
+For reference, Teleport Connect binaries are installed to:
+* Per-machine install (default): `%PROGRAMFILES%\Teleport Connect`
+* Per-user install: `%LOCALAPPDATA%\Teleport Connect`
+
+To silently uninstall the app, open the Command Prompt and type:
+```code
+# For per-machine (default):
+$ "%PROGRAMFILES%\Teleport Connect\Uninstall Teleport Connect.exe" /S /allusers
+
+# For per-user install:
+$ "%LOCALAPPDATA%\Programs\Teleport Connect\Uninstall Teleport Connect.exe" /S /currentuser
+````
