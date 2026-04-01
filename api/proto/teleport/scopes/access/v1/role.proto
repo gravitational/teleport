@@ -116,6 +116,8 @@ message ScopedRoleSSH {
 
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string host_sudoers = 7;
+
+  optional SSHPortForwarding ssh_port_forwarding = 8;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -149,4 +151,12 @@ message ScopedRule {
   repeated string resources = 1;
   // Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
   repeated string verbs = 2;
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding
+  optional bool local = 1;
+  // Allow remote port forwarding
+  optional bool remote = 2;
 }

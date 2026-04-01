@@ -124,7 +124,20 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SSHPortForwardMode()
 	}
-	return c.checker.scopedCompatChecker.SSHPortForwardMode()
+
+	denyRemote := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetRemote()
+	denyLocal := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetLocal()
+	// enforcing implicit allow and preferring allow over explicit deny
+	switch {
+	case denyRemote && denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
+	case denyRemote:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
+	case denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
+	default:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+	}
 }
 
 // HostSudoers returns the sudoers rules for the host.

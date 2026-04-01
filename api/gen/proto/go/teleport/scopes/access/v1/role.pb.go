@@ -287,9 +287,10 @@ type ScopedRoleSSH struct {
 	// ForwardAgent is SSH agent forwarding.
 	ForwardAgent *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	// HostSudoers is a list of entries to include in a users sudoer file
-	HostSudoers   []string `protobuf:"bytes,7,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostSudoers       []string           `protobuf:"bytes,7,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
+	SshPortForwarding *SSHPortForwarding `protobuf:"bytes,8,opt,name=ssh_port_forwarding,json=sshPortForwarding,proto3,oneof" json:"ssh_port_forwarding,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ScopedRoleSSH) Reset() {
@@ -371,6 +372,13 @@ func (x *ScopedRoleSSH) GetHostSudoers() []string {
 	return nil
 }
 
+func (x *ScopedRoleSSH) GetSshPortForwarding() *SSHPortForwarding {
+	if x != nil {
+		return x.SshPortForwarding
+	}
+	return nil
+}
+
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
 // permissions like 'scoped_role:read' or 'scoped_role_assignment:create'.
 type ScopedRule struct {
@@ -427,6 +435,61 @@ func (x *ScopedRule) GetVerbs() []string {
 	return nil
 }
 
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+type SSHPortForwarding struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Allow local port forwarding
+	Local *bool `protobuf:"varint,1,opt,name=local,proto3,oneof" json:"local,omitempty"`
+	// Allow remote port forwarding
+	Remote        *bool `protobuf:"varint,2,opt,name=remote,proto3,oneof" json:"remote,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SSHPortForwarding) Reset() {
+	*x = SSHPortForwarding{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHPortForwarding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHPortForwarding) ProtoMessage() {}
+
+func (x *SSHPortForwarding) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHPortForwarding.ProtoReflect.Descriptor instead.
+func (*SSHPortForwarding) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SSHPortForwarding) GetLocal() bool {
+	if x != nil && x.Local != nil {
+		return *x.Local
+	}
+	return false
+}
+
+func (x *SSHPortForwarding) GetRemote() bool {
+	if x != nil && x.Remote != nil {
+		return *x.Remote
+	}
+	return false
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -446,7 +509,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03sshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xf6\x02\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xf1\x03\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
@@ -454,14 +517,21 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12'\n" +
 	"\rssh_file_copy\x18\x05 \x01(\bH\x01R\vsshFileCopy\x88\x01\x01\x12(\n" +
 	"\rforward_agent\x18\x06 \x01(\bH\x02R\fforwardAgent\x88\x01\x01\x12!\n" +
-	"\fhost_sudoers\x18\a \x03(\tR\vhostSudoersB\x18\n" +
+	"\fhost_sudoers\x18\a \x03(\tR\vhostSudoers\x12a\n" +
+	"\x13ssh_port_forwarding\x18\b \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingH\x03R\x11sshPortForwarding\x88\x01\x01B\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_ssh_file_copyB\x10\n" +
-	"\x0e_forward_agent\"@\n" +
+	"\x0e_forward_agentB\x16\n" +
+	"\x14_ssh_port_forwarding\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
-	"\x05verbs\x18\x02 \x03(\tR\x05verbsBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x05verbs\x18\x02 \x03(\tR\x05verbs\"`\n" +
+	"\x11SSHPortForwarding\x12\x19\n" +
+	"\x05local\x18\x01 \x01(\bH\x00R\x05local\x88\x01\x01\x12\x1b\n" +
+	"\x06remote\x18\x02 \x01(\bH\x01R\x06remote\x88\x01\x01B\b\n" +
+	"\x06_localB\t\n" +
+	"\a_remoteBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
@@ -475,28 +545,30 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),         // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),     // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*ScopedRoleDefaults)(nil), // 2: teleport.scopes.access.v1.ScopedRoleDefaults
 	(*ScopedRoleSSH)(nil),      // 3: teleport.scopes.access.v1.ScopedRoleSSH
 	(*ScopedRule)(nil),         // 4: teleport.scopes.access.v1.ScopedRule
-	(*v1.Metadata)(nil),        // 5: teleport.header.v1.Metadata
-	(*v11.Label)(nil),          // 6: teleport.label.v1.Label
+	(*SSHPortForwarding)(nil),  // 5: teleport.scopes.access.v1.SSHPortForwarding
+	(*v1.Metadata)(nil),        // 6: teleport.header.v1.Metadata
+	(*v11.Label)(nil),          // 7: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	5, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	4, // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3, // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
-	6, // 5: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	7, // 5: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	5, // 6: teleport.scopes.access.v1.ScopedRoleSSH.ssh_port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -505,13 +577,14 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 		return
 	}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
