@@ -198,6 +198,7 @@ type sessionDetails struct {
 	provider        InferenceProvider
 	sessionEnd      apievents.AuditEvent
 	errorFormatFunc func(error) string
+	now             time.Time
 }
 
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
@@ -238,6 +239,7 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 		loginName:    loginName,
 		kind:         kind,
 		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
 	}
 
 	if err := s.summarize(ctx, details); err != nil {
@@ -273,6 +275,7 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 		username:     username,
 		kind:         kind,
 		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
 	}
 
 	return trace.Wrap(s.summarize(ctx, details))
@@ -498,6 +501,8 @@ func (s *SessionSummarizer) summarizeSimple(
 	default:
 		return handleError(ctx, log, result, trace.BadParameter("unsupported session kind: %v", details.kind), "Failed to summarize session")
 	}
+
+	systemPrompt = sessionTimesFromEvent(details.sessionEnd, details.now) + "\n" + systemPrompt
 
 	content, err := details.provider.Summarize(ctx, details.sessionID, systemPrompt, reader)
 	if err != nil {

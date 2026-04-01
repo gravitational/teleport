@@ -1,10 +1,13 @@
 package summarizer
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -13,7 +16,7 @@ import (
 const sessionMetadataHeader = "SESSION METADATA:\n"
 
 // buildSessionMetadata extracts server/cluster metadata from the session end event and formats it as a string prefix for command prompts.
-func buildSessionMetadata(sessionEnd apievents.AuditEvent, kind types.SessionKind) string {
+func buildSessionMetadata(sessionEnd apievents.AuditEvent, kind types.SessionKind, now time.Time) string {
 	end, ok := sessionEnd.(*apievents.SessionEnd)
 	if !ok || end == nil {
 		return ""
@@ -22,6 +25,7 @@ func buildSessionMetadata(sessionEnd apievents.AuditEvent, kind types.SessionKin
 	var sb strings.Builder
 
 	sb.WriteString(sessionMetadataHeader)
+	sb.WriteString(sessionTimesFromEvent(sessionEnd, now))
 
 	switch kind {
 	case types.SSHSessionKind:
@@ -47,13 +51,43 @@ func buildSessionMetadata(sessionEnd apievents.AuditEvent, kind types.SessionKin
 		}
 	}
 
-	if sb.Len() == len(sessionMetadataHeader) {
-		return ""
-	}
-
 	sb.WriteString("\n")
 
 	return sb.String()
+}
+
+func sessionTimesFromEvent(sessionEnd apievents.AuditEvent, now time.Time) string {
+	var startTime, endTime time.Time
+
+	switch end := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		if end == nil {
+			return ""
+		}
+		startTime = end.StartTime
+		endTime = end.EndTime
+	case *apievents.DatabaseSessionEnd:
+		if end == nil {
+			return ""
+		}
+		startTime = end.StartTime
+		endTime = end.EndTime
+	default:
+		slog.ErrorContext(context.Background(), "unexpected event type for session metadata", "type", fmt.Sprintf("%T", sessionEnd))
+		return ""
+	}
+
+	if startTime.IsZero() || endTime.IsZero() {
+		return fmt.Sprintf("Current date and time: %s\n", now.UTC().Format(time.RFC3339))
+	}
+
+	return fmt.Sprintf(
+		"Session start time: %s\nSession end time: %s\nSession duration: %s\nCurrent date and time: %s\n",
+		startTime.UTC().Format(time.RFC3339),
+		endTime.UTC().Format(time.RFC3339),
+		endTime.Sub(startTime).Truncate(time.Second),
+		now.UTC().Format(time.RFC3339),
+	)
 }
 
 func formatLabels(labels map[string]string) string {

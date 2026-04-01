@@ -2,7 +2,9 @@ package summarizer
 
 import (
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -74,10 +76,21 @@ func TestBuildSessionMetadata(t *testing.T) {
 			empty: true,
 		},
 		{
-			name:  "empty SessionEnd",
-			event: &apievents.SessionEnd{},
-			kind:  types.SSHSessionKind,
-			empty: true,
+			name: "includes session times and current time",
+			event: &apievents.SessionEnd{
+				StartTime: time.Date(2026, 3, 19, 10, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(2026, 3, 19, 10, 30, 0, 0, time.UTC),
+				ServerMetadata: apievents.ServerMetadata{
+					ServerHostname: "host",
+				},
+			},
+			kind: types.SSHSessionKind,
+			contains: []string{
+				"Session start time: 2026-03-19T10:00:00Z",
+				"Session end time: 2026-03-19T10:30:00Z",
+				"Session duration: 30m0s",
+				"Current date and time: 2026-03-19T12:00:00Z",
+			},
 		},
 		{
 			name: "SSH hostname only, no labels",
@@ -111,11 +124,65 @@ func TestBuildSessionMetadata(t *testing.T) {
 				"a=first, m=middle, z=last",
 			},
 		},
+		{
+			name: "start/end times zero, only current time shown",
+			event: &apievents.SessionEnd{
+				ServerMetadata: apievents.ServerMetadata{
+					ServerHostname: "host",
+				},
+			},
+			kind: types.SSHSessionKind,
+			contains: []string{
+				"Current date and time: 2026-03-19T12:00:00Z",
+			},
+			notContains: []string{
+				"Session start time:",
+				"Session end time:",
+				"Session duration:",
+			},
+		},
+		{
+			name: "start time zero, only current time shown",
+			event: &apievents.SessionEnd{
+				EndTime: time.Date(2026, 3, 19, 10, 30, 0, 0, time.UTC),
+				ServerMetadata: apievents.ServerMetadata{
+					ServerHostname: "host",
+				},
+			},
+			kind: types.SSHSessionKind,
+			contains: []string{
+				"Current date and time: 2026-03-19T12:00:00Z",
+			},
+			notContains: []string{
+				"Session start time:",
+				"Session end time:",
+				"Session duration:",
+			},
+		},
+		{
+			name: "end time zero, only current time shown",
+			event: &apievents.SessionEnd{
+				StartTime: time.Date(2026, 3, 19, 10, 0, 0, 0, time.UTC),
+				ServerMetadata: apievents.ServerMetadata{
+					ServerHostname: "host",
+				},
+			},
+			kind: types.SSHSessionKind,
+			contains: []string{
+				"Current date and time: 2026-03-19T12:00:00Z",
+			},
+			notContains: []string{
+				"Session start time:",
+				"Session end time:",
+				"Session duration:",
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildSessionMetadata(tt.event, tt.kind)
+			clock := clockwork.NewFakeClockAt(time.Date(2026, 3, 19, 12, 0, 0, 0, time.UTC))
+			result := buildSessionMetadata(tt.event, tt.kind, clock.Now())
 
 			if tt.empty {
 				require.Empty(t, result)

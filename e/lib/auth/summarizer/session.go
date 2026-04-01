@@ -47,7 +47,7 @@ func analyzeSessionCommands(
 		sessionID:       details.sessionID,
 		username:        details.username,
 		loginName:       details.loginName,
-		sessionMetadata: buildSessionMetadata(details.sessionEnd, details.kind),
+		sessionMetadata: buildSessionMetadata(details.sessionEnd, details.kind, details.now),
 	}
 
 	return sa.analyzeCommands(ctx, commands)
