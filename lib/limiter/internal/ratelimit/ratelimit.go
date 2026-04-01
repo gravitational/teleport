@@ -96,6 +96,11 @@ func (tl *TokenLimiter) Wrap(next http.Handler) {
 }
 
 func (tl *TokenLimiter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if tl.next == nil {
+		sc := http.StatusInternalServerError
+		http.Error(w, http.StatusText(sc), sc)
+		return
+	}
 	if tl.defaultRates.Len() == 0 {
 		tl.next.ServeHTTP(w, req)
 		return
