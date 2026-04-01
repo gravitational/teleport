@@ -198,8 +198,9 @@ func (t *terminal) AddParty(delta int) {
 	t.wg.Add(delta)
 }
 
-// Run will run the terminal. If the shell fails to start due to a [teleport.RemoteCommandFailure],
-// the error will be written to the given error writer.
+// Run will run the terminal. If the shell fails to start due to a
+// [reexecconstants.RemoteCommandFailure], the error will be written to the
+// given error writer.
 func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	select {
 	case <-ctx.Done():
