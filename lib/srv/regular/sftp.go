@@ -176,13 +176,16 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
-	// Copy the SSH channel to and from the anonymous pipes
-	s.waitForOutputStreams.Go(func() {
+	// Copy the SSH channel to and from the anonymous pipes. The input copy from
+	// the SSH channel must not gate Wait(), or early child-process failures can
+	// deadlock waiting for the client to close the channel before we send the
+	// exit status.
+	go func() {
 		defer chReadPipeIn.Close()
 		if _, err := io.Copy(chReadPipeIn, ch); err != nil && !utils.IsOKNetworkError(err) {
 			s.logger.WarnContext(ctx, "Failure reading from SFTP subsystem", "error", err)
 		}
-	})
+	}()
 	s.waitForOutputStreams.Go(func() {
 		defer chWritePipeOut.Close()
 		if _, err := io.Copy(ch, chWritePipeOut); err != nil && !utils.IsOKNetworkError(err) {
@@ -255,6 +258,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
 	waitErr := s.sftpCmd.Wait()
+	s.waitForOutputStreams.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
@@ -262,6 +266,5 @@ func (s *sftpSubsys) Wait() error {
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
 	})
 
-	s.waitForOutputStreams.Wait()
 	return trace.Wrap(waitErr)
 }

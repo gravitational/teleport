@@ -21,9 +21,11 @@ package sftp
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	portablepath "path"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
@@ -157,14 +159,25 @@ func (r *RemoteFS) Readlink(name string) (string, error) {
 }
 
 func (r *RemoteFS) Close() error {
-	clientErr := r.Client.Close()
 	if r.session == nil {
-		return trace.Wrap(clientErr)
+		return trace.Wrap(r.Client.Close())
 	}
 
-	// Wait for the session to end on the server side before closing the client side.
-	waitErr := r.session.Wait()
-	closeErr := r.session.Close()
+	// Wait (best effort) for the session to end on the remote side before closing the local side.
+	waitC := make(chan struct{})
+	go func() {
+		defer close(waitC)
+		if err := r.Client.Close(); err != nil {
+			slog.DebugContext(context.Background(), "Error closing sftp client", "error", err)
+		}
+		if err := r.session.Wait(); err != nil {
+			slog.DebugContext(context.Background(), "Error waiting for remote sftp session to end", "error", err)
+		}
+	}()
+	select {
+	case <-waitC:
+	case <-time.After(5 * time.Second):
+	}
 
-	return trace.NewAggregate(clientErr, waitErr, closeErr)
+	return trace.Wrap(r.session.Close())
 }

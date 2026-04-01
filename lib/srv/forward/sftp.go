@@ -145,7 +145,9 @@ type sftpAuditContext interface {
 
 // Fileread handles Open requests for reading files.
 func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
-	defer h.sendSFTPEvent(req, err)
+	defer func() {
+		h.sendSFTPEvent(req, err)
+	}()
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
@@ -161,7 +163,9 @@ func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 
 // Filewrite handles Open requests for writing files.
 func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) {
-	defer h.sendSFTPEvent(req, err)
+	defer func() {
+		h.sendSFTPEvent(req, err)
+	}()
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
@@ -178,7 +182,9 @@ func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) 
 // OpenFile handles Open requests for both reading and writing. Required to
 // satisfy [sftp.OpenFileWriter].
 func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
-	defer h.sendSFTPEvent(req, retErr)
+	defer func() {
+		h.sendSFTPEvent(req, retErr)
+	}()
 
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
