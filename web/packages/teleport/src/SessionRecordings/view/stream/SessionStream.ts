@@ -82,6 +82,8 @@ export class SessionStream<
   private startTime = 0;
 
   private atEnd = false;
+  // hasReceivedData is used to determine an error happened during the initial load of the recording
+  // or during the stream. It does not get reset on seek, as seeking happens after the initial load.
   private hasReceivedData = false;
   // we track loading separately from the loading state as we can still play and load at the same time
   private loading = true;
