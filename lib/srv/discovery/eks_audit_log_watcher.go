@@ -207,7 +207,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 	// Start any new fetchers for clusters we are not running that discovery returned.
 	for arn, discovered := range mapDifference(discoveredClusters, w.fetchers) {
 		w.log.InfoContext(ctx, "Starting eksKubeAuditLogFetcher", "cluster", arn)
-		ctx, cancel := context.WithCancel(ctx)
+		fetcherCtx, cancel := context.WithCancel(ctx)
 		var logFetcher eksAuditLogFetcherRunner
 		if w.newFetcher == nil {
 			logFetcher = newEKSAuditLogFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
@@ -217,10 +217,16 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 		}
 		w.fetchers[arn] = cancel
 		go func() {
-			err := logFetcher.Run(ctx)
+			err := logFetcher.Run(fetcherCtx)
 			select {
 			case w.completedCh <- fetcherCompleted{arn, err}:
 			case <-ctx.Done():
+				// This ctx.Done() signals that the watcher should clean up.
+				// This terminates the watcher and all the fetchers - we do
+				// not wait for the fetchers to complete.
+				// Normal fetcher termination is done by closing the fetcher-
+				// specific context, which comes back to us via the case above
+				// on the completedCh channel, not here.
 			}
 		}()
 	}

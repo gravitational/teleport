@@ -21,6 +21,7 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"testing/synctest"
 
@@ -121,11 +122,18 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.Equal(t, 2, fetcherTracker.newCount)
 		require.True(t, f2.done)
 
+		// Add the second cluster back and ensure it starts fresh.
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
+		synctest.Wait()
+		require.Len(t, fetcherTracker.fetchers, 2)
+		require.Equal(t, 3, fetcherTracker.newCount)
+		require.True(t, f2.done)
+
 		// Send an empty cluster list. Should stop last fetcher
 		watcher.Reconcile(ctx, []eksAuditLogCluster{})
 		synctest.Wait()
 		require.Empty(t, fetcherTracker.fetchers)
-		require.Equal(t, 2, fetcherTracker.newCount)
+		require.Equal(t, 3, fetcherTracker.newCount)
 		require.True(t, f1.done)
 
 		cancel()
@@ -178,6 +186,7 @@ func TestEKSAuditLogWatcher_ReconcileWhileDisabled(t *testing.T) {
 // so that real fetchers are not created, and returns a fake fetcher for
 // testing purposes.
 type fakeFetcherTracker struct {
+	mu       sync.Mutex
 	fetchers map[string]*fakeEksAuditLogFetcher
 	newCount int
 }
@@ -198,8 +207,14 @@ func (fft *fakeFetcherTracker) newFetcher(
 	f := &fakeEksAuditLogFetcher{
 		fetcher: fetcher,
 		cluster: cluster,
-		cleanup: func() { delete(fft.fetchers, cluster.Arn) },
+		cleanup: func() {
+			fft.mu.Lock()
+			defer fft.mu.Unlock()
+			delete(fft.fetchers, cluster.Arn)
+		},
 	}
+	fft.mu.Lock()
+	defer fft.mu.Unlock()
 	fft.fetchers[cluster.Arn] = f
 	fft.newCount++
 	return f
