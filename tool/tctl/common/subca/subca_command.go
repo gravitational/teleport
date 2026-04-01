@@ -96,13 +96,13 @@ func (c *Command) state() *commandState {
 	return &commandState{
 		Stdin:  c.Stdin,
 		Stdout: c.Stdout,
-		Sdterr: c.Stderr,
+		Stderr: c.Stderr,
 	}
 }
 
 type commandState struct {
 	Stdin          io.Reader
-	Stdout, Sdterr io.Writer
+	Stdout, Stderr io.Writer
 }
 
 type pubKeyHashCommand struct {
