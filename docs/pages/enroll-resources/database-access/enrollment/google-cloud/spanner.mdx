@@ -44,11 +44,11 @@ Teleport requires two service accounts:
 - **Database Service account**: used by the Teleport Database Service to access Google Cloud
 - **Database user account**: impersonated per connection to represent the database identity
 
-Fpr example, in the following steps, we will create `teleport-db-service` and `spanner-user` respectively.
+For example, in the following steps, we will create `teleport-db-service` and `spanner-user` respectively.
 
 ### Create the Database Service account
 
-This account represents the database identity. Teleport users specify this name when connecting.
+This account is used by the Teleport Database Service to access Google Cloud and impersonate the database user account.
 
 <Tabs>
 <TabItem label="Google Cloud console">
