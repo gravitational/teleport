@@ -2194,7 +2194,7 @@ func TestTerminal(t *testing.T) {
 
 func TestTerminalRouting(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	// add nodes with conflicting hostnames
 	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
@@ -2227,7 +2227,6 @@ func TestTerminalRouting(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		i, tt := i, tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
