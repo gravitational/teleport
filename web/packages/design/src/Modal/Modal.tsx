@@ -229,6 +229,7 @@ export default class Modal extends React.Component<ModalProps> {
   disableFocusTrap = () => {
     document.removeEventListener('focusin', this.handleFocusTrapFocusIn);
     this.lastModalFocus = undefined;
+    this.lastTabKeyDirection = null;
   };
 
   handleFocusTrapFocusIn = (event: FocusEvent) => {
