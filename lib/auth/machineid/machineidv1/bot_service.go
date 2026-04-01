@@ -507,7 +507,6 @@ func UpsertBot(
 		if existingScope != bot.Scope {
 			return nil, trace.BadParameter(
 				"upserts cannot cause the scope of a bot to change, delete and recreate the bot to change its scope",
-				existingScope, bot.Scope,
 			)
 		}
 	}
