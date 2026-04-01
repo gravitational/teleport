@@ -19,6 +19,7 @@
 package machineidv1
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"os"
@@ -33,6 +34,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -119,21 +121,47 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	unscoped, ok := authCtx.UnscopedContext()
-	if !ok {
-		// TODO(noah): Support scopes.
-		return nil, trace.AccessDenied("scoped identities may not call DeleteBotInstance")
-	}
 
-	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbDelete); err != nil {
+	// Perform pre-authz check to see if they might have access, to avoid
+	// reading cache or backend if unauthorized.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindBotInstance, types.VerbDelete,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	instance, err := b.backend.GetBotInstance(ctx, req.BotName, req.InstanceId)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := b.backend.DeleteBotInstance(ctx, req.BotName, req.InstanceId); err != nil {
+	ruleCtx.Resource153 = instance
+	if err := authCtx.CheckerContext.Decision(
+		ctx,
+		cmp.Or(instance.Scope, scopes.Root),
+		func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(
+				&ruleCtx,
+				types.KindBotInstance,
+				types.VerbDelete,
+			)
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Scoped authorizer does not yet support MFA, so for now, only perform
+	// against unscoped identities.
+	// TODO(strideynet): when we support scoped MFA, change this...
+	if unscoped, ok := authCtx.UnscopedContext(); ok {
+		if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := b.backend.DeleteBotInstance(
+		ctx, instance.Spec.BotName, instance.Spec.InstanceId,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -146,18 +174,33 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	unscoped, ok := authCtx.UnscopedContext()
-	if !ok {
-		// TODO(noah): Support scopes.
-		return nil, trace.AccessDenied("scoped identities may not call GetBotInstance")
-	}
 
-	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbRead); err != nil {
+	// Perform pre-authz check to see if they might have access, to avoid
+	// reading cache or backend if unauthorized.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	res, err := b.cache.GetBotInstance(ctx, req.BotName, req.InstanceId)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx.Resource153 = res
+	if err := authCtx.CheckerContext.Decision(
+		ctx,
+		cmp.Or(res.Scope, scopes.Root),
+		func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(
+				&ruleCtx,
+				types.KindBotInstance,
+				types.VerbDelete,
+			)
+		},
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -190,30 +233,59 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	unscoped, ok := authCtx.UnscopedContext()
-	if !ok {
-		// TODO(noah): Support scopes.
-		return nil, trace.AccessDenied("scoped identities may not call ListBotInstances")
-	}
-	if err := unscoped.CheckAccessToKind(types.KindBotInstance, types.VerbRead, types.VerbList); err != nil {
+
+	// Perform pre-authz check to see if they might have access, to avoid
+	// reading cache or backend if unauthorized.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, nextToken, err := b.cache.ListBotInstances(ctx, int(req.PageSize), req.PageToken, &services.ListBotInstancesRequestOptions{
-		SortField:        req.GetSortField(),
-		SortDesc:         req.GetSortDesc(),
-		FilterBotName:    req.GetFilter().GetBotName(),
-		FilterSearchTerm: req.GetFilter().GetSearchTerm(),
-		FilterQuery:      req.GetFilter().GetQuery(),
-	})
+	// TODO(strideynet): Ideally, at some point in the future, we should switch
+	// to some kind of stream from the cache, or pass a filter func in to allow
+	// us to avoid returning un-full pages due to completing authz checks after.
+	botInstances, nextToken, err := b.cache.ListBotInstances(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		&services.ListBotInstancesRequestOptions{
+			SortField:        req.GetSortField(),
+			SortDesc:         req.GetSortDesc(),
+			FilterBotName:    req.GetFilter().GetBotName(),
+			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+			FilterQuery:      req.GetFilter().GetQuery(),
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.ListBotInstancesResponse{
-		BotInstances:  res,
+	res := &pb.ListBotInstancesResponse{
+		BotInstances:  make([]*pb.BotInstance, 0, len(botInstances)),
 		NextPageToken: nextToken,
-	}, nil
+	}
+	for _, botInstance := range botInstances {
+		ruleCtx := authCtx.RuleContext()
+		if err := authCtx.CheckerContext.Decision(
+			ctx,
+			cmp.Or(botInstance.Scope, scopes.Root),
+			func(checker *services.SplitAccessChecker) error {
+				return checker.Common().CheckAccessToRules(
+					&ruleCtx,
+					types.KindBotInstance,
+					types.VerbRead,
+					types.VerbList,
+				)
+			},
+		); err != nil {
+			// Skip bot instances they don't have access to.
+			continue
+		}
+		res.BotInstances = append(res.BotInstances, botInstance)
+	}
+	return res, nil
 }
 
 // SubmitHeartbeat records heartbeat information for a bot
