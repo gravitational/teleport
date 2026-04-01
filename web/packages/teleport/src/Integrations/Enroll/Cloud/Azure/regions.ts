@@ -18,8 +18,6 @@
 
 import { azureRegionMap, AzureRegion } from 'teleport/services/integrations';
 
-import { RegionGroup } from '../Shared/RegionSelect';
-
 const regions: { name: string; regions: AzureRegion[] }[] = [
   {
     name: 'Americas',
@@ -97,16 +95,16 @@ const regions: { name: string; regions: AzureRegion[] }[] = [
   },
 ];
 
-function createAzureRegionGroups(): readonly RegionGroup[] {
+function createAzureRegionOptions() {
   return regions.map(({ name, regions }) => ({
-    name,
-    regions: regions
+    label: name,
+    options: regions
       .filter(id => id in azureRegionMap)
       .map(id => ({
-        id,
-        name: azureRegionMap[id],
+        value: id,
+        label: azureRegionMap[id],
       })),
   }));
 }
 
-export const azureRegionGroups = createAzureRegionGroups();
+export const azureRegionOptions = createAzureRegionOptions();
