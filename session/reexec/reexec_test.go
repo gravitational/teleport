@@ -18,6 +18,8 @@ package reexec
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/session/host"
 )
 
@@ -180,7 +181,7 @@ func TestStartNewParker(t *testing.T) {
 }
 
 func TestRootCheckHomeDir(t *testing.T) {
-	testutils.RequireRoot(t)
+	requireRoot(t)
 
 	// this test manipulates global state, ensure we're not going to run it in
 	// parallel with something else
@@ -200,7 +201,7 @@ func TestRootCheckHomeDir(t *testing.T) {
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
-	login := testutils.GenerateLocalUsername(t)
+	login := generateLocalUsername(t)
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -253,7 +254,7 @@ func changeHomeDir(t *testing.T, username, home string) {
 }
 
 func TestRootOpenFileAsUser(t *testing.T) {
-	testutils.RequireRoot(t)
+	requireRoot(t)
 	euid := os.Geteuid()
 	egid := os.Getegid()
 
@@ -326,4 +327,34 @@ func TestRootOpenFileAsUser(t *testing.T) {
 
 	require.Equal(t, euid, os.Geteuid())
 	require.Equal(t, egid, os.Getegid())
+}
+
+// requireRoot is [testutils.RequireRoot] but inlined.
+func requireRoot(tb testing.TB) {
+	tb.Helper()
+	if os.Geteuid() != 0 {
+		tb.Skip("This test will be skipped because tests are not being run as root.")
+	}
+}
+
+func generateUsername(tb testing.TB) string {
+	suffix := make([]byte, 8)
+	_, err := rand.Read(suffix)
+	require.NoError(tb, err)
+	return fmt.Sprintf("teleport-%x", suffix)
+}
+
+// generateLocalUsername is [testutils.GenerateLocalUsername] but inlined.
+func generateLocalUsername(tb testing.TB) string {
+	const maxAttempts = 10
+	for range maxAttempts {
+		login := generateUsername(tb)
+		_, err := user.Lookup(login)
+		if errors.Is(err, user.UnknownUserError(login)) {
+			return login
+		}
+		require.NoError(tb, err)
+	}
+	tb.Fatalf("Unable to generate unused username after %v attempts", maxAttempts)
+	return ""
 }
