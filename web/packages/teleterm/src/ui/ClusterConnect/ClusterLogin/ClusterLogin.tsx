@@ -286,7 +286,10 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
+      if (reason.routeToApp) {
+        return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
+      }
+      return <strong>{getTargetNameFromUri(reason.targetUri)}</strong>;
     }
     default: {
       reason satisfies never;
