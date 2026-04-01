@@ -1200,7 +1200,7 @@ const cfg = {
   },
 
   // TODO(kimlisa): DELETE IN v21 and replace with getUserWithUsernameUrl.
-  // React Router v7 auto encodes dynamic segments in path (v6 version did not).
+  // React Router v7 auto encodes dynamic segments in path (v5 version did not).
   // The upgrade surfaced a backend bug where path params were not getting auto decoded which
   // is the default behavior of go's httprouter.Params.ByName() b/c path params for this
   // particular endpoint are being manually set.
