@@ -153,7 +153,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	key := func(r services.UnknownResource) string {
-		return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.GetName())
+		return r.Kind + "/" + r.SubKind + "/" + r.GetName()
 	}
 	originalResourcesMap := make(map[string][]byte)
 	for _, r := range originalResources {
