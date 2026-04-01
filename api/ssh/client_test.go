@@ -54,40 +54,16 @@ func TestParseSSHClientVersion(t *testing.T) {
 		wantFeatures  []string
 	}{
 		{
-			name:          "prefix only",
-			clientVersion: VersionPrefix,
-			wantVersion:   "",
-			wantFeatures:  nil,
-		},
-		{
 			name:          "prefix with version",
 			clientVersion: VersionPrefix + "_19.1.2-dev",
 			wantVersion:   "19.1.2-dev",
 			wantFeatures:  nil,
 		},
 		{
-			name:          "prefix with empty version after underscore",
-			clientVersion: VersionPrefix + "_",
-			wantVersion:   "",
-			wantFeatures:  nil,
-		},
-		{
-			name:          "prefix with features only",
-			clientVersion: VersionPrefix + " " + "mfav1,foov1",
-			wantVersion:   "",
-			wantFeatures:  []string{"mfav1", "foov1"},
-		},
-		{
 			name:          "prefix with version and features",
 			clientVersion: VersionPrefix + "_19.1.2-dev" + " " + "mfav1,foov1=bar",
 			wantVersion:   "19.1.2-dev",
 			wantFeatures:  []string{"mfav1", "foov1=bar"},
-		},
-		{
-			name:          "prefix with a space after the prefix but no version or features",
-			clientVersion: VersionPrefix + " ",
-			wantVersion:   "",
-			wantFeatures:  nil,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,7 +99,35 @@ func TestParseSSHClientVersionErrors(t *testing.T) {
 			name:          "version without required underscore",
 			clientVersion: VersionPrefix + "19.1.2-dev",
 			wantErr: trace.BadParameter(
-				"SSH client version must be prefixed with an underscore",
+				"SSH client name and version must be separated by an underscore",
+			),
+		},
+		{
+			name:          "prefix only",
+			clientVersion: VersionPrefix,
+			wantErr: trace.BadParameter(
+				"SSH client name and version must be separated by an underscore",
+			),
+		},
+		{
+			name:          "prefix with empty version after underscore",
+			clientVersion: VersionPrefix + "_",
+			wantErr: trace.BadParameter(
+				"SSH client version must include a non-empty Teleport version",
+			),
+		},
+		{
+			name:          "prefix with empty version and trailing space after underscore",
+			clientVersion: VersionPrefix + "_ ",
+			wantErr: trace.BadParameter(
+				"SSH client version must include a non-empty Teleport version",
+			),
+		},
+		{
+			name:          "prefix with features after underscore but no version",
+			clientVersion: VersionPrefix + "_ " + "mfav1,foov1",
+			wantErr: trace.BadParameter(
+				"SSH client version must include a non-empty Teleport version",
 			),
 		},
 	} {
@@ -189,7 +193,7 @@ func TestIsSSHFeatureSupportedErrors(t *testing.T) {
 			name:          "version without required underscore",
 			clientVersion: VersionPrefix + "19.1.2-dev",
 			wantErr: trace.BadParameter(
-				"SSH client version must be prefixed with an underscore",
+				"SSH client name and version must be separated by an underscore",
 			),
 		},
 	} {

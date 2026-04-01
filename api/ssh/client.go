@@ -79,8 +79,6 @@ func (NonTeleportSSHVersionError) Error() string {
 // intentional that features may contain spaces.
 //
 //	Accepted formats are:
-//	 - SSH-2.0-Teleport
-//	 - SSH-2.0-Teleport <feature1,feature2,...>
 //	 - SSH-2.0-Teleport_<teleport_version>
 //	 - SSH-2.0-Teleport_<teleport_version> <feature1,feature2,...>
 func ParseClientVersion(clientVersion string) (string, []string, error) {
@@ -102,22 +100,26 @@ func ParseClientVersion(clientVersion string) (string, []string, error) {
 		)
 	}
 
-	// No version or features provided after the prefix, nothing to parse.
+	// The Teleport client name and the version are separated by an underscore. This is to ensure consistency with
+	// OpenSSH client version strings, which also use an underscore to separate the client name from the version.
+	if !strings.HasPrefix(rest, "_") {
+		return "", nil, trace.BadParameter("SSH client name and version must be separated by an underscore")
+	}
+
+	// Remove the leading underscore.
+	rest = strings.TrimPrefix(rest, "_")
+
+	// Reject an empty version after the required underscore.
 	if rest == "" {
-		return "", nil, nil
+		return "", nil, trace.BadParameter("SSH client version must include a non-empty Teleport version")
 	}
 
 	// Separate the version part from the features part by the first space.
 	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
 
-	// If a version is present, it must be prefixed with an underscore. This is to ensure consistency with OpenSSH
-	// client version strings, which also use an underscore to separate the client name from the version.
-	if versionPart != "" && !strings.HasPrefix(versionPart, "_") {
-		return "", nil, trace.BadParameter("SSH client version must be prefixed with an underscore")
+	if versionPart == "" {
+		return "", nil, trace.BadParameter("SSH client version must include a non-empty Teleport version")
 	}
-
-	// Remove the leading underscore from the version part, if present.
-	versionPart = strings.TrimPrefix(versionPart, "_")
 
 	// If there are no features, return the version.
 	if !hasFeatures || featuresPart == "" {
