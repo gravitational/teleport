@@ -110,7 +110,7 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 
 type RateSet = ratelimit.RateSet
 
-// NewRateSet creates an empty RateSet instance.
+// NewRateSet creates an empty RateSet.
 func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor which
