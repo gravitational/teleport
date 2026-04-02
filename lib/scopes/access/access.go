@@ -406,7 +406,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 	if botSet && botScope == "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
 	}
-	if !botSet && botScope == "" {
+	if !botSet && botScope != "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
 	}
 	if botSet {
