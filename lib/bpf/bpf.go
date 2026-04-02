@@ -115,9 +115,7 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	}
 	defer func() {
 		if err != nil {
-			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
-			}
+			_ = s.Close(true)
 		}
 	}()
 
@@ -165,6 +163,10 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
 // the user process and automatically unloaded when the process exits".
 func (s *Service) Close(restarting bool) error {
+	if s == nil {
+		return nil
+	}
+
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
@@ -173,12 +175,16 @@ func (s *Service) Close(restarting bool) error {
 	// Close cgroup service. We should not unmount the cgroup filesystem if
 	// we're restarting.
 	skipCgroupUnmount := restarting
-	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
-		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
+	if s.cgroup != nil {
+		if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
+			logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
+		}
 	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
-	s.closeFunc()
+	if s.closeFunc != nil {
+		s.closeFunc()
+	}
 
 	return nil
 }

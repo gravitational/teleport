@@ -60,8 +60,8 @@ type exec struct {
 
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
-func startExec(bufferSize int) (*exec, error) {
-	err := metrics.RegisterPrometheusCollectors(lostCommandEvents)
+func startExec(bufferSize int) (e *exec, err error) {
+	err = metrics.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,12 +76,20 @@ func startExec(bufferSize int) (*exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostCommandEvents)
+	e = &exec{
+		objs: objs,
+		lost: objs.LostCounter,
+	}
+	defer func() {
+		if err != nil {
+			e.close()
+		}
+	}()
+
+	e.lostCounter, err = NewCounter(e.objs.LostCounter, e.objs.LostDoorbell, lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	toClose := make([]io.Closer, 0)
 
 	tracePoints := []struct {
 		name       string
@@ -89,47 +97,41 @@ func startExec(bufferSize int) (*exec, error) {
 	}{
 		{
 			name:       "sys_enter_execve",
-			tracepoint: objs.TracepointSyscallsSysEnterExecve,
+			tracepoint: e.objs.TracepointSyscallsSysEnterExecve,
 		},
 		{
 			name:       "sys_exit_execve",
-			tracepoint: objs.TracepointSyscallsSysExitExecve,
+			tracepoint: e.objs.TracepointSyscallsSysExitExecve,
 		},
 		{
 			name:       "sys_enter_execveat",
-			tracepoint: objs.TracepointSyscallsSysEnterExecveat,
+			tracepoint: e.objs.TracepointSyscallsSysEnterExecveat,
 		},
 		{
 			name:       "sys_exit_execveat",
-			tracepoint: objs.TracepointSyscallsSysExitExecveat,
+			tracepoint: e.objs.TracepointSyscallsSysExitExecveat,
 		},
 	}
 
+	e.toClose = make([]io.Closer, 0)
 	for _, tp := range tracePoints {
 		tp, err := link.Tracepoint("syscalls", tp.name, tp.tracepoint, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		toClose = append(toClose, tp)
+		e.toClose = append(e.toClose, tp)
 	}
 
-	eventBuf, err := ringbuf.NewReader(objs.ExecveEvents)
+	e.eventBuf, err = ringbuf.NewReader(e.objs.ExecveEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfEvents := make(chan []byte, bufferSize)
-	go sendEvents(bpfEvents, eventBuf)
+	e.bpfEvents = make(chan []byte, bufferSize)
+	go sendEvents(e.bpfEvents, e.eventBuf)
 
-	return &exec{
-		objs:        objs,
-		eventBuf:    eventBuf,
-		lost:        objs.LostCounter,
-		toClose:     toClose,
-		bpfEvents:   bpfEvents,
-		lostCounter: lostCtr,
-	}, nil
+	return e, nil
 }
 
 func (e *exec) startSession(auditSessionID uint32) error {
@@ -165,27 +167,41 @@ func (e *exec) endSession(auditSessionID uint32) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (e *exec) close() {
+	if e == nil {
+		return
+	}
+
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	if e.closed {
 		return
 	}
-
 	e.closed = true
 
 	for _, link := range e.toClose {
+		if link == nil {
+			continue
+		}
 		if err := link.Close(); err != nil {
 			logger.WarnContext(context.Background(), "failed to close link", "error", err)
 		}
 	}
 
-	if err := e.objs.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
+	if e.eventBuf != nil {
+		if err := e.eventBuf.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close command ring buffer reader", "error", err)
+		}
 	}
 
-	if err := e.lostCounter.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close command lost counter", "error", err)
+	if e.lostCounter != nil {
+		if err := e.lostCounter.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close command lost counter", "error", err)
+		}
+	}
+
+	if err := e.objs.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 
 	logger.DebugContext(context.Background(), "Closed command BPF module")
