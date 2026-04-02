@@ -83,6 +83,8 @@ const (
 	sqlclBin = "sql"
 	// spannerBin is a Google Spanner interactive CLI program name.
 	spannerBin = "spanner-cli"
+	// bqBin is the Google BigQuery CLI program name.
+	bqBin = "bq"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -232,6 +234,9 @@ func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, e
 
 	case defaults.ProtocolSpanner:
 		return c.getSpannerCommand(ctx)
+
+	case defaults.ProtocolBigQuery:
+		return c.getBigQueryCommand(ctx)
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -815,6 +820,49 @@ func (c *CLICommandBuilder) getSpannerCommand(ctx context.Context) (*exec.Cmd, e
 		fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%d", c.host, c.port),
 	)
 	return cmd, nil
+}
+
+func (c *CLICommandBuilder) getBigQueryCommand(ctx context.Context) (*exec.Cmd, error) {
+	// BigQuery CLI (bq) is not interactive, so this command is for print purposes only.
+	// It only works with a local proxy tunnel.
+	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var (
+		gcp     types.GCPCloudSQL
+		project string
+	)
+
+	db, err := c.getDatabase(ctx)
+	switch {
+	case err != nil && c.options.printFormat:
+		// OK to continue in this case, we'll print the placeholders instead.
+		project = "<project>"
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		gcp = db.GetGCP()
+	}
+
+	if gcp.ProjectID != "" {
+		project = gcp.ProjectID
+	}
+
+	protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+	if project == "" {
+		return nil, trace.BadParameter("missing GCP project ID for %s command (this is a bug)", protocol)
+	}
+
+	// The bq command-line tool uses --api flag to specify the API endpoint.
+	// Users need to set the endpoint to the local proxy.
+	args := []string{
+		"--api", fmt.Sprintf("http://%v:%v", c.options.localProxyHost, c.options.localProxyPort),
+		"--project_id", project,
+		"query",
+		"<query>",
+	}
+	return exec.Command(bqBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getOracleTNSDescriptorString() string {

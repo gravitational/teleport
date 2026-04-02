@@ -327,6 +327,8 @@ const (
 	cloudSQLPassword = "cloudsql-password"
 	// cloudSpannerAuthToken is a mock Cloud Spanner IAM auth token.
 	cloudSpannerAuthToken = "cloud-spanner-auth-token"
+	// cloudBigQueryAuthToken is a mock Cloud BigQuery IAM auth token.
+	cloudBigQueryAuthToken = "cloud-bigquery-auth-token"
 	// azureAccessToken is a mock Azure access token.
 	azureAccessToken = "azure-access-token"
 	// azureRedisToken is a mock Azure Redis token.
@@ -406,6 +408,13 @@ func (a *testAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string)
 func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	return &fakeTokenSource{
 		token:  cloudSpannerAuthToken,
+		Logger: a.Logger.With("database_user", databaseUser),
+	}, nil
+}
+
+func (a *testAuth) GetBigQueryTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
+	return &fakeTokenSource{
+		token:  cloudBigQueryAuthToken,
 		Logger: a.Logger.With("database_user", databaseUser),
 	}, nil
 }

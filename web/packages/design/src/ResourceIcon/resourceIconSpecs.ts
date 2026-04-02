@@ -85,6 +85,7 @@ export const resourceIconSpecs = {
   awsquicksight: forAllThemes(i.awsquicksight),
   azure: forAllThemes(i.azure),
 
+  bigquery: forAllThemes(i.bigquery),
   bill: forAllThemes(i.bill),
   bonusly: forAllThemes(i.bonusly),
   box: forAllThemes(i.box),

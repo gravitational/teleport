@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/bigquery"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -92,6 +93,7 @@ func init() {
 	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
+	common.RegisterEngine(bigquery.NewEngine, defaults.ProtocolBigQuery)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 
 	objects.RegisterObjectFetcher(postgres.NewObjectFetcher, defaults.ProtocolPostgres)
@@ -108,6 +110,7 @@ func init() {
 	healthchecks.RegisterHealthChecker(redis.NewHealthChecker, defaults.ProtocolRedis)
 	healthchecks.RegisterHealthChecker(snowflake.NewHealthChecker, defaults.ProtocolSnowflake)
 	healthchecks.RegisterHealthChecker(spanner.NewHealthChecker, defaults.ProtocolSpanner)
+	healthchecks.RegisterHealthChecker(bigquery.NewHealthChecker, defaults.ProtocolBigQuery)
 	healthchecks.RegisterHealthChecker(sqlserver.NewHealthChecker, defaults.ProtocolSQLServer)
 }
 

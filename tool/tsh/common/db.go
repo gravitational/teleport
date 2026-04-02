@@ -776,7 +776,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	}
 
 	switch dbInfo.Protocol {
-	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
+	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP, defaults.ProtocolBigQuery:
 		return trace.BadParameter("%s", formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
@@ -1728,7 +1728,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolCassandra,
 		defaults.ProtocolOracle,
 		defaults.ProtocolClickHouse,
-		defaults.ProtocolSpanner:
+		defaults.ProtocolSpanner,
+		defaults.ProtocolBigQuery:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))

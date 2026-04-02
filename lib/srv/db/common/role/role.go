@@ -55,10 +55,15 @@ func GetDatabaseRoleMatchers(conf RoleMatchersConfig) (matchers services.RoleMat
 	return
 }
 
-// RequireDatabaseUserMatcher returns true if databases with provided protocol
-// require database users.
+// RequireDatabaseUserMatcher returns whether the --db-user flag must be
+// explicitly provided by the user.
 func RequireDatabaseUserMatcher(protocol string) bool {
-	return true // Always required.
+	switch protocol {
+	case defaults.ProtocolBigQuery:
+		return false
+	default:
+		return true
+	}
 }
 
 // RequireDatabaseNameMatcher returns true if databases with provided protocol
@@ -95,7 +100,9 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		defaults.ProtocolOracle,
 		defaults.ProtocolClickHouse,
 		defaults.ProtocolClickHouseHTTP,
-		defaults.ProtocolSQLServer:
+		defaults.ProtocolSQLServer,
+		// BigQuery uses project-level access, not database-level.
+		defaults.ProtocolBigQuery:
 		return nil
 	default:
 		// Protocols that do support database name matcher:
