@@ -461,36 +461,6 @@ func Test_extractTableRowMeta(t *testing.T) {
 	}
 }
 
-func Test_filterAcceptJSON(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name   string
-		accept string
-		want   string
-	}{
-		{"empty header", "", "application/json"},
-		{"wildcard", "*/*", "application/json"},
-		{"explicit json", "application/json", "application/json"},
-		{"json among multiple", "application/vnd.kubernetes.protobuf, application/json", "application/json"},
-		{"json table format", "application/json;as=Table;g=meta.k8s.io;v=v1", "application/json;as=Table;g=meta.k8s.io;v=v1"},
-		{"table plus plain json", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json,application/vnd.kubernetes.protobuf", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json"},
-		{"protobuf only", "application/vnd.kubernetes.protobuf", ""},
-		{"yaml only", "application/yaml", ""},
-		{"text html", "text/html", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			req, err := http.NewRequest("GET", "/api/v1/pods", nil)
-			require.NoError(t, err)
-			if tt.accept != "" {
-				req.Header.Set("Accept", tt.accept)
-			}
-			require.Equal(t, tt.want, filterAcceptJSON(req))
-		})
-	}
-}
-
 func Test_wrapContentEncoding(t *testing.T) {
 	t.Parallel()
 

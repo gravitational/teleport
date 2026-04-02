@@ -140,20 +140,6 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return rw.Status(), nil
 	}
 
-	// When filtering is needed and the client can accept JSON, force JSON on the upstream request.
-	// This enables the streaming filter path which writes items incrementally without buffering,
-	// significantly reducing latency and memory usage compared to the buffered path.
-	// Protobuf is a length-prefixed format that requires knowing the total size before writing,
-	// making true streaming impossible without buffering the entire filtered output.
-	// kubectl prefers JSON (table format), but programmatic clients (client-go) prefer protobuf,
-	// those will still benefit when they accept JSON as a fallback.
-	// Set TELEPORT_UNSTABLE_DISABLE_KUBE_STREAMING_JSON=yes to preserve the original Accept header.
-	if !disableKubeStreamingJSON {
-		if h := filterAcceptJSON(req); h != "" {
-			req.Header.Set("Accept", h)
-		}
-	}
-
 	// Filtering is needed. Pipe the upstream response through so we can
 	// inspect headers and choose the filter path without buffering the body.
 	pipeReader, pipeWriter := io.Pipe()

@@ -24,19 +24,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
 )
-
-// disableKubeStreamingJSON controls the Accept header override that forces JSON
-// on upstream requests when streaming RBAC filtering is active. When set to "yes",
-// the original client Accept header is preserved and streaming only activates if
-// the upstream response happens to be JSON. Programmatic clients (client-go) that
-// prefer protobuf will fall back to the buffered filter path.
-var disableKubeStreamingJSON = os.Getenv("TELEPORT_UNSTABLE_DISABLE_KUBE_STREAMING_JSON") == "yes"
 
 // streamFilter filters a Kubernetes list response by reading from src and
 // writing filtered output to dst, without buffering the entire response.
@@ -300,35 +292,6 @@ func decodeStringToken(decoder *json.Decoder) (string, error) {
 		return "", trace.BadParameter("expected string key, got %v", token)
 	}
 	return s, nil
-}
-
-// filterAcceptJSON returns an Accept header containing only the application/json
-// media types from the original request, preserving parameters like as=Table.
-// Returns empty string if no JSON types are present.
-//
-// For example, given:
-//
-//	application/json;as=Table;v=v1;g=meta.k8s.io,application/json,application/vnd.kubernetes.protobuf
-//
-// it returns:
-//
-//	application/json;as=Table;v=v1;g=meta.k8s.io,application/json
-func filterAcceptJSON(req *http.Request) string {
-	accept := req.Header.Get("Accept")
-	if accept == "" || accept == "*/*" {
-		return "application/json"
-	}
-	var jsonTypes []string
-	for part := range strings.SplitSeq(accept, ",") {
-		part = strings.TrimSpace(part)
-		if strings.HasPrefix(part, "application/json") {
-			jsonTypes = append(jsonTypes, part)
-		}
-	}
-	if len(jsonTypes) == 0 {
-		return ""
-	}
-	return strings.Join(jsonTypes, ",")
 }
 
 // wrapContentEncoding returns a reader/writer pair that handles Content-Encoding.
