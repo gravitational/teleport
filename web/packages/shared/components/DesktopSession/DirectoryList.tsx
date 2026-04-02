@@ -79,7 +79,7 @@ export function SharedDirectoryList({
           {/* Directory list */}
           {sharedDirectories.map(dir => (
             <Flex justifyContent="space-between" alignItems="center">
-                <Text  fontFamily={useTheme().fonts.mono} fontSize={3}>{dir.name}</Text>
+                <Text fontSize={3}>{dir.name}</Text>
               <HoverTooltip
                 placement="bottom"
                 tipContent={
@@ -145,8 +145,4 @@ const Container = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
   padding: ${props => props.theme.space[3]}px;
   width: 370px;
-`;
-
-const SpaceText = styled.div`
-  space: 10;
 `;
