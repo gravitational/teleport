@@ -27,9 +27,11 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -355,6 +357,95 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 	}
 	conditions := role.GetImpersonateConditions(types.Allow)
 	return conditions.Roles, nil
+}
+
+// GenerateScoped generates scoped certificates. Bot must already be scoped/
+// hold a scoped identity.
+// TODO(noah): add optional args to this like for Generate.
+func (g *Generator) GenerateScoped(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Identity, error) {
+	req := &issuancev1pb.IssueScopedBotCertsRequest{
+		Ttl: durationpb.New(ttl),
+	}
+
+	keyPurpose := cryptosuites.BotImpersonatedIdentity
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+		keyPurpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+
+	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := g.client.IssuanceClient().IssueScopedBotCerts(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(strideynet): This code around rebuilding the CAs for the identity
+	// file is a little gnarly and in need of simplification. GetClusterCACert
+	// seems inferior to calling the standard CA fetch (which could also be
+	// more effectively cached).
+	//
+	// Seemingly, we only need the host ca here?
+	localCA, err := g.client.GetClusterCACert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsHostCAs := [][]byte{}
+	// Append the host CAs from the auth server.
+	for _, cert := range caCerts {
+		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsHostCAs = append(tlsHostCAs, pemBytes)
+	}
+
+	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
+		PrivateKeyBytes: privateKeyPEM,
+		PublicKeyBytes:  req.SshPublicKey,
+	}, &proto.Certs{
+		SSH: res.Certs.Ssh,
+		TLS: res.Certs.Tls,
+		// Why do we fetch the host CA from API but copy the SSH host CA from
+		// local identity?
+		TLSCACerts: tlsHostCAs,
+		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	warnOnEarlyExpiration(
+		ctx,
+		log,
+		newIdentity,
+		ttl,
+		renewalInterval,
+	)
+
+	return newIdentity, nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to

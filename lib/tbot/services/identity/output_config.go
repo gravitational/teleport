@@ -114,12 +114,23 @@ func (o *OutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *OutputConfig) CheckAndSetDefaults() error {
+func (o *OutputConfig) CheckAndSetDefaults(scoped bool) error {
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
 	if err := o.Destination.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating destination")
+	}
+
+	if scoped {
+		switch {
+		case len(o.Roles) != 0:
+			return trace.BadParameter("roles: not supported with scopes")
+		case o.AllowReissue:
+			return trace.BadParameter("allow_reissue: not supported with scopes")
+		case o.Cluster != "":
+			return trace.BadParameter("cluster: not supported with scopes")
+		}
 	}
 
 	if _, ok := o.Destination.(*destination.Directory); !ok {

@@ -83,6 +83,17 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "kubernetes_cluster must not be empty",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       destination.NewMemory(),
+					KubernetesCluster: "my-cluster",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

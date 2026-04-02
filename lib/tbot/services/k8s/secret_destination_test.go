@@ -120,7 +120,11 @@ func TestDestinationKubernetesSecret(t *testing.T) {
 }
 
 func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
-	tests := []testCheckAndSetDefaultsCase[*SecretDestination]{
+	tests := []struct {
+		name    string
+		in      func() *SecretDestination
+		wantErr string
+	}{
 		{
 			name: "valid",
 			in: func() *SecretDestination {
@@ -137,7 +141,17 @@ func TestDestinationKubernetesSecret_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "name must not be empty",
 		},
 	}
-	testCheckAndSetDefaults(t, tests)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.in()
+			err := got.CheckAndSetDefaults()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestDestinationKubernetesSecret_YAML(t *testing.T) {

@@ -86,7 +86,10 @@ func (o *HostOutputConfig) GetDestination() destination.Destination {
 	return o.Destination
 }
 
-func (o *HostOutputConfig) CheckAndSetDefaults() error {
+func (o *HostOutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", HostOutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
