@@ -1,6 +1,12 @@
 {
   "version": "0.2",
   "language": "en",
+  "patterns": [
+    {
+      "name": "mdFencedCode",
+      "pattern": "(```|~~~)[\\s\\S]*?\\1"
+    }
+  ],
   "words": [
     "AAAX",
     "aabbcc",
@@ -1027,5 +1033,11 @@
     "zdvik",
     "Zilla",
     "ZLMR"
+  ],
+  "overrides": [
+    {
+      "filename": "**/*.md",
+      "ignoreRegExpList": ["mdFencedCode"]
+    }
   ]
 }
