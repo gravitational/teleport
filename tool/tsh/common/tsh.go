@@ -1325,6 +1325,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	benchWebSessions.Arg("command", "Command to execute on a remote host.").Required().StringsVar(&cf.RemoteCommand)
 	benchWebSessions.Flag("max", "DEPRECATED: use --jobs instead").Action(func(_ *kingpin.ParseContext) error {
+		// TODO(okraport): delete in v20
 		logger.WarnContext(ctx, "--max is deprecated; use --jobs instead")
 		return nil
 	}).IntVar(&cf.BenchJobs)
