@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -155,6 +154,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5982,7 +5982,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -6016,7 +6016,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -6107,15 +6107,15 @@ func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggest
 	}
 
 	// Add additional suggested reviewers and ensure deduplicated.
-	additionalReviewers := map[string]struct{}{}
+	additionalReviewers := set.New[string]()
 
 	for _, suggestedReviewer := range slices.Concat(req.GetSuggestedReviewers(), suggestedReviewers) {
-		additionalReviewers[suggestedReviewer] = struct{}{}
+		additionalReviewers.Add(suggestedReviewer)
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if len(additionalReviewers) > len(req.GetSuggestedReviewers()) {
-		req.SetSuggestedReviewers(slices.Collect(maps.Keys(additionalReviewers)))
+	if additionalReviewers.Len() > len(req.GetSuggestedReviewers()) {
+		req.SetSuggestedReviewers(additionalReviewers.Elements())
 	}
 }
 
@@ -7051,11 +7051,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 			identifiers = append(identifiers, identifiersResp)
 		}
 
-		// Create a map of identifiers for quick lookup
-		identifiersMap := make(map[string]struct{})
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+			accessListIDs.Add(id.Spec.UniqueIdentifier)
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -7072,7 +7071,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 				return
 			}
 
-			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+			if !accessListIDs.Contains(accessList.GetName()) {
 				needsNotification = true
 				// Create a unique identifier for this access list so that we know it has been accounted for.
 				// Note that if the auth server crashes between creating this identifier and creating the notification,
