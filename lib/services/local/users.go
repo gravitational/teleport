@@ -497,7 +497,7 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 }
 
 // AppendPutUserActions adds conditional actions to an atomic write to create
-// or update the user's params resource.
+// or update the user resource (without secrets).
 func (s *IdentityService) AppendPutUserActions(
 	actions []backend.ConditionalAction,
 	user types.User,
@@ -506,7 +506,11 @@ func (s *IdentityService) AppendPutUserActions(
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := itemFromUser(user)
+	withoutSecrets, ok := user.WithoutSecrets().(types.User)
+	if !ok {
+		return nil, trace.BadParameter("WithoutSecrets returned a different type (this is a bug)")
+	}
+	item, err := itemFromUser(withoutSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
