@@ -221,7 +221,9 @@ type Watcher interface {
 
 // validatedMFAChallengeResource is an interface that validated MFA challenges must implement to be filterable by
 // ValidatedMFAChallengeFilter. This is necessary to avoid an import cycle between the types package and the mfav1
-// package, which defines the ValidatedMFAChallenge type.
+// package.
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation and in a
+// separate package that can be imported by both types and mfav1 without creating a cycle.
 type validatedMFAChallengeResource interface {
 	Resource
 

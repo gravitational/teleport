@@ -48,8 +48,6 @@ func TestValidatedMFAChallengeFilterIntoMap(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require.Equal(t, tc.want, tc.filter.IntoMap())
 		})
 	}
@@ -94,11 +92,8 @@ func TestValidatedMFAChallengeFilterFromMap(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			filter := tc.filter
 			filter.FromMap(tc.input)
-
 			require.Equal(t, tc.want, filter)
 		})
 	}
@@ -137,8 +132,6 @@ func TestValidatedMFAChallengeFilterMatch(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			require.Equal(t, tc.want, tc.filter.Match(tc.targetCluster))
 		})
 	}

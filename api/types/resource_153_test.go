@@ -69,7 +69,6 @@ func TestLegacyToResource153(t *testing.T) {
 	})
 }
 
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 func TestResource153ToLegacy(t *testing.T) {
 	// bot is an example of an RFD 153 "compliant" resource.
 	// Any other resource type would do.
