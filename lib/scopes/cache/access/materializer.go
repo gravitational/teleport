@@ -1575,13 +1575,22 @@ func (f *assignmentFilter) merge(other assignmentFilter) {
 	f.users.Union(other.users)
 }
 
+// repairMissedMembers additively materializes assignments for all members and
+// owners in all lists.
 func (m *materializer) repairMissedMembers(ctx context.Context, state state) {
 	m.logger.InfoContext(ctx, "Running missed membership repair")
-	// Re-run init to re-process all access list memberships additively.
-	if err := m.Init(ctx, state); err != nil {
-		m.logger.InfoContext(ctx, "Missed membership repair failed, will schedule another repair",
-			"error", err)
-		m.scheduleMissedMembersRepair(ctx)
+
+	// Iterate all access lists to additively materialize assignments for all
+	// their members and owners.
+	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
+		if err != nil {
+			m.logger.InfoContext(ctx, "Missed membership repair failed to read all access lists, scheduling another repair",
+				"error", err)
+			m.scheduleMissedMembersRepair(ctx)
+			return
+		}
+		m.initAccessListMembers(ctx, state, list)
+		m.initAccessListOwners(ctx, state, list)
 	}
 }
 
