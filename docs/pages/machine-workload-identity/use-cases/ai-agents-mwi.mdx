@@ -7,7 +7,9 @@ tags:
  - mwi
 ---
 
-With Teleport, you can enforce access and privileges for agents.
+import TextWithMedia from "@site/src/components/Pages/Landing/TextWithMedia";
+
+Teleport enables you to enforce access and privileges for agents.
 
 Security must be enforced deterministically; AI agents cannot be trusted to follow high-level instructions like "don't delete production". 
 Teleport solves this by issuing each agent its own identity and requiring the agent's actions (for example, database queries) to flow through the Teleport proxy. 
@@ -15,6 +17,13 @@ This allows Teleport to apply Role-Based Access Control (RBAC) at both the netwo
 
 Teleport can secure infrastructure components such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents.
 All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](../../reference/monitoring/audit.mdx).
+<br />
+<TextWithMedia
+  title="AI agent access demo"
+  youtubeVideoId="D9tBqJZmIdA"
+>
+  This video demonstrates how to grant an AI agent controlled, read-only access to a Kubernetes cluster using Teleport’s `tbot` binary. The agent operates with its own identity and RBAC restrictions, ensuring it can only perform authorized actions.
+</TextWithMedia>
 
 ## Interested in a design partnership?
 
