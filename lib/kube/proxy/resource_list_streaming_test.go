@@ -461,21 +461,22 @@ func Test_extractTableRowMeta(t *testing.T) {
 	}
 }
 
-func Test_clientAcceptsJSON(t *testing.T) {
+func Test_filterAcceptJSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
 		accept string
-		want   bool
+		want   string
 	}{
-		{"empty header", "", true},
-		{"wildcard", "*/*", true},
-		{"explicit json", "application/json", true},
-		{"json among multiple", "application/vnd.kubernetes.protobuf, application/json", true},
-		{"json table format", "application/json;as=Table;g=meta.k8s.io;v=v1", true},
-		{"protobuf only", "application/vnd.kubernetes.protobuf", false},
-		{"yaml only", "application/yaml", false},
-		{"text html", "text/html", false},
+		{"empty header", "", "application/json"},
+		{"wildcard", "*/*", "application/json"},
+		{"explicit json", "application/json", "application/json"},
+		{"json among multiple", "application/vnd.kubernetes.protobuf, application/json", "application/json"},
+		{"json table format", "application/json;as=Table;g=meta.k8s.io;v=v1", "application/json;as=Table;g=meta.k8s.io;v=v1"},
+		{"table plus plain json", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json,application/vnd.kubernetes.protobuf", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json"},
+		{"protobuf only", "application/vnd.kubernetes.protobuf", ""},
+		{"yaml only", "application/yaml", ""},
+		{"text html", "text/html", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -485,7 +486,7 @@ func Test_clientAcceptsJSON(t *testing.T) {
 			if tt.accept != "" {
 				req.Header.Set("Accept", tt.accept)
 			}
-			require.Equal(t, tt.want, clientAcceptsJSON(req))
+			require.Equal(t, tt.want, filterAcceptJSON(req))
 		})
 	}
 }

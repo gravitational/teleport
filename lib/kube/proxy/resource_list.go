@@ -148,8 +148,10 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// kubectl prefers JSON (table format), but programmatic clients (client-go) prefer protobuf,
 	// those will still benefit when they accept JSON as a fallback.
 	// Set TELEPORT_UNSTABLE_DISABLE_KUBE_STREAMING_JSON=yes to preserve the original Accept header.
-	if !disableKubeStreamingJSON && clientAcceptsJSON(req) {
-		req.Header.Set("Accept", "application/json")
+	if !disableKubeStreamingJSON {
+		if h := filterAcceptJSON(req); h != "" {
+			req.Header.Set("Accept", h)
+		}
 	}
 
 	// Filtering is needed. Pipe the upstream response through so we can

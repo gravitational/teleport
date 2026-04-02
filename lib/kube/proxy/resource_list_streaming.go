@@ -302,14 +302,33 @@ func decodeStringToken(decoder *json.Decoder) (string, error) {
 	return s, nil
 }
 
-// clientAcceptsJSON reports whether the request's Accept header includes application/json.
-// Kubernetes clients typically accept multiple formats, this checks if JSON is among them.
-func clientAcceptsJSON(req *http.Request) bool {
+// filterAcceptJSON returns an Accept header containing only the application/json
+// media types from the original request, preserving parameters like as=Table.
+// Returns empty string if no JSON types are present.
+//
+// For example, given:
+//
+//	application/json;as=Table;v=v1;g=meta.k8s.io,application/json,application/vnd.kubernetes.protobuf
+//
+// it returns:
+//
+//	application/json;as=Table;v=v1;g=meta.k8s.io,application/json
+func filterAcceptJSON(req *http.Request) string {
 	accept := req.Header.Get("Accept")
 	if accept == "" || accept == "*/*" {
-		return true
+		return "application/json"
 	}
-	return strings.Contains(accept, "application/json")
+	var jsonTypes []string
+	for part := range strings.SplitSeq(accept, ",") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "application/json") {
+			jsonTypes = append(jsonTypes, part)
+		}
+	}
+	if len(jsonTypes) == 0 {
+		return ""
+	}
+	return strings.Join(jsonTypes, ",")
 }
 
 // wrapContentEncoding returns a reader/writer pair that handles Content-Encoding.
