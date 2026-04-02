@@ -25,12 +25,17 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/gravitational/teleport"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
@@ -46,10 +51,18 @@ type CacheConfig struct {
 
 	AccessListEvents types.Events
 	AccessListReader AccessListReader
+	Tracer           oteltrace.Tracer
 
 	MaxRetryPeriod    time.Duration
 	TTLCacheRetention time.Duration
 }
+
+var materializedAssignmentsMetric = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: teleport.MetricNamespace,
+	Subsystem: "scoped_access_cache",
+	Name:      "materialized_assignments",
+	Help:      "Current number of materialized scoped role assignments tracked by the scoped access cache materializer.",
+})
 
 // CheckAndSetDefaults verifies required fields and sets default values as appropriate.
 func (c *CacheConfig) CheckAndSetDefaults() error {
@@ -75,6 +88,10 @@ func (c *CacheConfig) CheckAndSetDefaults() error {
 
 	if c.TTLCacheRetention <= 0 {
 		c.TTLCacheRetention = time.Second * 3
+	}
+
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopTracer("scoped_access_cache")
 	}
 
 	return nil
@@ -106,6 +123,9 @@ type Cache struct {
 // but performance may be suboptimal until watcher init has completed.
 func NewCache(cfg CacheConfig) (*Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := metrics.RegisterPrometheusCollectors(materializedAssignmentsMetric); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -480,7 +500,7 @@ func (c *Cache) fetch(ctx context.Context) (state, *materializer, error) {
 		assignments: assignmentCache,
 	}
 
-	materializer := newMaterializer(c.cfg.AccessListReader)
+	materializer := newMaterializer(c.cfg.AccessListReader, c.cfg.Tracer)
 	if err := materializer.Init(ctx, s); err != nil {
 		return s, nil, trace.Wrap(err)
 	}
