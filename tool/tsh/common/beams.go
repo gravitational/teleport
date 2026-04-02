@@ -265,38 +265,6 @@ func onBeamsDelete(cf *CLIConf) error {
 	return nil
 }
 
-func onBeamsAllow(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc.AllowHeadless = true
-	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clusterClient.Close()
-
-		_, err = clusterClient.AuthClient.BeamsServiceClient().AllowDomain(cf.Context, &beamsv1.AllowDomainRequest{
-			BeamId: beamID,
-			Fqdns:  []string{cf.BeamDomain},
-		})
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(cf.Stdout(), "Allowed domain %q for beam %q\n", cf.BeamDomain, cf.BeamID)
-	return nil
-}
-
 func onBeamsPublish(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {

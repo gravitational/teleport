@@ -1092,9 +1092,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsLS.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	beamsRM := beams.Command("rm", "Delete an existing beam.")
 	beamsRM.Arg("beam-id", "Beam ID to delete.").Required().StringVar(&cf.BeamID)
-	beamsAllow := beams.Command("allow", "Allow a domain for an existing beam.")
-	beamsAllow.Arg("beam-id", "Beam ID to update.").Required().StringVar(&cf.BeamID)
-	beamsAllow.Flag("domain", "FQDN to allow for the beam (for example, api.example.com).").Required().StringVar(&cf.BeamDomain)
 	beamsPublish := beams.Command("publish", "Publish a beam application.")
 	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
 	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
@@ -1896,8 +1893,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsList(&cf)
 	case beamsRM.FullCommand():
 		err = onBeamsDelete(&cf)
-	case beamsAllow.FullCommand():
-		err = onBeamsAllow(&cf)
 	case beamsPublish.FullCommand():
 		err = onBeamsPublish(&cf)
 	case beamsCP.FullCommand():
