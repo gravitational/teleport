@@ -180,7 +180,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
-	github.com/lib/pq v1.10.9
 	github.com/mailgun/mailgun-go/v4 v4.23.0
 	github.com/mark3labs/mcp-go v0.43.0
 	github.com/mattn/go-shellwords v1.0.12
@@ -482,6 +481,7 @@ require (
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/letsencrypt/boulder v0.20251110.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
