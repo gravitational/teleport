@@ -99,7 +99,7 @@ func onBeamsAdd(cf *CLIConf) error {
 	return nil
 }
 
-func onBeamsConsole(cf *CLIConf) error {
+func onBeamsSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -338,7 +338,7 @@ type beamCopyTarget struct {
 	IsBeam bool
 }
 
-func onBeamsCopy(cf *CLIConf) error {
+func onBeamsSCP(cf *CLIConf) error {
 	spec, err := parseBeamCopySpec(cf.BeamCopySpec)
 	if err != nil {
 		return trace.Wrap(err)

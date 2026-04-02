@@ -1079,8 +1079,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
 	beamsAdd.Flag("console", "Connect to the beam after creation.").Default("true").BoolVar(&cf.BeamConsole)
-	beamsConsole := beams.Command("console", "Connect to an existing beam over SSH.")
-	beamsConsole.Arg("beam-id", "Beam ID to connect to.").Required().StringVar(&cf.BeamID)
+	beamsSSH := beams.Command("ssh", "Connect to an existing beam over SSH.").Alias("console")
+	beamsSSH.Arg("beam-id", "Beam ID to connect to.").Required().StringVar(&cf.BeamID)
 	beamsExec := beams.Command("exec", "Execute a command on an existing beam over SSH.").Interspersed(false)
 	beamsExec.Arg("beam-id", "Beam ID to execute on.").Required().StringVar(&cf.BeamID)
 	beamsExec.Arg("command", "Command to execute on the beam.").Required().StringsVar(&cf.RemoteCommand)
@@ -1092,10 +1092,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsPublish.Arg("beam-id", "Beam ID to publish.").Required().StringVar(&cf.BeamID)
 	beamsPublish.Flag("tcp", "Publish as a TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)
 	beamsPublish.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsCP := beams.Command("cp", "Copy files between the local filesystem and a running beam environment.")
-	beamsCP.Arg("src, dest", "Source and destination to copy; exactly one must use the form BEAM_ID:PATH.").Required().StringsVar(&cf.BeamCopySpec)
-	beamsCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
+	beamsSCP := beams.Command("scp", "Copy files between the local filesystem and a running beam environment.").Alias("cp")
+	beamsSCP.Arg("src, dest", "Source and destination to copy; exactly one must use the form BEAM_ID:PATH.").Required().StringsVar(&cf.BeamCopySpec)
+	beamsSCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
+	beamsSCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	beamsMount := beams.Command("mount", "Mount a beam filesystem locally via SSHFS.")
 	beamsMount.Arg("beam-id", "Beam ID or alias to mount.").Required().StringVar(&cf.BeamID)
 	beamsMount.Arg("mount-point", "Local directory to mount the beam at (default: ~/beams/<beam>).").StringVar(&cf.BeamMountPoint)
@@ -1869,8 +1869,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onApps(&cf)
 	case beamsAdd.FullCommand():
 		err = onBeamsAdd(&cf)
-	case beamsConsole.FullCommand():
-		err = onBeamsConsole(&cf)
+	case beamsSSH.FullCommand():
+		err = onBeamsSSH(&cf)
 	case beamsExec.FullCommand():
 		err = onBeamsExec(&cf)
 	case beamsLS.FullCommand():
@@ -1879,8 +1879,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsDelete(&cf)
 	case beamsPublish.FullCommand():
 		err = onBeamsPublish(&cf)
-	case beamsCP.FullCommand():
-		err = onBeamsCopy(&cf)
+	case beamsSCP.FullCommand():
+		err = onBeamsSCP(&cf)
 	case beamsMount.FullCommand():
 		err = onBeamsMount(&cf)
 	case beamsUmount.FullCommand():
