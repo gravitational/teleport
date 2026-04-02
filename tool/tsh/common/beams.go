@@ -346,32 +346,6 @@ func onBeamsCopy(cf *CLIConf) error {
 	return trace.Wrap(runBeamCopy(cf, spec))
 }
 
-func onBeamsPush(cf *CLIConf) error {
-	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
-		Source: beamCopyTarget{
-			Path: cf.BeamLocalPath,
-		},
-		Destination: beamCopyTarget{
-			Path:   cf.BeamRemotePath,
-			BeamID: cf.BeamID,
-			IsBeam: true,
-		},
-	}))
-}
-
-func onBeamsPull(cf *CLIConf) error {
-	return trace.Wrap(runBeamCopy(cf, beamCopySpec{
-		Source: beamCopyTarget{
-			Path:   cf.BeamRemotePath,
-			BeamID: cf.BeamID,
-			IsBeam: true,
-		},
-		Destination: beamCopyTarget{
-			Path: cf.BeamLocalPath,
-		},
-	}))
-}
-
 func runBeamCopy(cf *CLIConf, spec beamCopySpec) error {
 	tc, err := makeClient(cf)
 	if err != nil {

@@ -282,9 +282,7 @@ type CLIConf struct {
 	BeamTCP bool
 	// BeamCopySpec stores `tsh beams cp` source and destination paths.
 	BeamCopySpec []string
-	// BeamLocalPath is the local filesystem path used by `tsh beams push/pull`.
-	BeamLocalPath string
-	// BeamRemotePath is the remote filesystem path used by `tsh beams push/pull`.
+	// BeamRemotePath is the remote filesystem path used by `tsh beams mount`.
 	BeamRemotePath string
 	// BeamMountPoint is the local mount point used by `tsh beams mount`.
 	BeamMountPoint string
@@ -1100,18 +1098,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsCP.Arg("src, dest", "Source and destination to copy; exactly one must use the form BEAM_ID:PATH.").Required().StringsVar(&cf.BeamCopySpec)
 	beamsCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
 	beamsCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsPush := beams.Command("push", "Copy a local file to a running beam environment.")
-	beamsPush.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
-	beamsPush.Flag("local", "Local file to copy.").Required().StringVar(&cf.BeamLocalPath)
-	beamsPush.Flag("remote", "Remote copy location.").Required().StringVar(&cf.BeamRemotePath)
-	beamsPush.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsPush.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsPull := beams.Command("pull", "Copy a file from a running beam environment to the local filesystem.")
-	beamsPull.Arg("name", "Name of the beam to target.").Required().StringVar(&cf.BeamID)
-	beamsPull.Flag("remote", "Remote file to copy.").Required().StringVar(&cf.BeamRemotePath)
-	beamsPull.Flag("local", "Local copy location.").Required().StringVar(&cf.BeamLocalPath)
-	beamsPull.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
-	beamsPull.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	beamsMount := beams.Command("mount", "Mount a beam filesystem locally via SSHFS.")
 	beamsMount.Arg("beam-id", "Beam ID or alias to mount.").Required().StringVar(&cf.BeamID)
 	beamsMount.Arg("mount-point", "Local directory to mount the beam at (default: ~/beams/<beam>).").StringVar(&cf.BeamMountPoint)
@@ -1897,10 +1883,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsPublish(&cf)
 	case beamsCP.FullCommand():
 		err = onBeamsCopy(&cf)
-	case beamsPush.FullCommand():
-		err = onBeamsPush(&cf)
-	case beamsPull.FullCommand():
-		err = onBeamsPull(&cf)
 	case beamsMount.FullCommand():
 		err = onBeamsMount(&cf)
 	case beamsUmount.FullCommand():
