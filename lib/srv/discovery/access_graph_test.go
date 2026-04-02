@@ -27,7 +27,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
@@ -62,7 +61,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   nil,
 						DiscoveredResources:            1,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -86,7 +85,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   &testErr,
 						DiscoveredResources:            1,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -109,7 +108,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   &testErr,
 						DiscoveredResources:            1,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -142,7 +141,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   nil,
 						DiscoveredResources:            0,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -172,7 +171,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   nil,
 						DiscoveredResources:            2,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 				"test2": {
@@ -181,7 +180,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   nil,
 						DiscoveredResources:            1,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -206,7 +205,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						State:                          "DISCOVERY_CONFIG_STATE_ERROR",
 						ErrorMessage:                   stringPointer("error in fetcher 1\nerror in fetcher 2"),
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
@@ -232,7 +231,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 						ErrorMessage:                   stringPointer("error in fetcher 1"),
 						DiscoveredResources:            2,
 						LastSyncTime:                   clock.Now(),
-						IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+						IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 					},
 				},
 			},
