@@ -18,19 +18,32 @@ package subca
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	"github.com/gravitational/teleport/api/utils/pkixname"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/subca"
-	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
+
+// SubCAClientSource is the subset of *authclient.Client used by Command.
+type SubCAClientSource interface {
+	SubCAClient() subcav1.SubCAServiceClient
+}
+
+// InitFunc "downgrades" *authclient.Client to SubCAClientSource in order to
+// enable easy testing.
+type InitFunc func(ctx context.Context) (_ SubCAClientSource, closeFn func(context.Context), _ error)
 
 // Command is the subset of "tctl auth" commands that deal with Sub CAs.
 //
@@ -48,7 +61,8 @@ type Command struct {
 	// Initialized by the Initialize function.
 	Stdout, Stderr io.Writer
 
-	pubKeyHash pubKeyHashCommand
+	createOverrideCSR createOverrideCSRCommand
+	pubKeyHash        pubKeyHashCommand
 }
 
 // Initialize initializes all Sub CA commands. Parent is expected to be "tctl
@@ -70,6 +84,27 @@ func (c *Command) Initialize(
 		c.Stderr = os.Stderr
 	}
 
+	c.createOverrideCSR.CmdClause = parent.Command(
+		"create-override-csr", "Create a CSR in preparation for CA certificate override")
+	// Don't over-validate CA types on the client. That's the server's responsibility.
+	createCSRHelp := fmt.Sprintf(
+		"CA type (%s)",
+		strings.Join(subca.SupportedCATypes(), ", "),
+	)
+	c.createOverrideCSR.
+		Flag("type", createCSRHelp). // --type mimics other "tctl auth" commands
+		Required().
+		StringVar(&c.createOverrideCSR.caType)
+	c.createOverrideCSR.
+		Flag("out", "Output path prefix. Use '-' for stdout.").
+		StringVar(&c.createOverrideCSR.out)
+	c.createOverrideCSR.
+		Flag("public-key", "Public key hash of CA certificate to be targeted").
+		StringVar(&c.createOverrideCSR.publicKey)
+	c.createOverrideCSR.
+		Flag("subject", `Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"`).
+		StringVar(&c.createOverrideCSR.subject)
+
 	c.pubKeyHash.CmdClause = parent.Command(
 		"pub-key-hash", "Extract and print the public key hash of a PEM certificate")
 	c.pubKeyHash.Flag("cert", "Certificate file in PEM format. Use '-' to read from stdin.").
@@ -84,10 +119,15 @@ func (c *Command) Initialize(
 func (c *Command) TryRun(
 	ctx context.Context,
 	selectedCommand string,
-	clientFunc commonclient.InitFunc,
+	clientFunc InitFunc,
 ) (match bool, err error) {
-	if selectedCommand == c.pubKeyHash.FullCommand() {
-		return true, trace.Wrap(c.pubKeyHash.Run(ctx, clientFunc, c.state()))
+	for _, cmd := range []subCommand{
+		&c.createOverrideCSR,
+		&c.pubKeyHash,
+	} {
+		if selectedCommand == cmd.FullCommand() {
+			return true, trace.Wrap(cmd.Run(ctx, clientFunc, c.state()))
+		}
 	}
 	return false, nil
 }
@@ -105,6 +145,124 @@ type commandState struct {
 	Stdout, Stderr io.Writer
 }
 
+type subCommand interface {
+	FullCommand() string
+	Run(ctx context.Context, clientFunc InitFunc, s *commandState) error
+}
+
+type createOverrideCSRCommand struct {
+	*kingpin.CmdClause
+
+	caType    string
+	out       string // Output path prefix.
+	publicKey string
+	subject   string
+}
+
+func (c *createOverrideCSRCommand) Run(
+	ctx context.Context,
+	clientFunc InitFunc,
+	s *commandState,
+) error {
+	// Defensive, shouldn't happen.
+	if c.caType == "" {
+		return trace.BadParameter("type required")
+	}
+
+	var pubKey *subcav1.PublicKeyHash
+	if c.publicKey != "" {
+		pubKey = &subcav1.PublicKeyHash{
+			Value: c.publicKey,
+		}
+	}
+
+	var customSubject *subcav1.DistinguishedName
+	if c.subject != "" {
+		dn, err := pkixname.ParseDistinguishedName(c.subject)
+		if err != nil {
+			return trace.Wrap(err, "parse custom subject")
+		}
+		customSubject, err = subca.RDNSequenceToDistinguishedNameProto(dn.ToRDNSequence())
+		if err != nil {
+			return trace.Wrap(err, "convert custom subject to protobuf")
+		}
+	}
+
+	// Create gRPC client.
+	authClient, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+	subCA := authClient.SubCAClient()
+
+	// Request CSRs.
+	resp, err := subCA.CreateCSR(ctx, &subcav1.CreateCSRRequest{
+		CaType:        c.caType,
+		PublicKeyHash: pubKey,
+		CustomSubject: customSubject,
+	})
+	if err != nil {
+		return trace.Wrap(err, "create CSRs")
+	}
+	// Defensive. Should fail server-side if that's the case.
+	if len(resp.Csrs) == 0 {
+		return trace.BadParameter("no CSRs created")
+	}
+
+	// Write CSRs to files.
+	writeToStdout := c.out == "-"
+	out := fmt.Sprintf("%s%s-", c.out, c.caType)
+
+	seenHashes := make(map[string]struct{})
+	writeCSR := func(csr *subcav1.CertificateSigningRequest) error {
+		if writeToStdout {
+			fmt.Fprintln(s.Stdout, csr.Pem)
+			return nil
+		}
+
+		// Extract public key hash from CSR.
+		block, _ := pem.Decode([]byte(csr.Pem))
+		if block == nil {
+			return trace.BadParameter("CSR is not a valid PEM")
+		}
+		parsedCSR, err := x509.ParseCertificateRequest(block.Bytes)
+		if err != nil {
+			return trace.Wrap(err, "parse CSR")
+		}
+		pubKeyHash := subca.HashPublicKey(parsedCSR.RawSubjectPublicKeyInfo)
+
+		// Attempt to find a smaller hash, so the filename isn't always 73+
+		// characters.
+		// In practice this should resolve immediately the vast majority of the
+		// time.
+		const minLen = 8
+		for l := minLen; l < len(pubKeyHash); l++ {
+			pkh := pubKeyHash[:l]
+			if _, ok := seenHashes[pkh]; ok {
+				continue // Try a larger hash.
+			}
+			pubKeyHash = pkh
+			seenHashes[pubKeyHash] = struct{}{}
+			break
+		}
+
+		name := out + pubKeyHash + "-csr.pem"
+		if err := os.WriteFile(name, []byte(csr.Pem), 0644); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintf(s.Stdout, "Wrote %s\n", name)
+		return nil
+	}
+
+	for _, csr := range resp.Csrs {
+		if err := writeCSR(csr); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 type pubKeyHashCommand struct {
 	*kingpin.CmdClause
 
@@ -113,7 +271,7 @@ type pubKeyHashCommand struct {
 
 func (c *pubKeyHashCommand) Run(
 	ctx context.Context,
-	_ commonclient.InitFunc,
+	_ InitFunc,
 	s *commandState,
 ) error {
 	// Defensive, shouldn't happen.
