@@ -963,6 +963,14 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			},
 			ClientIdleTimeout: "1h",
 		},
+		Kube: &scopedaccessv1.ScopedRoleKube{
+			Groups: []string{"viewer"},
+			Users:  []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout: "1h",
+		},
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),

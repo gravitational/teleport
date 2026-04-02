@@ -106,7 +106,7 @@ describe('Finish', () => {
     expect(
       screen.getByLabelText('Select a cluster to access')
     ).toBeInTheDocument();
-    expect(screen.getByText('To complete the setup')).toBeInTheDocument();
+    expect(screen.getByText('To complete the setup:')).toBeInTheDocument();
   });
 
   test('cluster', async () => {

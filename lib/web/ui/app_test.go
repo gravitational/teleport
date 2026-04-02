@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
@@ -79,7 +80,7 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 
 		out := MakeApp(app, cfg)
 
-		require.ElementsMatch(t, []int{int(f1), int(f2)}, out.SupportedFeatureIDs)
+		require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{componentfeaturesv1.ComponentFeatureID(f1), componentfeaturesv1.ComponentFeatureID(f2)}, out.SupportedFeatureIDs)
 	})
 }
 

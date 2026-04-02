@@ -135,6 +135,36 @@ test('getClusterEventsUrl does not corrupt startKey when start is set', () => {
   expect(url).not.toContain('00.000ZKey?');
 });
 
+test('getAppLauncherRoute encodes slash in AWS role ARN', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+    arn: 'arn:aws:iam::123456789012:role/my-role',
+  });
+  expect(url).toContain('role%2Fmy-role');
+  expect(url).not.toContain('role/my-role');
+});
+
+test('getAppLauncherRoute encodes multi-level ARN path', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+    arn: 'arn:aws:iam::123456789012:role/path/to/my-role',
+  });
+  expect(url).toContain('role%2Fpath%2Fto%2Fmy-role');
+});
+
+test('getAppLauncherRoute without ARN leaves route unchanged', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+  });
+  expect(url).toBe('/web/launch/app.example.com/cluster1/app.example.com');
+});
+
 test('getRoleUrl listv2 encodes query params', () => {
   expect(
     cfg.getRoleUrl({

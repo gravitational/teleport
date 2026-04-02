@@ -74,6 +74,9 @@ message ScopedRoleSpec {
 
   // Ssh specifies controls that govern SSH access.
   ScopedRoleSSH ssh = 7;
+
+  // The kubernetes specific configuration for a scoped role.
+  ScopedRoleKube kube = 8;
 }
 
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
@@ -95,11 +98,34 @@ message ScopedRoleSSH {
 
   // Labels is the set of node labels used to dynamically select which nodes this role applies to.
   repeated teleport.label.v1.Label labels = 2;
-
   // ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions.
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
   // (or global default) applies.
   string client_idle_timeout = 3;
+}
+
+// The group of all scoped role fields relevant to kube access. Fields within the kube block
+// encompass selection criteria and preconditions for access, as well as the controls to be applied in
+// cases where access is permitted. A kube block is the primary source of truth for controls to be applied
+// to the kube access it permits, but defaults and global or scope-bound controls may also affect the nature of
+// the resulting access.
+message ScopedRoleKube {
+  // The map of kubernetes cluster labels used for RBAC.
+  repeated teleport.label.v1.Label labels = 1;
+
+  // The list of kubernetes groups this role allows.
+  repeated string groups = 2;
+
+  // An optional list of impersonatable kubernetes users this role allows.
+  repeated string users = 3;
+
+  reserved 4; // saving for kube resources
+  reserved "resources"; // saving for kube resources
+
+  // Overrides the defaults block idle timeout specifically for kube sessions.
+  // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+  // (or global default) applies.
+  string client_idle_timeout = 5;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe

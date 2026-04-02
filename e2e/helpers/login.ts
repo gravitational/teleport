@@ -47,3 +47,12 @@ export async function login(
 
   await expect(page.getByText(/^Resources$/).first()).toBeVisible();
 }
+
+export async function logout(page: Page) {
+  await page.getByRole('button', { name: 'User Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Logout' }).click();
+  // This is important to make sure that the redirect and subsequent page.goto
+  // inside login() don't enter a race condition which results in a
+  // net::ERR_ABORTED.
+  await expect(page.getByText('Sign in to Teleport')).toBeVisible();
+}

@@ -45,6 +45,7 @@ resource "teleport_kube_cluster" "my-cluster" {
 ### Optional
 
 - `metadata` (Attributes) Metadata is the resource metadata. (see [below for nested schema](#nested-schema-for-metadata))
+- `scope` (String) The scope of the kube cluster.
 - `spec` (Attributes) Spec is the resource spec. (see [below for nested schema](#nested-schema-for-spec))
 - `sub_kind` (String) SubKind is an optional resource subkind.
 
