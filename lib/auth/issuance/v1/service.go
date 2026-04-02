@@ -35,7 +35,7 @@ import (
 
 type authServer interface {
 	AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error)
-	GenerateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error)
+	GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error)
 }
 
 type cache interface{}
@@ -173,7 +173,7 @@ func (s *Service) IssueScopedBotCerts(
 	// Sanity check that the requested scope is still descendent or equiv to
 	// botScope - in case bot scope has changed.
 	rel := scopes.Compare(botScope, requestedScope)
-	if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
+	if rel != scopes.Equivalent && rel != scopes.Descendant {
 		return nil, trace.AccessDenied(
 			"requested scope %q is not descendent or equivalent to bot's scope %q",
 			requestedScope,
@@ -219,7 +219,7 @@ func (s *Service) IssueScopedBotCerts(
 	// nb(strideynet): One day, we'll want to pull more of the logic around
 	// cert generation into this package rather than invoking this via the
 	// auth server struct.
-	certs, err := s.authServer.GenerateUserCert(ctx, certReq)
+	certs, err := s.authServer.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

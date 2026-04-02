@@ -59,7 +59,7 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -181,7 +181,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -867,7 +867,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		certReq.TTL = time.Minute
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
