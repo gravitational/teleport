@@ -46,6 +46,14 @@ spec:
           - update
           - delete
       - resources:
+          - lock
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
           - login_rule
         verbs:
           - list
