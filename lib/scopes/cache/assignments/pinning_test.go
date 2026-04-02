@@ -501,15 +501,17 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
-		cache.Put(assignment)
+		require.NoError(t, cache.Put(assignment))
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: assignment.GetMetadata().GetName(),
+			Name:    assignment.GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetAssignment())
