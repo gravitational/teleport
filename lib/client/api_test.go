@@ -1775,9 +1775,9 @@ func TestGenerateClientConfig(t *testing.T) {
 
 		cfg, err := tc.generateClientConfig(t.Context())
 		require.NoError(t, err)
-		require.Equal(t, cfg.proxyAddress, webProxyAddr)
-		require.Equal(t, cfg.User, username)
-		require.Equal(t, cfg.clusterName(), leafCluster)
+		require.Equal(t, webProxyAddr, cfg.proxyAddress)
+		require.Equal(t, username, cfg.User)
+		require.Equal(t, leafCluster, cfg.clusterName())
 
 		signers, err := cfg.PublicKeyAuth.Signers()
 		require.NoError(t, err)
@@ -1850,7 +1850,7 @@ func TestGenerateClientConfig(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, cfg.clusterName(), leafCluster)
+		require.Equal(t, leafCluster, cfg.clusterName())
 
 		signers, err := cfg.PublicKeyAuth.Signers()
 		require.NoError(t, err)
@@ -1886,8 +1886,8 @@ func TestGenerateClientConfig(t *testing.T) {
 
 		cfg, err := tc.generateClientConfig(t.Context())
 		require.NoError(t, err)
-		require.Equal(t, cfg.proxyAddress, fmt.Sprintf("%s:3023", proxyHost))
-		require.Equal(t, cfg.clusterName(), leafCluster)
+		require.Equal(t, fmt.Sprintf("%s:3023", proxyHost), cfg.proxyAddress)
+		require.Equal(t, leafCluster, cfg.clusterName())
 
 		signers, err := cfg.PublicKeyAuth.Signers()
 		require.NoError(t, err)

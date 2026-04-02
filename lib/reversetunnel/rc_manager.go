@@ -366,7 +366,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		// Configs for our cluster.
 		Client:              cfg.AuthClient,
 		AccessPoint:         cfg.AccessPoint,
-		PublicKeyAuth: cfg.PublicKeyAuth,
+		PublicKeyAuth:       cfg.PublicKeyAuth,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
 		KubeDialAddr:        cfg.KubeDialAddr,
