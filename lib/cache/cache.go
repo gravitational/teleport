@@ -1755,6 +1755,14 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			},
 		)
 		return resp, trace.Wrap(err)
+	case types.KindWindowsDesktop:
+		resp, err := buildListResourcesResponse(
+			c.collections.windowsDesktops.store.resources(windowsDesktopNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			types.WindowsDesktop.CloneResource,
+		)
+		return resp, trace.Wrap(err)
 	case types.KindKubeServer:
 		resp, err := buildListResourcesResponse(
 			c.collections.kubeServers.store.resources(kubeServerNameIndex, req.StartKey, ""),
