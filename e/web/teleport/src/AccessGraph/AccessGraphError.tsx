@@ -28,18 +28,25 @@ export function AccessGraphSetupError({
   if (isConfigured) {
     return (
       <Container>
-        <Alert kind="danger">
-          <Box>
-            Identity Security is available and configured for your Teleport
-            cluster, but the Access Graph service cannot be contacted.
-          </Box>
-
-          <Box mt={2}>
-            Please ensure the Access Graph service is running, and that your
-            Teleport cluster is able to communicate with it.
-          </Box>
-
-          <DocumentationButton />
+        <Alert
+          kind="danger"
+          alignItems="flex-start"
+          details={
+            <>
+              <Box mt={2}>
+                If you recently enabled Identity Security, it will become
+                available after your next maintenance window.
+              </Box>
+              <Box mt={2}>
+                Otherwise, please ensure the Access Graph service is running and
+                that your Teleport cluster is able to communicate with it.
+              </Box>
+              <DocumentationButton />
+            </>
+          }
+        >
+          Identity Security is available and configured for your Teleport
+          cluster, but the Access Graph service cannot be contacted.
         </Alert>
       </Container>
     );
@@ -47,13 +54,13 @@ export function AccessGraphSetupError({
 
   return (
     <Container>
-      <Alert kind="danger">
-        <Box>
-          Identity Security is available for your Teleport cluster, but it has
-          not been configured yet.
-        </Box>
-
-        <DocumentationButton />
+      <Alert
+        kind="danger"
+        alignItems="flex-start"
+        details={<DocumentationButton />}
+      >
+        Identity Security is available for your Teleport cluster, but it has not
+        been configured yet.
       </Alert>
     </Container>
   );
@@ -69,13 +76,13 @@ export function AccessGraphLoadingError() {
     // TODO(ryan): delete in v19 as v17 will no longer be supported and this error should never be seen again.
     return (
       <Container>
-        <Alert kind="danger">
-          <Box>
-            The current version of Identity Security is incompatible with
-            Teleport 18. Please update to the latest version.
-          </Box>
-
-          <DocumentationButton />
+        <Alert
+          kind="danger"
+          alignItems="flex-start"
+          details={<DocumentationButton />}
+        >
+          The current version of Identity Security is incompatible with Teleport
+          18. Please update to the latest version.
         </Alert>
       </Container>
     );
@@ -83,13 +90,13 @@ export function AccessGraphLoadingError() {
 
   return (
     <Container>
-      <Alert kind="danger">
-        <Box>
-          Could not load Identity Security. Please ensure the Access Graph
-          service is running.
-        </Box>
-
-        <DocumentationButton />
+      <Alert
+        kind="danger"
+        alignItems="flex-start"
+        details={<DocumentationButton />}
+      >
+        Could not load Identity Security. Please ensure the Access Graph service
+        is running.
       </Alert>
     </Container>
   );
