@@ -24,7 +24,6 @@
   "homepage": "https://goteleport.com",
   "dependencies": {
     "@grpc/grpc-js": "1.14.3",
-    "@types/which": "^3.0.4",
     "node-forge": "^1.4.0",
     "node-pty": "1.2.0-beta.11",
     "ring-buffer-ts": "^1.2.0",
@@ -41,6 +40,7 @@
     "@protobuf-ts/grpc-transport": "^2.11.1",
     "@types/node-forge": "^1.3.14",
     "@types/tar-fs": "^2.0.4",
+    "@types/which": "^3.0.4",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "electron": "40.1.0",
