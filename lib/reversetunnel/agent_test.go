@@ -528,7 +528,7 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 		Client:      &mockLocalClusterClient{},
 		AccessPoint: &fakeClient{caKey: ca.PublicKey()},
 		Cluster:     "test",
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{signer}, nil
 			},

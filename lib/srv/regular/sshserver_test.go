@@ -1894,7 +1894,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},
@@ -1912,7 +1912,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},

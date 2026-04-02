@@ -193,7 +193,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Client:       conn.Client,
 			Server:       dbService,
 			AccessPoint:  conn.Client,
-			PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
 				Signers: func() ([]ssh.Signer, error) {
 					return conn.ClientSigners(), nil
 				},

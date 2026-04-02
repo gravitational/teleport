@@ -91,7 +91,7 @@ func TestAgentCertChecker(t *testing.T) {
 			dialer := agentDialer{
 				client:   &fakeClient{caKey: ca.PublicKey()},
 				username: "alice",
-				publicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				publicKeyAuth: apissh.PublicKeyAuthConfig{
 					Signers: func() ([]ssh.Signer, error) {
 						return []ssh.Signer{signer}, nil
 					},
