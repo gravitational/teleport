@@ -93,9 +93,23 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		Scope: scope,
 	}
 
-	// populate the scope pin with the user's assigned scoped roles
-	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
-		return nil, trace.Wrap(err)
+	if userState.IsBot() {
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// build the user's access info based on the scope pin and userState
