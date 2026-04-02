@@ -1,0 +1,214 @@
+---
+title: Event Handler Plugin Reference
+sidebar_label: Event Handler
+description: Configure the Event Handler plugin to export Teleport audit log events to Fluentd.
+keywords:
+  - event forwarding
+  - event handler
+  - audit log
+  - Fluentd
+---
+
+
+The **Event Handler** plugin exports Teleport audit events to a Fluentd
+service. The plugin retrieves events in configurable batches, forwards each
+event to Fluentd over mTLS, and persists the ID of each successfully sent event
+to local storage. If the plugin crashes or restarts, it resumes from the last
+confirmed event. By default, the plugin polls for new events every 5 seconds.
+
+## Configuration methods
+
+The Event Handler plugin accepts configuration from three sources:
+
+- Command-line arguments.
+- Environment variables prefixed with `FDFWD_`.
+- A TOML configuration file specified with the `--config` flag.
+
+```code
+storage = "./storage" # Plugin will save its state here
+timeout = "10s"
+batch = 20
+
+[forward.fluentd]
+ca = "/home/bob/event-handler/ca.crt"
+cert = "/home/bob/event-handler/client.crt"
+key = "/home/bob/event-handler/client.key"
+url = "https://fluentd.example.com:8888/test.log"
+# The Event Handler appends `.<session-id>.log` to `session-url` when sending
+# session recording events. For example, if `session-url` is
+# `https://fluentd.example.com:8888/session`, the actual requests are sent to
+# paths like `/session.<session-id>.log`. Ensure that your log collector's
+# tag matching or routing rules account for this suffix (e.g., use `session.*`
+# as a match pattern in Fluentd or Fluent Bit).
+session-url = "https://fluentd.example.com:8888/session"
+
+[teleport]
+addr = "localhost:3025"
+identity = "path/identity-file"
+refresh.enabled = true
+refresh.interval = "2m"
+```
+
+Use `--dry-run` argument to simulate event export without connecting to Fluentd. 
+`--exit-on-last-event` can be used to terminate service after the last event is processed.
+`--skip-session-types` is `['print', 'desktop.recording']` by default. 
+
+If you enable forwarding of these events (`--skip-session-types=''`) the recorded data will also be sent.
+
+## Teleport connection settings
+| CLI argument | Environment variable | Description |
+|---|---|---|
+| `--teleport-addr` | `FDFWD_TELEPORT_ADDR` | Teleport Auth Service or Proxy Service host and port. |
+| `--teleport-ca` | `FDFWD_TELEPORT_CA` | Path to the Teleport TLS CA certificate file. |
+| `--teleport-cert` | `FDFWD_TELEPORT_CERT` | Path to the Teleport TLS certificate file. |
+| `--teleport-key` | `FDFWD_TELEPORT_KEY` | Path to the Teleport TLS private key file. |
+| `--teleport-identity` | `FDFWD_TELEPORT_IDENTITY` | Path to a Teleport identity file. |
+| `--teleport-refresh-enabled` | `FDFWD_TELEPORT_REFRESH_ENABLED` | Reload the identity file from disk on an interval. |
+| `--teleport-refresh-interval` | `FDFWD_TELEPORT_REFRESH_INTERVAL` | How often to reload the identity file. |
+
+## Fluentd connection settings
+| CLI argument | Environment variable | Description |
+|---|---|---|
+| `--fluentd-url` | `FDFWD_FLUENTD_URL` | Fluentd URL for forwarding audit events. |
+| `--fluentd-session-url` | `FDFWD_FLUENTD_SESSION_URL` | Base URL for session events. Appends `.<session-id>.log`. |
+| `--fluentd-ca` | `FDFWD_FLUENTD_CA` | Path to the Fluentd TLS CA certificate file. |
+| `--fluentd-cert` | `FDFWD_FLUENTD_CERT` | Path to the Fluentd TLS client certificate file. |
+| `--fluentd-key` | `FDFWD_FLUENTD_KEY` | Path to the Fluentd TLS client private key file. |
+| `--fluentd-max-connections` | `FDFWD_MAX_CONNECTIONS` | Max number of concurrent connections to Fluentd. Defaults to double the concurrency value if not set. |
+
+## Event processing settings
+| CLI argument | Environment variable | Description |
+|---|---|---|
+| `--batch` | `FDFWD_BATCH` | Number of events to fetch per batch. |
+| `--timeout` | `FDFWD_TIMEOUT` | Timeout for polling the Teleport event API. |
+| `--types` | `FDFWD_TYPES` | Comma-separated list of event types to forward. If not set, all event types are forwarded. Do not use wildcards (like *); only exact type names are matched. |
+| `--skip-session-types` | `FDFWD_SKIP_SESSION_TYPES` | Comma-separated list of session event types to skip. |
+| `--skip-event-types` | `FDFWD_SKIP_EVENT_TYPES` | Comma-separated list of audit log event types to skip (e.g., user.login, access_request.create). |
+| `--start-time` | `FDFWD_START_TIME` | Minimum event time in RFC 3339 format. |
+| `--concurrency` | `FDFWD_CONCURRENCY` | Number of concurrent sessions. |
+| `--window-size` | `FDFWD_WINDOW_SIZE` | Window size to process events. |
+| `--storage` | `FDFWD_STORAGE` | Directory for persisting event processing state. |
+
+## Operational settings
+
+| CLI argument | Environment variable | Description |
+|---|---|---|
+| `--debug` | `FDFWD_DEBUG` | Enable debug-level logging. |
+| `--dry-run` | `FDFWD_DRY_RUN` | Simulate execution without connecting to Fluentd. Useful for testing configuration. |
+| `--exit-on-last-event` | `FDFWD_EXIT_ON_LAST_EVENT` | Exit when last event is processed. |
+
+## User auto-locking settings
+
+The Event Handler plugin can automatically lock Teleport users after repeated
+failed authentication attempts.
+
+| CLI argument | Environment variable | Description |
+|---|---|---|---|
+| `--lock-enabled` | `FDFWD_LOCKING_ENABLED` | Enables automatic user locking after repeated failed login attempts. |
+| `--lock-failed-attempts-count` | `FDFWD_LOCKING_FAILED_ATTEMPTS` | Number of failed authentication attempts that trigger a lock. |
+| `--lock-period` | `FDFWD_LOCKING_PERIOD` | Time window used to count failed authentication attempts. |
+| `--lock-for` | `FDFWD_LOCKING_FOR` | Duration that the user remains locked. |
+
+For example, to lock a user after `5` failed attempts within `1m` for `30m`,
+set:
+
+```code
+lock-enabled = true
+lock-failed-attempts-count = 5
+lock-period = "1m"
+lock-for = "30m"
+```
+
+## mTLS certificate generation
+
+The Event Handler plugin requires mTLS between the plugin and Fluentd. Server
+key encryption is recommended. Client key encryption is not supported.
+
+### OpenSSL configuration
+
+Create an `ssl.conf` file with the following structure. Adjust the
+`[server_cert]` section to match your Fluentd server hostname and IP address.
+
+```ini
+[req]
+default_bits       = 4096
+default_md         = sha256
+prompt             = no
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+CN = localhost
+
+[v3_ca]
+basicConstraints     = critical,CA:TRUE
+keyUsage             = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+
+[client_cert]
+basicConstraints     = CA:FALSE
+keyUsage             = critical,digitalSignature
+extendedKeyUsage     = clientAuth
+
+[server_cert]
+basicConstraints     = CA:FALSE
+keyUsage             = critical,digitalSignature
+extendedKeyUsage     = serverAuth
+subjectAltName       = DNS:localhost,IP:127.0.0.1
+
+[crl_ext]
+authorityKeyIdentifier = keyid:always
+
+[ocsp]
+basicConstraints     = CA:FALSE
+keyUsage             = critical,digitalSignature
+extendedKeyUsage     = critical,OCSPSigning
+```
+
+### Generate a certificate authority
+
+```code
+openssl genrsa -out ca.key 4096
+chmod 444 ca.key
+openssl req -config ssl.conf -key ca.key -new -x509 -days 7300 \
+  -sha256 -extensions v3_ca -subj "/CN=ca" -out ca.crt
+```
+
+### Generate a server certificate
+
+```code
+openssl genrsa -aes256 -out server.key 4096
+chmod 444 server.key
+openssl req -config ssl.conf -subj "/CN=server" -key server.key \
+  -new -out server.csr
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key \
+  -CAcreateserial -days 365 -out server.crt -extfile ssl.conf \
+  -extensions server_cert
+```
+
+### Generate a client certificate
+
+```code
+openssl genrsa -out client.key 4096
+chmod 444 client.key
+openssl req -config ssl.conf -subj "/CN=client" -key client.key \
+  -new -out client.csr
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key \
+  -CAcreateserial -days 365 -out client.crt -extfile ssl.conf \
+  -extensions client_cert
+```
+
+Alternatively, run the following command to generate all certificates to the
+`example/keys/` directory:
+
+```code
+PASS=12345678 KEYLEN=4096 make gen-example-mtls
+```
+
+## Further reading
+
+See the following related topics:
+
+- [Teleport audit event reference](../../audit-events.mdx)
+- [Fluentd Documentation](https://docs.fluentd.org/)
+- [Teleport plugin integrations](../../../identity-governance/access-requests/plugins/plugins.mdx)
+- [Teleport audit log architecture](../../deployment/monitoring/audit.mdx)
