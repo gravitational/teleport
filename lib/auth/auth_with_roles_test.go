@@ -1093,6 +1093,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	t.Parallel()
 
+	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1130,6 +1131,57 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
 	require.NoError(t, err)
 
+	getScopeAsName := func(scope string) string {
+		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
+	}
+
+	scope := "/test"
+	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: getScopeAsName(scope) + "-role",
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"kube_user"},
+					Groups: []string{"kube_group"},
+					Labels: []*labelsv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	role := roleResp.GetRole()
+	_, err = srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		RoleRevisions: map[string]string{role.GetMetadata().GetName(): role.GetMetadata().GetRevision()},
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user1.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: role.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	role2Opts := role2.GetOptions()
 	role2Opts.MaxSessionTTL = types.NewDuration(2 * time.Hour)
 	role2.SetOptions(role2Opts)
@@ -1151,6 +1203,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	testCases := []struct {
 		desc       string
 		user       types.User
+		scope      string
 		expiration time.Time
 	}{
 		{
@@ -1163,13 +1216,27 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			user:       user2,
 			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
 		},
+		{
+			desc:       "Scoped role",
+			user:       user1,
+			scope:      scope,
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			user := authtest.TestUser(tt.user.GetName())
-			user.TTL = defaultDuration
-			client, err := srv.NewClient(user)
+			var ident authtest.TestIdentity
+			if tt.scope != "" {
+				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope, map[string]map[string][]string{
+					tt.scope: {tt.scope: {getScopeAsName(tt.scope) + "-role"}},
+				})
+			} else {
+				ident = authtest.TestUser(tt.user.GetName())
+			}
+
+			ident.TTL = defaultDuration
+			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1188,6 +1255,11 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
+			if tt.scope != "" {
+				require.Equal(t, tt.scope, identity.ScopePin.Scope)
+			} else {
+				require.Nil(t, identity.ScopePin)
+			}
 
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
@@ -4926,6 +4998,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 			RoleRevisions: map[string]string{role.GetMetadata().GetName(): role.GetMetadata().GetRevision()},
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
@@ -5101,7 +5174,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 			Limit:        10,
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Resources, 0, "expected no resources when listing from orthogonal scope")
+		require.Empty(t, res.Resources, "expected no resources when listing from orthogonal scope")
 		require.Equal(t, 0, res.TotalCount, "expected no resources when listing from orthogonal scope")
 		require.Empty(t, res.NextKey)
 	})

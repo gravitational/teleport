@@ -5021,7 +5021,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope", nil))
 	require.NoError(t, err)
 	defer scopedClient.Close()
 
