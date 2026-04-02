@@ -238,6 +238,13 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return crlCache
 	}
 
+	// Compute the resilient app sessions flag. In one-shot mode, force it
+	// to false since one-shot is expected to succeed or fail atomically.
+	resilientAppSessions := b.cfg.ResilientAppSessions
+	if b.cfg.Oneshot {
+		resilientAppSessions = false
+	}
+
 	// Append any services configured by the user
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
@@ -262,7 +269,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
-			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
+			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime, resilientAppSessions))
 		case *database.OutputConfig:
 			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *identitysvc.OutputConfig:
@@ -270,7 +277,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
+			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway, resilientAppSessions))
 		case *application.ProxyServiceConfig:
 			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
 		case *workloadidentitysvc.X509OutputConfig:
