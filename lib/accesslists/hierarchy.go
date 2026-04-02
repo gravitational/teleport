@@ -19,6 +19,7 @@
 package accesslists
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
@@ -750,16 +751,23 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	collectedRoles := make(map[string]struct{})
+	collectedScopedRoles := make(map[accesslist.ScopedRoleGrant]struct{})
 	collectedTraits := make(map[string]map[string]struct{})
 
-	addGrants := func(grantRoles []string, grantTraits trait.Traits) {
-		for _, role := range grantRoles {
+	addGrants := func(grantsToAdd accesslist.Grants) {
+		for _, role := range grantsToAdd.Roles {
 			if _, exists := collectedRoles[role]; !exists {
 				grants.Roles = append(grants.Roles, role)
 				collectedRoles[role] = struct{}{}
 			}
 		}
-		for traitKey, traitValues := range grantTraits {
+		for _, scopedRoleGrant := range grantsToAdd.ScopedRoles {
+			if _, exists := collectedScopedRoles[scopedRoleGrant]; !exists {
+				grants.ScopedRoles = append(grants.ScopedRoles, scopedRoleGrant)
+				collectedScopedRoles[scopedRoleGrant] = struct{}{}
+			}
+		}
+		for traitKey, traitValues := range grantsToAdd.Traits {
 			if _, exists := collectedTraits[traitKey]; !exists {
 				collectedTraits[traitKey] = make(map[string]struct{})
 			}
@@ -778,8 +786,7 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 		return nil, trace.Wrap(err)
 	}
 	for _, ancestor := range ancestorLists {
-		memberGrants := ancestor.GetGrants()
-		addGrants(memberGrants.Roles, memberGrants.Traits)
+		addGrants(ancestor.GetGrants())
 	}
 
 	// Get ancestors via owner relationship
@@ -788,16 +795,20 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 		return nil, trace.Wrap(err)
 	}
 	for _, ancestorOwner := range ancestorOwnerLists {
-		ownerGrants := ancestorOwner.GetOwnerGrants()
-		addGrants(ownerGrants.Roles, ownerGrants.Traits)
+		addGrants(ancestorOwner.GetOwnerGrants())
 	}
 
 	slices.Sort(grants.Roles)
-	grants.Roles = slices.Compact(grants.Roles)
 
-	for k, v := range grants.Traits {
-		slices.Sort(v)
-		grants.Traits[k] = slices.Compact(v)
+	slices.SortFunc(grants.ScopedRoles, func(a, b accesslist.ScopedRoleGrant) int {
+		if c := cmp.Compare(a.Role, b.Role); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Scope, b.Scope)
+	})
+
+	for _, values := range grants.Traits {
+		slices.Sort(values)
 	}
 
 	return &grants, nil
