@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 var (
@@ -670,6 +670,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
+
 func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
@@ -680,60 +681,79 @@ func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 		ServerSubKind:   s.cfg.TargetServer.GetSubKind(),
 	}
 }
+
 func (s *ForwardServer) GetInfo() types.Server {
 	return s.cfg.TargetServer
 }
+
 func (s *ForwardServer) ID() string {
 	return s.id
 }
+
 func (s *ForwardServer) HostUUID() string {
 	return s.cfg.HostUUID
 }
+
 func (s *ForwardServer) GetNamespace() string {
 	return s.cfg.TargetServer.GetNamespace()
 }
+
 func (s *ForwardServer) AdvertiseAddr() string {
 	return s.clientConn.RemoteAddr().String()
 }
+
 func (s *ForwardServer) Component() string {
 	return teleport.ComponentForwardingGit
 }
+
 func (s *ForwardServer) PermitUserEnvironment() bool {
 	return false
 }
+
 func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 	return s.cfg.AccessPoint
 }
+
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
-func (s *ForwardServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+
+func (s *ForwardServer) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
+
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
 }
+
 func (s *ForwardServer) UseTunnel() bool {
 	return false
 }
+
 func (s *ForwardServer) GetBPF() bpf.BPF {
 	return nil
 }
+
 func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
 	return
 }
+
 func (s *ForwardServer) GetLockWatcher() *services.LockWatcher {
 	return s.cfg.LockWatcher
 }
+
 func (s *ForwardServer) GetCreateHostUser() bool {
 	return false
 }
+
 func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 	return nil
 }
+
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
 }
+
 func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
 }
@@ -742,10 +762,8 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 // does not spawn child processes.
 func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: srv.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
 }
 

@@ -704,7 +704,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallenge(); r != nil {
-		out.Resource = types.LegacyMetadataToResource(r)
+		out.Resource = &validatedMFAChallengeResource{
+			Resource: types.LegacyMetadataToResource(r),
+			chal:     r,
+		}
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
@@ -727,4 +730,22 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 
 type validatedMFAChallengeUnwrapper interface {
 	UnwrapT() *mfav1.ValidatedMFAChallenge
+}
+
+type validatedMFAChallengeResource struct {
+	types.Resource
+
+	chal *mfav1.ValidatedMFAChallenge
+}
+
+func (r *validatedMFAChallengeResource) GetTargetCluster() string {
+	if r.chal == nil || r.chal.GetSpec() == nil {
+		return ""
+	}
+
+	return r.chal.GetSpec().GetTargetCluster()
+}
+
+func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	return r.chal
 }

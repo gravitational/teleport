@@ -709,8 +709,10 @@ func validateSessionRecordingEvents(t *testing.T, testCtx *TestContext, sessionI
 
 	// validate that session recording was correctly uploaded.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		err := testCtx.UploadHandler.Download(testCtx.Context, sessionpkg.ID(sessionID), &writerAtDiscarder{})
-		assert.NoError(t, err)
+		rc, err := testCtx.UploadHandler.StreamSessionRecording(testCtx.Context, sessionpkg.ID(sessionID))
+		if assert.NoError(t, err) {
+			rc.Close()
+		}
 	}, 10*time.Second, 50*time.Millisecond, "session recording was not uploaded")
 
 	auditsC, errC := testCtx.AuthServer.StreamSessionEvents(testCtx.Context, sessionpkg.ID(sessionID), 0)
@@ -743,16 +745,4 @@ loop:
 	require.True(t, foundJoinEvent, "session join event not found")
 	require.True(t, foundLeaveEvent, "session leave event not found")
 	require.True(t, foundEndEvent, "session end event not found")
-}
-
-// writerAtDiscarder is a fake implementation of io.WriterAt
-// that discards all data written to it.
-type writerAtDiscarder struct{}
-
-func (f writerAtDiscarder) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
-func (f writerAtDiscarder) WriteAt(p []byte, offset int64) (int, error) {
-	return len(p), nil
 }

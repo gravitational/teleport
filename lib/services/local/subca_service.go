@@ -47,6 +47,11 @@ type CertAuthorityOverrideID struct {
 	CAType      string
 }
 
+// displayName returns a user-friendly string for the ID.
+func (id *CertAuthorityOverrideID) displayName() string {
+	return id.CAType + "/" + id.ClusterName
+}
+
 // CertAuthorityOverrideIDFromResource returns the id of the specified resource.
 //
 // If the resource is nil or missing components, then the corresponding ID
@@ -64,6 +69,12 @@ type SubCAServiceParams struct {
 }
 
 // SubCAService manages backend storage of CertAuthorityOverride resources.
+//
+// SubCAService does not perform lateral validation against CA objects, it only
+// ensures CertAuthorityOverride resources are valid within themselves. This
+// allows callers with direct storage access to re-create storage configurations
+// that were valid on conception but drifted over time (CA keyset changed,
+// certificates expired, etc).
 //
 // Follows RFD 153 / generic.Service semantics.
 type SubCAService struct {
@@ -102,13 +113,38 @@ func (s *SubCAService) CreateCertAuthorityOverride(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Create CRLs.
-
-	// TODO(codingllama): Take a condition on the sibling CA resource.
-	//  We optimistically skip this for now: CAs can change independently anyway
-	//  so they can always become "out of sync" with overrides.
 	created, err := service.CreateResource(ctx, resource)
 	return created, trace.Wrap(err)
+}
+
+// UpdateCertAuthorityOverride conditionally updates a CA override in the
+// backend.
+func (s *SubCAService) UpdateCertAuthorityOverride(
+	ctx context.Context,
+	resource *subcav1.CertAuthorityOverride,
+) (*subcav1.CertAuthorityOverride, error) {
+	service, err := s.serviceForResource(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := service.ConditionalUpdateResource(ctx, resource)
+	return updated, trace.Wrap(err)
+}
+
+// UpsertCertAuthorityOverride unconditionally creates or updates a CA override
+// in the backend.
+func (s *SubCAService) UpsertCertAuthorityOverride(
+	ctx context.Context,
+	resource *subcav1.CertAuthorityOverride,
+) (*subcav1.CertAuthorityOverride, error) {
+	service, err := s.serviceForResource(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := service.UpsertResource(ctx, resource)
+	return updated, trace.Wrap(err)
 }
 
 // GetCertAuthorityOverride reads a CA override from the backend.
@@ -121,8 +157,43 @@ func (s *SubCAService) GetCertAuthorityOverride(
 		return nil, trace.Wrap(err)
 	}
 
-	resource, err := service.GetResource(ctx, "")
+	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.displayName()
+
+	resource, err := service.GetResource(ctx, name)
 	return resource, trace.Wrap(err)
+}
+
+// ListCertAuthorityOverrides lists all CA overrides from the backend, using
+// paginated responses.
+func (s *SubCAService) ListCertAuthorityOverrides(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
+	// Note: We don't use serviceForClusterAndType here, it lists all clusters.
+	resp, nextPageToken, err := s.service.ListResources(ctx, pageSize, pageToken)
+	return resp, nextPageToken, trace.Wrap(err)
+}
+
+// DeleteCertAuthorityOverride unconditionally deletes a CA override from the
+// backend.
+// Returns a trace.NotFoundError if the resource cannot be found.
+func (s *SubCAService) DeleteCertAuthorityOverride(
+	ctx context.Context,
+	id CertAuthorityOverrideID,
+) error {
+	service, err := s.serviceForClusterAndType(id.ClusterName, id.CAType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Name has no effect on the query, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.displayName()
+
+	return trace.Wrap(service.DeleteResource(ctx, name))
 }
 
 func (s *SubCAService) serviceForResource(

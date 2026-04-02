@@ -16,102 +16,65 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
-import styled from 'styled-components';
 
-import {
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Subtitle1,
-  Text,
-} from 'design';
-import { copyToClipboard } from 'design/utils/copyToClipboard';
+import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { InfoGuideContainer } from 'shared/components/SlidingSidePanel/InfoGuide';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
-import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
-import { zIndexMap } from 'teleport/Navigation/zIndexMap';
-import { ApiError } from 'teleport/services/api/parseError';
 import {
   Regions as AwsRegion,
   IntegrationKind,
-  integrationService,
 } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
-import {
-  IntegrationEnrollCodeType,
-  IntegrationEnrollEvent,
-  IntegrationEnrollEventData,
-  IntegrationEnrollKind,
-  IntegrationEnrollStep,
-} from 'teleport/services/userEvent/types';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
-import { DeploymentMethodSection } from './DeploymentMethodSection';
+import {
+  CheckIntegrationButton,
+  CircleNumber,
+  Container,
+  Divider,
+  WildcardRegion,
+  useEnrollCloudIntegration,
+} from '../Shared';
 import {
   ContentWithSidePanel,
-  InfoGuideContent,
   InfoGuideSwitch,
-  InfoGuideTab,
-  InfoGuideTitle,
   PANEL_WIDTH,
   TerraformInfoGuide,
-} from './InfoGuide';
+  TerraformInfoGuideSidePanel,
+  useTerraformInfoGuide,
+} from '../Shared/InfoGuide';
+import { DeploymentMethodSection } from './DeploymentMethodSection';
+import { InfoGuideContent } from './InfoGuide';
 import { Prerequisites } from './Prerequisites';
 import { RegionsSection } from './RegionsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config, WildcardRegion } from './types';
-
-const INTEGRATION_CHECK_RETRIES = 6;
-const INTEGRATION_CHECK_RETRY_DELAY = 5000;
+import { Ec2Config } from './types';
 
 export function EnrollAws() {
   useNoMinWidth();
 
-  const [eventId] = useState(() => crypto.randomUUID());
-
-  function emitEvent(
-    event: IntegrationEnrollEvent,
-    extra?: Partial<IntegrationEnrollEventData>
-  ) {
-    userEventService.captureIntegrationEnrollEvent({
-      event,
-      eventData: {
-        id: eventId,
-        kind: IntegrationEnrollKind.AwsCloud,
-        ...extra,
-      },
-    });
-  }
-
-  useEffect(() => {
-    emitEvent(IntegrationEnrollEvent.Started);
-    // Only send once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const { clusterVersion } = useClusterVersion();
 
-  const [integrationName, setIntegrationName] = useState(() => {
-    const randomHex = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    return `aws-integration-${randomHex}`;
-  });
+  const {
+    integrationName,
+    setIntegrationName,
+    copyTerraformConfig,
+    integrationExists,
+    isFetching,
+    isError,
+    checkIntegration,
+    cancelCheckIntegration,
+  } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>([
-    '*',
-  ] as WildcardRegion);
+  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>(['*']);
 
   const [ec2Config, setEc2Config] = useState<Ec2Config>({
     enabled: true,
@@ -129,56 +92,12 @@ export function EnrollAws() {
     [integrationName, regions, ec2Config, clusterVersion]
   );
 
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [activeInfoGuideTab, setActiveInfoGuideTab] =
-    useState<InfoGuideTab>('terraform');
-
-  const integrationQueryKey = ['integration', integrationName];
-
   const {
-    data: integrationData,
-    isFetching,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: integrationQueryKey,
-    queryFn: ({ signal }) =>
-      integrationService.fetchIntegration(integrationName, signal),
-    enabled: false,
-    retry: (failureCount, error: unknown) => {
-      const shouldRetry =
-        failureCount < INTEGRATION_CHECK_RETRIES &&
-        error instanceof ApiError &&
-        error.response.status === 404;
-      return shouldRetry;
-    },
-    retryDelay: INTEGRATION_CHECK_RETRY_DELAY,
-    gcTime: 0,
-  });
-
-  const queryClient = useQueryClient();
-
-  const checkIntegration = () => {
-    emitEvent(IntegrationEnrollEvent.Step, {
-      step: IntegrationEnrollStep.VerifyIntegration,
-    });
-    refetch().then(result => {
-      if (result.isSuccess) {
-        emitEvent(IntegrationEnrollEvent.Complete);
-      }
-    });
-  };
-
-  const integrationExists = !!integrationData;
-
-  const onInfoGuideClick = (section: InfoGuideTab) => {
-    if (isPanelOpen && activeInfoGuideTab === section) {
-      setIsPanelOpen(false);
-    } else {
-      setActiveInfoGuideTab(section);
-      setIsPanelOpen(true);
-    }
-  };
+    isPanelOpen,
+    activeInfoGuideTab,
+    setActiveInfoGuideTab,
+    onInfoGuideClick,
+  } = useTerraformInfoGuide();
 
   return (
     <Validation>
@@ -223,10 +142,7 @@ export function EnrollAws() {
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
-                    copyToClipboard(terraformConfig);
-                    emitEvent(IntegrationEnrollEvent.CodeCopy, {
-                      codeType: IntegrationEnrollCodeType.Terraform,
-                    });
+                    copyTerraformConfig(terraformConfig);
                   }
                 }}
                 integrationExists={integrationExists}
@@ -236,34 +152,17 @@ export function EnrollAws() {
                     checkIntegration();
                   }
                 }}
-                handleCancelCheckIntegration={() => {
-                  queryClient.cancelQueries({ queryKey: integrationQueryKey });
-                  queryClient.resetQueries({ queryKey: integrationQueryKey });
-                }}
+                handleCancelCheckIntegration={cancelCheckIntegration}
                 isCheckingIntegration={isFetching}
                 checkIntegrationError={isError}
               />
             </Container>
             <Box mb={2}>
-              <ButtonPrimary
-                as={
-                  integrationExists && integrationName
-                    ? InternalLink
-                    : undefined
-                }
-                to={
-                  integrationExists && integrationName
-                    ? cfg.getIaCIntegrationRoute(
-                        IntegrationKind.AwsOidc,
-                        integrationName
-                      )
-                    : undefined
-                }
-                disabled={!integrationExists || !integrationName}
-                gap={2}
-              >
-                View Integration
-              </ButtonPrimary>
+              <CheckIntegrationButton
+                integrationExists={integrationExists}
+                integrationName={integrationName}
+                integrationKind={IntegrationKind.AwsOidc}
+              />
               <ButtonSecondary
                 ml={3}
                 as={InternalLink}
@@ -274,39 +173,22 @@ export function EnrollAws() {
             </Box>
           </ContentWithSidePanel>
 
-          <SlidingSidePanel
-            isVisible={isPanelOpen}
-            skipAnimation={false}
+          <TerraformInfoGuideSidePanel
             panelWidth={PANEL_WIDTH}
-            zIndex={zIndexMap.infoGuideSidePanel}
-            slideFrom="right"
-          >
-            <InfoGuideContainer
-              onClose={() => setIsPanelOpen(false)}
-              title={
-                <InfoGuideTitle
-                  activeSection={activeInfoGuideTab}
-                  onSectionChange={setActiveInfoGuideTab}
-                />
-              }
-            >
-              {activeInfoGuideTab === 'terraform' ? (
-                <TerraformInfoGuide
-                  terraformConfig={terraformConfig}
-                  handleCopy={() => {
-                    if (validator.validate() && terraformConfig) {
-                      copyToClipboard(terraformConfig);
-                      emitEvent(IntegrationEnrollEvent.CodeCopy, {
-                        codeType: IntegrationEnrollCodeType.Terraform,
-                      });
-                    }
-                  }}
-                />
-              ) : (
-                <InfoGuideContent />
-              )}
-            </InfoGuideContainer>
-          </SlidingSidePanel>
+            activeTab={activeInfoGuideTab}
+            onTabChange={setActiveInfoGuideTab}
+            InfoGuideContent={<InfoGuideContent />}
+            TerraformContent={
+              <TerraformInfoGuide
+                terraformConfig={terraformConfig}
+                handleCopy={() => {
+                  if (validator.validate() && terraformConfig) {
+                    copyTerraformConfig(terraformConfig);
+                  }
+                }}
+              />
+            }
+          />
         </Box>
       )}
     </Validation>
@@ -377,36 +259,3 @@ export function ConfigurationScopeSection() {
     </>
   );
 }
-
-export const Container = styled(Flex)`
-  border-radius: 8px;
-  background: ${props => props.theme.colors.levels.elevated};
-
-  box-shadow:
-    0 2px 1px -1px rgba(0, 0, 0, 0.2),
-    0 1px 1px 0 rgba(0, 0, 0, 0.14),
-    0 1px 3px 0 rgba(0, 0, 0, 0.12);
-`;
-
-export const CircleNumber = styled.span`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: ${p => p.theme.space[3]}px;
-  height: ${p => p.theme.space[3]}px;
-  border: 1px solid ${p => p.theme.colors.text.main};
-  color: ${p => p.theme.colors.text.main};
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 500;
-  margin-right: ${p => p.theme.space[2]}px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-`;
-
-export const Divider = styled.hr`
-  margin-top: ${p => p.theme.space[3]}px;
-  margin-bottom: ${p => p.theme.space[3]}px;
-  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
-  width: 100%;
-`;

@@ -130,13 +130,29 @@ func (x *ScopedRole) GetSpec() *ScopedRoleSpec {
 	return nil
 }
 
-// ScopedRoleSpec is the specification of a scoped role.
+// ScopedRoleSpec is the specification of a scoped role. Note that this type and all of its
+// members are required to have presence enabled for all non-sequence fields (enforced by unit
+// tests in lib/scopes/access). In practice, this means that scalar values should be declared
+// as optional. This policy exists because fields that default to a value that looks potentially
+// meaningful (e.g. false for bools) can cause difficulties when trying to determine if a field
+// was intentionally set to that value or just left unset. For scoped roles we generally want to
+// defer to global configuration for any policy not explicitly set in the role, so it's important
+// to always be able to distinguish presence. We also enforce that new top-level spec fields
+// must be proto messages rather than bare values. The intent of the scoped role spec layout is
+// to minimize top-level keys and promote grouping of related controls together in sub-blocks,
+// typically organized by the access protocol they relate to.
 type ScopedRoleSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// AssignableScopes is a list of scopes to which this role can be assigned.
 	AssignableScopes []string `protobuf:"bytes,1,rep,name=assignable_scopes,json=assignableScopes,proto3" json:"assignable_scopes,omitempty"`
-	// Allow specifies the permissions granted by this role.
-	Allow         *ScopedRoleConditions `protobuf:"bytes,2,opt,name=allow,proto3" json:"allow,omitempty"`
+	// Defaults specifies default values for controls common across multiple protocols. If the same control
+	// specified in defaults is also specified in a protocol block, the value in the protocol block takes
+	// precedence.
+	Defaults *ScopedRoleDefaults `protobuf:"bytes,5,opt,name=defaults,proto3" json:"defaults,omitempty"`
+	// Rules describes basic resource:verb permissions (e.g. scoped_role:read).
+	Rules []*ScopedRule `protobuf:"bytes,6,rep,name=rules,proto3" json:"rules,omitempty"`
+	// Ssh specifies controls that govern SSH access.
+	Ssh           *ScopedRoleSSH `protobuf:"bytes,7,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,41 +194,52 @@ func (x *ScopedRoleSpec) GetAssignableScopes() []string {
 	return nil
 }
 
-func (x *ScopedRoleSpec) GetAllow() *ScopedRoleConditions {
+func (x *ScopedRoleSpec) GetDefaults() *ScopedRoleDefaults {
 	if x != nil {
-		return x.Allow
+		return x.Defaults
 	}
 	return nil
 }
 
-// ScopedRoleConditions describes a role's allow block.
-type ScopedRoleConditions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Rules describe basic resource:verb permissions.
-	Rules []*ScopedRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
-	// Logins is the list of host logins this role allows.
-	Logins []string `protobuf:"bytes,2,rep,name=logins,proto3" json:"logins,omitempty"`
-	// NodeLabels is a map of node labels (used to dynamically grant access to
-	// nodes).
-	NodeLabels    []*v11.Label `protobuf:"bytes,3,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *ScopedRoleSpec) GetRules() []*ScopedRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
 }
 
-func (x *ScopedRoleConditions) Reset() {
-	*x = ScopedRoleConditions{}
+func (x *ScopedRoleSpec) GetSsh() *ScopedRoleSSH {
+	if x != nil {
+		return x.Ssh
+	}
+	return nil
+}
+
+// ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
+// A control in a protocol-specific block takes precedence over the value specified here.
+type ScopedRoleDefaults struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
+	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+	ClientIdleTimeout string `protobuf:"bytes,1,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ScopedRoleDefaults) Reset() {
+	*x = ScopedRoleDefaults{}
 	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ScopedRoleConditions) String() string {
+func (x *ScopedRoleDefaults) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScopedRoleConditions) ProtoMessage() {}
+func (*ScopedRoleDefaults) ProtoMessage() {}
 
-func (x *ScopedRoleConditions) ProtoReflect() protoreflect.Message {
+func (x *ScopedRoleDefaults) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -224,34 +251,90 @@ func (x *ScopedRoleConditions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedRoleConditions.ProtoReflect.Descriptor instead.
-func (*ScopedRoleConditions) Descriptor() ([]byte, []int) {
+// Deprecated: Use ScopedRoleDefaults.ProtoReflect.Descriptor instead.
+func (*ScopedRoleDefaults) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ScopedRoleConditions) GetRules() []*ScopedRule {
+func (x *ScopedRoleDefaults) GetClientIdleTimeout() string {
 	if x != nil {
-		return x.Rules
+		return x.ClientIdleTimeout
 	}
-	return nil
+	return ""
 }
 
-func (x *ScopedRoleConditions) GetLogins() []string {
+// ScopedRoleSSH groups all scoped role fields relevant to SSH access. Fields within the SSH block
+// encompass selection criteria and preconditions for access, as well as the controls to be applied in
+// cases where access is permitted. An SSH block is the primary source of truth for controls to be applied
+// to the SSH access it permits, but defaults and global or scope-bound controls may also affect the nature of
+// the resulting access.
+type ScopedRoleSSH struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Logins is the list of OS logins this role permits on matching nodes.
+	Logins []string `protobuf:"bytes,1,rep,name=logins,proto3" json:"logins,omitempty"`
+	// Labels is the set of node labels used to dynamically select which nodes this role applies to.
+	Labels []*v11.Label `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty"`
+	// ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string `protobuf:"bytes,3,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ScopedRoleSSH) Reset() {
+	*x = ScopedRoleSSH{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleSSH) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleSSH) ProtoMessage() {}
+
+func (x *ScopedRoleSSH) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedRoleSSH.ProtoReflect.Descriptor instead.
+func (*ScopedRoleSSH) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ScopedRoleSSH) GetLogins() []string {
 	if x != nil {
 		return x.Logins
 	}
 	return nil
 }
 
-func (x *ScopedRoleConditions) GetNodeLabels() []*v11.Label {
+func (x *ScopedRoleSSH) GetLabels() []*v11.Label {
 	if x != nil {
-		return x.NodeLabels
+		return x.Labels
 	}
 	return nil
 }
 
-// Rule maps resources to verbs. This is the underlying type used to describe
-// permissions like 'node:read' or 'role:create'.
+func (x *ScopedRoleSSH) GetClientIdleTimeout() string {
+	if x != nil {
+		return x.ClientIdleTimeout
+	}
+	return ""
+}
+
+// ScopedRule maps resources to verbs. This is the underlying type used to describe
+// permissions like 'scoped_role:read' or 'scoped_role_assignment:create'.
 type ScopedRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.
@@ -264,7 +347,7 @@ type ScopedRule struct {
 
 func (x *ScopedRule) Reset() {
 	*x = ScopedRule{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[3]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -276,7 +359,7 @@ func (x *ScopedRule) String() string {
 func (*ScopedRule) ProtoMessage() {}
 
 func (x *ScopedRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[3]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -289,7 +372,7 @@ func (x *ScopedRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedRule.ProtoReflect.Descriptor instead.
 func (*ScopedRule) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{3}
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ScopedRule) GetResources() []string {
@@ -318,15 +401,18 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
-	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x84\x01\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x9d\x02\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
-	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12E\n" +
-	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"\xa6\x01\n" +
-	"\x14ScopedRoleConditions\x12;\n" +
-	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12\x16\n" +
-	"\x06logins\x18\x02 \x03(\tR\x06logins\x129\n" +
-	"\vnode_labels\x18\x03 \x03(\v2\x18.teleport.label.v1.LabelR\n" +
-	"nodeLabels\"@\n" +
+	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12I\n" +
+	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
+	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
+	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03sshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
+	"\x12ScopedRoleDefaults\x12.\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\x89\x01\n" +
+	"\rScopedRoleSSH\x12\x16\n" +
+	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
+	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
+	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -344,26 +430,28 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
-	(*ScopedRole)(nil),           // 0: teleport.scopes.access.v1.ScopedRole
-	(*ScopedRoleSpec)(nil),       // 1: teleport.scopes.access.v1.ScopedRoleSpec
-	(*ScopedRoleConditions)(nil), // 2: teleport.scopes.access.v1.ScopedRoleConditions
-	(*ScopedRule)(nil),           // 3: teleport.scopes.access.v1.ScopedRule
-	(*v1.Metadata)(nil),          // 4: teleport.header.v1.Metadata
-	(*v11.Label)(nil),            // 5: teleport.label.v1.Label
+	(*ScopedRole)(nil),         // 0: teleport.scopes.access.v1.ScopedRole
+	(*ScopedRoleSpec)(nil),     // 1: teleport.scopes.access.v1.ScopedRoleSpec
+	(*ScopedRoleDefaults)(nil), // 2: teleport.scopes.access.v1.ScopedRoleDefaults
+	(*ScopedRoleSSH)(nil),      // 3: teleport.scopes.access.v1.ScopedRoleSSH
+	(*ScopedRule)(nil),         // 4: teleport.scopes.access.v1.ScopedRule
+	(*v1.Metadata)(nil),        // 5: teleport.header.v1.Metadata
+	(*v11.Label)(nil),          // 6: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	4, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
-	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.allow:type_name -> teleport.scopes.access.v1.ScopedRoleConditions
-	3, // 3: teleport.scopes.access.v1.ScopedRoleConditions.rules:type_name -> teleport.scopes.access.v1.ScopedRule
-	5, // 4: teleport.scopes.access.v1.ScopedRoleConditions.node_labels:type_name -> teleport.label.v1.Label
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
+	4, // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	3, // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
+	6, // 5: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -377,7 +465,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

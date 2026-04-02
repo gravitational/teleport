@@ -28,24 +28,16 @@ const (
 
 // LinuxAdminProcessConfig configures RunLinuxAdminProcess.
 type LinuxAdminProcessConfig struct {
-	// ClientApplicationServiceAddr is the address of the client application
-	// service the admin process connects to.
-	ClientApplicationServiceAddr string
-	// ServiceCredentialPath is the path to IPC credentials used to authenticate
-	// with the client application service.
-	ServiceCredentialPath string
+	// ClientApplicationServiceSocketPath is the unix socket path of the client
+	// application service.
+	ClientApplicationServiceSocketPath string
 }
 
 // RunLinuxAdminProcess must run as root.
 func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) error {
 	log.InfoContext(ctx, "Running VNet admin process")
 
-	serviceCreds, err := readCredentials(config.ServiceCredentialPath)
-	if err != nil {
-		return trace.Wrap(err, "reading service IPC credentials")
-	}
-	// TODO(tangyatsu): change to gRPC client over unix socket instead of TCP.
-	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, config.ClientApplicationServiceAddr)
+	clt, err := newUnixClientApplicationServiceClient(ctx, config.ClientApplicationServiceSocketPath)
 	if err != nil {
 		return trace.Wrap(err, "creating user process client")
 	}

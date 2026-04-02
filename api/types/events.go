@@ -147,6 +147,11 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			var filter HeadlessAuthenticationFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
+		case validatedMFAChallengeResource:
+			var filter ValidatedMFAChallengeFilter
+			filter.FromMap(kind.Filter)
+			return filter.Match(res.GetTargetCluster()), nil
+
 		default:
 			// we don't know about this filter, let the event through
 		}
@@ -212,4 +217,13 @@ type Watcher interface {
 
 	// Error returns error associated with watcher
 	Error() error
+}
+
+// validatedMFAChallengeResource is an interface that validated MFA challenges must implement to be filterable by
+// ValidatedMFAChallengeFilter. This is necessary to avoid an import cycle between the types package and the mfav1
+// package, which defines the ValidatedMFAChallenge type.
+type validatedMFAChallengeResource interface {
+	Resource
+
+	GetTargetCluster() string
 }

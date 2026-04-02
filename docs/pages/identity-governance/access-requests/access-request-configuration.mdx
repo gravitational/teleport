@@ -553,13 +553,42 @@ While Teleport will accept a role with a nonempty
 
 ### Access List owners as suggested reviewers
 
-For resource-based Access Requests, owners of the Access Lists that grant access
-to the requested resources are automatically added as suggested reviewers.
+Teleport can automatically suggest Access List owners as reviewers during Access Request creation.
 
-Note that those owners still need to have an appropriate Teleport role that
+Teleport does this in two cases: 
+
+#### The request can be promoted to an Access List
+
+For resource-based Access Requests, owners of Access Lists that grant access to
+the requested resources can be automatically added as suggested reviewers.
+
+The owners of an Access List are suggested when the following conditions are met.
+
+ - The requester is not already a member of the Access List.
+ - The requester is eligible to join the Access List.
+ - The Access List grants access to all of the requested resources.
+
+#### The requester is already a member of an applicable Access List
+
+Owners of an applicable Access List can also be automatically added as suggested reviewers
+when the requester is already a member of the Access List.
+
+The owners of an Access List are suggested when the following conditions are met.
+
+ - The requester is already a member of the Access List.
+ - The Access List can be applied to the Access Request.
+ - The Access List owners are allowed to review requests for the requested roles.
+
+For [short-term requests](./access-requests.mdx), an Access List is applicable when its member grants include a role that allows requesting one of the requested roles.
+
+For [long-term requests](../access-lists/access-lists.mdx), an Access List is applicable when the Access List directly grants one of the requested roles.
+
+For resource requests, this means the Access List grants a role that allows requesting the role that grants access to the requested resources.
+
+Note that in both cases those owners still need to have an appropriate Teleport role that 
 allows them to review such Access Requests.
 
-You can learn more about this use-case in the [Reviewing Access Requests](../access-lists/reviewing-access-requests.mdx)
+You can learn more about these use-cases in the [Reviewing Access Requests](../access-lists/reviewing-access-requests.mdx)
 guide.
 
 ## Roles that a reviewer can grant access to

@@ -631,6 +631,11 @@ func (s *recordingPlayback) sendEventBatch(batch []sessionEvent, requestID int) 
 
 // sendError sends an error event to the client.
 func (s *recordingPlayback) sendError(err error, requestID int) {
+	if trace.IsAccessDenied(err) {
+		s.sendEvent(eventTypeError, 0, []byte("Session recording not found"), requestID)
+		return
+	}
+
 	s.sendEvent(eventTypeError, 0, []byte(err.Error()), requestID)
 }
 

@@ -427,7 +427,10 @@ func (s *Service) Run(ctx context.Context) error {
 
 			if err := s.renew(ctx, storageDestination); err == nil {
 				s.unblockWaiters()
+				s.cfg.StatusReporter.Report(readyz.Healthy)
 				break
+			} else {
+				s.log.ErrorContext(ctx, "Failed to renew bot identity", "error", err)
 			}
 		}
 	}
@@ -788,6 +791,8 @@ func botIdentityFromToken(
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
 		}
+	case types.JoinMethodKubernetes:
+		params.KubernetesTokenPath = cfg.Onboarding.Kubernetes.TokenPath
 	}
 
 	result, err := joinclient.Join(ctx, params)

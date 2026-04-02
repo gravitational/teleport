@@ -34,7 +34,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
-	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -110,41 +109,6 @@ func TestRateLimiter(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCustomRate(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-
-	limiter, err := NewLimiter(
-		Config{
-			Clock: clock,
-			Rates: []Rate{
-				// Default rate
-				{
-					Period:  10 * time.Millisecond,
-					Average: 10,
-					Burst:   20,
-				},
-			},
-		})
-	require.NoError(t, err)
-
-	customRate := ratelimit.NewRateSet()
-	err = customRate.Add(time.Minute, 1, 5)
-	require.NoError(t, err)
-
-	// Max out custom rate.
-	for range 5 {
-		require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
-	}
-
-	// Test rate limit exceeded with custom rate.
-	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
-
-	// Test default rate still works.
-	for range 20 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
-	}
-}
-
 type mockAddr struct{}
 
 func (a mockAddr) Network() string {
@@ -156,56 +120,24 @@ func (a mockAddr) String() string {
 }
 
 func TestLimiter_UnaryServerInterceptor(t *testing.T) {
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	req := "request"
+	serverInfo := &grpc.UnaryServerInfo{FullMethod: "/method"}
+	handler := func(context.Context, any) (any, error) { return nil, nil }
+
 	limiter, err := NewLimiter(Config{
 		MaxConnections: 1,
-		Rates: []Rate{
-			{
-				Period:  time.Minute,
-				Average: 1,
-				Burst:   1,
-			},
-		},
+		Rates:          []Rate{{Period: time.Minute, Average: 1, Burst: 1}},
 	})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
-	req := "request"
-	serverInfo := &grpc.UnaryServerInfo{
-		FullMethod: "/method",
-	}
-	handler := func(context.Context, any) (any, error) { return nil, nil }
+	interceptor := limiter.UnaryServerInterceptor()
 
-	unaryInterceptor := limiter.UnaryServerInterceptor()
-
-	// pass at least once
-	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
+	_, err = interceptor(ctx, req, serverInfo, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behavior here
 	for range 10 {
-		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
-		if err != nil {
-			break
-		}
-	}
-	require.Error(t, err)
-
-	getCustomRate := func(endpoint string) *ratelimit.RateSet {
-		rates := ratelimit.NewRateSet()
-		err := rates.Add(2*time.Minute, 1, 2)
-		require.NoError(t, err)
-		return rates
-	}
-
-	unaryInterceptor = limiter.UnaryServerInterceptorWithCustomRate(getCustomRate)
-
-	// should pass at least once
-	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
-	require.NoError(t, err)
-
-	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
-		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
+		_, err = interceptor(ctx, req, serverInfo, handler)
 		if err != nil {
 			break
 		}
@@ -235,7 +167,7 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
 	ss := mockServerStream{
 		ctx: ctx,
 	}
@@ -460,6 +392,152 @@ func mustServeAndReceiveStatusCode(t *testing.T, handler http.Handler, wantStatu
 	require.Equal(t, wantStatusCode, response.StatusCode)
 }
 
+func TestNoRates_RegisterRequest(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates configured, RegisterRequest should never reject.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+}
+
+func TestNoRates_Middleware(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	middleware := MakeMiddleware(limiter)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	// With no rates and no max connections, every request should pass through.
+	for range 100 {
+		mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
+	}
+}
+
+func TestNoRates_IsRateLimited(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewRateLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates configured, IsRateLimited should always return false.
+	require.False(t, limiter.IsRateLimited("token1"))
+
+	// RegisterRequest is a no-op, so even after many calls the token
+	// should not appear rate-limited.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+	require.False(t, limiter.IsRateLimited("token1"))
+}
+
+func TestNoRates_UnaryServerInterceptor(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	serverInfo := &grpc.UnaryServerInfo{FullMethod: "/method"}
+	handler := func(context.Context, any) (any, error) { return "ok", nil }
+
+	interceptor := limiter.UnaryServerInterceptor()
+
+	// With no rates, the interceptor should never reject.
+	for range 100 {
+		resp, err := interceptor(ctx, "request", serverInfo, handler)
+		require.NoError(t, err)
+		require.Equal(t, "ok", resp)
+	}
+}
+
+func TestNoRates_StreamServerInterceptor(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	ss := mockServerStream{ctx: ctx}
+	info := &grpc.StreamServerInfo{}
+	handler := func(srv any, stream grpc.ServerStream) error { return nil }
+
+	// With no rates, the interceptor should never reject.
+	for range 100 {
+		require.NoError(t, limiter.StreamServerInterceptor(nil, ss, info, handler))
+	}
+}
+
+func TestNoRates_RegisterRequestAndConnection(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{})
+	require.NoError(t, err)
+
+	// With no rates and no max connections, should never reject.
+	for range 100 {
+		release, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+		require.NoError(t, err)
+		release()
+	}
+}
+
+func TestNoRates_WithMaxConnections(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{MaxConnections: 2})
+	require.NoError(t, err)
+
+	// Rate limiting should pass through (no rates), but connection
+	// limiting should still enforce.
+	for range 100 {
+		require.NoError(t, limiter.RegisterRequest("token1"))
+	}
+
+	// Connection limit should still work.
+	release1, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+	release2, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+
+	// Third connection should be rejected.
+	_, err = limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.Error(t, err)
+	require.True(t, trace.IsLimitExceeded(err))
+
+	// Release one, then the third should succeed.
+	release1()
+	release3, err := limiter.RegisterRequestAndConnection("127.0.0.1")
+	require.NoError(t, err)
+	release2()
+	release3()
+}
+
+func TestNoRates_MiddlewareWithMaxConnections(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{MaxConnections: 1})
+	require.NoError(t, err)
+
+	// Verify rate limiting passes through in HTTP path by sending
+	// many sequential requests (no concurrent connections).
+	middleware := MakeMiddleware(limiter)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	for range 100 {
+		mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
+	}
+}
+
 func TestRateLimiter_IsRateLimited(t *testing.T) {
 	t.Parallel()
 
@@ -479,19 +557,19 @@ func TestRateLimiter_IsRateLimited(t *testing.T) {
 
 	// Consume some tokens but not all
 	for range 5 {
-		require.NoError(t, limiter.RegisterRequest("token1", nil))
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the rest of the tokens
 	for range 4 {
-		require.NoError(t, limiter.RegisterRequest("token1", nil))
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.False(t, limiter.IsRateLimited("token1"))
 
 	// Consume the last token
-	require.NoError(t, limiter.RegisterRequest("token1", nil))
+	require.NoError(t, limiter.RegisterRequest("token1"))
 	// Now token1 should be rate limited
 	require.True(t, limiter.IsRateLimited("token1"))
 	// token2 should not be rate limited
@@ -500,4 +578,41 @@ func TestRateLimiter_IsRateLimited(t *testing.T) {
 	clock.Advance(time.Minute)
 	// After time passes, token1 should not be rate limited anymore
 	require.False(t, limiter.IsRateLimited("token1"))
+}
+
+// TestIndependentLimiters verifies that two Limiter instances
+// maintain independent token buckets for the same client IP.
+func TestIndependentLimiters(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+
+	defaultLimiter, err := NewLimiter(Config{
+		Clock: clock,
+		Rates: []Rate{{Period: 10 * time.Millisecond, Average: 10, Burst: 20}},
+	})
+	require.NoError(t, err)
+
+	recoveryLimiter, err := NewLimiter(Config{
+		Clock: clock,
+		Rates: []Rate{{Period: time.Minute, Average: 1, Burst: 5}},
+	})
+	require.NoError(t, err)
+
+	// Exhaust the recovery limiter (burst 5).
+	for range 5 {
+		require.NoError(t, recoveryLimiter.RegisterRequest("127.0.0.1"))
+	}
+	require.Error(t, recoveryLimiter.RegisterRequest("127.0.0.1"))
+
+	// Default limiter for the same IP must still work.
+	require.NoError(t, defaultLimiter.RegisterRequest("127.0.0.1"))
+
+	// Recovery limiter must still be exhausted.
+	require.Error(t, recoveryLimiter.RegisterRequest("127.0.0.1"))
+
+	// Default limiter has its own independent bucket.
+	for range 19 {
+		require.NoError(t, defaultLimiter.RegisterRequest("127.0.0.1"))
+	}
+	require.Error(t, defaultLimiter.RegisterRequest("127.0.0.1"))
 }

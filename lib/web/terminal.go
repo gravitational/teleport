@@ -647,7 +647,7 @@ func newMFACeremony(
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
 		CreateSessionChallenge:      createSessionChallenge,
 		ValidateSessionChallenge:    validateSessionChallenge,
-		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+		MFACeremonyConstructor: func(ctx context.Context) (mfa.CallbackCeremony, error) {
 
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {

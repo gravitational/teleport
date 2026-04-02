@@ -58,6 +58,7 @@ func TestGetIDToken(t *testing.T) {
 		name        string
 		getEnv      getEnvFunc
 		readFile    readFileFunc
+		customPath  string
 		wantString  string
 		assertError require.ErrorAssertionFunc
 	}{
@@ -91,11 +92,19 @@ func TestGetIDToken(t *testing.T) {
 				require.ErrorContains(t, err, "/custom: no such file")
 			},
 		},
+		{
+			name:        "custom-token-via-path",
+			getEnv:      nil, // should not be called
+			readFile:    fakeReadFile("foobarbizz", "/custom"),
+			customPath:  "/custom",
+			wantString:  "foobarbizz",
+			assertError: require.NoError,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(t.Name(), func(t *testing.T) {
-			str, err := GetIDToken(tt.getEnv, tt.readFile)
+			str, err := GetIDToken(tt.customPath, tt.getEnv, tt.readFile)
 			require.Equal(t, tt.wantString, str)
 			tt.assertError(t, err)
 		})

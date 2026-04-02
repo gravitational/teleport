@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -108,8 +108,12 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
+	logCfgWriter := srv.ChildLogConfig().Writer
+	if fileWriter, ok := logCfgWriter.(*os.File); ok {
+		scx.logw = fileWriter
+	} else {
+		require.NoError(t, scx.streamChildLogs(logCfgWriter))
+	}
 
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
@@ -185,7 +189,7 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
-	pamCfg    *servicecfg.PAMConfig
+	pamCfg    *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -231,11 +235,11 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
 	if m.pamCfg != nil {
 		return m.pamCfg
 	}
-	return new(servicecfg.PAMConfig)
+	return new(pamcfg.PAMConfig)
 }
 
 // GetClock returns a clock setup for the server
@@ -345,9 +349,10 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
 		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+			Level:  slog.LevelDebug,
+			Format: "json",
 		},
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
 }
 

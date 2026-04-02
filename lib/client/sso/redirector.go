@@ -94,6 +94,9 @@ const (
 	// on this page in order to capture the SSO MFA response regardless of what page the challenge
 	// was requested from.
 	WebMFARedirect = "/web/sso_confirm"
+
+	// WebBrowserMFAPath is the path for browser-based MFA flows.
+	WebBrowserMFAPath = "/web/mfa/browser/"
 )
 
 // RedirectorConfig is configuration for an sso redirector.
@@ -139,7 +142,7 @@ type Redirector struct {
 	// the data
 	key secret.Key
 	// responseC is a channel to receive responses
-	responseC chan *authclient.SSHLoginResponse
+	responseC chan *authclient.CLILoginResponse
 	// errorC will contain errors
 	errorC chan error
 	// doneC will be closed when the redirector is closed.
@@ -196,7 +199,7 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 		proxyURL:         proxyURL,
 		mux:              http.NewServeMux(),
 		key:              key,
-		responseC:        make(chan *authclient.SSHLoginResponse, 1),
+		responseC:        make(chan *authclient.CLILoginResponse, 1),
 		errorC:           make(chan error, 1),
 		doneC:            make(chan struct{}),
 	}
@@ -268,16 +271,16 @@ func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
 
 	// If a command was found to launch the browser, create and start it.
 	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
-		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\n", err)
+		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\r\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
 	if rd.Browser == teleport.BrowserNone {
-		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\r\n %v\r\n", clickableURL)
 	} else {
 		fmt.Fprintf(rd.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(rd.Stderr, "clicking on the link:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "clicking on the link:\r\n %v\r\n", clickableURL)
 	}
 
 	return nil
@@ -380,7 +383,7 @@ func OpenURLInBrowser(browser string, URL string) error {
 }
 
 // WaitForResponse waits for a response from the callback handler.
-func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLoginResponse, error) {
+func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.CLILoginResponse, error) {
 	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.server.URL)
 	select {
 	case err := <-rd.ErrorC():
@@ -408,7 +411,7 @@ func (rd *Redirector) Done() <-chan struct{} {
 }
 
 // ResponseC returns a channel with response
-func (rd *Redirector) ResponseC() <-chan *authclient.SSHLoginResponse {
+func (rd *Redirector) ResponseC() <-chan *authclient.CLILoginResponse {
 	return rd.responseC
 }
 
@@ -419,7 +422,7 @@ func (rd *Redirector) ErrorC() <-chan error {
 
 // callback is used by Teleport proxy to send back credentials
 // issued by Teleport proxy
-func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authclient.SSHLoginResponse, error) {
+func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authclient.CLILoginResponse, error) {
 	if r.URL.Path != "/callback" {
 		return nil, trace.NotFound("path not found")
 	}
@@ -436,7 +439,7 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authcli
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
 	}
 
-	var re authclient.SSHLoginResponse
+	var re authclient.CLILoginResponse
 	err = json.Unmarshal(plaintext, &re)
 	if err != nil {
 		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
@@ -453,7 +456,7 @@ func (rd *Redirector) Close() {
 
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
 // and sends a result to the channel and redirect users to error page
-func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*authclient.SSHLoginResponse, error)) http.Handler {
+func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*authclient.CLILoginResponse, error)) http.Handler {
 	// Generate possible redirect URLs from the proxy URL.
 	clone := *rd.proxyURL
 	clone.Path = LoginFailedRedirectURL

@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -957,7 +958,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -975,6 +976,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -1019,6 +1026,16 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	sctx, ok := i.(*SessionContext)
 	if !ok {
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return sctx, nil
@@ -1143,6 +1160,21 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

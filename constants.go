@@ -215,9 +215,6 @@ const (
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
-	// Component pluggable authentication module (PAM)
-	ComponentPAM = "pam"
-
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
 
@@ -598,9 +595,6 @@ const (
 	UnexpectedCredentials = 252
 )
 
-// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
-const MaxEnvironmentFileLines = 1000
-
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
 const MaxResourceSize = 1000000
@@ -925,6 +919,10 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Access Graph API access.
+	UsageAccessGraphAPIOnly = "usage:access_graph_api"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that

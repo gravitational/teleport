@@ -57,8 +57,9 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -1220,10 +1221,12 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
-	// AllowBrowserAuthentication enables/disables browser-based authentication.
+	// AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+	// authenticating CLI sessions.
 	// When set to false, authentication flows that require a browser will be disabled.
-	// Defaults to true.
-	AllowBrowserAuthentication *types.BoolOption `yaml:"allow_browser_authentication"`
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowCLIAuthViaBrowser *types.BoolOption `yaml:"allow_cli_auth_via_browser"`
 
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
@@ -1307,23 +1310,23 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                       a.Type,
-		SecondFactor:               a.SecondFactor,
-		SecondFactors:              a.SecondFactors,
-		ConnectorName:              a.ConnectorName,
-		U2F:                        u,
-		Webauthn:                   w,
-		RequireMFAType:             a.RequireMFAType,
-		LockingMode:                a.LockingMode,
-		AllowLocalAuth:             a.LocalAuth,
-		AllowPasswordless:          a.Passwordless,
-		AllowHeadless:              a.Headless,
-		AllowBrowserAuthentication: a.AllowBrowserAuthentication,
-		DeviceTrust:                dt,
-		DefaultSessionTTL:          a.DefaultSessionTTL,
-		HardwareKey:                h,
-		SignatureAlgorithmSuite:    a.SignatureAlgorithmSuite,
-		StableUnixUserConfig:       stableUNIXUserConfig,
+		Type:                    a.Type,
+		SecondFactor:            a.SecondFactor,
+		SecondFactors:           a.SecondFactors,
+		ConnectorName:           a.ConnectorName,
+		U2F:                     u,
+		Webauthn:                w,
+		RequireMFAType:          a.RequireMFAType,
+		LockingMode:             a.LockingMode,
+		AllowLocalAuth:          a.LocalAuth,
+		AllowPasswordless:       a.Passwordless,
+		AllowHeadless:           a.Headless,
+		AllowCLIAuthViaBrowser:  a.AllowCLIAuthViaBrowser,
+		DeviceTrust:             dt,
+		DefaultSessionTTL:       a.DefaultSessionTTL,
+		HardwareKey:             h,
+		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:    stableUNIXUserConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1844,13 +1847,13 @@ type PAM struct {
 }
 
 // Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+func (p *PAM) Parse() *pamcfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pamcfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,

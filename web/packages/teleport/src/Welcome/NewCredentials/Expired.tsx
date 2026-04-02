@@ -30,9 +30,9 @@ export function Expired({ resetMode = false }) {
         {titleCodeTxt} Code Expired
       </H2>
       <P1>
-        It appears that your {paraCodeTxt} code isn&apos;t valid any more.
-        Please contact your account administrator and request another{' '}
-        {paraCodeTxt} link or open a{' '}
+        It appears that your {paraCodeTxt} code isn&apos;t valid anymore. Please
+        contact your account administrator and request another {paraCodeTxt}{' '}
+        link or open a{' '}
         <Link href="https://support.goteleport.com">support ticket</Link>.
       </P1>
     </OnboardCard>
