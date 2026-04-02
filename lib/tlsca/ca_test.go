@@ -218,6 +218,7 @@ func TestJoinAttributes(t *testing.T) {
 		Groups:        []string{"bot-bernard"},
 		BotName:       "bernard",
 		BotInstanceID: "1234-5678",
+		BotInternal:   true,
 		Expires:       expires,
 		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
 			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{

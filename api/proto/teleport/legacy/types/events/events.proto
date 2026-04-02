@@ -5160,6 +5160,9 @@ message Identity {
   // Differs from AllowedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID AllowedResourceAccessIDs = 32 [(gogoproto.nullable) = false];
+  // A flag indicating this identity is specific to a bot's internal identity
+  // rather than an output identity for a user-facing certificate or service.
+  bool BotInternal = 33 [(gogoproto.jsontag) = "bot_internal"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
