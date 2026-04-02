@@ -19,6 +19,7 @@
 package regular
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -27,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	sess "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -1425,9 +1426,14 @@ func TestX11Forward(t *testing.T) {
 // echoing XServer requests received back to the client. Returns the Display opened on the
 // session, which is set in $DISPLAY.
 func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11.Display {
+	// Create session but don't close it until the test is complete. This is key
+	// because the session must stay alive after this function returns for the
+	// proxy to be able to forward X11 requests.
 	se, err := clt.NewSessionWithParams(ctx, nil)
 	require.NoError(t, err)
-	t.Cleanup(func() { se.Close() })
+	t.Cleanup(func() {
+		require.NoError(t, se.Close())
+	})
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
@@ -1478,49 +1484,32 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	err = x11forward.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
-	// prepare to send virtual "keyboard input" into the shell:
-	keyboard, err := se.StdinPipe()
+	stdout, err := se.StdoutPipe()
 	require.NoError(t, err)
 
-	// start interactive SSH session with x11 forwarding enabled (new shell):
-	err = se.Shell(ctx)
-	require.NoError(t, err)
-
-	// create a temp file to collect the shell output into:
-	tmpFile, err := os.CreateTemp(os.TempDir(), "teleport-x11-forward-test")
-	require.NoError(t, err)
-
-	// Allow non-root user to write to the temp file
-	err = tmpFile.Chmod(fs.FileMode(0o777))
+	stdin, err := se.StdinPipe()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		os.Remove(tmpFile.Name())
+		require.NoError(t, stdin.Close())
 	})
 
-	// Reading the display may fail if the session is not fully initialized
-	// and the write to stdin is swallowed.
-	display := make(chan string, 1)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-		_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
-		require.NoError(t, err)
+	// Start an SSH exec command print the X11 display environment vaiable then
+	// block for the lifetime of the session. The SSH exec must block for the
+	// lifetime of the session to allow X11 requests to be forwarded.
+	//
+	// Blocking is done by cat reading from stdin and redirecting to /dev/null.
+	// Since nothing is written to stdin, this ends up blocking until the
+	// session/test is complete.
+	shell, err := shell.GetLoginShell(clt.User())
+	require.NoError(t, err)
+	cmd := fmt.Sprintf("%v -c 'printenv %v\n'; exec cat >/dev/null", shell, x11.DisplayEnv)
+	err = se.Start(ctx, cmd)
+	require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			output, err := os.ReadFile(tmpFile.Name())
-			if err == nil && len(output) != 0 {
-				select {
-				case display <- strings.TrimSpace(string(output)):
-				default:
-				}
-				return true
-			}
-			return false
-		}, time.Second, 10*time.Millisecond, "failed to read display")
-	}, 10*time.Second, 1*time.Second)
+	display, err := bufio.NewReader(stdout).ReadString('\n')
+	require.NoError(t, err)
 
-	// Make a new connection to the XServer proxy, the client
-	// XServer should echo back anything written on it.
-	serverDisplay, err := x11.ParseDisplay(<-display)
+	serverDisplay, err := x11.ParseDisplay(strings.TrimSpace(display))
 	require.NoError(t, err)
 
 	return serverDisplay
