@@ -584,10 +584,7 @@ func beginAndSolveBrowserMFAWebauthn(t *testing.T, env testEnv, ext *mfav1.Chall
 		Identity: env.auth.Services,
 	}
 
-	assertion, err := loginFlow.Begin(t.Context(), wanlib.BeginParams{
-		User:                env.webauthnUser.GetName(),
-		ChallengeExtensions: ext,
-	})
+	assertion, err := loginFlow.Begin(t.Context(), env.webauthnUser.GetName(), ext)
 	require.NoError(t, err)
 
 	assertionResp, err := env.webauthnDev.Key.SignAssertion(env.webauthnDev.Origin(), assertion)
@@ -696,7 +693,6 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
-					Payload: &mfatypes.SessionIdentifyingPayload{},
 				}, sd)
 			},
 		},
@@ -724,7 +720,6 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
-					Payload: &mfatypes.SessionIdentifyingPayload{},
 				}, sd)
 			},
 		},
