@@ -312,6 +312,8 @@ type mockAuthServer struct {
 	usageEvents []*proto.SubmitUsageEventRequest
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
+
+	semaphoreLock sync.Mutex
 }
 
 type mockWatcher struct {
@@ -432,12 +434,14 @@ func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integration
 }
 
 func (m *mockAuthServer) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	m.semaphoreLock.Lock()
 	return &types.SemaphoreLease{
 		Expires: time.Now().Add(10 * time.Minute),
 	}, nil
 }
 
 func (m *mockAuthServer) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.semaphoreLock.Unlock()
 	return nil
 }
 
@@ -451,6 +455,13 @@ func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertas
 func (m *mockAuthServer) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
 	m.storeUserTasks[req.GetMetadata().GetName()] = req
 	return req, nil
+}
+
+func (m *mockAuthServer) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	if dc, ok := m.storeDiscoveryConfigs[name]; ok {
+		return dc.Clone(), nil
+	}
+	return nil, trace.NotFound("discovery config %q not found", name)
 }
 
 type mockEKSClusterEnroller struct {
