@@ -180,7 +180,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 		return trace.Errorf("invalid bot scope %q in assignment population request for bot %q: %w", botScope, botName, err)
 	}
 
-	// Ensure the scope we are pinning to it descendant or equiv to the bot scope.
+	// Ensure the scope we are pinning to is descendant or equiv to the bot scope.
 	// nb: This restriction may be relaxed w/ introduction of cross-scope privilege.
 	// TODO(strideynet): For forrest, is there a more appropriate helper to use here?
 	rel := scopes.Compare(botScope, pin.GetScope())
