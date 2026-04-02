@@ -151,6 +151,9 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 
 	integrationDiscoveredResources := make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary, len(status.IntegrationDiscoveredResources))
 	for k, v := range status.IntegrationDiscoveredResources {
+		if v == nil {
+			v = &discoveryconfig.IntegrationDiscoveredSummary{}
+		}
 		integrationDiscoveredResources[k] = v.IntegrationDiscoveredSummary
 	}
 

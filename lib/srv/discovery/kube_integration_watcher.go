@@ -152,11 +152,15 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
 
-					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
-						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
-						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() }) {
+					currentlyEnrolling := enrollingClusters[newCluster.GetAWSConfig().Name]
+					alreadyEnrolled := slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
+						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() })
 
+					if alreadyEnrolled {
 						resourcesEnrolledByGroup[resourceGroup] += 1
+					}
+
+					if currentlyEnrolling || alreadyEnrolled {
 						continue
 					}
 
