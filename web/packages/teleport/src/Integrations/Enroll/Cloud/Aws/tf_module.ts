@@ -60,7 +60,7 @@ const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
 
   if (matcher.regions.length > 0) {
     obj.regions = [...matcher.regions].sort();
-  } else {
+  } else if (matcher.type === 'ec2') {
     obj.regions = ['*'];
   }
 

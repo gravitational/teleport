@@ -75,6 +75,16 @@ describe('buildTerraformConfig', () => {
     expect(result).not.toContain('tags');
   });
 
+  test('EKS with no region selection does not use wildcard regions', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [{ type: 'eks', regions: [], tags: [] }],
+    });
+
+    expect(result).toContain('types   = ["eks"]');
+    expect(result).not.toContain('regions');
+  });
+
   test('EKS only with specific regions and tags', () => {
     const result = buildTerraformConfig({
       ...baseConfig,
