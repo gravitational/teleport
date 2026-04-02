@@ -2681,6 +2681,69 @@ export interface UIAccessGraphCrownJewelDiffViewEvent {
     affectedResourceType: string;
 }
 /**
+ * UIPageViewEvent is emitted when a user views a page in the Teleport UI.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIPageViewEvent
+ */
+export interface UIPageViewEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
+     *
+     * @generated from protobuf field: string path = 2;
+     */
+    path: string;
+    /**
+     * utm_source identifies the channel that drove the visit (e.g. "email")
+     *
+     * @generated from protobuf field: string utm_source = 3;
+     */
+    utmSource: string;
+    /**
+     * utm_campaign identifies the specific campaign (e.g. "overage_80")
+     *
+     * @generated from protobuf field: string utm_campaign = 4;
+     */
+    utmCampaign: string;
+}
+/**
+ * UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
+ * a usage reporting alert (e.g. an overage notification).
+ *
+ * @generated from protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+ */
+export interface UIUsageReportingAlertCtaClickEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
+     *
+     * @generated from protobuf field: string alert = 2;
+     */
+    alert: string;
+    /**
+     * utm_source identifies the channel that drove the visit (e.g. "email")
+     *
+     * @generated from protobuf field: string utm_source = 3;
+     */
+    utmSource: string;
+    /**
+     * utm_campaign identifies the specific campaign (e.g. "overage_80")
+     *
+     * @generated from protobuf field: string utm_campaign = 4;
+     */
+    utmCampaign: string;
+}
+/**
  * AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
  * Crown Jewel Resource.
  *
@@ -3215,6 +3278,54 @@ export interface DiscoveryConfigEvent {
      * @generated from protobuf field: string creation_method = 5;
      */
     creationMethod: string;
+}
+/**
+ * IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+ * for a provider is updated.
+ *
+ * @generated from protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
+ */
+export interface IdentitySecurityGraphSizeEvent {
+    /**
+     * provider is the system containing the identities and resources being counted.
+     * It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * total_identities is the number of identities in the graph.
+     *
+     * @generated from protobuf field: uint64 total_identities = 2;
+     */
+    totalIdentities: bigint;
+    /**
+     * total_resources is the number of resources in the graph.
+     *
+     * @generated from protobuf field: uint64 total_resources = 3;
+     */
+    totalResources: bigint;
+}
+/**
+ * IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+ * identity activity center.
+ *
+ * @generated from protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+ */
+export interface IdentitySecurityAuditLogsIngestedEvent {
+    /**
+     * provider is the system emitting audit logs. It is one of
+     * teleport, cloudtrail, kubernetes, github or okta.
+     *
+     * @generated from protobuf field: string provider = 1;
+     */
+    provider: string;
+    /**
+     * logs_ingested is a count of log entries ingested into Identity Security.
+     *
+     * @generated from protobuf field: uint64 logs_ingested = 2;
+     */
+    logsIngested: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -3864,6 +3975,30 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107;
          */
         discoveryConfig: DiscoveryConfigEvent;
+    } | {
+        oneofKind: "identitySecurityGraphSizeEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108;
+         */
+        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent;
+    } | {
+        oneofKind: "identitySecurityAuditLogsIngestedEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109;
+         */
+        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent;
+    } | {
+        oneofKind: "uiPageView";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIPageViewEvent ui_page_view = 119;
+         */
+        uiPageView: UIPageViewEvent;
+    } | {
+        oneofKind: "uiUsageReportingAlertCtaClick";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
+         */
+        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent;
     } | {
         oneofKind: undefined;
     };
@@ -10983,6 +11118,148 @@ class UIAccessGraphCrownJewelDiffViewEvent$Type extends MessageType<UIAccessGrap
  */
 export const UIAccessGraphCrownJewelDiffViewEvent = new UIAccessGraphCrownJewelDiffViewEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIPageViewEvent$Type extends MessageType<UIPageViewEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIPageViewEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIPageViewEvent>): UIPageViewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.path = "";
+        message.utmSource = "";
+        message.utmCampaign = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIPageViewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIPageViewEvent): UIPageViewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string path */ 2:
+                    message.path = reader.string();
+                    break;
+                case /* string utm_source */ 3:
+                    message.utmSource = reader.string();
+                    break;
+                case /* string utm_campaign */ 4:
+                    message.utmCampaign = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIPageViewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string path = 2; */
+        if (message.path !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.path);
+        /* string utm_source = 3; */
+        if (message.utmSource !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
+        /* string utm_campaign = 4; */
+        if (message.utmCampaign !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIPageViewEvent
+ */
+export const UIPageViewEvent = new UIPageViewEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIUsageReportingAlertCtaClickEvent$Type extends MessageType<UIUsageReportingAlertCtaClickEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIUsageReportingAlertCtaClickEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "alert", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIUsageReportingAlertCtaClickEvent>): UIUsageReportingAlertCtaClickEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.alert = "";
+        message.utmSource = "";
+        message.utmCampaign = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIUsageReportingAlertCtaClickEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIUsageReportingAlertCtaClickEvent): UIUsageReportingAlertCtaClickEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string alert */ 2:
+                    message.alert = reader.string();
+                    break;
+                case /* string utm_source */ 3:
+                    message.utmSource = reader.string();
+                    break;
+                case /* string utm_campaign */ 4:
+                    message.utmCampaign = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIUsageReportingAlertCtaClickEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string alert = 2; */
+        if (message.alert !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.alert);
+        /* string utm_source = 3; */
+        if (message.utmSource !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
+        /* string utm_campaign = 4; */
+        if (message.utmCampaign !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
+ */
+export const UIUsageReportingAlertCtaClickEvent = new UIUsageReportingAlertCtaClickEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessGraphCrownJewelCreateEvent$Type extends MessageType<AccessGraphCrownJewelCreateEvent> {
     constructor() {
         super("prehog.v1alpha.AccessGraphCrownJewelCreateEvent", []);
@@ -11954,6 +12231,124 @@ class DiscoveryConfigEvent$Type extends MessageType<DiscoveryConfigEvent> {
  */
 export const DiscoveryConfigEvent = new DiscoveryConfigEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityGraphSizeEvent$Type extends MessageType<IdentitySecurityGraphSizeEvent> {
+    constructor() {
+        super("prehog.v1alpha.IdentitySecurityGraphSizeEvent", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_identities", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_resources", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityGraphSizeEvent>): IdentitySecurityGraphSizeEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.totalIdentities = 0n;
+        message.totalResources = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityGraphSizeEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityGraphSizeEvent): IdentitySecurityGraphSizeEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 total_identities */ 2:
+                    message.totalIdentities = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_resources */ 3:
+                    message.totalResources = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityGraphSizeEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 total_identities = 2; */
+        if (message.totalIdentities !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalIdentities);
+        /* uint64 total_resources = 3; */
+        if (message.totalResources !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalResources);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
+ */
+export const IdentitySecurityGraphSizeEvent = new IdentitySecurityGraphSizeEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentitySecurityAuditLogsIngestedEvent$Type extends MessageType<IdentitySecurityAuditLogsIngestedEvent> {
+    constructor() {
+        super("prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent", [
+            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "logs_ingested", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentitySecurityAuditLogsIngestedEvent>): IdentitySecurityAuditLogsIngestedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.provider = "";
+        message.logsIngested = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<IdentitySecurityAuditLogsIngestedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityAuditLogsIngestedEvent): IdentitySecurityAuditLogsIngestedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string provider */ 1:
+                    message.provider = reader.string();
+                    break;
+                case /* uint64 logs_ingested */ 2:
+                    message.logsIngested = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentitySecurityAuditLogsIngestedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string provider = 1; */
+        if (message.provider !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.provider);
+        /* uint64 logs_ingested = 2; */
+        if (message.logsIngested !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.logsIngested);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
+ */
+export const IdentitySecurityAuditLogsIngestedEvent = new IdentitySecurityAuditLogsIngestedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -12060,7 +12455,11 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent },
             { no: 105, name: "session_summary_create_event", kind: "message", oneof: "event", T: () => SessionSummaryCreateEvent },
             { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent },
-            { no: 107, name: "discovery_config", kind: "message", oneof: "event", T: () => DiscoveryConfigEvent }
+            { no: 107, name: "discovery_config", kind: "message", oneof: "event", T: () => DiscoveryConfigEvent },
+            { no: 108, name: "identity_security_graph_size_event", kind: "message", oneof: "event", T: () => IdentitySecurityGraphSizeEvent },
+            { no: 109, name: "identity_security_audit_logs_ingested_event", kind: "message", oneof: "event", T: () => IdentitySecurityAuditLogsIngestedEvent },
+            { no: 119, name: "ui_page_view", kind: "message", oneof: "event", T: () => UIPageViewEvent },
+            { no: 120, name: "ui_usage_reporting_alert_cta_click", kind: "message", oneof: "event", T: () => UIUsageReportingAlertCtaClickEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -12692,6 +13091,30 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         discoveryConfig: DiscoveryConfigEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).discoveryConfig)
                     };
                     break;
+                case /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event */ 108:
+                    message.event = {
+                        oneofKind: "identitySecurityGraphSizeEvent",
+                        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityGraphSizeEvent)
+                    };
+                    break;
+                case /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event */ 109:
+                    message.event = {
+                        oneofKind: "identitySecurityAuditLogsIngestedEvent",
+                        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityAuditLogsIngestedEvent)
+                    };
+                    break;
+                case /* prehog.v1alpha.UIPageViewEvent ui_page_view */ 119:
+                    message.event = {
+                        oneofKind: "uiPageView",
+                        uiPageView: UIPageViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiPageView)
+                    };
+                    break;
+                case /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click */ 120:
+                    message.event = {
+                        oneofKind: "uiUsageReportingAlertCtaClick",
+                        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiUsageReportingAlertCtaClick)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -13016,6 +13439,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107; */
         if (message.event.oneofKind === "discoveryConfig")
             DiscoveryConfigEvent.internalBinaryWrite(message.event.discoveryConfig, writer.tag(107, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108; */
+        if (message.event.oneofKind === "identitySecurityGraphSizeEvent")
+            IdentitySecurityGraphSizeEvent.internalBinaryWrite(message.event.identitySecurityGraphSizeEvent, writer.tag(108, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109; */
+        if (message.event.oneofKind === "identitySecurityAuditLogsIngestedEvent")
+            IdentitySecurityAuditLogsIngestedEvent.internalBinaryWrite(message.event.identitySecurityAuditLogsIngestedEvent, writer.tag(109, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIPageViewEvent ui_page_view = 119; */
+        if (message.event.oneofKind === "uiPageView")
+            UIPageViewEvent.internalBinaryWrite(message.event.uiPageView, writer.tag(119, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120; */
+        if (message.event.oneofKind === "uiUsageReportingAlertCtaClick")
+            UIUsageReportingAlertCtaClickEvent.internalBinaryWrite(message.event.uiUsageReportingAlertCtaClick, writer.tag(120, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
