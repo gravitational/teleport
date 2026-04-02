@@ -20,6 +20,7 @@ package machineidv1_test
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -45,12 +46,14 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestMain(m *testing.M) {
@@ -3066,6 +3069,545 @@ func protoNonZeroScalarValue(fd protoreflect.FieldDescriptor) protoreflect.Value
 	default:
 		panic(fmt.Sprintf("unhandled proto field kind: %v", fd.Kind()))
 	}
+}
+
+func createBotInstance(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	botName, scope, instanceID string,
+) *machineidv1pb.BotInstance {
+	t.Helper()
+	if instanceID == "" {
+		instanceID = uuid.NewString()
+	}
+	bi := &machineidv1pb.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+		},
+		Spec: &machineidv1pb.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: instanceID,
+		},
+		Status: &machineidv1pb.BotInstanceStatus{},
+		Scope:  scope,
+	}
+	created, err := srv.Auth().BotInstance.CreateBotInstance(t.Context(), bi)
+	require.NoError(t, err)
+	return created
+}
+
+func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_MWI", "yes")
+	srv, _ := newTestTLSServer(t)
+	ctx := t.Context()
+
+	unscopedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-instance-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBotInstance},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-bot-instance-deleter",
+			},
+			Scope: "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbDelete},
+						Resources: []string{types.KindBotInstance},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create one bot instance per test case since delete is destructive.
+	unscopedForUnscoped := createBotInstance(t, srv, "bot-a", "", "")
+	scopedForUnscoped := createBotInstance(t, srv, "bot-b", "/scopes/granted", "")
+	unscopedForScoped := createBotInstance(t, srv, "bot-c", "", "")
+	scopedGranted := createBotInstance(t, srv, "bot-d", "/scopes/granted", "")
+	scopedUngranted := createBotInstance(t, srv, "bot-e", "/scopes/ungranted", "")
+
+	tests := []struct {
+		name        string
+		identity    authtest.TestIdentity
+		instance    *machineidv1pb.BotInstance
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "unscoped user deletes unscoped instance",
+			identity:    authtest.TestUser(unscopedUser.GetName()),
+			instance:    unscopedForUnscoped,
+			assertError: require.NoError,
+		},
+		{
+			name:        "unscoped user deletes scoped instance",
+			identity:    authtest.TestUser(unscopedUser.GetName()),
+			instance:    scopedForUnscoped,
+			assertError: require.NoError,
+		},
+		{
+			name:     "scoped user fails to delete unscoped instance",
+			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance: unscopedForScoped,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			},
+		},
+		{
+			name:        "scoped user deletes instance in granted scope",
+			identity:    authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance:    scopedGranted,
+			assertError: require.NoError,
+		},
+		{
+			name:     "scoped user fails to delete instance in ungranted scope",
+			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance: scopedUngranted,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			_, err = client.BotInstanceServiceClient().DeleteBotInstance(ctx, &machineidv1pb.DeleteBotInstanceRequest{
+				BotName:    tt.instance.Spec.BotName,
+				InstanceId: tt.instance.Spec.InstanceId,
+			})
+			tt.assertError(t, err)
+		})
+	}
+}
+
+func TestBotInstanceService_GetBotInstance(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_MWI", "yes")
+	srv, _ := newTestTLSServer(t)
+	ctx := t.Context()
+
+	unscopedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-instance-reader",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBotInstance},
+				Verbs:     []string{types.VerbReadNoSecrets},
+			},
+		})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-bot-instance-reader",
+			},
+			Scope: "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbReadNoSecrets},
+						Resources: []string{types.KindBotInstance},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	unscopedInstance := createBotInstance(t, srv, "bot-a", "", "")
+	scopedGrantedInstance := createBotInstance(t, srv, "bot-b", "/scopes/granted", "")
+	scopedUngrantedInstance := createBotInstance(t, srv, "bot-c", "/scopes/ungranted", "")
+
+	tests := []struct {
+		name        string
+		identity    authtest.TestIdentity
+		instance    *machineidv1pb.BotInstance
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "unscoped user gets unscoped instance",
+			identity:    authtest.TestUser(unscopedUser.GetName()),
+			instance:    unscopedInstance,
+			assertError: require.NoError,
+		},
+		{
+			name:        "unscoped user gets scoped instance",
+			identity:    authtest.TestUser(unscopedUser.GetName()),
+			instance:    scopedGrantedInstance,
+			assertError: require.NoError,
+		},
+		{
+			name:     "scoped user fails to get unscoped instance",
+			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance: unscopedInstance,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			},
+		},
+		{
+			name:        "scoped user gets instance in granted scope",
+			identity:    authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance:    scopedGrantedInstance,
+			assertError: require.NoError,
+		},
+		{
+			name:     "scoped user fails to get instance in ungranted scope",
+			identity: authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"),
+			instance: scopedUngrantedInstance,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			got, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+				BotName:    tt.instance.Spec.BotName,
+				InstanceId: tt.instance.Spec.InstanceId,
+			})
+			tt.assertError(t, err)
+			if err == nil {
+				require.Equal(t, tt.instance.Spec.InstanceId, got.Spec.InstanceId)
+			}
+		})
+	}
+}
+
+func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_MWI", "yes")
+	srv, _ := newTestTLSServer(t)
+	ctx := t.Context()
+
+	unscopedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"bot-instance-lister",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBotInstance},
+				Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-bot-instance-lister",
+			},
+			Scope: "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Resources: []string{types.KindBotInstance},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-user")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/scopes",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a mix of bot instances.
+	unscopedInstances := []*machineidv1pb.BotInstance{
+		createBotInstance(t, srv, "bot-a", "", ""),
+		createBotInstance(t, srv, "bot-b", "", ""),
+	}
+	grantedInstances := []*machineidv1pb.BotInstance{
+		createBotInstance(t, srv, "bot-c", "/scopes/granted", ""),
+		createBotInstance(t, srv, "bot-d", "/scopes/granted", ""),
+	}
+	ungrantedInstances := []*machineidv1pb.BotInstance{
+		createBotInstance(t, srv, "bot-e", "/scopes/ungranted", ""),
+	}
+
+	allInstances := make([]*machineidv1pb.BotInstance, 0)
+	allInstances = append(allInstances, unscopedInstances...)
+	allInstances = append(allInstances, grantedInstances...)
+	allInstances = append(allInstances, ungrantedInstances...)
+
+	allIDs := make(map[string]struct{})
+	for _, bi := range allInstances {
+		allIDs[bi.Spec.InstanceId] = struct{}{}
+	}
+	grantedIDs := make(map[string]struct{})
+	for _, bi := range grantedInstances {
+		grantedIDs[bi.Spec.InstanceId] = struct{}{}
+	}
+
+	listAll := func(t *testing.T, client machineidv1pb.BotInstanceServiceClient) []*machineidv1pb.BotInstance {
+		t.Helper()
+		var results []*machineidv1pb.BotInstance
+		var nextToken string
+		for {
+			res, err := client.ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+				PageToken: nextToken,
+			})
+			require.NoError(t, err)
+			results = append(results, res.BotInstances...)
+			nextToken = res.NextPageToken
+			if nextToken == "" {
+				break
+			}
+		}
+		return results
+	}
+
+	t.Run("unscoped user sees all instances", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+		require.NoError(t, err)
+
+		got := listAll(t, client.BotInstanceServiceClient())
+		require.Len(t, got, len(allInstances))
+		for _, bi := range got {
+			require.Contains(t, allIDs, bi.Spec.InstanceId)
+		}
+	})
+
+	t.Run("scoped user sees only instances in granted scope", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"))
+		require.NoError(t, err)
+
+		got := listAll(t, client.BotInstanceServiceClient())
+		require.Len(t, got, len(grantedInstances))
+		for _, bi := range got {
+			require.Contains(t, grantedIDs, bi.Spec.InstanceId)
+		}
+	})
+}
+
+func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_MWI", "yes")
+	srv, _ := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	testRole, err := authtest.CreateRole(ctx, srv.Auth(), "heartbeat-test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// newBotClient creates a TLS client for the given bot identity and returns both the
+	// client and the BotInstanceID embedded in its certificate. This is needed because
+	// GenerateUserTestCerts assigns a random BotInstanceID, and SubmitHeartbeat resolves
+	// the bot instance by the ID from the caller's identity.
+	newBotClient := func(t *testing.T, identity authtest.TestIdentity) (*authclient.Client, string) {
+		t.Helper()
+		tlsCfg, err := srv.ClientTLSConfig(identity)
+		require.NoError(t, err)
+		require.NotEmpty(t, tlsCfg.Certificates)
+		cert, err := x509.ParseCertificate(tlsCfg.Certificates[0].Certificate[0])
+		require.NoError(t, err)
+		ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		require.NoError(t, err)
+		require.NotEmpty(t, ident.BotInstanceID)
+		clt, err := srv.NewClientWithCert(tlsCfg.Certificates[0])
+		require.NoError(t, err)
+		return clt, ident.BotInstanceID
+	}
+
+	t.Run("unscoped bot", func(t *testing.T) {
+		const botName = "heartbeat-unscoped"
+		_, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Metadata: &headerv1.Metadata{Name: botName},
+				Spec:     &machineidv1pb.BotSpec{Roles: []string{testRole.GetName()}},
+			},
+		})
+		require.NoError(t, err)
+
+		botClient, instanceID := newBotClient(t, authtest.TestBot(botName, false))
+		createBotInstance(t, srv, botName, "", instanceID)
+
+		_, err = botClient.BotInstanceServiceClient().SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
+			Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{Hostname: "unscoped-host"},
+		})
+		require.NoError(t, err)
+
+		got, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+			BotName:    botName,
+			InstanceId: instanceID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, got.Status.InitialHeartbeat)
+		require.Equal(t, "unscoped-host", got.Status.InitialHeartbeat.Hostname)
+	})
+
+	t.Run("scoped bot", func(t *testing.T) {
+		const botName = "heartbeat-scoped"
+		_, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Metadata: &headerv1.Metadata{Name: botName},
+				Scope:    "/scopes/test",
+				Spec:     &machineidv1pb.BotSpec{},
+			},
+		})
+		require.NoError(t, err)
+
+		// We need to assign our bot a scoped role otherwise we won't be able
+		// to generate certificates for it.
+		scopedSvc := adminClient.ScopedAccessServiceClient()
+		scopedRole, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: &scopedaccessv1.ScopedRole{
+				Kind:    scopedaccess.KindScopedRole,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "scoped-heartbeat-role",
+				},
+				Scope: "/scopes",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/scopes/test"},
+					Rules:            []*scopedaccessv1.ScopedRule{},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.NewString(),
+				},
+				SubKind: scopedaccess.SubKindDynamic,
+				Scope:   "/scopes",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  botName,
+					BotScope: "/scopes/test",
+					Assignments: []*scopedaccessv1.Assignment{
+						{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/test"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(botName, "/scopes/test", true))
+		createBotInstance(t, srv, botName, "/scopes/test", instanceID)
+
+		_, err = botClient.BotInstanceServiceClient().SubmitHeartbeat(ctx, &machineidv1pb.SubmitHeartbeatRequest{
+			Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{Hostname: "scoped-host"},
+		})
+		require.NoError(t, err)
+
+		got, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+			BotName:    botName,
+			InstanceId: instanceID,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, got.Status.InitialHeartbeat)
+		require.Equal(t, "scoped-host", got.Status.InitialHeartbeat.Hostname)
+	})
 }
 
 func newTestTLSServer(t testing.TB) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {

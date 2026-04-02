@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -419,6 +420,39 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "status reason longer than 256 bytes")
 			},
 			wantHeartbeat: false,
+		},
+		{
+			name:              "scoped identity without BotInternal",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
+			},
+			identity: tlsca.Identity{
+				BotName:       botName,
+				BotInstanceID: botInstanceID,
+				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				BotInternal:   false,
+			},
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.True(t, trace.IsAccessDenied(err)) &&
+					assert.Contains(t, err.Error(), "identity not marked BotInternal")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "scoped identity with BotInternal",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
+			},
+			identity: tlsca.Identity{
+				BotName:       botName,
+				BotInstanceID: botInstanceID,
+				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				BotInternal:   true,
+			},
+			assertErr:     assert.NoError,
+			wantHeartbeat: true,
 		},
 	}
 
