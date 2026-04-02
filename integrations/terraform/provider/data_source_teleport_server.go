@@ -22,6 +22,7 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -66,10 +67,21 @@ func (r dataSourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadDataSo
 		return
 	}
 
-	var state types.Object
-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// TODO: This is a non-idiomatic approach to initializing the state of the
+	// data source. It is a workaround to avoid initializing all omitted fields
+	// to null values. State should be initialized using `req.Config.Get` once
+	// `Copy<resource>ToTerraform` is able to properly handle null values.
+	objType, ok := req.Config.Schema.AttributeType().(types.ObjectType)
+	if !ok {
+		resp.Diagnostics.AddError("Error reading schema attribute types", "node")
 		return
+	}
+
+	state := types.Object{
+		Unknown:   false,
+		Null:      false,
+		Attrs:     make(map[string]attr.Value),
+		AttrTypes: objType.AttributeTypes(),
 	}
 
 	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
@@ -82,7 +94,11 @@ func (r dataSourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadDataSo
 	}
 
 	
-	server := serverI.(*apitypes.ServerV2)
+	server, ok := serverI.(*apitypes.ServerV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Errorf("Can not convert %T to ServerV2", serverI), "node"))
+		return
+	}
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

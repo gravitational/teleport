@@ -22,6 +22,7 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -57,13 +58,28 @@ func (r dataSourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Re
 		return
 	}
 
-	var state types.Object
-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// TODO: This is a non-idiomatic approach to initializing the state of the
+	// data source. It is a workaround to avoid initializing all omitted fields
+	// to null values. State should be initialized using `req.Config.Get` once
+	// `Copy<resource>ToTerraform` is able to properly handle null values.
+	objType, ok := req.Config.Schema.AttributeType().(types.ObjectType)
+	if !ok {
+		resp.Diagnostics.AddError("Error reading schema attribute types", "cluster_auth_preference")
 		return
 	}
 
-	authPreference := authPreferenceI.(*apitypes.AuthPreferenceV2)
+	state := types.Object{
+		Unknown:   false,
+		Null:      false,
+		Attrs:     make(map[string]attr.Value),
+		AttrTypes: objType.AttributeTypes(),
+	}
+
+	authPreference, ok := authPreferenceI.(*apitypes.AuthPreferenceV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Errorf("Can not convert %T to AuthPreferenceV2", authPreferenceI), "cluster_auth_preference"))
+		return
+	}
 	diags := tfschema.CopyAuthPreferenceV2ToTerraform(ctx, authPreference, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
