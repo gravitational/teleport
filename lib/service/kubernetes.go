@@ -140,7 +140,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 				Resolver:     conn.TunnelProxyResolver(),
 				Client:       conn.Client,
 				AccessPoint:  accessPoint,
-				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
 					Signers: func() ([]ssh.Signer, error) {
 						return conn.ClientSigners(), nil
 					},

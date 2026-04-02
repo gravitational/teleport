@@ -3336,7 +3336,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		// have a certificate for tc.SiteName (like during `tsh login leaf`).
 		localSigners, err := tc.localAgent.Signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
-		// should be passing auth methods via tc.Config.AuthMethods.
+		// should be passing the public key auth config via tc.Config.PublicKeyAuthConfig.
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}

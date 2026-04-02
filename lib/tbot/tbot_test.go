@@ -1188,7 +1188,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
 
-			sshClient, err := apissh.NewClientWithTimeout(ctx, conn, "server01.root:22", sshConfig)
+			sshClient, err := apissh.NewClient(ctx, conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshClient.Close()

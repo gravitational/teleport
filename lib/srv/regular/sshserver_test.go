@@ -1761,7 +1761,7 @@ func testClient(t *testing.T, f *sshTestFixture, proxyAddr, targetAddr, remoteAd
 	defer pipeNetConn.Close()
 
 	// Open SSH connection via TCP
-	conn, chans, reqs, err := apissh.NewClientConnWithTimeout(
+	conn, chans, reqs, err := apissh.NewClientConn(
 		ctx,
 		pipeNetConn,
 		f.ssh.srv.Addr(),
@@ -1894,7 +1894,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},
@@ -1912,7 +1912,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{f.signer}, nil
 			},
@@ -2135,8 +2135,12 @@ func TestUnknownRequest(t *testing.T) {
 func TestNoAuth(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
-
-	_, err := apissh.Dial(t.Context(), "tcp", f.ssh.srv.Addr(), apissh.ClientConfig{})
+	config := &ssh.ClientConfig{ //nolint: forbidigo // Testing no auth methods.
+		User:            f.user,
+		Auth:            []ssh.AuthMethod{},
+		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+	}
+	_, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srv.Addr(), config) //nolint: forbidigo // Testing no auth methods.
 	require.Error(t, err)
 }
 
@@ -2845,7 +2849,7 @@ func TestX11ProxySupport(t *testing.T) {
 	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	// Perform ssh handshake and setup client for X11 test server.
-	cltConn, chs, reqs, err := apissh.NewClientConnWithTimeout(ctx, netConn, node.addr, cltConfig)
+	cltConn, chs, reqs, err := apissh.NewClientConn(ctx, netConn, node.addr, cltConfig)
 	require.NoError(t, err)
 	clt := tracessh.NewClient(cltConn, chs, reqs)
 
@@ -3021,13 +3025,8 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	defer pipeNetConn.Close()
 
-	// Open SSH connection via proxy subsystem's TCP tunnel
-	// conn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, pipeNetConn, f.ssh.srv.Addr(), f.SSHClientConfig())
-	// require.NoError(t, err)
-	// defer conn.Close()
-
 	// Run commands over this connection like regular SSH
-	client2, err := apissh.NewClientWithTimeout(t.Context(), pipeNetConn, f.ssh.srv.Addr(), f.SSHClientConfig())
+	client2, err := apissh.NewClient(t.Context(), pipeNetConn, f.ssh.srv.Addr(), f.SSHClientConfig())
 	require.NoError(t, err)
 	defer client2.Close()
 

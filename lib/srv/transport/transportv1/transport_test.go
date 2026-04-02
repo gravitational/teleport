@@ -660,7 +660,7 @@ func TestService_ProxySSH(t *testing.T) {
 
 	// create a new ssh client connection over a stream conn
 	addr := &utils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
-	client, err := apissh.NewClientWithTimeout(
+	client, err := apissh.NewClient(
 		t.Context(),
 		streamutils.NewConn(sshRW, addr, sshSrv.listener.Addr()),
 		addr.String(),

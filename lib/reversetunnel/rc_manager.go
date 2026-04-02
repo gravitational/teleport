@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -68,8 +68,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
 	AccessPoint authclient.ProxyAccessPoint
-	// PublicKeyAuthConfig contains SSH credentials that this pool connects as.
-	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
+	// PublicKeyAuth contains SSH credentials that this pool connects as.
+	PublicKeyAuth ssh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -99,7 +99,7 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint in RemoteClusterTunnelManagerConfig")
 	}
-	if c.PublicKeyAuthConfig.IsEmpty() {
+	if c.PublicKeyAuth.IsEmpty() {
 		return trace.BadParameter("missing PublicKeyAuthConfig in RemoteClusterTunnelManagerConfig")
 	}
 	if c.HostUUID == "" {
@@ -366,7 +366,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		// Configs for our cluster.
 		Client:              cfg.AuthClient,
 		AccessPoint:         cfg.AccessPoint,
-		PublicKeyAuthConfig: cfg.PublicKeyAuthConfig,
+		PublicKeyAuth:       cfg.PublicKeyAuth,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
 		KubeDialAddr:        cfg.KubeDialAddr,

@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,7 +40,7 @@ type Config struct {
 	// TLS holds credentials for mTLS.
 	TLS *tls.Config
 	// SSH is client SSH config.
-	SSH apissh.ClientConfig
+	SSH ssh.ClientConfig
 	// AuthServers is a list of possible auth or proxy server addresses.
 	AuthServers []utils.NetAddr
 	// Log sets the logger for the client to use.

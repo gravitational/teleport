@@ -78,7 +78,7 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	pool, err := NewAgentPool(context.Background(), AgentPoolConfig{
 		Client:      client,
 		AccessPoint: client,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{mockSigner{}}, nil
 			},

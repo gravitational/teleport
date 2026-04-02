@@ -36,6 +36,12 @@ const (
 	VersionPrefix = "SSH-2.0-Teleport"
 
 	// DefaultClientVersion is the default SSH client identification string used by Teleport SSH clients.
+	//
+	// The Teleport version included in the client version string is intended for informational/debugging purposes only
+	// and should NEVER be relied upon for inferring client capabilities or behavior. The presence of specific features
+	// should be determined by parsing the version string for the expected feature flags. The string is not guaranteed
+	// to be in any specific format, so it should not be parsed as a structured version string (e.g., semantic
+	// versioning). DO NOT USE the Teleport version for any logic other than display or logging.
 	DefaultClientVersion = VersionPrefix + "_" + api.Version
 
 	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
@@ -73,8 +79,6 @@ func (NonTeleportSSHVersionError) Error() string {
 // intentional that features may contain spaces.
 //
 //	Accepted formats are:
-//	 - SSH-2.0-Teleport
-//	 - SSH-2.0-Teleport <feature1,feature2,...>
 //	 - SSH-2.0-Teleport_<teleport_version>
 //	 - SSH-2.0-Teleport_<teleport_version> <feature1,feature2,...>
 func ParseClientVersion(clientVersion string) (string, []string, error) {
@@ -96,25 +100,29 @@ func ParseClientVersion(clientVersion string) (string, []string, error) {
 		)
 	}
 
-	// No version or features provided after the prefix, nothing to parse.
+	// The Teleport client name and the version are separated by an underscore. This is to ensure consistency with
+	// OpenSSH client version strings, which also use an underscore to separate the client name from the version.
+	if !strings.HasPrefix(rest, "_") {
+		return "", nil, trace.BadParameter("SSH client name and version must be separated by an underscore")
+	}
+
+	// Remove the leading underscore.
+	rest = strings.TrimPrefix(rest, "_")
+
+	// Reject an empty version after the required underscore.
 	if rest == "" {
-		return "", nil, nil
+		return "", nil, trace.BadParameter("SSH client version must include a non-empty Teleport version")
 	}
 
 	// Separate the version part from the features part by the first space.
 	versionPart, featuresPart, hasFeatures := strings.Cut(rest, " ")
 
-	// If a version is present, it must be prefixed with an underscore. This is to ensure consistency with OpenSSH
-	// client version strings, which also use an underscore to separate the client name from the version.
-	if versionPart != "" && !strings.HasPrefix(versionPart, "_") {
-		return "", nil, trace.BadParameter("SSH client version must be prefixed with an underscore")
+	if versionPart == "" {
+		return "", nil, trace.BadParameter("SSH client version must include a non-empty Teleport version")
 	}
 
-	// Remove the leading underscore from the version part, if present.
-	versionPart = strings.TrimPrefix(versionPart, "_")
-
 	// If there are no features, return the version.
-	if !hasFeatures {
+	if !hasFeatures || featuresPart == "" {
 		return versionPart, nil, nil
 	}
 
@@ -153,7 +161,11 @@ func (c PublicKeyAuthConfig) authMethod() (ssh.AuthMethod, error) {
 	return ssh.PublicKeysCallback(c.Signers), nil
 }
 
-// ClientConfig configures a Teleport SSH client wrapper around tracessh.
+// ClientConfig defines all client-side parameters required to establish and authenticate an SSH connection with
+// Teleport. The minimal set of required parameters is User, HostKeyCallback, and PublicKeyAuth.Signers. The rest are
+// optional parameters that can be used to customize the SSH connection behavior. The client version string sent during
+// the SSH handshake is determined based on how the fields are set, with the default being DefaultClientVersion if no
+// features are indicated.
 type ClientConfig struct {
 	// Config contains configuration data common to both ServerConfig and ClientConfig.
 	SSHConfig ssh.Config
@@ -184,7 +196,7 @@ type ClientConfig struct {
 	// AuthCallback ssh.ClientAuthCallback
 }
 
-// SSHClientConfig builds a new [ssh.ClientConfig] from the wrapper config.
+// SSHClientConfig builds a new [ssh.ClientConfig] from the client config.
 func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 	switch {
 	case c.User == "":
@@ -218,14 +230,17 @@ func (c ClientConfig) IsEmpty() bool {
 		c.HostKeyCallback == nil
 }
 
-// Dial dials an SSH server using the SSH client config wrapper.
+// Client is a thin wrapper around tracessh.Client.
+type Client = tracessh.Client
+
+// Dial dials an SSH server using the client config.
 func Dial(
 	ctx context.Context,
 	network string,
 	addr string,
 	config ClientConfig,
 	opts ...tracing.Option,
-) (*tracessh.Client, error) {
+) (*Client, error) {
 	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,14 +254,19 @@ func Dial(
 	return client, nil
 }
 
-// NewClientWithTimeout creates a traced SSH client over an existing connection using the SSH client config wrapper.
-func NewClientWithTimeout(
+// NewClient creates a traced SSH client over an existing connection using the client config.
+//
+// Timeout behavior is determined by [ClientConfig.Timeout]:
+//   - If Timeout > 0, the SSH handshake respects the earlier of the context deadline or Timeout.
+//   - If Timeout == 0, the SSH handshake uses Teleport's default I/O timeout.
+//   - If Timeout < 0, the SSH handshake only respects the context deadline or cancellation.
+func NewClient(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,
 	config ClientConfig,
 	opts ...tracing.Option,
-) (*tracessh.Client, error) {
+) (*Client, error) {
 	sshConfig, err := config.sshClientConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -260,9 +280,13 @@ func NewClientWithTimeout(
 	return client, nil
 }
 
-// NewClientConnWithTimeout creates a traced SSH client connection over an existing connection using the SSH client
-// config wrapper.
-func NewClientConnWithTimeout(
+// NewClientConn creates a traced SSH client connection over an existing connection using the client config.
+//
+// Timeout behavior is determined by [ClientConfig.Timeout]:
+//   - If Timeout > 0, the SSH handshake respects the earlier of the context deadline or Timeout.
+//   - If Timeout == 0, the SSH handshake uses Teleport's default I/O timeout.
+//   - If Timeout < 0, the SSH handshake only respects the context deadline or cancellation.
+func NewClientConn(
 	ctx context.Context,
 	conn net.Conn,
 	addr string,

@@ -106,8 +106,8 @@ type AgentPoolConfig struct {
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
 	AccessPoint authclient.AccessCache
-	// PublicKeyAuthConfig contains SSH public key credentials that this pool connects as.
-	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
+	// PublicKeyAuth contains SSH public key credentials that this pool connects as.
+	PublicKeyAuth apissh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -156,7 +156,7 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("missing 'AccessPoint' parameter")
 	}
-	if cfg.PublicKeyAuthConfig.IsEmpty() {
+	if cfg.PublicKeyAuth.IsEmpty() {
 		return trace.BadParameter("missing 'PublicKeyAuthConfig' parameter")
 	}
 	if len(cfg.HostUUID) == 0 {
@@ -482,13 +482,13 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	dialer := &agentDialer{
-		client:              p.AccessPoint,
-		fips:                p.FIPS,
-		publicKeyAuthConfig: p.PublicKeyAuthConfig,
-		options:             options,
-		username:            p.HostUUID,
-		logger:              p.logger,
-		isClaimed:           p.tracker.IsClaimed,
+		client:        p.AccessPoint,
+		fips:          p.FIPS,
+		publicKeyAuth: p.PublicKeyAuth,
+		options:       options,
+		username:      p.HostUUID,
+		logger:        p.logger,
+		isClaimed:     p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{

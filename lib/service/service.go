@@ -545,6 +545,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (apissh.ClientConfig, error
 			},
 		},
 		HostKeyCallback: hostKeyCallback,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -3730,7 +3731,7 @@ func (process *TeleportProcess) initSSH() error {
 					Resolver:     conn.TunnelProxyResolver(),
 					Client:       conn.Client,
 					AccessPoint:  authClient,
-					PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					PublicKeyAuth: apissh.PublicKeyAuthConfig{
 						Signers: func() ([]ssh.Signer, error) {
 							return conn.ClientSigners(), nil
 						},
@@ -5890,7 +5891,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		HostUUID:     conn.HostID(),
 		AuthClient:   conn.Client,
 		AccessPoint:  accessPoint,
-		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return conn.ClientSigners(), nil
 			},
@@ -6917,7 +6918,7 @@ func (process *TeleportProcess) initApps() {
 				Client:       conn.Client,
 				Server:       appServer,
 				AccessPoint:  accessPoint,
-				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
 					Signers: func() ([]ssh.Signer, error) {
 						return conn.ClientSigners(), nil
 					},

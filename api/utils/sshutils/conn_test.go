@@ -74,7 +74,7 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	conn, err := net.Dial("tcp", s.listener.Addr().String())
 	require.NoError(t, err)
 
-	sconn, nc, r, err := apissh.NewClientConnWithTimeout(t.Context(), conn, "", apissh.ClientConfig{
+	sconn, nc, r, err := apissh.NewClientConn(t.Context(), conn, "", apissh.ClientConfig{
 		User: "alice",
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {

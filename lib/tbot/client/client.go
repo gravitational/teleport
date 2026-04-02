@@ -69,7 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/metadata"
-	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
@@ -80,7 +80,7 @@ type Identity interface {
 	TLSConfig() (*tls.Config, error)
 
 	// SSHClientConfig returns the bot's SSH client configuration.
-	SSHClientConfig() (apissh.ClientConfig, error)
+	SSHClientConfig() (ssh.ClientConfig, error)
 }
 
 // Config contains options used to create the API client.

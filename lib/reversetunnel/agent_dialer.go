@@ -52,13 +52,13 @@ func isProxyAlreadyClaimed(err error) bool {
 
 // agentDialer dials an ssh server on behalf of an agent.
 type agentDialer struct {
-	client              authclient.AccessCache
-	username            string
-	publicKeyAuthConfig apissh.PublicKeyAuthConfig
-	fips                bool
-	options             []proxy.DialerOptionFunc
-	logger              *slog.Logger
-	isClaimed           func(principals ...string) bool
+	client        authclient.AccessCache
+	username      string
+	publicKeyAuth apissh.PublicKeyAuthConfig
+	fips          bool
+	options       []proxy.DialerOptionFunc
+	logger        *slog.Logger
+	isClaimed     func(principals ...string) bool
 }
 
 // DialContext creates an ssh connection to the given address.
@@ -99,9 +99,9 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 
 	// Build a new client connection. This is done to get access to incoming
 	// global requests which dialer.Dial would not provide.
-	conn, chans, reqs, err := apissh.NewClientConnWithTimeout(ctx, pconn, addr.Addr, apissh.ClientConfig{
+	conn, chans, reqs, err := apissh.NewClientConn(ctx, pconn, addr.Addr, apissh.ClientConfig{
 		User:            d.username,
-		PublicKeyAuth:   d.publicKeyAuthConfig,
+		PublicKeyAuth:   d.publicKeyAuth,
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	})

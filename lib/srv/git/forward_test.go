@@ -249,7 +249,7 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := apissh.NewClientConnWithTimeout(
+			conn, chCh, reqCh, err := apissh.NewClientConn(
 				t.Context(),
 				clientDialConn,
 				"127.0.0.1:222",
