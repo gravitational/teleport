@@ -280,27 +280,6 @@ type CLIConf struct {
 	BeamTCP bool
 	// BeamCopySpec stores `tsh beams cp` source and destination paths.
 	BeamCopySpec []string
-	// BeamRemotePath is the remote filesystem path used by `tsh beams mount`.
-	BeamRemotePath string
-	// BeamMountPoint is the local mount point used by `tsh beams mount`.
-	BeamMountPoint string
-	// BeamMountDebug enables sshfs debug output for `tsh beams mount`.
-	BeamMountDebug bool
-	// BeamMountCleanup triggers the hidden watcher subprocess mode for
-	// `tsh beams mount --cleanup`.
-	BeamMountCleanup bool
-	// BeamMountCleanupMountPoint is the mount point to watch (watcher mode).
-	BeamMountCleanupMountPoint string
-	// BeamMountCleanupPID is the sshfs PID to monitor (watcher mode).
-	BeamMountCleanupPID string
-	// BeamMountCleanupStateFile is the path to the state file (watcher mode).
-	BeamMountCleanupStateFile string
-	// BeamUmountForce enables force unmount for `tsh beams umount`.
-	BeamUmountForce bool
-	// BeamUmountMode controls target resolution for `tsh beams umount`.
-	BeamUmountMode string
-	// BeamUmountAll unmounts all tracked mounts for the current cluster.
-	BeamUmountAll bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -1097,20 +1076,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsSCP.Arg("src, dest", "Source and destination to copy; at least one must use the form BEAM_ID_OR_ALIAS:PATH.").Required().StringsVar(&cf.BeamCopySpec)
 	beamsSCP.Flag("recursive", "Recursive copy of subdirectories.").Short('r').BoolVar(&cf.RecursiveCopy)
 	beamsSCP.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
-	beamsMount := beams.Command("mount", "Mount a beam filesystem locally via SSHFS.")
-	beamsMount.Arg("beam-id", "ID or Alias of the beam to mount.").Required().StringVar(&cf.BeamID)
-	beamsMount.Arg("mount-point", "Local directory to mount the beam at (default: ~/beams/<beam>).").StringVar(&cf.BeamMountPoint)
-	beamsMount.Arg("remote-path", "Remote path to mount.").Default("/home/beams").StringVar(&cf.BeamRemotePath)
-	beamsMount.Flag("sshfs-debug", "Enable sshfs debug output (implies foreground).").BoolVar(&cf.BeamMountDebug)
-	beamsMount.Flag("cleanup", "").Hidden().BoolVar(&cf.BeamMountCleanup)
-	beamsMount.Flag("cleanup-mount-point", "").Hidden().StringVar(&cf.BeamMountCleanupMountPoint)
-	beamsMount.Flag("cleanup-pid", "").Hidden().StringVar(&cf.BeamMountCleanupPID)
-	beamsMount.Flag("cleanup-state-file", "").Hidden().StringVar(&cf.BeamMountCleanupStateFile)
-	beamsUmount := beams.Command("umount", "Unmount a beam filesystem.").Alias("unmount")
-	beamsUmount.Arg("target", "Mount point path or beam ID/alias to unmount.").StringVar(&cf.BeamID)
-	beamsUmount.Flag("force", "Force unmount even if the mount is busy.").BoolVar(&cf.BeamUmountForce)
-	beamsUmount.Flag("mode", "Target resolution: auto (default), path, or beam.").Default("auto").EnumVar(&cf.BeamUmountMode, "auto", "path", "beam")
-	beamsUmount.Flag("all", "Unmount all tracked mounts for the current cluster.").BoolVar(&cf.BeamUmountAll)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -1882,10 +1847,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onBeamsPublish(&cf)
 	case beamsSCP.FullCommand():
 		err = onBeamsSCP(&cf)
-	case beamsMount.FullCommand():
-		err = onBeamsMount(&cf)
-	case beamsUmount.FullCommand():
-		err = onBeamsUmount(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
 	case exportRecordings.FullCommand():

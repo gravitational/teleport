@@ -22,8 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -40,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/beamsmount"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -189,22 +186,6 @@ func onBeamsList(cf *CLIConf) error {
 		return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
 	})
 
-	// Load local mount state for this cluster.
-	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
-	mountsByBeam := make(map[string][]beamsmount.MountEntry)
-	if err := beamsmount.WithStateLock(stateFile, func(state *beamsmount.MountState) error {
-		for _, w := range beamsmount.PruneStale(state) {
-			fmt.Fprintln(os.Stderr, "WARNING:", w)
-		}
-		for _, m := range state.Mounts {
-			mountsByBeam[m.BeamID] = append(mountsByBeam[m.BeamID], m)
-		}
-		return nil
-	}); err != nil {
-		// Non-fatal: list beams even if mount state can't be read.
-		logger.DebugContext(cf.Context, "Failed to load mount state", "error", err)
-	}
-
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.JSON:
@@ -212,7 +193,7 @@ func onBeamsList(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeams(beams, mountsByBeam, proxyAddr)); err != nil {
+		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeams(beams, proxyAddr)); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
@@ -220,22 +201,21 @@ func onBeamsList(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := common.PrintYAML(cf.Stdout(), serializeBeams(beams, mountsByBeam, proxyAddr)); err != nil {
+		if err := common.PrintYAML(cf.Stdout(), serializeBeams(beams, proxyAddr)); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
-		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost(), mountsByBeam))
+		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost()))
 	}
 	return nil
 }
 
 type serializedBeam struct {
-	ID             string                  `json:"id"`
-	Alias          string                  `json:"alias"`
-	Owner          string                  `json:"owner"`
-	Expires        time.Time               `json:"expires"`
-	PublishAddress string                  `json:"publish_address,omitempty"`
-	LocalMounts    []beamsmount.MountEntry `json:"local_mounts,omitempty"`
+	ID             string    `json:"id"`
+	Alias          string    `json:"alias"`
+	Owner          string    `json:"owner"`
+	Expires        time.Time `json:"expires"`
+	PublishAddress string    `json:"publish_address,omitempty"`
 }
 
 func serializeBeam(beam *beamsv1.Beam) serializedBeam {
@@ -249,16 +229,12 @@ func serializeBeam(beam *beamsv1.Beam) serializedBeam {
 
 func serializeBeams(
 	beams []*beamsv1.Beam,
-	mountsByBeam map[string][]beamsmount.MountEntry,
 	proxyAddr string,
 ) []serializedBeam {
 	return sliceutils.Map(beams, func(beam *beamsv1.Beam) serializedBeam {
 		e := serializeBeam(beam)
 		if appName := beam.GetStatus().GetAppName(); appName != "" {
 			e.PublishAddress = utils.DefaultAppPublicAddr(appName, proxyAddr)
-		}
-		if mounts := mountsByBeam[beam.GetMetadata().GetName()]; len(mounts) != 0 {
-			e.LocalMounts = mounts
 		}
 		return e
 	})
@@ -274,19 +250,6 @@ func onBeamsDelete(cf *CLIConf) error {
 	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Unmount any active mounts for this beam before deleting.
-	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
-	if err := beamsmount.UmountTarget(beamsmount.UmountOptions{
-		Target:    beamID,
-		Mode:      beamsmount.UmountModeBeam,
-		Force:     true,
-		StateFile: stateFile,
-		Stdout:    cf.Stdout(),
-		Stderr:    os.Stderr,
-	}); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "unmounting beam before delete")
 	}
 
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -586,20 +549,14 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 	return trace.Wrap(lastErr)
 }
 
-func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string, mountsByBeam map[string][]beamsmount.MountEntry) string {
-	table := asciitable.MakeTable([]string{"Alias", "ID", "Expires", "Mount"})
+func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string) string {
+	table := asciitable.MakeTable([]string{"Alias", "ID", "Expires"})
 	for _, beam := range beams {
 		beamID := beam.GetMetadata().GetName()
-		mounts := mountsByBeam[beamID]
-		mountPaths := make([]string, 0, len(mounts))
-		for _, m := range mounts {
-			mountPaths = append(mountPaths, m.MountPoint)
-		}
 		table.AddRow([]string{
 			beam.GetStatus().GetAlias(),
 			beamID,
 			beamExpiry(beam),
-			strings.Join(mountPaths, ", "),
 		})
 	}
 	return table.AsBuffer().String()
@@ -646,107 +603,6 @@ func startBeamSpinner(w io.Writer, msg string) func(finalLine string) {
 		done <- finalLine
 		<-stopped
 	}
-}
-
-func onBeamsMount(cf *CLIConf) error {
-	if cf.BeamMountCleanup {
-		return onBeamsMountCleanup(cf)
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc.AllowHeadless = true
-
-	beam, err := getBeam(cf.Context, tc, cf.BeamID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	nodeID := beam.GetStatus().GetNodeId()
-	if nodeID == "" {
-		return trace.NotFound("beam %q has no node", cf.BeamID)
-	}
-
-	tshPath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err, "could not determine tsh path")
-	}
-	if tshPath, err = filepath.Abs(tshPath); err != nil {
-		return trace.Wrap(err)
-	}
-
-	mountPoint := cf.BeamMountPoint
-	if mountPoint == "" {
-		beamRef := beam.GetStatus().GetAlias()
-		if beamRef == "" {
-			beamRef = beam.GetMetadata().GetName()
-		}
-		mountPoint, err = beamsmount.DefaultMountPoint(beamRef)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return trace.Wrap(beamsmount.Mount(beamsmount.MountOptions{
-		BeamID:     beam.GetMetadata().GetName(),
-		BeamAlias:  beam.GetStatus().GetAlias(),
-		NodeID:     nodeID,
-		MountPoint: mountPoint,
-		RemotePath: cf.BeamRemotePath,
-		TshPath:    tshPath,
-		Debug:      cf.Debug,
-		SshfsDebug: cf.BeamMountDebug,
-		NodeLogin:  cf.NodeLogin,
-		StateFile:  beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost()),
-		ProxyHost:  tc.WebProxyHost(),
-		Stdout:     cf.Stdout(),
-		Stderr:     os.Stderr,
-	}))
-}
-
-func onBeamsMountCleanup(cf *CLIConf) error {
-	pid, err := beamsmount.ParseWatcherPID(cf.BeamMountCleanupPID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(beamsmount.RunWatcher(
-		cf.BeamMountCleanupMountPoint,
-		pid,
-		cf.BeamMountCleanupStateFile,
-	))
-}
-
-func onBeamsUmount(cf *CLIConf) error {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tc.AllowHeadless = true
-	stateFile := beamsmount.StateFilePath(cf.HomePath, tc.WebProxyHost())
-
-	opts := beamsmount.UmountOptions{
-		Target:    cf.BeamID,
-		Force:     cf.BeamUmountForce,
-		Mode:      beamsmount.UmountMode(cf.BeamUmountMode),
-		All:       cf.BeamUmountAll,
-		StateFile: stateFile,
-		Stdout:    cf.Stdout(),
-		Stderr:    os.Stderr,
-	}
-
-	if opts.All {
-		return trace.Wrap(beamsmount.UmountAll(opts))
-	}
-
-	if opts.Target == "" {
-		return trace.BadParameter("target mount point or beam ID is required (or use --all)")
-	}
-
-	return trace.Wrap(beamsmount.UmountTarget(opts))
 }
 
 func beamNodeTarget(nodeID string) *client.TargetNode {
