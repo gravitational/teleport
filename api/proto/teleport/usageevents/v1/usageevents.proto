@@ -607,57 +607,57 @@ enum AccessListPreset {
   ACCESS_LIST_PRESET_LONG_TERM = 2;
 }
 
-// AccessListStepStatus contains fields that track a particular step outcome.
+// AccessListStepStatus tracks a particular step outcome.
 message AccessListStepStatus {
   // Indicates the step outcome.
   AccessListStatus status = 1;
-  // Contains error details in case of Error Status.
+  // Contains error details in case of the error status (ACCESS_LIST_STATUS_ERROR).
   string error = 2;
 }
 
-// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// UIAccessListDefineAccessEvent is emitted when the user finishes the step
 // that defines access to resources.
 message UIAccessListDefineAccessEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
-// step that defines resource identities/principals.
+// UIAccessListDefineIdentitiesEvent is emitted when the user finishes the step
+// that defines resource identities/principals.
 message UIAccessListDefineIdentitiesEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListDefineBasicInfoEvent is emitted when user is finished with the step
+// UIAccessListDefineBasicInfoEvent is emitted when the user finishes the step
 // that defines basic info of an access list (title, desc, etc).
 message UIAccessListDefineBasicInfoEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// UIAccessListDefineMembersEvent is emitted when the user finishes the
 // step that defines access list members.
 message UIAccessListDefineMembersEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// UIAccessListDefineOwnersEvent is emitted when the user finishes the
 // step that defines access list owners.
 message UIAccessListDefineOwnersEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListStartEvent is emitted when user is at the guide selection page
+// UIAccessListStartEvent is emitted when the user is at the guide selection page
 // or when directed straight to the first step.
 message UIAccessListStartEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
 }
 
-// UIAccessListCustomEvent is emitted when user completes non wizard
+// UIAccessListCustomEvent is emitted when the user completes non wizard
 // flow (old way of creating access list).
 message UIAccessListCustomEvent {
   AccessListMetadata metadata = 1;
@@ -669,8 +669,8 @@ message UIAccessListCustomEvent {
 message UIAccessListCompleteEvent {
   AccessListMetadata metadata = 1;
   AccessListStepStatus status = 2;
-  // True if the user completed wizard by choosing terraform script over
-  // creating access list via web UI.
+  // True if the user completed the wizard by choosing the Terraform script over
+  // creating an access list in the web UI.
   bool preferred_terraform = 3;
 }
 
@@ -785,14 +785,14 @@ enum IntegrationEnrollStep {
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
 enum IntegrationEnrollStatusCode {
   INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
-  // The user tried to complete the action and it succeeded.
+  // The user completed the action successfully.
   INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
   // The user or system skipped the step.
   // For example:
   // When setting up an AWS IAM Identity Center integration, we allow reusing
   // OIDC integrationn if it was previously created for the Identity Center.
   INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
-  // The user tried to complete the action and it failed.
+  //  The user failed to complete the action.
   INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
   // The user did not complete the action and left the wizard.
   INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;

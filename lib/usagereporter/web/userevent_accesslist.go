@@ -24,30 +24,27 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
-// AccessListEventData contains the required properties to create a AccessList UsageEvent.
+// AccessListEventData contains the required properties to create an AccessList UsageEvent.
 type AccessListEventData struct {
-	// ID is a unique ID per wizard session
+	// ID is unique per wizard session.
 	ID string `json:"id,omitempty"`
 
-	// Resource is the resource type that the user selected.
-	// Its possible values are the usageevents.DiscoverResource proto enum values.
+	// Preset is the preset type that the user selected.
 	// Example: "PRESET_LONG_TERM"
 	Preset string `json:"preset,omitempty"`
 
-	// PreferredTerraform is true if user preferred using terraforms script
+	// PreferredTerraform is true if user preferred using the Terraform script
 	// over creating an access list via the web UI.
 	PreferredTerraform bool `json:"preferredTerraform,omitempty"`
 
-	// Resource is the resource type that the user selected.
-	// Its possible values are the usageevents.DiscoverResource proto enum values.
+	// Integrate is the integration type the user wants to integrate with
 	// Example: "INTEGRATE_OKTA"
 	Integrate string `json:"integrate,omitempty"`
 
 	// StepStatus is the Wizard step status result.
-	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
-	// Example: "DISCOVER_STATUS_SUCCESS"
+	// Example: "ACCESS_LIST_STATUS_SUCCESS"
 	StepStatus string `json:"stepStatus,omitempty"`
-	// StepStatusError is the error of the Step, when the StepStatus is `DISCOVER_STATUS_ERROR`.
+	// StepStatusError is the error of the step, when the StepStatus is `ACCESS_LIST_STATUS_ERROR`.
 	StepStatusError string `json:"stepStatusError,omitempty"`
 }
 

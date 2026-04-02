@@ -581,14 +581,14 @@ type IntegrationEnrollStatusCode int32
 
 const (
 	IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED IntegrationEnrollStatusCode = 0
-	// The user tried to complete the action and it succeeded.
+	// The user completed the action successfully.
 	IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SUCCESS IntegrationEnrollStatusCode = 1
 	// The user or system skipped the step.
 	// For example:
 	// When setting up an AWS IAM Identity Center integration, we allow reusing
 	// OIDC integrationn if it was previously created for the Identity Center.
 	IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_SKIPPED IntegrationEnrollStatusCode = 2
-	// The user tried to complete the action and it failed.
+	//  The user failed to complete the action.
 	IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ERROR IntegrationEnrollStatusCode = 3
 	// The user did not complete the action and left the wizard.
 	IntegrationEnrollStatusCode_INTEGRATION_ENROLL_STATUS_CODE_ABORTED IntegrationEnrollStatusCode = 4
@@ -4199,11 +4199,11 @@ func (m *AccessListReviewDelete) GetAccessListReviewId() string {
 	return ""
 }
 
-// AccessListStepStatus contains fields that track a particular step outcome.
+// AccessListStepStatus tracks a particular step outcome.
 type AccessListStepStatus struct {
 	// Indicates the step outcome.
 	Status AccessListStatus `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.usageevents.v1.AccessListStatus" json:"status,omitempty"`
-	// Contains error details in case of Error Status.
+	// Contains error details in case of the error status (ACCESS_LIST_STATUS_ERROR).
 	Error                string   `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -4257,7 +4257,7 @@ func (m *AccessListStepStatus) GetError() string {
 	return ""
 }
 
-// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// UIAccessListDefineAccessEvent is emitted when the user finishes the step
 // that defines access to resources.
 type UIAccessListDefineAccessEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4314,8 +4314,8 @@ func (m *UIAccessListDefineAccessEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
-// step that defines resource identities/principals.
+// UIAccessListDefineIdentitiesEvent is emitted when the user finishes the step
+// that defines resource identities/principals.
 type UIAccessListDefineIdentitiesEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Status               *AccessListStepStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
@@ -4371,7 +4371,7 @@ func (m *UIAccessListDefineIdentitiesEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListDefineBasicInfoEvent is emitted when user is finished with the step
+// UIAccessListDefineBasicInfoEvent is emitted when the user finishes the step
 // that defines basic info of an access list (title, desc, etc).
 type UIAccessListDefineBasicInfoEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4428,7 +4428,7 @@ func (m *UIAccessListDefineBasicInfoEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// UIAccessListDefineMembersEvent is emitted when the user finishes the
 // step that defines access list members.
 type UIAccessListDefineMembersEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4485,7 +4485,7 @@ func (m *UIAccessListDefineMembersEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// UIAccessListDefineOwnersEvent is emitted when the user finishes the
 // step that defines access list owners.
 type UIAccessListDefineOwnersEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4542,7 +4542,7 @@ func (m *UIAccessListDefineOwnersEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListStartEvent is emitted when user is at the guide selection page
+// UIAccessListStartEvent is emitted when the user is at the guide selection page
 // or when directed straight to the first step.
 type UIAccessListStartEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4599,7 +4599,7 @@ func (m *UIAccessListStartEvent) GetStatus() *AccessListStepStatus {
 	return nil
 }
 
-// UIAccessListCustomEvent is emitted when user completes non wizard
+// UIAccessListCustomEvent is emitted when the user completes non wizard
 // flow (old way of creating access list).
 type UIAccessListCustomEvent struct {
 	Metadata             *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -4661,8 +4661,8 @@ func (m *UIAccessListCustomEvent) GetStatus() *AccessListStepStatus {
 type UIAccessListCompleteEvent struct {
 	Metadata *AccessListMetadata   `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Status   *AccessListStepStatus `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
-	// True if the user completed wizard by choosing terraform script over
-	// creating access list via web UI.
+	// True if the user completed the wizard by choosing the Terraform script over
+	// creating an access list in the web UI.
 	PreferredTerraform   bool     `protobuf:"varint,3,opt,name=preferred_terraform,json=preferredTerraform,proto3" json:"preferred_terraform,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
