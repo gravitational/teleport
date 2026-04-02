@@ -36,6 +36,10 @@ export function DialogConfirmation(props: {
     reason: 'escapeKeyDown' | 'backdropClick'
   ) => void;
   dialogCss?: StyleFunction<ComponentProps<'div'>>;
+  /**
+   * If `true`, focus is trapped inside the dialog.
+   */
+  trapFocus?: boolean;
 }) {
   return (
     <Dialog
@@ -44,6 +48,7 @@ export function DialogConfirmation(props: {
       onClose={props.onClose}
       open={props.open}
       keepInDOMAfterClose={props.keepInDOMAfterClose}
+      trapFocus={props.trapFocus}
     >
       {props.children}
     </Dialog>
