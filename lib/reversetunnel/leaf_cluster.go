@@ -314,6 +314,7 @@ func (s *leafCluster) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error
 		proxyName:        s.connInfo.GetProxyName(),
 		clusterName:      s.domainName,
 		offlineThreshold: s.offlineThreshold,
+		discoSub:         s.srv.discoPub.Subscribe(),
 	})
 
 	s.connections = append(s.connections, rconn)
@@ -398,17 +399,6 @@ func (s *leafCluster) deleteConnectionRecord() {
 	}
 }
 
-// fanOutProxies is a non-blocking call that puts the new proxies
-// list so that remote connection can notify the remote agent
-// about the list update
-func (s *leafCluster) fanOutProxies(proxies []types.Server) {
-	s.Lock()
-	defer s.Unlock()
-	for _, conn := range s.connections {
-		conn.updateProxies(proxies)
-	}
-}
-
 // handleHeartbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
@@ -427,7 +417,6 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 		}()
 	}
 
-	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
 		proxyResyncTicker.Stop()
@@ -451,21 +440,16 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-			}
-			req.SetProxies(proxies)
+			req.Proxies = conn.discoSub.GetAll()
 
 			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				conn.markInvalid(err)
 				return
 			}
-		case proxies := <-conn.newProxiesC:
+		case <-conn.discoSub.Wait():
 			var req discoveryRequest
-			req.SetProxies(proxies)
-
+			req.Proxies = conn.discoSub.Get()
 			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				conn.markInvalid(err)
@@ -480,18 +464,6 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 					s.deleteConnectionRecord()
 				}
 				return
-			}
-			if firstHeartbeat {
-				// as soon as the agent connects and sends a first heartbeat
-				// send it the list of current proxies back
-				proxies, err := s.srv.proxyWatcher.CurrentResources(ctx)
-				if err != nil {
-					logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-				}
-				if len(proxies) > 0 {
-					conn.updateProxies(proxies)
-				}
-				firstHeartbeat = false
 			}
 			var timeSent time.Time
 			var roundtrip time.Duration

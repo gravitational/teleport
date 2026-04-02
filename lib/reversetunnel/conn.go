@@ -64,8 +64,8 @@ type remoteConn struct {
 	// discoveryCh is the SSH channel over which discovery requests are sent.
 	discoveryCh ssh.Channel
 
-	// newProxiesC is a list used to nofity about new proxies
-	newProxiesC chan []types.Server
+	// discoSub receives proxy updates.
+	discoSub *discoSub
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -112,14 +112,17 @@ type connConfig struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	// discoSub receives proxy discovery events.
+	discoSub *discoSub
 }
 
 func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
-		logger:      slog.With(teleport.ComponentKey, "discovery"),
-		connConfig:  cfg,
-		clock:       clockwork.NewRealClock(),
-		newProxiesC: make(chan []types.Server, 100),
+		logger:     slog.With(teleport.ComponentKey, "discovery"),
+		connConfig: cfg,
+		clock:      clockwork.NewRealClock(),
+		discoSub:   cfg.discoSub,
 	}
 
 	return c
@@ -142,6 +145,7 @@ func (c *remoteConn) Close() error {
 		c.discoveryCh = nil
 	}
 
+	c.discoSub.Close()
 	// Close the SSH connection which will close the underlying net.Conn as well.
 	err := c.sconn.Close()
 	if err != nil {
@@ -254,19 +258,6 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 	go ssh.DiscardRequests(reqC)
 	c.discoveryCh = discoveryCh
 	return c.discoveryCh, nil
-}
-
-// updateProxies is a non-blocking call that puts the new proxies
-// list so that remote connection can notify the remote agent
-// about the list update
-func (c *remoteConn) updateProxies(proxies []types.Server) {
-	select {
-	case c.newProxiesC <- proxies:
-	default:
-		// Missing proxies update is no longer critical with more permissive
-		// discovery protocol that tolerates conflicting, stale or missing updates
-		c.logger.WarnContext(context.Background(), "Discovery channel overflow", "new_proxy_count", len(c.newProxiesC))
-	}
 }
 
 func (c *remoteConn) adviseReconnect() error {

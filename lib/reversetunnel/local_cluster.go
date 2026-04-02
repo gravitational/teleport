@@ -752,6 +752,7 @@ func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, 
 		nodeID:           nodeID,
 		scope:            scope,
 		offlineThreshold: s.offlineThreshold,
+		discoSub:         s.srv.discoPub.Subscribe(),
 	})
 	key := connKey{
 		uuid:     nodeID,
@@ -761,20 +762,6 @@ func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, 
 	s.remoteConns[key] = append(s.remoteConns[key], rconn)
 
 	return rconn, nil
-}
-
-// fanOutProxies is a non-blocking call that puts the new proxies
-// list so that remote connection can notify the remote agent
-// about the list update
-func (s *localCluster) fanOutProxies(proxies []types.Server) {
-	s.remoteConnsMtx.Lock()
-	defer s.remoteConnsMtx.Unlock()
-
-	for _, conns := range s.remoteConns {
-		for _, conn := range conns {
-			conn.updateProxies(proxies)
-		}
-	}
 }
 
 // handleHeartbeat receives heartbeat messages from the connected agent
@@ -795,8 +782,8 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 		"addr", logutils.StringerAttr(rconn.conn.RemoteAddr()),
 	)
 
-	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
+	reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
 	defer func() {
 		proxyResyncTicker.Stop()
 		logger.WarnContext(ctx, "Closing remote connection to agent")
@@ -804,9 +791,7 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 		if err := rconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			logger.WarnContext(ctx, "Failed to close remote connection", "error", err)
 		}
-		if !firstHeartbeat {
-			reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Dec()
-		}
+		reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Dec()
 	}()
 
 	offlineThresholdTimer := s.clock.NewTimer(s.offlineThreshold)
@@ -818,21 +803,21 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			proxies, err := s.srv.proxyWatcher.CurrentResources(ctx)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
+			req.Proxies = rconn.discoSub.GetAll()
+			if len(req.Proxies) == 0 {
+				continue
 			}
-			req.SetProxies(proxies)
-
 			if err := rconn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				rconn.markInvalid(err)
 				return
 			}
-		case proxies := <-rconn.newProxiesC:
+		case <-rconn.discoSub.Wait():
 			var req discoveryRequest
-			req.SetProxies(proxies)
-
+			req.Proxies = rconn.discoSub.Get()
+			if len(req.Proxies) == 0 {
+				continue
+			}
 			if err := rconn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Failed to send discovery request to agent", "error", err)
 				rconn.markInvalid(err)
@@ -843,19 +828,6 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 				logger.DebugContext(ctx, "Agent disconnected")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
-			}
-			if firstHeartbeat {
-				// as soon as the agent connects and sends a first heartbeat
-				// send it the list of current proxies back
-				proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
-				if err != nil {
-					logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-				}
-				if len(proxies) > 0 {
-					rconn.updateProxies(proxies)
-				}
-				reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
-				firstHeartbeat = false
 			}
 			var timeSent time.Time
 			var roundtrip time.Duration
