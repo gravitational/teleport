@@ -20,7 +20,7 @@ import { useEffect } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonPrimary, Flex, H2, Text } from 'design';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -64,6 +64,11 @@ export default function DocumentCluster(props: {
     )
   );
 
+  const refreshRootCluster = () =>
+    appCtx.commandLauncher.executeCommand('cluster-connect', {
+      clusterUri: routing.ensureRootClusterUri(clusterUri),
+    });
+
   return (
     <Document visible={props.visible}>
       <ClusterState
@@ -72,6 +77,7 @@ export default function DocumentCluster(props: {
         rootCluster={rootCluster}
         cluster={cluster}
         syncCluster={syncCluster}
+        refreshRootCluster={refreshRootCluster}
         clusterSyncAttempt={clusterSyncAttempt}
         queryParams={props.doc.queryParams}
         docUri={props.doc.uri}
@@ -86,16 +92,33 @@ function ClusterState(props: {
   rootCluster: Cluster;
   cluster: Cluster | undefined;
   syncCluster(): void;
+  refreshRootCluster(): void;
   clusterSyncAttempt: Attempt<void>;
   queryParams: DocumentClusterQueryParams;
   docUri: uri.DocumentUri;
 }) {
   if (!props.rootCluster.connected) {
     return (
-      <RequiresLogin
+      <PrintState
         clusterName={props.clusterName}
-        syncCluster={props.syncCluster}
-        clusterSyncAttempt={props.clusterSyncAttempt}
+        clusterState="Cluster is offline."
+        action={{
+          attempt: makeEmptyAttempt(),
+          label: 'Connect',
+          // props.syncCluster should not be used here, as it shows a relogin modal only when the
+          // GetCluster RPC returns an error resolvable with relogin.
+          // The cached cluster client might continue to be able to reach the cluster even after
+          // props.rootCluster.connected returns false. This is the case when
+          // disconnect_expired_cert is set to false (the default).
+          //
+          // So the two might disagree because `props.rootCluster.connected` is set from the
+          // ListRootClusters RPC which reads data from disk and clearly sees that the cert has
+          // expired, whereas the GetCluster RPC gets the cluster info by connecting to the cluster
+          // itself.
+          //
+          // Instead, always explicitly show the cluster login modal on click.
+          run: props.refreshRootCluster,
+        }}
       />
     );
   }
@@ -108,6 +131,8 @@ function ClusterState(props: {
     return (
       <LeafDisconnected
         clusterName={props.clusterName}
+        // Syncing the root cluster is going to refresh the list of leaf clusters, possibly updating
+        // props.cluster.connected.
         syncCluster={props.syncCluster}
         clusterSyncAttempt={props.clusterSyncAttempt}
       />
@@ -122,24 +147,6 @@ function ClusterState(props: {
         queryParams={props.queryParams}
       />
     </Layout>
-  );
-}
-
-function RequiresLogin(props: {
-  clusterName: string;
-  syncCluster(): void;
-  clusterSyncAttempt: Attempt<void>;
-}) {
-  return (
-    <PrintState
-      clusterName={props.clusterName}
-      clusterState="Cluster is offline."
-      action={{
-        attempt: props.clusterSyncAttempt,
-        label: 'Connect',
-        run: props.syncCluster,
-      }}
-    />
   );
 }
 
