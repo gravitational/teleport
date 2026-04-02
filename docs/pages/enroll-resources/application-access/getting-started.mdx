@@ -231,6 +231,8 @@ Teleport Web UI.
 
 There are a couple of ways to access the proxied application.
 
+### Using a browser
+
 Sign in to the Teleport Web UI using your Teleport cluster address. 
 All available applications are displayed on the Applications tab. 
 Click **Launch** on the Grafana application tile to access it.
@@ -238,6 +240,30 @@ Click **Launch** on the Grafana application tile to access it.
 Alternatively, you can call the application directly with its name as the subdomain, for example, 
 `https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`. 
 You are prompted to sign in if you haven't already been authenticated.
+
+### Using noninteractive HTTP clients
+
+You can access Teleport-protected web applications using command-line tools and
+scripts. To do so, retrieve a short-lived X.509 certificate for the application.
+Teleport uses this certificate to authenticate requests. Run the following
+command:
+
+```code
+$ tsh apps login grafana
+```
+
+The output shows an example `curl` command you can run to call the target
+application's API, similar to the example below. The `curl` command shows the
+file paths of your certificate and private key. These contain the Proxy Service
+URL, your Teleport username, and cluster URL (which happen to be the same
+below):
+
+```text
+curl \
+  --cert ~/.tsh/keys/teleport.example.com/alice-app/teleport.example.com/grafana.crt \
+  --key ~/.tsh/keys/teleport.example.com/alice-app/teleport.example.com/grafana.key \
+  https://grafana.teleport.example.com
+```
 
 ## Next steps
 
