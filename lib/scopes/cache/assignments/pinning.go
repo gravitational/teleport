@@ -184,7 +184,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 	// nb: This restriction may be relaxed w/ introduction of cross-scope privilege.
 	// TODO(strideynet): For forrest, is there a more appropriate helper to use here?
 	rel := scopes.Compare(botScope, pin.GetScope())
-	if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
+	if rel != scopes.Equivalent && rel != scopes.Descendant {
 		return trace.BadParameter(
 			"pinned scope %q is not subject to bot scope %q in assignment population request for bot %q",
 			pin.GetScope(), botScope, botName,
@@ -233,7 +233,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 				// per the RFD.
 				// nb: we may eventually loosen up this restriction.
 				rel := scopes.Compare(botScope, scopeOfEffect)
-				if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
+				if rel != scopes.Equivalent && rel != scopes.Descendant {
 					continue
 				}
 

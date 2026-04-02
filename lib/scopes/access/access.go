@@ -441,7 +441,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			botScope := assignment.GetSpec().GetBotScope()
 			assignmentScope := subAssignment.GetScope()
 			rel := scopes.Compare(botScope, assignmentScope)
-			if !(rel == scopes.Equivalent || rel == scopes.Descendant) {
+			if rel != scopes.Equivalent && rel != scopes.Descendant {
 				return trace.BadParameter(
 					"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
 					assignment.GetMetadata().GetName(),

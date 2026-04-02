@@ -377,7 +377,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		// Very "normal" assignment. Scope of SRA matches Bot scope, and
 		// assigned scope is same.
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-01",
@@ -397,7 +397,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		},
 		// Assignment to child-scope of main scope
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-02",
@@ -417,7 +417,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		},
 		// SRA in parent scope, assigning to bot scope.
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-03",
@@ -437,7 +437,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		},
 		// SRA in parent scope, assigning to bot's child scope
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-04",
@@ -457,7 +457,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		},
 		// `bot_scope` mismatches bot's actual scope - this should be ignored.
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-01",
@@ -478,7 +478,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 		// SRA above bot scope ignored.
 		// nb: we may eventually loosen this to behave more like users.
 		{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerpb.Metadata{
 				Name: "bernard-invalid-02",
