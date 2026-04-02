@@ -98,27 +98,20 @@ func getCertAuthorityOverride(
 	ref services.Ref,
 	opts GetOpts,
 ) (Collection, error) {
+	// Defensive. Shouldn't happen. Only 3 forms of ref are possible:
+	//   - kind ("tctl get ca_overrides")
+	//   - kind + name ("tctl get ca_overrides/{ca_type}")
+	//   - kind + subKind + name ("tctl get ca_overrides/{ca_type}/{cluster_name}")
+	if ref.Kind != types.KindCertAuthorityOverride ||
+		(ref.SubKind != "" && ref.Name == "") {
+		return nil, trace.BadParameter("invalid ref: %#v", ref)
+	}
+
 	subCA := authClient.SubCAClient()
 
-	var caOverrides []*subcav1.CertAuthorityOverride
-	switch {
-	// Get by {ca_type}.
-	case ref.SubKind == "" && ref.Name != "":
-		caType := ref.Name
-		resp, err := subCA.GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
-			CaId: &subcav1.CertAuthorityOverrideID{
-				CaType: caType,
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		caOverrides = []*subcav1.CertAuthorityOverride{resp.CaOverride}
-
 	// List.
-	default:
-		var err error
-		caOverrides, err = stream.Collect(clientutils.Resources(
+	if ref.SubKind == "" && ref.Name == "" {
+		caOverrides, err := stream.Collect(clientutils.Resources(
 			ctx,
 			func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
 				resp, err := subCA.ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
@@ -131,9 +124,37 @@ func getCertAuthorityOverride(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return &certAuthorityOverrideCollection{overrides: caOverrides}, nil
 	}
 
-	return &certAuthorityOverrideCollection{overrides: caOverrides}, nil
+	// Get by {caType} or {caType}/{clusterName}.
+	var caType, clusterName string
+	if ref.SubKind != "" {
+		caType = ref.SubKind
+		clusterName = ref.Name
+	} else {
+		caType = ref.Name
+	}
+
+	// TODO(codingllama): Support cluster_name in ca_override Gets.
+	resp, err := subCA.GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
+		CaId: &subcav1.CertAuthorityOverrideID{
+			CaType: caType,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caOverride := resp.CaOverride
+
+	// Simulate a Get-by-name if the name was specified.
+	if clusterName != "" && caOverride.Metadata.Name != clusterName {
+		return nil, trace.NotFound("%s %s/%s not found", ref.Kind, caType, clusterName)
+	}
+
+	return &certAuthorityOverrideCollection{
+		overrides: []*subcav1.CertAuthorityOverride{caOverride},
+	}, nil
 }
 
 func createCertAuthorityOverride(ctx context.Context,
@@ -214,11 +235,18 @@ func deleteCertAuthorityOverride(
 	authClient *authclient.Client,
 	ref services.Ref,
 ) error {
-	caType, err := validateCertAuthorityOverrideCATypeRef(ref)
-	if err != nil {
-		return trace.Wrap(err)
+	if ref.Kind != types.KindCertAuthorityOverride ||
+		ref.SubKind != "" ||
+		ref.Name == "" {
+		return trace.BadParameter(
+			"%s deletes must the in the format %s/{ca_type}",
+			types.KindCertAuthorityOverride,
+			types.KindCertAuthorityOverride,
+		)
 	}
+	caType := ref.Name
 
+	// TODO(codingllama): Support cluster_name in ca_override Deletes.
 	if _, err := authClient.
 		SubCAClient().
 		DeleteCertAuthorityOverride(ctx, &subcav1.DeleteCertAuthorityOverrideRequest{
@@ -234,19 +262,4 @@ func deleteCertAuthorityOverride(
 		caType,
 	)
 	return nil
-}
-
-func validateCertAuthorityOverrideCATypeRef(ref services.Ref) (caType string, _ error) {
-	if ref.Kind == types.KindCertAuthorityOverride &&
-		ref.SubKind == "" &&
-		ref.Name != "" {
-		return ref.Name, nil
-	}
-	// TODO(codingllama): Support "ca_override/{ca_type}/{name}" queries in tctl?
-
-	return "", trace.BadParameter(
-		"%s: expected resource name in the format %s/{ca_type}",
-		types.KindCertAuthorityOverride,
-		types.KindCertAuthorityOverride,
-	)
 }
