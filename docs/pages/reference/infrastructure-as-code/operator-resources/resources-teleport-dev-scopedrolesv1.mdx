@@ -28,6 +28,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |assignable_scopes|[]string|AssignableScopes is a list of scopes to which this role can be assigned.|
 |defaults|[object](#specdefaults)|Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.|
+|kube|[object](#speckube)|The kubernetes specific configuration for a scoped role.|
 |rules|[][object](#specrules-items)|Rules describes basic resource:verb permissions (e.g. scoped_role:read).|
 |ssh|[object](#specssh)|Ssh specifies controls that govern SSH access.|
 
@@ -36,6 +37,22 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").|
+
+### spec.kube
+
+|Field|Type|Description|
+|---|---|---|
+|client_idle_timeout|string|Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
+|groups|[]string|The list of kubernetes groups this role allows.|
+|labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
+|users|[]string|An optional list of impersonatable kubernetes users this role allows.|
+
+### spec.kube.labels items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|The name of the label.|
+|values|[]string|The values associated with the label.|
 
 ### spec.rules items
 
