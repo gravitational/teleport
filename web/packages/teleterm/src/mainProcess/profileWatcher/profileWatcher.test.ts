@@ -64,7 +64,7 @@ async function mockTshClient(tshDir: string, initial: { clusters: Cluster[] }) {
     } catch (err) {
       if (err.code === 'ENOENT') {
         throw {
-          name: 'TshdRpcError',
+          name: 'RpcError',
           code: 'NOT_FOUND',
         };
       }

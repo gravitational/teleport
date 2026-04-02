@@ -349,7 +349,7 @@ async function ipcInvoke(channel: string, ...args: any[]): Promise<any> {
     // IMPORTANT: Throw the plain serialized object instead of an Error instance.
     // When errors cross Electron's context bridge (preload → renderer), custom
     // properties on Error instances are stripped. By throwing a plain object,
-    // all properties (including isResolvableWithRelogin) are preserved.
+    // all properties are preserved.
     // The renderer code (isTshdRpcError, retryWithRelogin) handles plain objects.
     throw error;
   }

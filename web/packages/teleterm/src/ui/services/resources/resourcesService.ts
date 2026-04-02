@@ -29,10 +29,7 @@ import {
 import Logger from 'teleterm/logger';
 import type { TshdClient } from 'teleterm/services/tshd';
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
-import {
-  cloneAbortSignal,
-  TshdRpcError,
-} from 'teleterm/services/tshd/cloneableClient';
+import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import type * as types from 'teleterm/services/tshd/types';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -170,7 +167,7 @@ export class ResourcesService {
 export class ResourceSearchError extends Error {
   constructor(
     public clusterUri: uri.ClusterUri,
-    cause: Error | TshdRpcError
+    cause: unknown
   ) {
     super(`Error while fetching resources from cluster ${clusterUri}`, {
       cause,

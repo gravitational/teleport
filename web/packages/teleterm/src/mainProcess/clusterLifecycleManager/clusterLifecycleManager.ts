@@ -25,7 +25,10 @@ import Logger from 'teleterm/logger';
 import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
 import { RendererIpc } from 'teleterm/mainProcess/types';
 import { AppUpdater } from 'teleterm/services/appUpdater';
-import { isTshdRpcError, TshdClient } from 'teleterm/services/tshd';
+import {
+  isRpcErrorReloginResolvable,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -172,7 +175,7 @@ export class ClusterLifecycleManager {
         // Theoretically, the cert could just expire and result in an error
         // resolvable with relogin when trying to sync the cluster.
         // In that case, only update the store.
-        if (!(isTshdRpcError(e) && e.isResolvableWithRelogin)) {
+        if (!isRpcErrorReloginResolvable(e)) {
           throw e;
         }
       }
