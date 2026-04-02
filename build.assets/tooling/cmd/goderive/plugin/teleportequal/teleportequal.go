@@ -135,6 +135,22 @@ func removeIgnoredFieldsFromStruct(name string, strct *types.Struct) types.Type 
 			continue
 		}
 
+		// Ignore Details on ResourceConstraints; the Details oneof interface
+		// is not handled by goderive. It is up to AccessRequest.IsEqual to
+		// account for this manually.
+		if name == "ResourceConstraints" && fieldName == "Details" {
+			continue
+		}
+
+		// Ignore RequestedResourceAccessIDs on AccessRequestSpecV3; the
+		// ResourceConstraints.Details oneof within each element is not
+		// handled by goderive, and the slice requires order-independent
+		// comparison. It is up to AccessRequestV3.IsEqual to account for
+		// this manually.
+		if name == "AccessRequestSpecV3" && fieldName == "RequestedResourceAccessIDs" {
+			continue
+		}
+
 		filteredFields = append(filteredFields, field)
 		filteredTags = append(filteredTags, strct.Tag(i))
 

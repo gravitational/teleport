@@ -183,3 +183,324 @@ func Test_AccessRequest_SetExpiry(t *testing.T) {
 	require.NotNil(t, reqV3.Spec.ResourceExpiry)
 	require.Equal(t, t1, *reqV3.Spec.ResourceExpiry)
 }
+
+func TestAccessRequestV3IsEqual(t *testing.T) {
+	newReq := func(t *testing.T) *AccessRequestV3 {
+		t.Helper()
+		req, err := NewAccessRequest("req-1", "alice", "role-a", "role-b")
+		require.NoError(t, err)
+		return req.(*AccessRequestV3)
+	}
+
+	awsID := func(name string, arns ...string) ResourceAccessID {
+		return ResourceAccessID{
+			Id: ResourceID{ClusterName: "cluster", Kind: "app", Name: name},
+			Constraints: &ResourceConstraints{
+				Version: V1,
+				Details: &ResourceConstraints_AwsConsole{
+					AwsConsole: &AWSConsoleResourceConstraints{RoleArns: arns},
+				},
+			},
+		}
+	}
+
+	sshID := func(name string, logins ...string) ResourceAccessID {
+		return ResourceAccessID{
+			Id: ResourceID{ClusterName: "cluster", Kind: "node", Name: name},
+			Constraints: &ResourceConstraints{
+				Version: V1,
+				Details: &ResourceConstraints_Ssh{
+					Ssh: &SSHResourceConstraints{Logins: logins},
+				},
+			},
+		}
+	}
+
+	unconstrainedID := func(name string) ResourceAccessID {
+		return ResourceAccessID{
+			Id: ResourceID{ClusterName: "cluster", Kind: "node", Name: name},
+		}
+	}
+
+	// mockAccessRequest is a minimal implementation of the AccessRequest
+	// interface to exercise the non-*AccessRequestV3 type assertion path.
+	type mockAccessRequest struct {
+		AccessRequestV3
+	}
+
+	tests := []struct {
+		name string
+		a, b func(t *testing.T) AccessRequest
+		want bool
+	}{
+		{
+			name: "both nil",
+			a: func(t *testing.T) AccessRequest {
+				var r *AccessRequestV3
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				var r *AccessRequestV3
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "nil vs populated",
+			a: func(t *testing.T) AccessRequest {
+				var r *AccessRequestV3
+				return r
+			},
+			b:    func(t *testing.T) AccessRequest { return newReq(t) },
+			want: false,
+		},
+		{
+			name: "identical requests",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b:    func(t *testing.T) AccessRequest { return newReq(t) },
+			want: true,
+		},
+		{
+			name: "non-v3 type returns false",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b:    func(t *testing.T) AccessRequest { return &mockAccessRequest{} },
+			want: false,
+		},
+		{
+			name: "different user",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.User = "bob"
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "different roles",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.Roles = []string{"role-c"}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "different state",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				require.NoError(t, r.SetState(RequestState_APPROVED))
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "different request reason",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestReason = "urgent"
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "different metadata labels",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Metadata.Labels = map[string]string{"env": "prod"}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "revision difference ignored",
+			a:    func(t *testing.T) AccessRequest { return newReq(t) },
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Metadata.SetRevision("different-revision")
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "aws console constraints equal",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{awsID("app-1", "arn:aws:iam::123:role/admin")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{awsID("app-1", "arn:aws:iam::123:role/admin")}
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "aws console constraints differ by arn",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{awsID("app-1", "arn:aws:iam::123:role/admin")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{awsID("app-1", "arn:aws:iam::123:role/readonly")}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "ssh constraints equal",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root", "ubuntu")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root", "ubuntu")}
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "ssh constraints differ by login",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "ubuntu")}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "aws vs ssh constraint type mismatch",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{awsID("res-1", "arn:aws:iam::123:role/admin")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("res-1", "root")}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "constrained vs unconstrained",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{unconstrainedID("node-1")}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "both unconstrained",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{unconstrainedID("node-1")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{unconstrainedID("node-1")}
+				return r
+			},
+			want: true,
+		},
+		{
+			name: "different resource access ID count",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root")}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{sshID("node-1", "root"), sshID("node-2", "root")}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "resource access IDs reversed order",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{
+					sshID("node-1", "root"),
+					awsID("app-1", "arn:aws:iam::123:role/admin"),
+				}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{
+					awsID("app-1", "arn:aws:iam::123:role/admin"),
+					sshID("node-1", "root"),
+				}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "resource access IDs shuffled mixed types",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{
+					sshID("node-1", "root"),
+					awsID("app-1", "arn:aws:iam::123:role/admin"),
+					unconstrainedID("node-2"),
+				}
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = []ResourceAccessID{
+					unconstrainedID("node-2"),
+					sshID("node-1", "root"),
+					awsID("app-1", "arn:aws:iam::123:role/admin"),
+				}
+				return r
+			},
+			want: false,
+		},
+		{
+			name: "both nil resource access IDs",
+			a: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = nil
+				return r
+			},
+			b: func(t *testing.T) AccessRequest {
+				r := newReq(t)
+				r.Spec.RequestedResourceAccessIDs = nil
+				return r
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := tt.a(t)
+			b := tt.b(t)
+			require.Equal(t, tt.want, a.IsEqual(b))
+		})
+	}
+}

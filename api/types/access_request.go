@@ -151,6 +151,8 @@ type AccessRequest interface {
 	SetRequestedResourceAccessIDs([]ResourceAccessID)
 	// GetAllRequestedResourceIDs get all requested resources, in [ResourceAccessID]-form.
 	GetAllRequestedResourceIDs() []ResourceAccessID
+	// IsEqual determines if two access requests are equivalent to one another.
+	IsEqual(AccessRequest) bool
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -177,6 +179,82 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
+}
+
+func (r *AccessRequestV3) IsEqual(other AccessRequest) bool {
+	otherv3, ok := other.(*AccessRequestV3)
+	if !ok {
+		return false
+	}
+
+	if !deriveTeleportEqualAccessRequestV3(r, otherv3) {
+		return false
+	}
+
+	if r == nil && otherv3 == nil {
+		return true
+	}
+
+	// The derived equality function skips RequestedResourceAccessIDs entirely
+	// because the ResourceConstraints.Details oneof interface is not handled by
+	// goderive. Compare it manually here.
+	if !resourceAccessIDsEqual(r.Spec.RequestedResourceAccessIDs, otherv3.Spec.RequestedResourceAccessIDs) {
+		return false
+	}
+
+	return true
+}
+
+// resourceAccessIDsEqual compares two ResourceAccessID slices independent of
+// ordering. This is necessary because goderive cannot handle the oneof
+// Details field on ResourceConstraints.
+func resourceAccessIDsEqual(a, b []ResourceAccessID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if !resourceAccessIDEqual(&a[i], &b[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// resourceAccessIDEqual compares all fields of two ResourceAccessIDs.
+// goderive handles all fields except the Details oneof on ResourceConstraints
+// must be checked manually.
+func resourceAccessIDEqual(a, b *ResourceAccessID) bool {
+	if !deriveTeleportEqualResourceAccessID(a, b) {
+		return false
+	}
+	return resourceConstraintsDetailsEqual(a.Constraints, b.Constraints)
+}
+
+// resourceConstraintsDetailsEqual compares the Details oneof field of two
+// ResourceConstraints. The oneof interface is not handled by goderive, so
+// this must be done manually.
+func resourceConstraintsDetailsEqual(a, b *ResourceConstraints) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	switch av := a.Details.(type) {
+	case *ResourceConstraints_AwsConsole:
+		bv, ok := b.Details.(*ResourceConstraints_AwsConsole)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualAWSConsoleResourceConstraints(av.AwsConsole, bv.AwsConsole)
+	case *ResourceConstraints_Ssh:
+		bv, ok := b.Details.(*ResourceConstraints_Ssh)
+		if !ok {
+			return false
+		}
+		return deriveTeleportEqualSSHResourceConstraints(av.Ssh, bv.Ssh)
+	default:
+		return a.Details == nil && b.Details == nil
+	}
 }
 
 // GetUser gets User
