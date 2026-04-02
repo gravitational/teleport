@@ -274,8 +274,6 @@ type CLIConf struct {
 	AppName string
 	// BeamID identifies a beam resource.
 	BeamID string
-	// BeamDomain is the domain passed to "tsh beams allow --domain".
-	BeamDomain string
 	// BeamConsole controls whether `tsh beams add` connects to the beam after creation.
 	BeamConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
