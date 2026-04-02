@@ -74,7 +74,7 @@ type IdentityInternal interface {
 	Identity
 
 	// AppendPutUserActions adds conditional actions to an atomic write to create
-	// or update the user's params resource.
+	// or update the user resource (without secrets).
 	AppendPutUserActions(
 		actions []backend.ConditionalAction,
 		user types.User,
@@ -82,7 +82,7 @@ type IdentityInternal interface {
 	) ([]backend.ConditionalAction, error)
 
 	// AppendDeleteUserActions adds conditional actions to an atomic write to
-	// delete the user's params resource.
+	// delete the user resource.
 	AppendDeleteUserActions(
 		actions []backend.ConditionalAction,
 		user string,
