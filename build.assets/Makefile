@@ -69,6 +69,9 @@ RUST_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-rust-toolchain
 # more details.
 RELEASE_TARGET ?= release
 
+# Determine which version of shellcheck is required to lint shell scripts.
+SHELLCHECK_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory print-shellcheck-version)
+
 #
 # Build 'teleport' release inside a docker container
 #
@@ -198,6 +201,7 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--build-arg SHELLCHECK_VERSION=$(SHELLCHECK_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		$(if $(PUSH),--push,--load) \
