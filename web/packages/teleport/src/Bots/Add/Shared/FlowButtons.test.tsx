@@ -90,11 +90,19 @@ describe('flowButtons component', () => {
     expect(nextMock).toHaveBeenCalledTimes(1);
   });
 
-  test('when useLocation.state is defined, the first step back button uses this state as pathname', async () => {
+  test('when there is a previous history location, then back button uses `history.goBack()`', async () => {
     const history = createMemoryHistory({
-      initialEntries: [{ state: { previousPathname: 'web/random/route' } }],
+      initialEntries: [
+        {
+          pathname: 'web/random/route',
+        },
+        {
+          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
+        },
+      ],
     });
     history.push = jest.fn();
+    history.goBack = jest.fn();
 
     render(
       <Router history={history}>
@@ -103,12 +111,21 @@ describe('flowButtons component', () => {
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.push).toHaveBeenCalledWith('web/random/route');
+    expect(history.push).not.toHaveBeenCalled();
+    expect(history.goBack).toHaveBeenCalled();
   });
 
-  test('when useLocation.state is NOT defined, the first step back button defaults to bots pathname', async () => {
-    const history = createMemoryHistory();
+  test('when there is no previous history location, then back button pushes to integrations list', async () => {
+    const history = createMemoryHistory({
+      initialEntries: [
+        {
+          key: 'default',
+          pathname: cfg.getBotsNewRoute('github-actions-ssh'),
+        },
+      ],
+    });
     history.push = jest.fn();
+    history.goBack = jest.fn();
 
     render(
       <Router history={history}>
@@ -117,6 +134,7 @@ describe('flowButtons component', () => {
     );
 
     await userEvent.click(screen.getByTestId('button-back-first-step'));
-    expect(history.push).toHaveBeenCalledWith(cfg.getBotsNewRoute());
+    expect(history.goBack).not.toHaveBeenCalled();
+    expect(history.push).toHaveBeenCalledWith(cfg.getIntegrationsEnrollRoute());
   });
 });
