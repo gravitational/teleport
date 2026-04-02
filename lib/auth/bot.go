@@ -635,6 +635,7 @@ func (a *Server) generateInitialBotCerts(
 			InstanceId:         uuid.String(),
 			PreviousInstanceId: previousInstanceID,
 		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+		bi.Scope = botScope
 
 		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
 		if err != nil {
