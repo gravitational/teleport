@@ -32,8 +32,12 @@ import (
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/srv/desktop/x11"
+	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
@@ -67,6 +71,10 @@ import (
 type LinuxService struct {
 	cfg        LinuxServiceConfig
 	middleware *authz.Middleware
+
+	// clusterName is the cached local cluster name, to avoid calling
+	// cfg.AccessPoint.GetClusterName multiple times.
+	clusterName string
 
 	// auditCache caches information from shared directory
 	// TDP messages that are needed for
@@ -173,9 +181,10 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageLinuxDesktopOnly},
 		},
-		closeCtx:   ctx,
-		close:      close,
-		auditCache: newSharedDirectoryAuditCache(),
+		clusterName: clusterName.GetClusterName(),
+		closeCtx:    ctx,
+		close:       close,
+		auditCache:  newSharedDirectoryAuditCache(),
 	}
 
 	if err := s.startServiceHeartbeat(); err != nil {
@@ -285,6 +294,10 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	log = log.With("client_ip", remoteAddr)
+
+	sessionID := session.NewID()
+	log = log.With("session_id", sessionID)
+
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
 		sendTDPError("Connection limit exceeded.")
@@ -348,6 +361,60 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	var username string
 
+	// in order for the session to be recorded, the cluster's session recording mode must
+	// not be "off" and the user's roles must enable recording
+	var recConfig types.SessionRecordingConfig
+	var recordSession bool
+	if !authCtx.Checker.RecordDesktopSession() {
+		recConfig = types.DefaultSessionRecordingConfig()
+		recConfig.SetMode(types.RecordOff)
+		log.InfoContext(ctx, "desktop session will not be recorded, user's roles disable recording")
+	} else {
+		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
+		if err != nil {
+			log.ErrorContext(ctx, "failed to get session recording config", "error", err)
+			sendTDPError("Couldn't get session recording config")
+			return
+		}
+		recordSession = recConfig.GetMode() != types.RecordOff
+	}
+	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
+	if err != nil {
+		log.ErrorContext(ctx, "failed to create session recorder", "error", err)
+		sendTDPError("Couldn't create session recorder")
+		return
+	}
+
+	// Closing the stream writer is needed to flush all recorded data
+	// and trigger the upload. Do it in a goroutine since depending on
+	// the session size it can take a while, and we don't want to block
+	// the client.
+	defer func() {
+		go func() {
+			if err := recorder.Close(context.Background()); err != nil {
+				log.ErrorContext(context.Background(), "closing stream writer for desktop", "session_id", sessionID.String())
+			}
+		}()
+	}()
+
+	identity := authCtx.Identity.GetIdentity()
+	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
+
+	delay := timer()
+	tdpConn.OnSend = makeTDPSendHandler(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, tdpConn, audit)
+	tdpConn.OnRecv = makeTDPReceiveHandler(ctx, s, s.cfg.Clock, s.cfg.Logger, recorder, delay, tdpConn, audit)
+
+	sessionStarted := false
+
+	defer func() {
+		if sessionStarted {
+			endEvent := audit.makeLinuxSessionEnd(recordSession)
+			s.record(context.Background(), recorder, endEvent)
+			s.emit(context.Background(), endEvent)
+		}
+		audit.teardown(context.Background())
+	}()
+
 	for {
 		msg, err := tdpConn.ReadMessage()
 		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
@@ -360,14 +427,19 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
 			username = m.Username
+			audit.targetUser = username
+			log = log.With("username", username)
 
 			state := authCtx.GetAccessState(authPref)
 			if err := authCtx.Checker.CheckAccess(
 				types.Resource153ToResourceWithLabels(desktop),
 				state,
 				services.NewLinuxDesktopLoginMatcher(username)); err != nil {
+				startEvent := audit.makeLinuxSessionStart(err)
+				s.record(ctx, recorder, startEvent)
 				log.WarnContext(ctx, "authorization failed for Linux desktop connection", "error", err)
 				sendTDPError("Connection authorization failed.")
+				return
 			}
 			currentUser, err := user.Current()
 			if err != nil {
@@ -401,6 +473,18 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				}
 			}
 
+			if err := s.trackSession(ctx, &identity, username, string(sessionID)); err != nil {
+				log.ErrorContext(ctx, "failed to track session", "error", err)
+				sendTDPError("Failed to track session.")
+				return
+			}
+
+			startEvent := audit.makeLinuxSessionStart(nil)
+			s.record(context.Background(), recorder, startEvent)
+			s.emit(context.Background(), startEvent)
+
+			sessionStarted = true
+
 			width := uint16(m.ScreenSpec.Width)
 			height := uint16(m.ScreenSpec.Height)
 			screenSize.Store(&xproto.Rectangle{
@@ -433,17 +517,17 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
 				return
 			}
-			xsessionCmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
+			cmd, err := x11.StartTeleportExecXSession(ctx, &x11.XSessionConfig{
 				Logger:         log,
 				Command:        xsession,
-				Username:       authCtx.Identity.GetIdentity().Username,
+				Username:       identity.Username,
 				Login:          username,
 				ChildLogConfig: s.cfg.ChildLogConfig,
 				Display:        backend.Display,
 				AuthorityFile:  backend.AuthorityFile.Name(),
 			})
 			go func() {
-				err := xsessionCmd.Wait()
+				err := cmd.Wait()
 				if ctx.Err() != nil {
 					return
 				}
@@ -569,4 +653,65 @@ func (s *LinuxService) processScreenChanges(backend *x11.Backend, log *slog.Logg
 		case <-s.cfg.Clock.After(40*time.Millisecond - delta):
 		}
 	}
+}
+
+func (s *LinuxService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
+	return recorder.New(recorder.Config{
+		SessionID:    session.ID(sessionID),
+		ServerID:     s.cfg.Heartbeat.HostUUID,
+		Namespace:    apidefaults.Namespace,
+		Clock:        s.cfg.Clock,
+		ClusterName:  s.clusterName,
+		RecordingCfg: recConfig,
+		SyncStreamer: s.cfg.AuthClient,
+		DataDir:      s.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentLinuxDesktop),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: s.closeCtx,
+	})
+}
+
+// trackSession creates a session tracker for the given sessionID and
+// attributes, and starts a goroutine to continually extend the tracker
+// expiration while the session is active. Once the given ctx is closed,
+// the tracker will be marked as terminated.
+func (s *LinuxService) trackSession(ctx context.Context, id *tlsca.Identity, linuxUser string, sessionID string) error {
+	trackerSpec := types.SessionTrackerSpecV1{
+		SessionID:   sessionID,
+		Kind:        string(types.WindowsDesktopSessionKind),
+		State:       types.SessionState_SessionStateRunning,
+		Hostname:    s.cfg.Hostname,
+		Address:     s.cfg.Heartbeat.HostUUID,
+		ClusterName: s.clusterName,
+		Login:       linuxUser,
+		Participants: []types.Participant{{
+			User:    id.Username,
+			Cluster: id.OriginClusterName,
+		}},
+		HostUser: id.Username,
+		Created:  s.cfg.Clock.Now(),
+		HostID:   s.cfg.Heartbeat.HostUUID,
+	}
+
+	s.cfg.Logger.DebugContext(ctx, "Creating session tracker", "session_id", sessionID)
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := tracker.UpdateExpirationLoop(ctx, s.cfg.Clock); err != nil {
+			s.cfg.Logger.WarnContext(ctx, "Failed to update session tracker expiration", "session_id", sessionID, "error", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := tracker.Close(s.closeCtx); err != nil {
+			s.cfg.Logger.DebugContext(s.closeCtx, "Failed to close session tracker", "session_id", sessionID)
+		}
+	}()
+
+	return nil
 }

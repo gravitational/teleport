@@ -27,7 +27,9 @@ import { Recording } from './types';
 export function makeRecording(event: any): Recording {
   if (event.code === eventCodes.DESKTOP_SESSION_ENDED) {
     return makeDesktopRecording(event);
-  } else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
+  } else if (event.code === eventCodes.LINUX_DESKTOP_SESSION_ENDED) {
+    return makeDesktopRecording(event);
+  }else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
     return makeDatabaseRecording(event);
   } else if (event.code === eventCodes.APP_SESSION_CHUNK) {
     return makeAppRecording(event);

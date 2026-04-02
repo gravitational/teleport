@@ -417,7 +417,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
@@ -455,7 +455,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.True(t, ok, "expected DesktopClipboardReceive, got %T", e)
 	require.Equal(t, int32(len(fakeClipboardData)), cs.Length)
 	require.Equal(t, audit.sessionID, cs.SessionID)
-	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
+	require.Equal(t, audit.windowsDesktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
 }
