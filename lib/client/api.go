@@ -5615,3 +5615,44 @@ func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]
 	slices.Sort(logins)
 	return logins, nil
 }
+
+// ListBeams returns a list of beams, either for the current user or all users.
+func (tc *TeleportClient) ListBeams(ctx context.Context, allUsers bool) ([]any, error) {
+	return nil, trace.NotImplemented("TeleportClient.ListBeams is stubbed")
+}
+
+// AddBeam starts a new beam environment.
+func (tc *TeleportClient) AddBeam(ctx context.Context, name string, wait bool) (any, error) {
+	return nil, trace.NotImplemented("TeleportClient.AddBeam is stubbed")
+}
+
+// RemoveBeam deletes a running beam environment.
+func (tc *TeleportClient) RemoveBeam(ctx context.Context, name string) error {
+	return trace.NotImplemented("TeleportClient.RemoveBeam is stubbed")
+}
+
+// ShellBeam starts an interactive shell in a running beam environment.
+func (tc *TeleportClient) ShellBeam(ctx context.Context, name string) error {
+	return trace.NotImplemented("TeleportClient.ShellBeam is stubbed")
+}
+
+// MountBeam mounts a local directory in a beam environment.
+func (tc *TeleportClient) MountBeam(ctx context.Context, name, source, dest string) error {
+	return trace.NotImplemented("TeleportClient.MountBeam is stubbed")
+}
+
+// UnmountBeam removes a mounted directory from a beam environment.
+func (tc *TeleportClient) UnmountBeam(ctx context.Context, name, dest string) error {
+	return trace.NotImplemented("TeleportClient.UnmountBeam is stubbed")
+}
+
+// AllowBeamDomain grants access to an external domain.
+func (tc *TeleportClient) AllowBeamDomain(ctx context.Context, name, domain string) error {
+	return trace.NotImplemented("TeleportClient.AllowBeamDomain is stubbed")
+}
+
+// DenyBeamDomain removes access to an external domain.
+func (tc *TeleportClient) DenyBeamDomain(ctx context.Context, name, domain string) error {
+	return trace.NotImplemented("TeleportClient.DenyBeamDomain is stubbed")
+}
+

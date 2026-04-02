@@ -222,6 +222,176 @@ Arguments:
 |---|---|---|
 |command|none (optional)|`az` command and subcommands arguments that are going to be forwarded to Azure CLI.|
 
+## tsh beams
+
+View, manage and run beam environments. Beams are convenient, sandboxed environments for experimenting with AI agents.
+
+Usage:
+
+```code
+$ tsh beams <command> [<flags>] [<args> ...]
+```
+
+## tsh beams add
+
+Start a new beam environment.
+
+Usage:
+
+```code
+$ tsh beams add [<flags>] [<name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]wait`|`false`|Wait for the beam environment to become ready.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (optional)|Name for the new beam (optional).|
+
+## tsh beams allow
+
+Grant access to an external domain.
+
+Usage:
+
+```code
+$ tsh beams allow [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--domain`|none (required)|Domain to allow access to.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams deny
+
+Remove access to an external domain.
+
+Usage:
+
+```code
+$ tsh beams deny [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--domain`|none (required)|Domain to deny access to.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams ls
+
+List running beam environments.
+
+Usage:
+
+```code
+$ tsh beams ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]all`|`false`|List beams for all users.|
+|`-f`, `--format`|`text`|Format output (text, json, yaml).|
+
+## tsh beams mount
+
+Mount a local directory in a beam environment.
+
+Usage:
+
+```code
+$ tsh beams mount [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--dest`|none (required)|Mount location in the beam's filesystem.|
+|`--source`|none (required)|Path to a local directory.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams rm
+
+Delete a running beam environment.
+
+Usage:
+
+```code
+$ tsh beams rm <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to delete.|
+
+## tsh beams shell
+
+Start an interactive shell in a running beam environment.
+
+Usage:
+
+```code
+$ tsh beams shell <name>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
+## tsh beams unmount
+
+Remove a mounted directory from a beam evironment.
+
+Usage:
+
+```code
+$ tsh beams unmount [<flags>] <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--dest`|none (required)|Mount location in the beam's filesystem.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|none (required)|Name of the beam to target.|
+
 ## tsh clusters
 
 List available Teleport clusters.
@@ -1712,4 +1882,3 @@ Flags:
 |`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.|
 |`--name-selector`|none|The name of the workload identity to issue.|
 |`--output`|none|Path to the directory to write the SVID into.|
-
