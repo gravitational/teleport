@@ -175,6 +175,41 @@ export const LoadedResourceRequestWithConstraints = () => {
   );
 };
 
+export const LoadedResourceRequestWithSSHConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'node',
+      id: 'test-node',
+      name: 'test-node.example.com',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'node',
+      name: 'test-node',
+      cluster: 'localhost',
+    })]: {
+      ssh: {
+        logins: ['root', 'ubuntu', 'admin'],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const LoadedLongTermRequest = () => {
   const dryRunResponseWithLongTerm = {
     ...dryRunResponse,

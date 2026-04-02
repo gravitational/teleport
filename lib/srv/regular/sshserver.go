@@ -1211,7 +1211,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
-	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer())
 
 	return srv
 }

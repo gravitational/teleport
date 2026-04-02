@@ -253,15 +253,42 @@ func mutateStatusBoundPublicKey(newPublicKey, expectPreviousKey string) boundKey
 }
 
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
-// this token. It ensures the expected previous ID is still the bound value
-// before performing the update.
+// this token. It ensures the expected previous bot instance and host IDs are
+// still the bound value before performing the update. Note that bot instance
+// and host IDs are mutually exclusive, so `BoundHostID` on the token status
+// must be empty.
 func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance string) boundKeypairStatusMutator {
 	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		if status.BoundBotInstanceID != expectPreviousBotInstance {
 			return trace.AccessDenied("unexpected backend state")
 		}
 
+		if status.BoundHostID != "" {
+			return trace.AccessDenied("unexpected backend state")
+		}
+
 		status.BoundBotInstanceID = newBotInstance
+
+		return nil
+	}
+}
+
+// mutateStatusBoundHostID updates the host ID currently bound to this token. It
+// ensures the expected previous host and bot instance IDs are still the bound
+// values (or lack thereof) before performing the update. Note that bot instance
+// and host IDs are mutually exclusive, so an empty `BoundBotInstanceID` on the
+// token status is required.
+func mutateStatusBoundHostID(newHostID, expectPreviousHostID string) boundKeypairStatusMutator {
+	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
+		if status.BoundHostID != expectPreviousHostID {
+			return trace.AccessDenied("unexpected backend state")
+		}
+
+		if status.BoundBotInstanceID != "" {
+			return trace.AccessDenied("unexpected backend state")
+		}
+
+		status.BoundHostID = newHostID
 
 		return nil
 	}
@@ -452,10 +479,10 @@ func verifyBoundKeypairJoinState(
 	params *JoinParams,
 	ptv2 *types.ProvisionTokenV2,
 	ca types.CertAuthority,
-) (previousBotInstnceID string, err error) {
+) (previousBotInstanceID, previousHostID string, err error) {
 	recoveryMode, err := boundkeypair.ParseRecoveryMode(ptv2.Spec.BoundKeypair.Recovery.Mode)
 	if err != nil {
-		return "", trace.Wrap(err, "parsing recovery mode")
+		return "", "", trace.Wrap(err, "parsing recovery mode")
 	}
 
 	// Join state is required after the initial join (first recovery), so long
@@ -473,13 +500,13 @@ func verifyBoundKeypairJoinState(
 			"recovery_count", ptv2.Status.BoundKeypair.RecoveryCount,
 			"recovery_mode", ptv2.Spec.BoundKeypair.Recovery.Mode,
 		)
-		return "", nil
+		return "", "", nil
 	}
 
 	// If join state is required but missing, raise an error.
 	hasIncomingJoinState := len(params.BoundKeypairInit.PreviousJoinState) > 0
 	if !hasIncomingJoinState {
-		return "", trace.AccessDenied("previous join state is required but was not provided")
+		return "", "", trace.AccessDenied("previous join state is required but was not provided")
 	}
 
 	params.Logger.DebugContext(ctx, "join state verification required, verifying")
@@ -490,18 +517,21 @@ func verifyBoundKeypairJoinState(
 			Clock:       params.Clock,
 			ClusterName: ca.GetClusterName(), // equivalent to clusterName but saves a method param
 			Token:       ptv2,
+
+			// Note: no HostID for agents specified, it will be extracted from
+			// the bound_host_id in the token status.
 		},
 	)
 	if err != nil {
 		params.Logger.ErrorContext(ctx, "bound keypair join state verification failed", "error", err)
 		tryLockBotInvalidJoinState(ctx, params, ptv2, err)
 
-		return "", trace.AccessDenied("join state verification failed")
+		return "", "", trace.AccessDenied("join state verification failed")
 	}
 
 	params.Logger.DebugContext(ctx, "join state verified successfully", "join_state", joinState)
-	// Now that we've verified it, return the previous bot instance ID.
-	return joinState.BotInstanceID, nil
+	// Now that we've verified it, return the previous bot instance / host ID.
+	return joinState.BotInstanceID, joinState.HostID, nil
 }
 
 // verifyLocksForBoundKeypairToken checks if any token-level locks are in place
@@ -546,6 +576,11 @@ type JoinParams struct {
 	CreateBoundKeypairValidator CreateBoundKeypairValidator
 	// GenerateBotCerts is a function that generates bot certificates.
 	GenerateBotCerts func(ctx context.Context, previousBotInstanceID string, claims any) (*messages.Certificates, string, error)
+	// GenerateHostCerts is a function that generates host certificates. Unlike
+	// bots, hosts do not maintain an ID lineage and are expected to retain
+	// their host IDs indefinitely (or else start over from a clean slate
+	// without tracking); therefore, no previous ID is expected.
+	GenerateHostCerts func(ctx context.Context, claims any) (certs *messages.Certificates, hostID string, err error)
 	// Clock is the clock.
 	Clock clockwork.Clock
 	// Logger is a logger.
@@ -614,11 +649,6 @@ func HandleBoundKeypairJoin(
 	if err := params.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
-	if types.SystemRole(params.ClientInit.SystemRole) != types.RoleBot {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
-	}
 
 	ptv2, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
 	if !ok {
@@ -639,12 +669,37 @@ func HandleBoundKeypairJoin(
 		return nil, trace.Wrap(err)
 	}
 
+	systemRole := types.SystemRole(params.ClientInit.SystemRole)
 	spec := ptv2.Spec.BoundKeypair
 	status := ptv2.Status.BoundKeypair
 	hasBoundPublicKey := status.BoundPublicKey != ""
 	hasBoundBotInstance := status.BoundBotInstanceID != ""
+	hasBoundHostID := status.BoundHostID != ""
+	hasBoundUniqueID := hasBoundBotInstance || hasBoundHostID
 	hasIncomingBotInstance := params.AuthCtx.BotInstanceID != ""
+	hasIncomingHostID := params.AuthCtx.HostID != ""
+	hasIncomingUniqueID := hasIncomingBotInstance || hasIncomingHostID
 	hasJoinsRemaining := status.RecoveryCount < spec.Recovery.Limit
+
+	// Perform a few preflight checks to verify the incoming params are
+	// internally consistent
+	switch {
+	case hasIncomingBotInstance && hasIncomingHostID:
+		// Can't have both parameters set.
+		return nil, trace.AccessDenied("cannot join with invalid identity")
+	case systemRole == types.RoleBot && (hasIncomingHostID || hasBoundHostID):
+		// Note: this hasn't traditionally been enforced but bots have never
+		// self reported a host UUID. Given how new this join method is, it
+		// should be fairly safe to add this restriction.
+		fallthrough
+	case systemRole == types.RoleInstance && (hasIncomingBotInstance || hasBoundBotInstance):
+		fallthrough
+	case hasIncomingBotInstance && hasBoundHostID:
+		// Similarly, don't allow switching client types.
+		fallthrough
+	case hasIncomingHostID && hasBoundBotInstance:
+		return nil, trace.AccessDenied("cannot join with mismatched unique identifier")
+	}
 
 	recoveryMode, err := boundkeypair.ParseRecoveryMode(spec.Recovery.Mode)
 	if err != nil {
@@ -652,7 +707,7 @@ func HandleBoundKeypairJoin(
 	}
 
 	// if set, the bound bot instance will be updated in the backend
-	expectNewBotInstance := false
+	expectNewUniqueID := false
 
 	// the bound public key; may change during initial join or rotation. used to
 	// inform the returned public key value.
@@ -677,7 +732,7 @@ func HandleBoundKeypairJoin(
 
 	var verifiedPreviousBotInstanceID string
 	switch {
-	case !hasBoundPublicKey && !hasIncomingBotInstance:
+	case !hasBoundPublicKey && !hasIncomingUniqueID:
 		// Normal initial join attempt. No bound key, and no incoming bot
 		// instance. Consumes a recovery attempt.
 		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
@@ -777,18 +832,18 @@ func HandleBoundKeypairJoin(
 		// Note: this is the initial join, so no join state to verify.
 
 		recoveryCount += 1
-		expectNewBotInstance = true
+		expectNewUniqueID = true
 		emitBoundKeypairRecoveryEvent(ctx, params, ptv2, boundPublicKey, recoveryCount, nil)
-	case !hasBoundPublicKey && hasIncomingBotInstance:
+	case !hasBoundPublicKey && hasIncomingUniqueID:
 		// Not allowed, at least at the moment. This would imply e.g. trying to
 		// change auth methods.
 		return nil, trace.BadParameter("cannot perform first bound keypair join with existing credentials")
-	case hasBoundPublicKey && !hasBoundBotInstance:
+	case hasBoundPublicKey && !hasBoundUniqueID:
 		// TODO: Bad backend state, or maybe an incomplete previous join
 		// attempt. This shouldn't be a possible state, but we should handle it
 		// sanely anyway.
 		return nil, trace.BadParameter("bad backend state, please recreate the join token")
-	case hasBoundPublicKey && hasBoundBotInstance && hasIncomingBotInstance:
+	case hasBoundPublicKey && hasBoundUniqueID && hasIncomingUniqueID:
 		// Standard rejoin case, does not consume a rejoin.
 		if err := issueBoundKeypairChallenge(
 			ctx,
@@ -810,7 +865,7 @@ func HandleBoundKeypairJoin(
 		// make sure an otherwise unauthorized client can't trigger a lockout.
 		// This also needs to be done before rotation to prevent an attacker
 		// from rotating the key.
-		verifiedPreviousBotInstanceID, err = verifyBoundKeypairJoinState(ctx, params, ptv2, ca)
+		verifiedPreviousBotInstanceID, _, err = verifyBoundKeypairJoinState(ctx, params, ptv2, ca)
 		if err != nil {
 			return nil, trace.AccessDenied("join state verification failed")
 		}
@@ -825,11 +880,13 @@ func HandleBoundKeypairJoin(
 		// keep this as a sanity check.
 		if status.BoundBotInstanceID != params.AuthCtx.BotInstanceID {
 			return nil, trace.AccessDenied("bot instance mismatch")
+		} else if status.BoundHostID != params.AuthCtx.HostID {
+			return nil, trace.AccessDenied("host ID mismatch")
 		}
 
 		// Nothing else to do, no key change, no additional audit event; regular
 		// bot join event will be emitted later.
-	case hasBoundPublicKey && hasBoundBotInstance && !hasIncomingBotInstance:
+	case hasBoundPublicKey && hasBoundUniqueID && !hasIncomingUniqueID:
 		if err := issueBoundKeypairChallenge(
 			ctx,
 			params,
@@ -843,7 +900,7 @@ func HandleBoundKeypairJoin(
 		// is required. Consumes a rejoin.
 		if recoveryMode == boundkeypair.RecoveryModeStandard && !hasJoinsRemaining {
 			// Recovery limit only applies in "standard" mode.
-			return nil, trace.AccessDenied("no rejoins remaining")
+			return nil, trace.AccessDenied("no recovery attempts remaining")
 		}
 
 		// Verify locks here now that we've verified private key ownership but
@@ -855,7 +912,7 @@ func HandleBoundKeypairJoin(
 
 		// As in the standard case above, once we've verified the client has the
 		// matching private key, validate the join state.
-		verifiedPreviousBotInstanceID, err = verifyBoundKeypairJoinState(ctx, params, ptv2, ca)
+		verifiedPreviousBotInstanceID, _, err = verifyBoundKeypairJoinState(ctx, params, ptv2, ca)
 		if err != nil {
 			return nil, trace.AccessDenied("join state verification failed")
 		}
@@ -866,14 +923,16 @@ func HandleBoundKeypairJoin(
 		)
 
 		recoveryCount += 1
-		expectNewBotInstance = true
+		expectNewUniqueID = true
 		emitBoundKeypairRecoveryEvent(ctx, params, ptv2, boundPublicKey, recoveryCount, nil)
 	default:
 		log.ErrorContext(
 			ctx, "unexpected state",
 			"has_bound_public_key", hasBoundPublicKey,
 			"has_bound_bot_instance", hasBoundBotInstance,
+			"has_bound_host_id", hasBoundHostID,
 			"has_incoming_bot_instance", hasIncomingBotInstance,
+			"has_incoming_host_id", hasIncomingHostID,
 			"spec", spec,
 			"status", status,
 		)
@@ -909,20 +968,48 @@ func HandleBoundKeypairJoin(
 		boundPublicKey = newPubKey
 	}
 
-	certs, botInstanceID, err := params.GenerateBotCerts(ctx, verifiedPreviousBotInstanceID, &boundkeypair.Claims{
-		PublicKey:     boundPublicKey,
-		RecoveryCount: recoveryCount,
-		RecoveryMode:  recoveryMode,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var generatedHostID string
+	var certs *messages.Certificates
+	switch systemRole {
+	case types.RoleBot:
+		generatedCerts, botInstanceID, err := params.GenerateBotCerts(ctx, verifiedPreviousBotInstanceID, &boundkeypair.Claims{
+			PublicKey:     boundPublicKey,
+			RecoveryCount: recoveryCount,
+			RecoveryMode:  recoveryMode,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	if expectNewBotInstance {
-		mutators = append(
-			mutators,
-			mutateStatusBoundBotInstance(botInstanceID, status.BoundBotInstanceID),
-		)
+		if expectNewUniqueID {
+			mutators = append(
+				mutators,
+				mutateStatusBoundBotInstance(botInstanceID, status.BoundBotInstanceID),
+			)
+		}
+
+		certs = generatedCerts
+	case types.RoleInstance:
+		generatedCerts, hostID, err := params.GenerateHostCerts(ctx, &boundkeypair.Claims{
+			PublicKey:     boundPublicKey,
+			RecoveryCount: recoveryCount,
+			RecoveryMode:  recoveryMode,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if expectNewUniqueID {
+			mutators = append(
+				mutators,
+				mutateStatusBoundHostID(hostID, status.BoundHostID),
+			)
+		}
+
+		certs = generatedCerts
+		generatedHostID = hostID
+	default:
+		return nil, trace.NotImplemented("bound keypair joining only supports Instance and Bot system roles, client requested %s", systemRole)
 	}
 
 	// A reference to the final provision token state; may be modified below via
@@ -968,6 +1055,7 @@ func HandleBoundKeypairJoin(
 		Clock:       params.Clock,
 		ClusterName: clusterName.GetClusterName(),
 		Token:       finalToken,
+		HostID:      generatedHostID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "issuing join state document")

@@ -111,6 +111,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -1364,9 +1365,14 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 	// having one means we have an username
 	if len(pathFields) == 1 {
+		username, err := decodeURLPathParamField(pathFields[0])
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
 		params = httprouter.Params{httprouter.Param{
 			Key:   "username",
-			Value: pathFields[0],
+			Value: username,
 		}}
 
 		handleFunc = h.WithAuth(h.getUserHandle)
@@ -1374,15 +1380,32 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 	// if we have exactly 3 and they look like /password/token/:token
 	if len(pathFields) == 3 && pathFields[0] == "password" && pathFields[1] == "token" && pathFields[2] != "" {
+		token, err := decodeURLPathParamField(pathFields[2])
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
 		params = httprouter.Params{httprouter.Param{
 			Key:   "token",
-			Value: pathFields[2],
+			Value: token,
 		}}
 
 		handleFunc = httplib.MakeHandler(h.getResetPasswordTokenHandle)
 	}
 
 	handleFunc(w, r, params)
+}
+
+// decodeURLPathParamField URL-decodes a manually extracted path segment.
+// Use this when path params are set manually, since httprouter.Params.ByName()
+// only auto-decodes params captured by the router itself.
+func decodeURLPathParamField(value string) (string, error) {
+	decoded, err := url.PathUnescape(value)
+	if err != nil {
+		return "", trace.BadParameter("failed to decode URL path segment: %v", err)
+	}
+
+	return decoded, nil
 }
 
 // getUserContext returns user context
@@ -2161,6 +2184,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
+		IsPolicyEnabled:                modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
 		// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
 		// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
 		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
@@ -3425,25 +3449,6 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}, nil
 }
 
-type loginGetter interface {
-	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
-}
-
-// calculateAppLogins determines the app logins allowed for the provided
-// resource.
-//
-// TODO(gabrielcorado): DELETE IN V18.0.0
-// This is here for backward compatibility in case the auth server
-// does not support enriched resources yet.
-func calculateAppLogins(loginGetter loginGetter, r types.AppServer, allowedLogins []string) ([]string, error) {
-	if len(allowedLogins) > 0 {
-		return allowedLogins, nil
-	}
-
-	logins, err := loginGetter.GetAllowedLoginsForResource(r.GetApp())
-	return logins, trace.Wrap(err)
-}
-
 // getUserGroupLookup is a generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
 // If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
 // The returned function is not thread safe.
@@ -3511,11 +3516,24 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
+				principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+					Resource:           enriched,
+					CertPrincipals:     identity.Principals,
+					AccessChecker:      accessChecker,
+					UseSearchAsRoles:   req.UseSearchAsRoles,
+					IncludeRequestable: req.IncludeRequestable,
+				})
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				unifiedResources = append(unifiedResources, ui.MakeServer(cluster.GetName(), r, logins, enriched.RequiresRequest))
+
+				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
+					ClusterName:       cluster.GetName(),
+					Logins:            principals.Logins,
+					RequiresRequest:   enriched.RequiresRequest,
+					SupportedFeatures: nodeComponentFeatures,
+				}))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
@@ -3523,27 +3541,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			// Get all (granted ∪ requestable) logins
-			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			var grantedAWSRoles []string
-
-			// If including requestable roles, compute w/ normal accessChecker to
-			// calc difference between sets of requestable and already-granted logins.
-			if req.IncludeRequestable {
-				grantedAWSRoles, err = accessChecker.GetAllowedLoginsForResource(r.GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				grantedAWSRoles = visibleAWSRoles
-			}
-
-			allowedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): visibleAWSRoles}
-			grantedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): grantedAWSRoles}
 
 			proxyDNSName := h.proxyDNSName()
 			if r.GetApp().GetUseAnyProxyPublicAddr() {
@@ -3557,15 +3563,14 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
-				LocalClusterName:      h.auth.clusterName,
-				LocalProxyDNSName:     proxyDNSName,
-				AppClusterName:        cluster.GetName(),
-				AllowedAWSRolesLookup: allowedAWSRolesLookup,
-				GrantedAWSRolesLookup: grantedAWSRolesLookup,
-				UserGroupLookup:       getUserGroupLookup(),
-				Logger:                h.logger,
-				RequiresRequest:       enriched.RequiresRequest,
-				SupportedFeatures:     appComponentFeatures,
+				LocalClusterName:  h.auth.clusterName,
+				LocalProxyDNSName: proxyDNSName,
+				AppClusterName:    cluster.GetName(),
+				AWSRoles:          principals.AWSRoleARNs,
+				UserGroupLookup:   getUserGroupLookup(),
+				Logger:            h.logger,
+				RequiresRequest:   enriched.RequiresRequest,
+				SupportedFeatures: appComponentFeatures,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
@@ -3640,7 +3645,14 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, ui.MakeServer(cluster.GetName(), server, logins, false /* requiresRequest */))
+		loginSet := set.New(logins...)
+
+		uiServers = append(uiServers, ui.MakeServer(server, ui.MakeServerConfig{
+			ClusterName:       cluster.GetName(),
+			Logins:            &ui.PrincipalSet{All: loginSet, Granted: loginSet},
+			RequiresRequest:   false,
+			SupportedFeatures: nil,
+		}))
 	}
 
 	return listResourcesGetResponse{

@@ -88,12 +88,20 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 	if msg.LastSyncTime != nil {
 		lastSyncTime = msg.LastSyncTime.AsTime()
 	}
+
+	integrationDiscoveredResources := make(map[string]*discoveryconfig.IntegrationDiscoveredSummary, len(msg.IntegrationDiscoveredResources))
+	for k, v := range msg.IntegrationDiscoveredResources {
+		integrationDiscoveredResources[k] = &discoveryconfig.IntegrationDiscoveredSummary{
+			IntegrationDiscoveredSummary: v,
+		}
+	}
+
 	return discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
 		ErrorMessage:                   msg.ErrorMessage,
-		DiscoveredResources:            msg.DiscoveredResources,
+		DiscoveredResources:            msg.GetDiscoveredResources(),
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: msg.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: integrationDiscoveredResources,
 	}
 }
 
@@ -141,11 +149,19 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		lastSyncTime = timestamppb.New(status.LastSyncTime)
 	}
 
+	integrationDiscoveredResources := make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary, len(status.IntegrationDiscoveredResources))
+	for k, v := range status.IntegrationDiscoveredResources {
+		if v == nil {
+			v = &discoveryconfig.IntegrationDiscoveredSummary{}
+		}
+		integrationDiscoveredResources[k] = v.IntegrationDiscoveredSummary
+	}
+
 	return &discoveryconfigv1.DiscoveryConfigStatus{
 		State:                          discoveryconfigv1.DiscoveryConfigState(discoveryconfigv1.DiscoveryConfigState_value[status.State]),
 		ErrorMessage:                   status.ErrorMessage,
 		DiscoveredResources:            status.DiscoveredResources,
 		LastSyncTime:                   lastSyncTime,
-		IntegrationDiscoveredResources: status.IntegrationDiscoveredResources,
+		IntegrationDiscoveredResources: integrationDiscoveredResources,
 	}
 }
