@@ -499,7 +499,9 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// Currently, don't allow assignments created via the API to have a status,
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
-	req.GetAssignment().Status = nil
+	if req.GetAssignment().GetStatus() != nil {
+		req.GetAssignment().Status = nil
+	}
 
 	return s.cfg.Writer.UpdateScopedRoleAssignment(ctx, req)
 }
@@ -554,7 +556,9 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// Currently, don't allow assignments created via the API to have a status,
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
-	req.GetAssignment().Status = nil
+	if req.GetAssignment().GetStatus() != nil {
+		req.GetAssignment().Status = nil
+	}
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)
 }
