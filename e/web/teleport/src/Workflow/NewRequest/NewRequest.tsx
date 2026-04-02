@@ -54,10 +54,12 @@ import { StatusInfo } from 'teleport/UnifiedResources/StatusInfo';
 import { useUser } from 'teleport/User/UserContext';
 
 import {
-  AppAWSRoleMenu,
+  AppAwsRoleMenu,
   AppRequestButton,
+  NodeSshLoginMenu,
   RequestButton,
   resourceIsAWSConsoleAndSupportsConstraints,
+  resourceIsNodeAndSupportsConstraints,
 } from './RequestButton';
 import { RequestCheckout } from './RequestCheckout';
 import { Roles } from './Roles';
@@ -303,20 +305,42 @@ function NewRequest(props: State) {
             resources={resources.map(resource => ({
               resource,
               ui: {
-                ActionButton:
-                  addedResourceConstraints &&
-                  setResourceConstraints &&
-                  resourceIsAWSConsoleAndSupportsConstraints(resource) &&
-                  resource.awsRoles?.length ? (
-                    <AppAWSRoleMenu
-                      agent={resource}
-                      addedResources={addedResources}
-                      addOrRemoveResources={addOrRemoveResources}
-                      addedResourceConstraints={addedResourceConstraints}
-                      setResourceConstraints={setResourceConstraints}
-                      isNewRequestFlow={true}
-                    />
-                  ) : resource.kind === 'app' ? (
+                ActionButton: (() => {
+                  if (
+                    addedResourceConstraints &&
+                    setResourceConstraints &&
+                    resourceIsAWSConsoleAndSupportsConstraints(resource) &&
+                    resource.awsRoles?.length
+                  ) {
+                    return (
+                      <AppAwsRoleMenu
+                        agent={resource}
+                        addedResources={addedResources}
+                        addOrRemoveResources={addOrRemoveResources}
+                        addedResourceConstraints={addedResourceConstraints}
+                        setResourceConstraints={setResourceConstraints}
+                        isNewRequestFlow={true}
+                      />
+                    );
+                  }
+                  if (
+                    addedResourceConstraints &&
+                    setResourceConstraints &&
+                    resourceIsNodeAndSupportsConstraints(resource)
+                  ) {
+                    return (
+                      <NodeSshLoginMenu
+                        agent={resource}
+                        addedResources={addedResources}
+                        addOrRemoveResources={addOrRemoveResources}
+                        addedResourceConstraints={addedResourceConstraints}
+                        setResourceConstraints={setResourceConstraints}
+                        clusterId={clusterId}
+                        isNewRequestFlow={true}
+                      />
+                    );
+                  }
+                  return resource.kind === 'app' ? (
                     <AppRequestButton
                       agent={resource}
                       addedResources={addedResources}
@@ -344,7 +368,8 @@ function NewRequest(props: State) {
                         );
                       }}
                     />
-                  ),
+                  );
+                })(),
               },
             }))}
             fetchResources={unifiedFetch}

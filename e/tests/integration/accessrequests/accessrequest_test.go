@@ -53,6 +53,85 @@ func TestAccessRequest(t *testing.T) {
 	require.Len(t, resources.Items, 1)
 }
 
+func TestAccessRequestWithSSHResourceConstraints(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithRole(t, "ssh-access", func(r *types.RoleV6) {
+			r.Spec.Allow.NodeLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+			r.Spec.Allow.Logins = []string{"root", "ubuntu"}
+		}),
+		common.WithRole(t, "requester", func(r *types.RoleV6) {
+			r.Spec.Allow.Request = &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access", "ssh-access"},
+			}
+		}),
+		common.WithRole(t, "reviewer", func(r *types.RoleV6) {
+			r.Spec.Allow.ReviewRequests = &types.AccessReviewConditions{
+				Roles:          []string{"access", "ssh-access"},
+				PreviewAsRoles: []string{"access", "ssh-access"},
+			}
+		}),
+		common.WithUser(t, "alice", "reviewer"),
+		common.WithUser(t, "bob", "requester"),
+	)
+
+	auth := sut.Teleport.Process.GetAuthServer()
+	mustCreateNode(t.Context(), t, auth, "test-node", "test-node.example.com",
+		common.WithNodeLabel("env", "staging"))
+
+	bobWebClient := sut.CreateWebClientForUser(t, "bob")
+	aliceWebClient := sut.CreateWebClientForUser(t, "alice")
+
+	// Bob initially has no access to resources
+	resources := common.MustListUnifedResources(t, bobWebClient)
+	require.Empty(t, resources.Items)
+
+	// When searching as role, should see the node with both logins as requestable
+	resourcesRequestable := common.MustListUnifedResources(t, bobWebClient, common.WithSearchAsRole(), common.WithIncludeRequestable())
+	require.Len(t, resourcesRequestable.Items, 1)
+	require.True(t, resourcesRequestable.Items[0].RequiresRequest)
+	require.ElementsMatch(t, resourcesRequestable.Items[0].SSHLogins, []string{"root", "ubuntu"})
+
+	// Bob creates an access request for the node, with only the "ubuntu" login
+	accessRequest, err := common.CreateAccessRequest(t.Context(), bobWebClient, ui.AccessRequestParameters{
+		Roles:       []string{"ssh-access"},
+		RequestKind: types.AccessRequestKind_SHORT_TERM,
+		ResourceAccessIDs: []ui.ResourceAccessID{
+			{
+				ID: ui.ResourceID{
+					Kind:        types.KindNode,
+					Name:        "test-node",
+					ClusterName: "local-site",
+				},
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_Ssh{
+						Ssh: &types.SSHResourceConstraints{
+							Logins: []string{"ubuntu"},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, accessRequest.ID)
+
+	// Alice approves Bob's request
+	common.MustApproveAccessRequest(t, aliceWebClient, accessRequest.ID)
+
+	// Bob assumes the approved access request to gain JIT access
+	bobWebJITClient, err := common.AssumeAccessRequestWebClient(t.Context(), bobWebClient, accessRequest.ID)
+	require.NoError(t, err)
+
+	// Bob now has access to the node, with only the "ubuntu" login
+	resources = common.MustListUnifedResources(t, bobWebJITClient)
+	require.Len(t, resources.Items, 1)
+
+	nodeItem := resources.Items[0]
+	require.Equal(t, "node", nodeItem.Kind)
+	require.Equal(t, []string{"ubuntu"}, nodeItem.SSHLogins)
+}
+
 func TestAccessRequestWithResourceConstraints(t *testing.T) {
 	sut := common.InitSUT(t,
 		common.WithLicense("../../../fixtures/license-eub.pem"),

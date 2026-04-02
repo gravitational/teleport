@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	ossui "github.com/gravitational/teleport/lib/web/ui"
@@ -74,9 +75,27 @@ func RoundtripWithResponse(ctx context.Context, rt doer, method string, endpoint
 	return resp, nil
 }
 
+// unifiedResourceItem is a superset struct that can deserialize both App and Server
+// items from the unified resources API response. Fields that don't apply to a
+// given resource kind will be zero-valued.
+type unifiedResourceItem struct {
+	// Kind is the resource kind (e.g. "node", "app").
+	Kind string `json:"kind"`
+	// Name is the resource name.
+	Name string `json:"name"`
+	// RequiresRequest indicates the resource is only accessible via an access request.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// AWSRoles is populated for AWS Console app resources.
+	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
+	// SSHLogins is populated for SSH node resources.
+	SSHLogins []string `json:"sshLogins,omitempty"`
+	// SSHLoginDetails provides per-login metadata for SSH node resources.
+	SSHLoginDetails []ossui.SSHLogin `json:"sshLoginDetails,omitempty"`
+}
+
 // UnifiedResourcesResponse represents the response from the unified resources API.
 type UnifiedResourcesResponse struct {
-	Items []ossui.App `json:"items"`
+	Items []unifiedResourceItem `json:"items"`
 }
 
 // listUnifedResourceOptions holds options for listing unified resources.

@@ -1,3 +1,4 @@
+/* eslint-disable testing-library/no-node-access */
 import {
   waitFor,
   waitForElementToBeRemoved,
@@ -234,7 +235,7 @@ test('select all nodes hostnames in checkout', async () => {
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
-  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('4 Resources Selected')).toBeInTheDocument();
   hostnames = screen.getAllByText('hostname-node1');
 
   // one in list and one in the checkout
@@ -254,7 +255,7 @@ test('adding resources with bulk action properly adds/removes nodes', async () =
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
-  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('4 Resources Selected')).toBeInTheDocument();
   hostnames = screen.getAllByText('hostname-node1');
 
   await userEvent.click(await screen.findByTestId('close-checkout'));
@@ -274,11 +275,11 @@ test('select all buttons work properly', async () => {
 
   const addToResource = screen.getByTestId('add_to_resource');
   await userEvent.click(addToResource);
-  expect(screen.getByText('Resources Added (3)')).toBeInTheDocument();
+  expect(screen.getByText('Resources Added (4)')).toBeInTheDocument();
 
   const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
-  expect(screen.getByText('3 Resources Selected')).toBeInTheDocument();
+  expect(screen.getByText('4 Resources Selected')).toBeInTheDocument();
 });
 
 test('legacy renders no usage info', async () => {
@@ -440,6 +441,70 @@ test('adding constrained resources to requests', async () => {
       roles: ['access', 'editor', 'auditor'],
       suggestedReviewers: ['bob', 'cat', 'george washington'],
     },
+    undefined
+  );
+
+  const successMsg = await screen.findByText(/make another request/i);
+  expect(successMsg).toBeInTheDocument();
+});
+
+test('adding SSH constrained resources to requests', async () => {
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
+  renderComponent();
+
+  // Wait for the constrained SSH node to render.
+  await screen.findByText('hostname-constrained-node');
+
+  // In the NewRequest flow, NodeSshLoginMenu shows "Add to request" as the dropdown label.
+  // Find the dropdown button for the constrained node (contains a chevron SVG).
+  const addToRequestButtons = await screen.findAllByText(/add to request/i);
+  const dropdownButton = addToRequestButtons.find(btn =>
+    btn.closest('button')?.querySelector('svg')
+  );
+  expect(dropdownButton).toBeDefined();
+  await userEvent.click(dropdownButton);
+
+  // The dropdown should show "root" as a requestable login with a checkbox.
+  const rootOption = await screen.findByText('root');
+  expect(rootOption).toBeInTheDocument();
+  await userEvent.click(rootOption);
+
+  // Should now show 'Proceed to Request'.
+  const proceedToRequest = screen.getByText('Proceed to Request');
+  expect(proceedToRequest).toBeEnabled();
+  await userEvent.click(proceedToRequest);
+
+  expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
+
+  // Type a reason and submit.
+  const textbox = screen.getByPlaceholderText(/describe your request/i);
+  await userEvent.type(textbox, 'need root');
+  await waitFor(() => {
+    expect(textbox).toHaveValue('need root');
+  });
+
+  await userEvent.click(
+    screen.getByRole('button', { name: /submit request/i })
+  );
+
+  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith(
+    expect.objectContaining({
+      resourceAccessIds: [
+        {
+          id: {
+            clusterName: 'localhost',
+            kind: 'node',
+            name: '3',
+            subResourceName: '',
+          },
+          constraints: {
+            ssh: {
+              logins: ['root'],
+            },
+          },
+        },
+      ],
+    }),
     undefined
   );
 
@@ -695,6 +760,22 @@ const nodesResponse = [
     ],
   },
   {
+    tunnel: false,
+    subKind: 'teleport',
+    sshLogins: ['ubuntu', 'root'],
+    sshLoginDetails: [
+      { login: 'ubuntu', requiresRequest: false },
+      { login: 'root', requiresRequest: true },
+    ],
+    id: '3',
+    kind: 'node',
+    clusterId: 'localhost',
+    hostname: 'hostname-constrained-node',
+    addr: 'constrained-node-addr',
+    tags: [{ name: 'env', value: 'staging' }],
+    supportedFeatureIds: [1],
+  },
+  {
     kind: 'app',
     name: 'aws-console',
     description: '',
@@ -723,6 +804,7 @@ const nodesResponse = [
       {
         name: 'Administrator',
         display: 'Administrator',
+        accountId: '123456789012',
         arn: 'arn:aws:iam::123456789012:role/Administrator',
         requiresRequest: true,
       },

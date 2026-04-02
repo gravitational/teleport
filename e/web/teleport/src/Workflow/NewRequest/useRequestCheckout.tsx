@@ -363,13 +363,14 @@ const getConstraintsForResource = ({
   resource: PendingListItem;
   resourceConstraints: NewRequestState['addedResourceConstraints'];
   cluster: string;
-}) =>
-  // Only AWS Console apps support constraints for now.
-  resource.kind === 'app'
-    ? resourceConstraints[
-        getResourceIDString({ cluster, kind: resource.kind, name: resource.id })
-      ]
-    : undefined;
+}) => {
+  if (resource.kind === 'app' || resource.kind === 'node') {
+    return resourceConstraints[
+      getResourceIDString({ cluster, kind: resource.kind, name: resource.id })
+    ];
+  }
+  return undefined;
+};
 
 type Props = {
   ctx: Ctx;

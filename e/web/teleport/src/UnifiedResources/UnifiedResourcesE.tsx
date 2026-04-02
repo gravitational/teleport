@@ -21,10 +21,12 @@ import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAn
 import { SamlAppActionProvider } from 'e-teleport/SamlApplication/hooks/useSamlAppActionsE';
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
-  AppAWSRoleMenu,
+  AppAwsRoleMenu,
   AppRequestButton,
+  NodeSshLoginMenu,
   RequestButton,
   resourceIsAWSConsoleAndSupportsConstraints,
+  resourceIsNodeAndSupportsConstraints,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
 import {
   addOrRemoveIdentityCenterAssignments,
@@ -100,13 +102,27 @@ export function UnifiedResourcesE() {
 
     if (resourceIsAWSConsoleAndSupportsConstraints(resource)) {
       return (
-        <AppAWSRoleMenu
+        <AppAwsRoleMenu
           agent={resource}
           addOrRemoveResources={addOrRemoveResources}
           addedResources={addedResources}
           addedResourceConstraints={addedResourceConstraints}
           setResourceConstraints={setResourceConstraints}
           requestStarted={requestStarted}
+        />
+      );
+    }
+
+    if (resourceIsNodeAndSupportsConstraints(resource)) {
+      return (
+        <NodeSshLoginMenu
+          agent={resource}
+          addOrRemoveResources={addOrRemoveResources}
+          addedResources={addedResources}
+          addedResourceConstraints={addedResourceConstraints}
+          setResourceConstraints={setResourceConstraints}
+          requestStarted={requestStarted}
+          clusterId={clusterId}
         />
       );
     }
