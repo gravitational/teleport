@@ -305,11 +305,17 @@ func TestDiscoveryServerEKS(t *testing.T) {
 type mockAuthServer struct {
 	authclient.DiscoveryAccessPoint
 
-	storeDiscoveryConfigs map[string]*discoveryconfig.DiscoveryConfig
-	storeUserTasks        map[string]*usertasksv1.UserTask
+	discoveryConfigSemaphore sync.Mutex
 
-	events      types.Events
-	usageEvents []*proto.SubmitUsageEventRequest
+	storeDiscoveryConfigs   map[string]*discoveryconfig.DiscoveryConfig
+	storeDiscoveryConfigsMu sync.RWMutex
+
+	storeUserTasks   map[string]*usertasksv1.UserTask
+	storeUserTasksMu sync.RWMutex
+
+	events        types.Events
+	usageEvents   []*proto.SubmitUsageEventRequest
+	usageEventsMu sync.Mutex
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
@@ -359,15 +365,23 @@ func (m *mockAuthServer) Ping(context.Context) (proto.PingResponse, error) {
 }
 
 func (m *mockAuthServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	m.usageEventsMu.Lock()
+	defer m.usageEventsMu.Unlock()
 	m.usageEvents = append(m.usageEvents, req)
 	return nil
 }
 
 func (m *mockAuthServer) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	m.storeDiscoveryConfigsMu.RLock()
+	defer m.storeDiscoveryConfigsMu.RUnlock()
+
 	return slices.Collect(maps.Values(m.storeDiscoveryConfigs)), "", nil
 }
 
 func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
+	m.storeDiscoveryConfigsMu.Lock()
+	defer m.storeDiscoveryConfigsMu.Unlock()
+
 	dc, ok := m.storeDiscoveryConfigs[name]
 	if !ok {
 		return nil, trace.NotFound("discovery config %q not found", name)
@@ -379,8 +393,24 @@ func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name s
 	return dc, nil
 }
 
+func (m *mockAuthServer) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	return nil
+}
+
 func (m *mockAuthServer) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	return nil, nil
+}
+
+func (m *mockAuthServer) GetProxies() ([]types.Server, error) {
+	return []types.Server{&types.ServerV2{
+		Kind: types.KindProxy,
+		Metadata: types.Metadata{
+			Name: "proxy",
+		},
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com:443"},
+		},
+	}}, nil
 }
 
 func (m *mockAuthServer) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
@@ -432,16 +462,20 @@ func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integration
 }
 
 func (m *mockAuthServer) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	m.discoveryConfigSemaphore.Lock()
 	return &types.SemaphoreLease{
 		Expires: time.Now().Add(10 * time.Minute),
 	}, nil
 }
 
 func (m *mockAuthServer) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.discoveryConfigSemaphore.Unlock()
 	return nil
 }
 
 func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
+	m.storeUserTasksMu.RLock()
+	defer m.storeUserTasksMu.RUnlock()
 	if task, ok := m.storeUserTasks[name]; ok {
 		return task, nil
 	}
@@ -449,6 +483,8 @@ func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertas
 }
 
 func (m *mockAuthServer) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	m.storeUserTasksMu.Lock()
+	defer m.storeUserTasksMu.Unlock()
 	m.storeUserTasks[req.GetMetadata().GetName()] = req
 	return req, nil
 }
