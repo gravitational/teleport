@@ -84,6 +84,20 @@ func TestSSHMultiplexerService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "destination: must be of type `directory`",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *MultiplexerConfig {
+				return &MultiplexerConfig{
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

@@ -70,7 +70,10 @@ func (o *OutputV1Config) SetName(name string) {
 	o.Name = name
 }
 
-func (o *OutputV1Config) CheckAndSetDefaults() error {
+func (o *OutputV1Config) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputV1ServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

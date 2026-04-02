@@ -112,6 +112,19 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "username: should not be empty",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:   "tcp://0.0.0.0:3621",
+					Service:  "service",
+					Database: "database",
+					Username: "username",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

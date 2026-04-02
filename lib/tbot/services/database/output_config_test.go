@@ -99,6 +99,17 @@ func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "unrecognized format (no-such-format)",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Service:     "service",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

@@ -83,6 +83,17 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "app_name must not be empty",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					AppName:     "app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }
