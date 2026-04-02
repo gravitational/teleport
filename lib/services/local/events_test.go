@@ -50,20 +50,6 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	return ev
 }
 
-func requireNoEvent(t *testing.T, w types.Watcher, timeout time.Duration) {
-	t.Helper()
-
-	select {
-	case event := <-w.Events():
-		require.Fail(t, "Expected not to receive an event", event)
-
-	case <-w.Done():
-		require.Fail(t, "Watcher exited while waiting for no event", w.Error())
-
-	case <-time.After(timeout):
-	}
-}
-
 func newTestContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
