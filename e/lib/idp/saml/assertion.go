@@ -241,9 +241,18 @@ func (s *Service) buildAttributes(req *saml.IdpAuthnRequest, session *saml.Sessi
 		}
 	}
 
-	attributes = addAttribute(attributes, types.SAMLUIDFriendlyName, types.SAMLUIDName, session.UserName)
-	attributes = addAttribute(attributes, types.SAMLEduPersonAffiliationFriendlyName, types.SAMLEduPersonAffiliationName, session.Groups...)
-	attributes = addAttribute(attributes, "" /* no friendly name */, types.SAMLSubjectIDName, session.SubjectID)
+	// Custom mappings take precedence over default attributes, so we add defaults first and then custom attributes will overwrite
+	// any defaults with the same name.
+	customNames := s.customAttributeNames(req)
+	addDefault := func(friendlyName, name string, values ...string) {
+		// custom attribute mapping takes precedence over default attribute, even if it evaluates to an empty set.
+		if !customNames[name] {
+			attributes = addAttribute(attributes, friendlyName, name, values...)
+		}
+	}
+	addDefault(types.SAMLUIDFriendlyName, types.SAMLUIDName, session.UserName)
+	addDefault(types.SAMLEduPersonAffiliationFriendlyName, types.SAMLEduPersonAffiliationName, session.Groups...)
+	addDefault("", types.SAMLSubjectIDName, session.SubjectID)
 
 	custom, err := s.evaluateCustomAttributes(req, session)
 	if err != nil {
@@ -289,6 +298,19 @@ func addAttributeWithFormat(attributes []saml.Attribute, friendlyName, name, for
 	}
 
 	return append(attributes, attribute.New(friendlyName, name, format, values...))
+}
+
+// customAttributeNames returns the set of attribute names defined by custom
+// attribute mappings in the service provider's Teleport-specific descriptor.
+func (s *Service) customAttributeNames(req *saml.IdpAuthnRequest) map[string]bool {
+	_, teleportSPSSODescriptor := local.GetTeleportSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
+	names := make(map[string]bool)
+	for _, acs := range teleportSPSSODescriptor.AttributeConsumingServices {
+		for _, ra := range acs.RequestedAttributes {
+			names[ra.Name] = true
+		}
+	}
+	return names
 }
 
 // attributesToMappableUserSpec unpacks saml session custom attributes to samlMappableUserSpec.

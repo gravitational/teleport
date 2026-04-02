@@ -74,14 +74,22 @@ func TestMakeAssertion(t *testing.T) {
 			wantAttributes: []saml.AttributeStatement{{
 				Attributes: []saml.Attribute{
 					attribute.New("uid", types.SAMLUIDName, types.SAMLURINameFormat, "test-user"),
-					attribute.New("eduPersonAffiliation", types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "group1", "group2"),
-					// The "eduPersonAffiliation" attribute is duplicated because a default one is
-					// always generated with user roles as values, regardless of custom mappings.
-					//
-					// TODO(smallinsky): allow overriding the default "eduPersonAffiliation" attribute
-					// via custom mapping to handle cases where only known roles should be included
-					// in the assertion or the number of roles should be limited.
 					attribute.New(types.SAMLEduPersonAffiliationName, types.SAMLEduPersonAffiliationName, types.SAMLURINameFormat, "r1", "r2"),
+				},
+			}},
+		},
+		{
+			name: "custom empty eduPersonAffiliation should remove attribute",
+			attributeMapping: []*types.SAMLAttributeMapping{
+				{
+					Name:       types.SAMLEduPersonAffiliationName,
+					NameFormat: types.SAMLURINameFormat,
+					Value:      `set()`,
+				},
+			},
+			wantAttributes: []saml.AttributeStatement{{
+				Attributes: []saml.Attribute{
+					attribute.New("uid", types.SAMLUIDName, types.SAMLURINameFormat, "test-user"),
 				},
 			}},
 		},
