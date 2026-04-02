@@ -21,7 +21,6 @@ package rdpstate
 import (
 	"bytes"
 	"image"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -43,7 +42,6 @@ import (
 // The RDP decoder is initialized on the first ServerHello (or its legacy equivalent, ConnectionActivated).
 // Subsequent FastPathPDU messages are fed to the decoder, which maintains the screen framebuffer and cursor state.
 type RDPState struct {
-	mu      sync.Mutex
 	decoder *decoder.Decoder
 }
 
@@ -70,9 +68,6 @@ func (s *RDPState) HandleMessage(evt *events.DesktopRecording) error {
 // CursorState returns the current cursor visibility and position. If the decoder has not been initialized yet, it
 // returns a default hidden cursor at (0, 0).
 func (s *RDPState) CursorState() decoder.CursorState {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.decoder == nil {
 		return decoder.CursorState{}
 	}
@@ -82,9 +77,6 @@ func (s *RDPState) CursorState() decoder.CursorState {
 
 // Image returns the current screen image as an RGBA bitmap. If the decoder has not been initialized yet, it returns nil.
 func (s *RDPState) Image() *image.RGBA {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.decoder == nil {
 		return nil
 	}
@@ -94,9 +86,6 @@ func (s *RDPState) Image() *image.RGBA {
 
 // Release frees any resources associated with the RDPState, including the decoder.
 func (s *RDPState) Release() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.decoder != nil {
 		s.decoder.Release()
 		s.decoder = nil
@@ -114,9 +103,6 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 		return trace.Wrap(err, "translating legacy TDP message")
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	for _, m := range msgs {
 		if err := s.handleMessage(m); err != nil {
 			return trace.Wrap(err)
@@ -131,9 +117,6 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 	if err != nil {
 		return trace.Wrap(err, "decoding TDPB message")
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	return s.handleMessage(msg)
 }
