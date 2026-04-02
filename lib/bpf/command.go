@@ -166,9 +166,9 @@ func (e *exec) endSession(auditSessionID uint32) error {
 // program. The ring buffer is closed as part of the module being closed.
 func (e *exec) close() {
 	e.mtx.Lock()
-	defer e.mtx.Unlock()
 
 	if e.closed {
+		e.mtx.Unlock()
 		return
 	}
 
@@ -190,11 +190,14 @@ func (e *exec) close() {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 
-	e.wg.Wait()
-
 	if err := e.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close command lost counter", "error", err)
 	}
+
+	// Unlock before waiting for the goroutines to finish to avoid
+	// startSession/endSession blocking for potentially a long time.
+	e.mtx.Unlock()
+	e.wg.Wait()
 
 	logger.DebugContext(context.Background(), "Closed command BPF module")
 }

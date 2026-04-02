@@ -190,9 +190,9 @@ func (c *conn) endSession(auditSessionID uint32) error {
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
 	c.mtx.Lock()
-	defer c.mtx.Unlock()
 
 	if c.closed {
+		c.mtx.Unlock()
 		return
 	}
 
@@ -219,6 +219,11 @@ func (c *conn) close() {
 	if err := c.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
 	}
+
+	// Unlock before waiting for the goroutines to finish to avoid
+	// startSession/endSession blocking for potentially a long time.
+	c.mtx.Unlock()
+	c.wg.Wait()
 
 	logger.DebugContext(context.Background(), "Closed network BPF module")
 }

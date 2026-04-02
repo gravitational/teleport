@@ -191,9 +191,9 @@ func (o *open) endSession(auditSessionID uint32) error {
 // program. The ring buffer is closed as part of the module being closed.
 func (o *open) close() {
 	o.mtx.Lock()
-	defer o.mtx.Unlock()
 
 	if o.closed {
+		o.mtx.Unlock()
 		return
 	}
 
@@ -215,11 +215,14 @@ func (o *open) close() {
 		logger.WarnContext(context.Background(), "failed to close disk objects", "error", err)
 	}
 
-	o.wg.Wait()
-
 	if err := o.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
 	}
+
+	// Unlock before waiting for the goroutines to finish to avoid
+	// startSession/endSession blocking for potentially a long time.
+	o.mtx.Unlock()
+	o.wg.Wait()
 
 	logger.DebugContext(context.Background(), "Closed disk BPF module")
 }
