@@ -23,8 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -81,8 +83,9 @@ func TestDesktopAccessCAOverrides(t *testing.T) {
 	runTest := func(
 		t *testing.T,
 		wantParent *x509.Certificate,
+		wantDetails *proto.CAOverrideCertificateDetails,
 	) {
-		certDER, _, err := winpki.GenerateWindowsDesktopCredentials(t.Context(), authServer, &winpki.GenerateCredentialsRequest{
+		genResp, err := winpki.GenerateWindowsDesktopCredentials(t.Context(), authServer, &winpki.GenerateCredentialsRequest{
 			Username:    "Administrator",
 			Domain:      "LLAMA",
 			TTL:         1 * time.Hour,
@@ -90,17 +93,20 @@ func TestDesktopAccessCAOverrides(t *testing.T) {
 		})
 		require.NoError(t, err, "GenerateWindowsDesktopCredentials errored")
 
-		genCert, err := x509.ParseCertificate(certDER)
+		genCert, err := x509.ParseCertificate(genResp.CertDER)
 		require.NoError(t, err)
 
 		assert.NoError(t,
 			genCert.CheckSignatureFrom(wantParent),
 			"Certificate signature verification failed (self-signed CA)",
 		)
+		if diff := cmp.Diff(wantDetails, genResp.CAOverrideDetails, protocmp.Transform()); diff != "" {
+			t.Errorf("genResp.CAOverrideDetails mismatch (-want +got)\n%s", diff)
+		}
 	}
 
 	t.Run("generate without override", func(t *testing.T) {
-		runTest(t, caCert)
+		runTest(t, caCert, nil)
 	})
 
 	// Create an active override for caCert.
@@ -120,6 +126,8 @@ func TestDesktopAccessCAOverrides(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("generate with override", func(t *testing.T) {
-		runTest(t, overrideCert)
+		runTest(t, overrideCert, &proto.CAOverrideCertificateDetails{
+			PublicKeyHash: override.PublicKey,
+		})
 	})
 }

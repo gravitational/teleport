@@ -152,7 +152,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	return &proto.WindowsDesktopCertResponse{
-		Cert: cert,
+		Cert:       cert,
+		CaOverride: overrideResult.ToClientOverrideDetailsProto(),
 	}, nil
 }
 
