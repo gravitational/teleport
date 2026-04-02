@@ -69,6 +69,8 @@ func (s *ServerCollection) WriteText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by host name.
+	t.SortRowsBy([]int{0}, true)
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
