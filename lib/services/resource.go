@@ -268,6 +268,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadIdentity, nil
 	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
 		return types.KindStaticHostUser, nil
+	case types.KindUserLoginState, types.KindUserLoginState + "s":
+		return types.KindUserLoginState, nil
 	case types.KindUserTask, types.KindUserTask + "s":
 		return types.KindUserTask, nil
 	case types.KindAutoUpdateConfig:
