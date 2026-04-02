@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   {{- with .Values.annotations.deployment }}
   annotations:
     {{- toYaml . | nindent 4 }}
