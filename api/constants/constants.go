@@ -341,6 +341,11 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolReverseTunnelV2 is the pseudo ALPN protocol used to
+	// indicate that a TLS-tunneled reverse tunnel connection is initiated by a
+	// client that understands proxy peering (and, as such, can be routed to a
+	// subset of all available proxies).
+	ALPNSNIProtocolReverseTunnelV2 = "teleport-reversetunnelv2"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
 	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
