@@ -19,7 +19,6 @@ package discovery
 import (
 	"bytes"
 	"context"
-	"slices"
 	"testing"
 	"time"
 
@@ -28,32 +27,37 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 )
 
+// mockUserTasks implements services.UserTasks for testing.
+type mockUserTasks struct {
+	services.UserTasks
+	tasks []*usertasksv1.UserTask
+}
+
+func (m *mockUserTasks) ListUserTasks(_ context.Context, _ int64, _ string, _ *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
+	return m.tasks, "", nil
+}
+
 // mockClient implements discoveryClient for testing.
-// SearchEvents returns one event per call, paginating via StartKey.
 type mockClient struct {
-	events []apievents.AuditEvent
-	nodes  []types.Server
+	events    []apievents.AuditEvent
+	nodes     []types.Server
+	userTasks []*usertasksv1.UserTask
 }
 
 func (m *mockClient) SearchEvents(_ context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	// Return one event per call to exercise pagination.
-	start := slices.IndexFunc(m.events, func(e apievents.AuditEvent) bool { return e.GetID() == req.StartKey })
-	if req.StartKey == "" {
-		start = 0
-	}
-	if start < 0 || start >= len(m.events) {
-		return nil, "", nil
-	}
-	page := m.events[start : start+1]
-	if start+1 < len(m.events) {
-		return page, m.events[start+1].GetID(), nil
-	}
-	return page, "", nil
+	return m.events, "", nil
+}
+
+func (m *mockClient) UserTasksClient() services.UserTasks {
+	return &mockUserTasks{tasks: m.userTasks}
 }
 
 func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
@@ -69,19 +73,16 @@ func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesReque
 	}, nil
 }
 
-// newTestCommand creates a Command wired to a bytes.Buffer for capturing output.
-func newTestCommand(format string) (*Command, *bytes.Buffer) {
-	var buf bytes.Buffer
-	c := &Command{
-		clock:           clockwork.NewRealClock(),
-		stdout:          &buf,
-		inventoryLast:   "1h",
-		inventoryFormat: format,
+// newTestCommand creates a Command for testing.
+func newTestCommand(format string) *Command {
+	return &Command{
+		config:      &servicecfg.Config{Clock: clockwork.NewRealClock()},
+		nodesLast:   "1h",
+		nodesFormat: format,
 	}
-	return c, &buf
 }
 
-func TestRunInventory(t *testing.T) {
+func TestRunNodes(t *testing.T) {
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -91,82 +92,88 @@ func TestRunInventory(t *testing.T) {
 		wantJSON string
 	}{
 		{
-			desc: "failures and successes",
+			desc: "SSM failures and successes",
 			client: &mockClient{
 				events: []apievents.AuditEvent{
 					makeSSMRun("i-fail111", "111", "us-east-1", "Failed", 1, "install failed", now),
 					makeSSMRun("i-success", "222", "us-west-2", "Success", 0, "", now),
 				},
 			},
-			wantText: `Instance ID Region    Account Online Time                 Result SSM Output       
------------ --------- ------- ------ -------------------- ------ ---------------- 
-i-fail111   us-east-1 111     no     2026-01-15T12:00:00Z exit=1 "install failed" 
-i-success   us-west-2 222     no     2026-01-15T12:00:00Z exit=0                  
+			wantText: `Cloud Account Region    Instance ID Time          Status        Details       
+----- ------- --------- ----------- ------------- ------------- ------------- 
+AWS   111     us-east-1 i-fail111   2026-01-15... Failed (ex... Script out... 
+AWS   222     us-west-2 i-success   2026-01-15... Installed ...               
 `,
 			wantJSON: `[
-  {
-    "instance_id": "i-fail111",
-    "region": "us-east-1",
-    "account_id": "111",
-    "is_online": false,
-    "expiry": "0001-01-01T00:00:00Z",
-    "ssm_result": {
-      "exit_code": 1,
-      "output": "install failed",
-      "time": "2026-01-15T12:00:00Z",
-      "is_failure": true
+    {
+        "region": "us-east-1",
+        "is_online": false,
+        "expiry": "0001-01-01T00:00:00Z",
+        "run_result": {
+            "exit_code": 1,
+            "output": "install failed",
+            "time": "2026-01-15T12:00:00Z",
+            "is_failure": true
+        },
+        "aws": {
+            "instance_id": "i-fail111",
+            "account_id": "111"
+        }
+    },
+    {
+        "region": "us-west-2",
+        "is_online": false,
+        "expiry": "0001-01-01T00:00:00Z",
+        "run_result": {
+            "exit_code": 0,
+            "output": "",
+            "time": "2026-01-15T12:00:00Z",
+            "is_failure": false
+        },
+        "aws": {
+            "instance_id": "i-success",
+            "account_id": "222"
+        }
     }
-  },
-  {
-    "instance_id": "i-success",
-    "region": "us-west-2",
-    "account_id": "222",
-    "is_online": false,
-    "expiry": "0001-01-01T00:00:00Z",
-    "ssm_result": {
-      "exit_code": 0,
-      "output": "",
-      "time": "2026-01-15T12:00:00Z",
-      "is_failure": false
-    }
-  }
 ]
 `,
 		},
 		{
-			desc:     "empty result",
-			client:   &mockClient{},
+			desc:   "empty result",
+			client: &mockClient{},
 			wantText: `No instances found.
 `,
 			wantJSON: `[]
 `,
 		},
 		{
-			desc: "online instance with SSM failure",
+			desc: "online instance with SSM run failure",
 			client: &mockClient{
 				events: []apievents.AuditEvent{
 					makeSSMRun("i-online1", "111", "us-east-1", "Failed", 1, "err", now),
 				},
 				nodes: []types.Server{makeNode("node-1", "i-online1", "111", "us-east-1", time.Time{})},
 			},
-			wantText: `Instance ID Region    Account Online Time                 Result SSM Output 
------------ --------- ------- ------ -------------------- ------ ---------- 
-i-online1   us-east-1 111     yes    2026-01-15T12:00:00Z exit=1 "err"      
+			wantText: `Cloud Account Region    Instance ID Time          Status        Details       
+----- ------- --------- ----------- ------------- ------------- ------------- 
+AWS   111     us-east-1 i-online1   2026-01-15... Online, ex... Script out... 
 `,
 			wantJSON: `[
-  {
-    "instance_id": "i-online1",
-    "region": "us-east-1",
-    "account_id": "111",
-    "is_online": true,
-    "expiry": "0001-01-01T00:00:00Z",
-    "ssm_result": {
-      "exit_code": 1,
-      "output": "err",
-      "time": "2026-01-15T12:00:00Z",
-      "is_failure": true
+    {
+        "region": "us-east-1",
+        "is_online": true,
+        "expiry": "0001-01-01T00:00:00Z",
+        "run_result": {
+            "exit_code": 1,
+            "output": "err",
+            "time": "2026-01-15T12:00:00Z",
+            "is_failure": true
+        },
+        "aws": {
+            "instance_id": "i-online1",
+            "account_id": "111"
+        }
     }
-  }
 ]
 `,
 		},
@@ -174,13 +181,15 @@ i-online1   us-east-1 111     yes    2026-01-15T12:00:00Z exit=1 "err"
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Run(teleport.Text, func(t *testing.T) {
-				c, buf := newTestCommand(teleport.Text)
-				require.NoError(t, c.runInventory(t.Context(), tt.client))
+				var buf bytes.Buffer
+				c := newTestCommand(teleport.Text)
+				require.NoError(t, c.runNodes(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
 				require.Equal(t, tt.wantText, buf.String())
 			})
 			t.Run(teleport.JSON, func(t *testing.T) {
-				c, buf := newTestCommand(teleport.JSON)
-				require.NoError(t, c.runInventory(t.Context(), tt.client))
+				var buf bytes.Buffer
+				c := newTestCommand(teleport.JSON)
+				require.NoError(t, c.runNodes(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
 				require.Equal(t, tt.wantJSON, buf.String())
 			})
 		})

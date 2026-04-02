@@ -21,13 +21,14 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -35,58 +36,52 @@ import (
 // Command implements the "tctl discovery" CLI command group.
 type Command struct {
 	config *servicecfg.Config
-	clock  clockwork.Clock
-	stdout io.Writer
 
-	inventoryCmd *kingpin.CmdClause
+	nodesCmd *kingpin.CmdClause
 
-	inventoryLast   string
-	inventoryFormat string
-}
-
-// output returns the configured stdout writer, defaulting to os.Stdout.
-func (c *Command) output() io.Writer {
-	if c.stdout != nil {
-		return c.stdout
-	}
-	return os.Stdout
+	nodesLast         string
+	nodesFormat       string
+	nodesFailuresOnly bool
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
-	if c.clock == nil {
-		c.clock = clockwork.NewRealClock()
-	}
 
-	discovery := app.Command("discovery", "Troubleshoot Discovery auto-enrollment issues.")
-	c.inventoryCmd = discovery.Command("inventory", "Report discovered instances and their SSM enrollment status.")
-
-	c.inventoryCmd.Alias(`
+	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
+	c.nodesCmd = discovery.Command("nodes", "Report discovered server instances and their enrollment status using Teleport audit log and cluster state.")
+	c.nodesCmd.Alias(`
 Examples:
 
   List discovered instances in the last hour (default):
-  $ tctl discovery inventory
+  $ tctl discovery nodes
 
   Look back 24 hours and output as JSON:
-  $ tctl discovery inventory --last=24h --format=json
+  $ tctl discovery nodes --last=24h --format=json
 
   Look back 30 minutes:
-  $ tctl discovery inventory --last=30m
+  $ tctl discovery nodes --last=30m
 `)
 
-	c.inventoryCmd.Flag("last", "Time window to look back for failures (e.g. 1h, 24h, 30m).").
+	c.nodesCmd.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
 		Default("1h").
-		StringVar(&c.inventoryLast)
-	c.inventoryCmd.Flag("format", "Output format.").
+		StringVar(&c.nodesLast)
+	c.nodesCmd.Flag("format", "Output format.").
 		Default(teleport.Text).
-		EnumVar(&c.inventoryFormat, teleport.Text, teleport.JSON)
+		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
+	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
+		BoolVar(&c.nodesFailuresOnly)
 }
 
 // TryRun attempts to run the matched subcommand.
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	if cmd != c.inventoryCmd.FullCommand() {
+	if cmd != c.nodesCmd.FullCommand() {
 		return false, nil
+	}
+
+	dateFrom, dateTo, err := resolveTimeRange(c.config.Clock, c.nodesLast)
+	if err != nil {
+		return true, trace.Wrap(err)
 	}
 
 	client, closeFn, err := clientFunc(ctx)
@@ -95,34 +90,37 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 	defer closeFn(ctx)
 
-	return true, trace.Wrap(c.runInventory(ctx, client))
+	return true, trace.Wrap(c.runNodes(ctx, client, os.Stdout, dateFrom, dateTo))
 }
 
-// runInventory fetches all discovered instances and renders the output.
-func (c *Command) runInventory(ctx context.Context, clt discoveryClient) error {
-	from, to, err := resolveTimeRange(c.clock, c.inventoryLast)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	slog.DebugContext(ctx, "Resolved time range for inventory",
-		"from", from,
-		"to", to,
-		"last", c.inventoryLast,
+// runNodes fetches all discovered instances and renders the output.
+func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer, dateFrom, dateTo time.Time) error {
+	slog.DebugContext(ctx, "Resolved time range for nodes",
+		"from", dateFrom,
+		"to", dateTo,
+		"last", c.nodesLast,
 	)
 
-	instances, err := buildInventory(ctx, clt, from, to)
+	instances, err := buildNodes(ctx, clt, dateFrom, dateTo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	slog.DebugContext(ctx, "Built instance inventory",
+	if c.nodesFailuresOnly {
+		total := len(instances)
+		instances = filterFailures(instances)
+		slog.DebugContext(ctx, "Filtered to failures only",
+			"total_instances", total,
+			"failed_instances", len(instances),
+		)
+	}
+	slog.DebugContext(ctx, "Built nodes report",
 		"total_instances", len(instances),
-		"format", c.inventoryFormat,
+		"format", c.nodesFormat,
 	)
 
-	w := c.output()
-	switch c.inventoryFormat {
+	switch c.nodesFormat {
 	case teleport.JSON:
-		return trace.Wrap(renderJSON(w, instances))
+		return trace.Wrap(utils.WriteJSONArray(w, instances))
 	default:
 		return trace.Wrap(renderText(w, instances))
 	}
