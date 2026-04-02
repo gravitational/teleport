@@ -14,6 +14,7 @@ import {
   ActionType,
   StandardModelDispatcher,
 } from 'teleport/Roles/RoleEditor/StandardEditor/useStandardModel';
+import { AccessListStepStatusEvent } from 'teleport/services/userEvent/accessListEvents';
 
 import {
   getResourceAccessTabSpecs,
@@ -44,8 +45,14 @@ export function IdentityTabsAndSection({
   accessRoleEditor?: AccessRoleEditor;
 }) {
   const { guideEditor } = useAccessListManagementContext();
-  const { standardRoleState, awsIcRoleState, nextStep, prevStep, isEditing } =
-    guideEditor;
+  const {
+    standardRoleState,
+    awsIcRoleState,
+    nextStep,
+    prevStep,
+    isEditing,
+    emitEvent,
+  } = guideEditor;
 
   const idPrefix = useId();
 
@@ -250,6 +257,16 @@ export function IdentityTabsAndSection({
         setShowUpdateDialog(true);
         return;
       }
+      if (standardRoleState.hasAnyIdentitiesDefined()) {
+        emitEvent({
+          stepStatus: AccessListStepStatusEvent.Success,
+        });
+      } else {
+        emitEvent({
+          stepStatus: AccessListStepStatusEvent.Skipped,
+        });
+      }
+
       nextStep();
     } else {
       setCurrentTab(currentTab + 1);

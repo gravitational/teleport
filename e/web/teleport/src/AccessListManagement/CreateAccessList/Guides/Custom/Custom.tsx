@@ -1,16 +1,18 @@
-import { BaseView } from 'teleport/components/Wizard/flow';
+import { AccessListEvent } from 'teleport/services/userEvent/accessListEvents';
 
 import { Finished } from '../../Finished';
-import { NavView } from '../../types';
+import { AccessListView } from '../Preset/view';
 import { AccessListForm } from './AccessListForm';
 
-export const customViews: BaseView<NavView>[] = [
+export const customViews: AccessListView[] = [
   {
     title: 'Form',
     Component: <AccessListForm />,
+    eventName: AccessListEvent.Custom,
   },
   {
     title: 'Finished',
     Component: <Finished />,
+    isFinishedStep: true,
   },
 ];

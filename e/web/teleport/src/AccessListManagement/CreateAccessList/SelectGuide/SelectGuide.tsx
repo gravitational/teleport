@@ -35,7 +35,7 @@ export function SelectGuide() {
   const { setInfoGuideConfig } = useInfoGuide();
   const { featureLimitReached, canCreateAccessList } = useCreateAccessList();
   const { guideEditor } = useAccessListManagementContext();
-  const { setPreset } = guideEditor;
+  const { onGuideSelect } = guideEditor;
 
   useEffect(() => {
     // Default to having the side panel opened.
@@ -65,7 +65,7 @@ export function SelectGuide() {
     }
 
     if (!featureLimitReached && hasRoleAccess) {
-      setPreset(preset);
+      onGuideSelect(preset);
     }
   }
 

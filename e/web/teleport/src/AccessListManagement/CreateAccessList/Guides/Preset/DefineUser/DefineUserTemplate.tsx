@@ -25,6 +25,11 @@ import {
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'teleport/config';
+import {
+  AccessListEvent,
+  AccessListIntegrateEvent,
+  AccessListStepStatusEvent,
+} from 'teleport/services/userEvent/accessListEvents';
 
 import { useCreateAccessList } from '../../../CreateAccessListContextProvider';
 import {
@@ -64,6 +69,7 @@ export function DefineUserTemplate({
     currentStep,
     originatedFromOkta,
     removeLocationState,
+    emitEvent,
   } = guideEditor;
 
   const [userType, setUserType] = useState<UserTypeOption>(() => {
@@ -265,6 +271,9 @@ export function DefineUserTemplate({
       const created = await onCreate(validator);
       if (created) {
         nextStep();
+        emitEvent({
+          stepStatus: AccessListStepStatusEvent.Success,
+        });
       }
       return;
     }
@@ -273,6 +282,9 @@ export function DefineUserTemplate({
       return;
     }
     nextStep();
+    emitEvent({
+      stepStatus: AccessListStepStatusEvent.Success,
+    });
   }
 
   const oktaOriginatedAccessLists = useQuery({
@@ -408,6 +420,12 @@ export function DefineUserTemplate({
                 hasConfiguredOauthCredentials:
                   oktaPluginAttempt?.data?.spec?.credentialsInfo
                     ?.hasConfiguredOauthCredentials,
+                emitEvent: () =>
+                  emitEvent({
+                    event: AccessListEvent.Integrate,
+                    integrate: AccessListIntegrateEvent.Okta,
+                    stepStatus: AccessListStepStatusEvent.Success,
+                  }),
               }}
             />
 

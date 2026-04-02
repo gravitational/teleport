@@ -44,6 +44,9 @@ export type ResumableGuideEditorState = {
   preset: AccessListPreset;
   resumeStep: number;
   oktaOrgUrl: string;
+  // Use the same session event id when resuming a state to help
+  // correlate emitted events.
+  eventSessionId: string;
 };
 
 /**

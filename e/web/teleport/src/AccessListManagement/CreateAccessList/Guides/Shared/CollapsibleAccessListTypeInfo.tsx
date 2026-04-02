@@ -111,6 +111,7 @@ function NestedAccessListInfo({
           content: 'Enroll Okta Integration',
           linkTo: cfg.getIntegrationEnrollRoute('okta'),
           linkState: resumableState,
+          onClick: () => okta.emitEvent(),
         }}
         details={
           <>
@@ -145,6 +146,7 @@ function NestedAccessListInfo({
           content: 'Enable Okta Apps and Groups Sync',
           linkTo: cfg.getIntegrationEnrollRoute('okta', step),
           linkState: resumableState,
+          onClick: () => okta.emitEvent(),
         }}
         details={
           <>

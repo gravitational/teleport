@@ -24,6 +24,10 @@ import {
   UpsertAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
 import { AccessListWithPresetRequest } from 'e-teleport/services/accessmanagement/preset';
+import {
+  AccessListEvent,
+  AccessListStepStatusEvent,
+} from 'teleport/services/userEvent/accessListEvents';
 import useTeleport from 'teleport/useTeleport';
 
 import {
@@ -86,7 +90,7 @@ export const CreateAccessListContextProvider: FC<
   const { updateAccessListCache, guideEditor } =
     useAccessListManagementContext();
 
-  const { preset, standardRoleState, awsIcRoleState } = guideEditor;
+  const { preset, standardRoleState, awsIcRoleState, emitEvent } = guideEditor;
 
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreateAccessList = perms.create && perms.list && perms.read;
@@ -191,6 +195,18 @@ export const CreateAccessListContextProvider: FC<
         .createAccessList(listToCreate)
         .then(createdList => {
           updateCache(createdList, listToCreate);
+          emitEvent({
+            event: AccessListEvent.Completed,
+            stepStatus: AccessListStepStatusEvent.Success,
+          });
+        })
+        .catch((err: Error) => {
+          emitEvent({
+            event: AccessListEvent.Completed,
+            stepStatus: AccessListStepStatusEvent.Error,
+            stepStatusError: err.message,
+          });
+          throw err;
         })
     );
   }
@@ -234,6 +250,18 @@ export const CreateAccessListContextProvider: FC<
         .createAccessListWithPreset(req)
         .then(createdList => {
           updateCache(createdList, { ...reqSpec, members: reqMembers });
+          emitEvent({
+            event: AccessListEvent.Completed,
+            stepStatus: AccessListStepStatusEvent.Success,
+          });
+        })
+        .catch((err: Error) => {
+          emitEvent({
+            event: AccessListEvent.Completed,
+            stepStatus: AccessListStepStatusEvent.Error,
+            stepStatusError: err.message,
+          });
+          throw err;
         })
     );
   }

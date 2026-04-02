@@ -1,13 +1,23 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, type Location } from 'react-router';
 
+import cfg from 'e-teleport/config';
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 import { Role, RoleVersion } from 'teleport/services/resources';
+import { userEventService } from 'teleport/services/userEvent';
+import {
+  AccessListEvent,
+  AccessListStepStatusEvent,
+} from 'teleport/services/userEvent/accessListEvents';
 
+import { customViews } from '../CreateAccessList/Guides/Custom/Custom';
+import { presetGuideViews } from '../CreateAccessList/Guides/Preset/Presets';
+import { AccessListView } from '../CreateAccessList/Guides/Preset/view';
 import {
   ResumableGuideEditorState,
   ResumableGuideState,
 } from '../CreateAccessList/route';
+import { AccessListEmitEvent, getAccessListPresetForEvent } from './event';
 import {
   AwsIcRoleState,
   useAwsIcRoleState,
@@ -36,6 +46,8 @@ export type GuideEditorState = {
    */
   preset: AccessListPreset;
   setPreset(kind: AccessListPreset): void;
+  onGuideSelect(kind: AccessListPreset): void;
+  views: AccessListView[];
   /**
    * Defines which step in a flow a user is in.
    */
@@ -107,6 +119,13 @@ export type GuideEditorState = {
    * Removes location state.
    */
   removeLocationState(): void;
+
+  /**
+   * Emits usage event for product metrics.
+   *
+   * Only emits event when creating.
+   */
+  emitEvent(event: AccessListEmitEvent): void;
 };
 
 /**
@@ -133,12 +152,33 @@ export function useGuideEditor(): GuideEditorState {
     () => loc.state?.resumeStep ?? 0
   );
 
+  const [eventSessionId, setEventSessionId] = useState(
+    () => loc.state?.eventSessionId ?? crypto.randomUUID()
+  );
+
+  const views: AccessListView[] = useMemo(() => {
+    switch (preset) {
+      case 'long-term':
+      case 'short-term':
+        return presetGuideViews;
+      case '':
+        return customViews;
+      default:
+        preset satisfies never;
+        return [];
+    }
+  }, [preset]);
+
   const awsIcRoleState = useAwsIcRoleState();
   const standardRoleState = useStandardRoleState();
+
+  const isEditing =
+    !!standardRoleState.roleEditState || !!awsIcRoleState.roleEditState;
 
   function reset() {
     setPreset(null);
     setCurrentStep(0);
+    setEventSessionId(crypto.randomUUID());
 
     awsIcRoleState.reset();
     standardRoleState.reset();
@@ -151,6 +191,89 @@ export function useGuideEditor(): GuideEditorState {
       navigate(loc.pathname, { replace: true });
     }
   }
+
+  function emitEvent({
+    event,
+    stepStatus,
+    integrate,
+    stepStatusError,
+  }: AccessListEmitEvent) {
+    // Only emit events when creating.
+    if (isEditing || !views.length) return;
+
+    const currView = views[currentStep];
+
+    userEventService.captureAccessListEvent({
+      event: event ?? currView.eventName,
+      eventData: {
+        id: eventSessionId,
+        stepStatus,
+        integrate,
+        preset: getAccessListPresetForEvent(preset),
+        stepStatusError,
+      },
+    });
+  }
+
+  // Only support emitting events when creating new access lists.
+  const emitAbortEvent = useCallback(async () => {
+    if (views.length && !isEditing) {
+      const curView = views[currentStep];
+      if (curView.eventName && !curView.isFinishedStep) {
+        emitEvent({
+          event: curView.eventName,
+          stepStatus: AccessListStepStatusEvent.Aborted,
+        });
+      }
+    }
+  }, [views, currentStep]);
+
+  function onGuideSelect(preset: AccessListPreset) {
+    setPreset(preset);
+    userEventService.captureAccessListEvent({
+      event: AccessListEvent.Started,
+      eventData: {
+        id: eventSessionId,
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: getAccessListPresetForEvent(preset),
+      },
+    });
+  }
+
+  // Keeping a ref to the latest emitAbortEvent func to ensure the
+  // correct event is emitted. It also avoids using it as a dependency
+  // in the useEffect which would cause it to re-run and add/remove
+  // event listeners on every render.
+  const emitAbortEventRef = useRef(emitAbortEvent);
+  emitAbortEventRef.current = emitAbortEvent;
+
+  // Emit abort event upon refreshing, navigating to a different route,
+  // closing tab/browser, or unmounting.
+  //
+  // "beforeunload" is used for close/refresh — there can be a false positive
+  // if the user cancels the default browser reload dialog.
+  useEffect(() => {
+    let emittingAbortEvent = false;
+    const emitEvent = () => {
+      if (!emittingAbortEvent) {
+        emittingAbortEvent = true;
+        emitAbortEventRef.current();
+      }
+    };
+
+    window.addEventListener('beforeunload', emitEvent);
+    return () => {
+      window.removeEventListener('beforeunload', emitEvent);
+      // Don't emit abort if navigating to okta — user may come back
+      // to finish the flow.
+      const navigatedToOkta = window.location.pathname.startsWith(
+        cfg.oss.getIntegrationEnrollRoute('okta')
+      );
+      if (!navigatedToOkta) {
+        emitEvent();
+      }
+    };
+  }, []);
 
   function undoEditRoleChanges() {
     setCurrentStep(0);
@@ -169,6 +292,7 @@ export function useGuideEditor(): GuideEditorState {
   function prevStep(numStepsBack = 1) {
     // Clicked "back" to the selection view.
     if (currentStep - 1 < 0) {
+      emitAbortEvent();
       reset();
       return;
     }
@@ -227,6 +351,7 @@ export function useGuideEditor(): GuideEditorState {
       requiredAppIdentities: standardRoleState.requiredAppIdentities,
       awsIcRoleConditions: awsIcRoleState.roleConditions,
       oktaOrgUrl: '',
+      eventSessionId,
     };
   }
 
@@ -234,12 +359,16 @@ export function useGuideEditor(): GuideEditorState {
     reset,
     preset,
     setPreset,
+    onGuideSelect,
+    views,
     currentStep,
     setCurrentStep,
     prevStep,
     nextStep,
     originatedFromOkta: !!loc.state?.oktaOrgUrl,
     removeLocationState,
+
+    emitEvent,
 
     awsIcRoleState,
     standardRoleState,
@@ -252,8 +381,7 @@ export function useGuideEditor(): GuideEditorState {
     getResumableState,
 
     undoEditRoleChanges,
-    isEditing:
-      !!standardRoleState.roleEditState || !!awsIcRoleState.roleEditState,
+    isEditing,
   };
 }
 

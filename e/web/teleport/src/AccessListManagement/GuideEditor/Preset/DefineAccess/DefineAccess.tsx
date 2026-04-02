@@ -13,6 +13,7 @@ import { URLResourceFilter } from 'teleport/components/hooks/useUrlFiltering/use
 import cfg from 'teleport/config';
 import { App } from 'teleport/services/apps';
 import ResourceService from 'teleport/services/resources';
+import { AccessListStepStatusEvent } from 'teleport/services/userEvent/accessListEvents';
 
 import { GuideContent, StepButtons } from '../../Shared';
 import { StandardRoleConditions } from '../role/conditions';
@@ -63,6 +64,7 @@ export function DefineAccess() {
     standardRoleState,
     awsIcRoleState,
     isEditing,
+    emitEvent,
   } = guideEditor;
 
   // Defaults tab selection to the first access type.
@@ -185,6 +187,9 @@ export function DefineAccess() {
     }
 
     nextStep();
+    emitEvent({
+      stepStatus: AccessListStepStatusEvent.Success,
+    });
   }
 
   function handleSelectTab(accessField: DefinableResourceAccessFields) {
@@ -303,7 +308,12 @@ export function DefineAccess() {
       {activeDialog === 'no-access-defined' && (
         <NoAccessDefinedDialog
           onCancel={() => setActiveDialog('')}
-          onNext={() => nextStep()}
+          onNext={() => {
+            nextStep();
+            emitEvent({
+              stepStatus: AccessListStepStatusEvent.Skipped,
+            });
+          }}
           isEditing={isEditing}
         />
       )}

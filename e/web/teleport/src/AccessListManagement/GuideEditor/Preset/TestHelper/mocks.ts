@@ -25,6 +25,7 @@ const accessListPathWithoutQuery =
 
 export function makeHandlers(handlers: HttpHandler[] = []) {
   return [
+    http.post(cfg.oss.api.captureUserEventPath, () => new HttpResponse()),
     http.get(accessListPathWithoutQuery, () => {
       return HttpResponse.json({ accessLists: [] });
     }),

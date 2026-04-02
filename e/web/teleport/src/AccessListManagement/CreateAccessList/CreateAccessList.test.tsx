@@ -25,6 +25,12 @@ import {
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { userEventService } from 'teleport/services/userEvent';
+import {
+  AccessListEvent,
+  AccessListPresetEvent,
+  AccessListStepStatusEvent,
+} from 'teleport/services/userEvent/accessListEvents';
 import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 import { UserContextProvider } from 'teleport/User';
 
@@ -154,6 +160,10 @@ describe('going through different guides', () => {
     // (required for mock date and time) causes timeout on clicks.
     const user = userEvent.setup({ delay: null });
 
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
+
     let createAccessListCalled = false;
     let createAccessListRequest: unknown;
     server.use(
@@ -173,6 +183,16 @@ describe('going through different guides', () => {
     // Click on custom tile
     await user.click(screen.getByText(/custom/i));
     await screen.findByText(/basic information/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Started,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.Unspecified,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     // Test validation prevents going forward.
     await user.click(screen.getByRole('button', { name: 'Next' }));
@@ -208,12 +228,33 @@ describe('going through different guides', () => {
         next_audit_date: expectedReq.audit.next_audit_date.toISOString(),
       },
     });
+
+    // Completed and Custom events emitted after access list is created.
+    expect(emitEventSpy).toHaveBeenCalledTimes(2);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.Unspecified,
+      }),
+    });
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Custom,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.Unspecified,
+      }),
+    });
   });
 
   test('short-term with validation and error', async () => {
     // Delay set to null here b/c using fake timers
     // (required for mock date and time) causes timeout on clicks.
     const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
 
     // First call returns error, subsequent calls succeed
     let createAccessListCalled = false;
@@ -248,14 +289,44 @@ describe('going through different guides', () => {
     // Step 0: click on preset tile
     await user.click(screen.getByText(/temporary access/i));
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Started,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     // Can skip step 1 & 2:
     await screen.findByText(/define access to resources/i);
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/No resource access is defined/i);
     await user.click(screen.getAllByRole('button', { name: 'Next' })[1]);
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineAccess,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Skipped,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     await screen.findByText(/define what identities/i);
     await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineIdentities,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Skipped,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     // Step 3: fill out required basic info
     await screen.findByText(/step 3: basic information/i);
@@ -270,6 +341,16 @@ describe('going through different guides', () => {
 
     await user.click(screen.getByText(/next/i));
     await screen.findByText(/who should be required to request access/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineBasicInfo,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     // Step 4: fill out required membership
 
@@ -289,6 +370,16 @@ describe('going through different guides', () => {
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/who should review access requests/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineMembers,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     // Step 5: fill out required owners
 
@@ -315,6 +406,16 @@ describe('going through different guides', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/whoops error/i);
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Error,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     // Try again should succeed
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/some title successfully created/i);
@@ -340,12 +441,32 @@ describe('going through different guides', () => {
       },
       accessRoles: [],
     });
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(2);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineOwners,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
   });
 
   test('long-term with optional advanced settings', async () => {
     // Delay set to null here b/c using fake timers
     // (required for mock date and time) causes timeout on clicks.
     const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
 
     // First call returns error, subsequent calls succeed
     let createAccessListCalled = false;
@@ -380,14 +501,44 @@ describe('going through different guides', () => {
     // Step 0: click on preset tile
     await user.click(screen.getByText(/long-lived access/i));
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Started,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     // Can skip step 1 & 2:
     await screen.findByText(/define access to resources/i);
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/No resource access is defined/i);
     await user.click(screen.getAllByRole('button', { name: 'Next' })[1]);
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineAccess,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Skipped,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     await screen.findByText(/define what identities/i);
     await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineIdentities,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Skipped,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     // Step 3: fill out required basic info
     await screen.findByText(/step 3: basic information/i);
@@ -400,6 +551,16 @@ describe('going through different guides', () => {
     await user.click(screen.getByText(/next/i));
     await screen.findByText(/who are you setting up access for/i);
     expect(screen.getByText(/will be given access/i)).toBeInTheDocument();
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineBasicInfo,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     await selectEvent.select(
       screen.getByLabelText('Add Access Lists as Members'),
@@ -420,6 +581,16 @@ describe('going through different guides', () => {
     await screen.findByText(
       /who should periodically review and audit memberships/i
     );
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineMembers,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
 
     await selectEvent.select(
       screen.getByLabelText('Add Access Lists as Owners'),
@@ -448,6 +619,16 @@ describe('going through different guides', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/whoops error/i);
 
+    expect(emitEventSpy).toHaveBeenCalledTimes(1);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Error,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    emitEventSpy.mockClear();
+
     // Try again should succeed
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/some title successfully created/i);
@@ -475,10 +656,30 @@ describe('going through different guides', () => {
       },
       accessRoles: [],
     });
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(2);
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
+    expect(emitEventSpy).toHaveBeenCalledWith({
+      event: AccessListEvent.DefineOwners,
+      eventData: expect.objectContaining({
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.LongTerm,
+      }),
+    });
   });
 
   test('resumability from last step via URL location state', async () => {
     const user = userEvent.setup({ delay: null });
+
+    const emitEventSpy = jest
+      .spyOn(userEventService, 'captureAccessListEvent')
+      .mockImplementation(() => {});
 
     let createAccessListRequest: unknown;
     const createdAccessListId = 'created-access-list-id';
@@ -534,6 +735,7 @@ describe('going through different guides', () => {
       standardRoleConditions: resumableStandardConditions,
       requiredAppIdentities: emptyRequiredAppIdentitiesWithFetchResult(),
       awsIcRoleConditions: resumableAwsIcDontidions,
+      eventSessionId: 'some-event-session-id',
 
       spec: {
         title: 'Resumed Access List',
@@ -594,6 +796,24 @@ describe('going through different guides', () => {
     // Complete the flow
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByText(/Resumed Access List successfully created/i);
+
+    expect(emitEventSpy).toHaveBeenCalledTimes(2);
+    expect(emitEventSpy).toHaveBeenNthCalledWith(1, {
+      event: AccessListEvent.Completed,
+      eventData: expect.objectContaining({
+        id: 'some-event-session-id',
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
+    expect(emitEventSpy).toHaveBeenNthCalledWith(2, {
+      event: AccessListEvent.DefineOwners,
+      eventData: expect.objectContaining({
+        id: 'some-event-session-id',
+        stepStatus: AccessListStepStatusEvent.Success,
+        preset: AccessListPresetEvent.ShortTerm,
+      }),
+    });
 
     // Verify the request contains the resumed state data including role conditions
     expect(createAccessListRequest).toEqual(

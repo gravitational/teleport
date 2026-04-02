@@ -67,6 +67,7 @@ export function AccessListTypeInfo(props: StoryProps) {
           hasPlugin: props.hasOktaPlugin,
           hasAppGroupSyncEnabled: props.hasOktaAppGroupSyncEnabled,
           hasConfiguredOauthCredentials: true,
+          emitEvent: () => {},
         }}
       />
     </MemoryRouter>

@@ -100,6 +100,9 @@ export function Failed() {
 const mockGuideEditor: GuideEditorState = {
   preset: 'long-term',
   setPreset: () => {},
+  onGuideSelect: () => {},
+  views: [],
+  emitEvent: () => {},
   currentStep: 0,
   setCurrentStep: () => {},
   prevStep: () => {},

@@ -6,6 +6,7 @@ import {
   GuideContent,
   StepButtons,
 } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
+import { AccessListStepStatusEvent } from 'teleport/services/userEvent/accessListEvents';
 
 import { useCreateAccessList } from '../../CreateAccessListContextProvider';
 import { MembersSection } from '../../MemberSection';
@@ -17,18 +18,11 @@ import { SpecSection } from '../../SpecSection';
  * user to manually enter all fields however they like.
  */
 export function AccessListForm() {
-  const {
-    onCreate,
-    createAttempt,
-    reset: resetCreateContext,
-  } = useCreateAccessList();
+  const { onCreate, createAttempt } = useCreateAccessList();
   const { guideEditor } = useAccessListManagementContext();
-  const { prevStep, currentStep, nextStep } = guideEditor;
+  const { prevStep, nextStep, emitEvent } = guideEditor;
 
   function handlePrev() {
-    if (currentStep === 0) {
-      resetCreateContext();
-    }
     prevStep();
   }
 
@@ -36,6 +30,7 @@ export function AccessListForm() {
     const created = await onCreate(validator);
     if (created) {
       nextStep();
+      emitEvent({ stepStatus: AccessListStepStatusEvent.Success });
     }
   }
 

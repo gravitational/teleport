@@ -6,6 +6,7 @@ import {
   GuideContent,
   StepButtons,
 } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
+import { AccessListStepStatusEvent } from 'teleport/services/userEvent/accessListEvents';
 
 import { useCreateAccessList } from '../../../CreateAccessListContextProvider';
 import { SpecSection } from '../../../SpecSection';
@@ -13,13 +14,16 @@ import { SpecSection } from '../../../SpecSection';
 export function BasicInformation() {
   const { reset: resetCreateContext } = useCreateAccessList();
   const { guideEditor } = useAccessListManagementContext();
-  const { nextStep, currentStep, prevStep } = guideEditor;
+  const { nextStep, currentStep, prevStep, emitEvent } = guideEditor;
 
   function handleNext(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
     nextStep();
+    emitEvent({
+      stepStatus: AccessListStepStatusEvent.Success,
+    });
   }
 
   function handlePrev() {
