@@ -19,7 +19,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,15 +27,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/google/go-github/v84/github"
-	"golang.org/x/oauth2"
 )
 
 const commentMarker = "<!-- e2e-test-results -->"
 
-func writeGitHubReport(e2eDir string) error {
-	resultsPath := filepath.Join(e2eDir, "test-results", ".results.json")
+func writeGitHubReport(resultsPath string) error {
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
 		return fmt.Errorf("could not read test results: %w", err)
@@ -66,8 +61,8 @@ func writeGitHubReport(e2eDir string) error {
 		slog.Warn("could not write job summary", "error", err)
 	}
 
-	if err := managePRComment(report, mergedFailures, mergedFlaky); err != nil {
-		slog.Warn("could not manage PR comment", "error", err)
+	if err := writePRCommentFile(resultsPath, report, mergedFailures, mergedFlaky); err != nil {
+		slog.Warn("could not write PR comment file", "error", err)
 	}
 
 	return nil
@@ -230,143 +225,39 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 
 	if pr := ciPRNumber(); pr > 0 {
 		fmt.Fprint(w, "---\n\n")
-		fmt.Fprintf(w, "##### View full report\n```\n./e2e/run.sh --report %d\n```\n", pr)
+		fmt.Fprintf(w, "##### View full report\n```\n./%s\n```\n", ciReportCmd(pr))
 	}
 }
 
-func managePRComment(report pwReport, failures, flaky []mergedFailure) error {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN not set")
-	}
-
-	prNumber := prNumberFromEvent()
-	if prNumber == 0 {
-		slog.Info("not a pull request event, skipping PR comment")
-
-		return nil
-	}
-
-	repo := os.Getenv("GITHUB_REPOSITORY")
-	if repo == "" {
-		slog.Warn("GITHUB_REPOSITORY not set, skipping PR comment")
-
-		return nil
-	}
-
-	owner, repoName, ok := strings.Cut(repo, "/")
-	if !ok {
-		return fmt.Errorf("invalid GITHUB_REPOSITORY format")
-	}
-
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	client := github.NewClient(oauth2.NewClient(ctx, ts))
-
-	existing := findExistingComment(ctx, client, owner, repoName, prNumber)
+// writePRCommentFile writes the PR comment body to a file next to the results
+// JSON so that a trusted workflow step can post it via `gh` without passing
+// a write-scoped token to this (PR-built) binary.
+func writePRCommentFile(resultsPath string, report pwReport, failures, flaky []mergedFailure) error {
+	commentPath := filepath.Join(filepath.Dir(resultsPath), "pr-comment.md")
 
 	hasIssues := len(failures) > 0 || len(flaky) > 0
-
 	if !hasIssues {
-		// If there are no issues, remove existing comment if present and return.
-		if existing != nil {
-			if _, err := client.Issues.DeleteComment(ctx, owner, repoName, existing.GetID()); err != nil {
-				return fmt.Errorf("deleting existing PR comment: %w", err)
-			}
-
-			slog.Info("deleted existing E2E results PR comment")
+		// Write an empty file to signal that the comment should be deleted.
+		if err := os.WriteFile(commentPath, nil, 0o644); err != nil {
+			return fmt.Errorf("writing empty PR comment file: %w", err)
 		}
+
+		slog.Info("wrote empty PR comment file (no issues)", "path", commentPath)
 
 		return nil
 	}
 
 	var body strings.Builder
-
 	body.WriteString(commentMarker + "\n")
 	renderMarkdownReport(&body, report, failures, flaky)
-	commentBody := body.String()
 
-	if existing != nil {
-		if _, _, err := client.Issues.EditComment(ctx, owner, repoName, existing.GetID(), &github.IssueComment{
-			Body: github.Ptr(commentBody),
-		}); err != nil {
-			return fmt.Errorf("updating existing PR comment: %w", err)
-		}
-
-		slog.Info("updated E2E results PR comment")
-
-		return nil
+	if err := os.WriteFile(commentPath, []byte(body.String()), 0o644); err != nil {
+		return fmt.Errorf("writing PR comment file: %w", err)
 	}
 
-	if _, _, err := client.Issues.CreateComment(ctx, owner, repoName, prNumber, &github.IssueComment{
-		Body: github.Ptr(commentBody),
-	}); err != nil {
-		return fmt.Errorf("creating PR comment: %w", err)
-	}
-
-	slog.Info("created E2E results PR comment")
+	slog.Info("wrote PR comment file", "path", commentPath)
 
 	return nil
-}
-
-func findExistingComment(ctx context.Context, client *github.Client, owner, repo string, prNumber int) *github.IssueComment {
-	opts := &github.IssueListCommentsOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
-	}
-
-	for {
-		comments, resp, err := client.Issues.ListComments(ctx, owner, repo, prNumber, opts)
-		if err != nil {
-			slog.Warn("could not list PR comments", "error", err)
-			return nil
-		}
-
-		for _, c := range comments {
-			if c.GetUser().GetType() != "Bot" {
-				continue
-			}
-			if strings.Contains(c.GetBody(), commentMarker) {
-				return c
-			}
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-
-		opts.Page = resp.NextPage
-	}
-
-	return nil
-}
-
-func prNumberFromEvent() int {
-	eventPath := os.Getenv("GITHUB_EVENT_PATH")
-	if eventPath == "" {
-		return 0
-	}
-
-	data, err := os.ReadFile(eventPath)
-	if err != nil {
-		slog.Warn("could not read event payload", "path", eventPath, "error", err)
-		return 0
-	}
-
-	var event struct {
-		PullRequest *struct {
-			Number int `json:"number"`
-		} `json:"pull_request"`
-	}
-	if err := json.Unmarshal(data, &event); err != nil {
-		slog.Warn("could not parse event payload", "error", err)
-		return 0
-	}
-
-	if event.PullRequest == nil {
-		return 0
-	}
-
-	return event.PullRequest.Number
 }
 
 func escapeProp(s string) string {

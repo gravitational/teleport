@@ -23,6 +23,23 @@ linters:
   settings:
     depguard:
       rules:
+        api_constants_defaults:
+          files:
+            - '!$test'
+            - '${config-path}/api/*'
+            - '${config-path}/api/constants/*'
+            - '${config-path}/api/defaults/*'
+          list-mode: strict
+          allow:
+            - 'encoding/json$'
+            - 'github.com/coreos/go-semver/semver$'
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/trace$'
+            - 'os$'
+            - 'sync$'
+            - 'time$'
         cgo:
           files:
             - '!$test'
@@ -38,7 +55,7 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/cgroup
               desc: '"lib/cgroup" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/config
-              desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
+              desc: '"lib/config" requires CGO via "session/pam" and "lib/backend/lite"'
             - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
               desc: '"lib/desktop/rdp/rdpclient" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
@@ -49,10 +66,10 @@ linters:
               desc: '"lib/devicetrust/native" requires CGO on darwin'
             - pkg: github.com/gravitational/teleport/lib/inventory/metadata
               desc: '"lib/inventory/metadata" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/pam
-              desc: '"lib/pam" requires CGO'
-            - pkg: github.com/gravitational/teleport/lib/srv/uacc
-              desc: '"lib/srv/uacc" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/pam$
+              desc: '"session/pam" requires CGO'
+            - pkg: github.com/gravitational/teleport/session/uacc$
+              desc: '"session/uacc" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/system/signal
               desc: '"lib/system/signal" requires CGO'
             - pkg: github.com/gravitational/teleport/lib/vnet/daemon
@@ -187,6 +204,21 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        session_submodule:
+          files:
+            - '${config-path}/session/**'
+          list-mode: lax
+          allow:
+            - 'github.com/gravitational/teleport/api/constants$'
+            - 'github.com/gravitational/teleport/api/defaults$'
+            - 'github.com/gravitational/teleport/api$'
+            - 'github.com/gravitational/teleport/session/'
+            - 'github.com/gravitational/teleport/session$'
+          deny:
+            - pkg: 'github.com/gravitational/teleport/'
+              desc: the session submodule cannot import packages from the other modules
+            - pkg: 'github.com/gravitational/teleport$'
+              desc: the session submodule cannot import packages from the other modules
         test_packages:
           files:
             - '!$test'
@@ -202,6 +234,7 @@ linters:
             - '!**/integrations/lib/testing/**'
             - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/lib/auth/authtest/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -277,6 +310,7 @@ linters:
             - '!**/lib/teleterm/gatewaytest/**'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: github.com/stretchr/testify
               desc: testify should not be imported outside of test code
@@ -317,6 +351,7 @@ linters:
             - '!**/lib/utils/cli.go'
             - '!**/lib/utils/mcptest/**'
             - '!**/lib/utils/testutils/**'
+            - '!**/lib/services/samltest/**'
           deny:
             - pkg: testing
               desc: testing should not be imported outside of tests
@@ -380,14 +415,14 @@ linters:
         - suite-extra-assert-call
         - suite-thelper
     usetesting:
-        context-todo: true
-        # TODO: Enable the following after the issues are fixed.
-        context-background: false
-        os-chdir: false
-        os-create-temp: false
-        os-mkdir-temp: false
-        os-setenv: false
-        os-temp-dir: false
+      context-todo: true
+      # TODO: Enable the following after the issues are fixed.
+      context-background: false
+      os-chdir: false
+      os-create-temp: false
+      os-mkdir-temp: false
+      os-setenv: false
+      os-temp-dir: false
   exclusions:
     generated: lax
     presets:

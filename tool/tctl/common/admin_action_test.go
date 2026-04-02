@@ -917,7 +917,7 @@ type resourceCommandTestCase struct {
 	skipBulk bool
 
 	// Tests get/list resource, for privileged resources
-	// like tokens that should require MFA to be seen.
+	// like CAs that should require MFA to be seen with secrets.
 	testGetList bool
 
 	// Used to test listing resources when testGetList is true
@@ -972,9 +972,15 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	})
 
 	if tc.testGetList {
+		command := "get --with-secrets"
+		if tc.resource.GetKind() == types.KindToken {
+			// tokens are inherently secrets, so the flag is implicit.
+			command = "get"
+		}
+
 		t.Run("tctl get", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get --with-secrets %v", getResourceRef(tc.resource)),
+				command:    fmt.Sprintf("%v %v", command, getResourceRef(tc.resource)),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
@@ -983,7 +989,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 
 		t.Run("tctl get many", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get --with-secrets %v,%v", getResourceRef(tc.resource), getResourceRef(tc.resource2)),
+				command:    fmt.Sprintf("%v %v,%v", command, getResourceRef(tc.resource), getResourceRef(tc.resource2)),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourcesCreate,
 				cleanup:    tc.resourcesCleanup,
@@ -992,7 +998,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 
 		t.Run("tctl get all", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
+				command:    fmt.Sprintf("%v %v", command, tc.resource.GetKind()),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourcesCreate,
 				cleanup:    tc.resourcesCleanup,

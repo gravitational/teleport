@@ -102,11 +102,13 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -189,6 +191,8 @@ type Handler struct {
 	findEndpointCache *utils.FnCache
 
 	autoUpdateResolver *autoupdatelookup.Resolver
+
+	accessGraphHandler http.Handler
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -445,6 +449,17 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// If the request is for the Access Graph API, forward to the access graph handler.
+	// This handler is only setup for enterprise but for OSS and non licensed clusters,
+	// it will return an error indicating that the feature is not enabled.
+	if isAccessGraphAPIRequest(r) {
+		if h.handler.accessGraphHandler == nil {
+			trace.WriteError(w, trace.NotImplemented("access graph is not enabled"))
+			return
+		}
+		h.handler.accessGraphHandler.ServeHTTP(w, r)
+		return
+	}
 	// If the request is either to the fragment authentication endpoint or if the
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
@@ -484,6 +499,29 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+// SetAccessGraphHandler sets the handler used to serve Access Graph API
+// requests authenticated via a client TLS certificate (RouteToApp.AccessGraph=true).
+// Only called by the enterprise plugin; remains nil on OSS clusters.
+func (h *Handler) SetAccessGraphHandler(handler http.Handler) {
+	h.accessGraphHandler = handler
+}
+
+// isAccessGraphAPIRequest returns true if the request is authenticated with a client TLS certificate
+// with UsageAccessGraphAPIOnly set in the certificate's usage, indicating that the request is
+// intended for the Access Graph API.
+func isAccessGraphAPIRequest(r *http.Request) bool {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return false
+	}
+
+	cert := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return false
+	}
+	return slices.Contains(identity.Usage, teleport.UsageAccessGraphAPIOnly)
 }
 
 // HandleConnection handles connections from plain TCP applications.
@@ -1178,6 +1216,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	h.PUT("/webapi/mfa/browser/:request_id", h.WithAuth(h.putBrowserMFA))
+
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
 	// Fetches the user's preferences
@@ -1746,15 +1786,16 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
 	return webclient.PingResponse{
-		Auth:              authSettings,
-		Proxy:             *proxyConfig,
-		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientSemVer().String(),
-		ClusterName:       h.auth.clusterName,
-		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:           h.cfg.Modules.BuildType(),
-		FIPS:              h.cfg.Modules.IsBoringBinary(),
+		Auth:                   authSettings,
+		Proxy:                  *proxyConfig,
+		ServerVersion:          teleport.Version,
+		MinClientVersion:       teleport.MinClientSemVer().String(),
+		ClusterName:            h.auth.clusterName,
+		AutomaticUpgrades:      pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:             h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		Edition:                h.cfg.Modules.BuildType(),
+		FIPS:                   h.cfg.Modules.IsBoringBinary(),
+		AuthServerScopesStatus: scopes.ScopesStatusToString(pr.ScopesStatus),
 	}, nil
 }
 
@@ -1778,8 +1819,10 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		}
 
 		return &webclient.PingResponse{
-			Proxy:            *proxyConfig,
-			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
+			Proxy: *proxyConfig,
+			Auth: webclient.AuthenticationSettings{
+				SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+			},
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
@@ -2617,7 +2660,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	consoleResponse := authclient.SSHLoginResponse{
+	consoleResponse := authclient.CLILoginResponse{
 		Username:      response.Username,
 		Cert:          response.Cert,
 		TLSCert:       response.TLSCert,
@@ -3110,6 +3153,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (an
 //
 // {"user": "alex", "pass": "abcdef123456"}
 // {"passwordless": true}
+// {"user": "alex", "pass": "abcdef123456", "BrowserMFATSHRedirectURL": "http://localhost:12345/callback?secret_key=X"}
 //
 // Successful response:
 //
@@ -3141,6 +3185,8 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		}
+
+		mfaReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
 	}
 
 	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), mfaReq)
@@ -5273,7 +5319,7 @@ func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limite
 		result, err := fn(w, r, p)
 		if err != nil {
 			if shouldLimit(err) {
-				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+				if err := limiter.RegisterRequest(remoteAddr); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -5335,7 +5381,7 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
+	return trace.Wrap(limiter.RegisterRequest(remote))
 }
 
 func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*SessionContext, error) {
@@ -5354,6 +5400,10 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 		return nil, trace.AccessDenied("need auth")
 	}
 
+	if sctx.cfg.Session.GetUsage() != types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED {
+		clearSessionCookies((w))
+		return nil, trace.AccessDenied("need auth")
+	}
 	return sctx, nil
 }
 
@@ -5376,6 +5426,44 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 
 	if err := parseMFAResponseFromRequest(r); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	return sctx, nil
+}
+
+// AuthenticateReqForAccessGraphAPI is a special authentication method for Access Graph API requests.
+// It requires a client TLS certificate with the UsageAccessGraphAPIOnly usage and does not require a bearer token.
+// It's used by the enterprise plugin to serve AccessGraph API via CLI.
+func (h *Handler) AuthenticateReqForAccessGraphAPI(r *http.Request) (*SessionContext, error) {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return nil, trace.AccessDenied("client certificate required")
+	}
+
+	cert := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse client certificate")
+	}
+
+	if len(identity.Usage) != 1 || !slices.Contains(identity.Usage, teleport.UsageAccessGraphAPIOnly) {
+		return nil, trace.AccessDenied("client certificate is not valid for Access Graph API")
+	}
+
+	if identity.Username == "" || identity.WebSessionID == "" {
+		return nil, trace.AccessDenied("client certificate missing required fields")
+	}
+
+	sctx, err := h.auth.getOrCreateSession(
+		r.Context(),
+		identity.Username,
+		identity.WebSessionID,
+	)
+	if err != nil {
+		return nil, trace.AccessDenied("need auth")
+	}
+
+	if sctx.cfg.Session.GetUsage() != types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+		return nil, trace.AccessDenied("needs auth")
 	}
 
 	return sctx, nil

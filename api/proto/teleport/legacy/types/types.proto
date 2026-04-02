@@ -2743,13 +2743,17 @@ message AuthPreferenceSpecV2 {
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
 
-  // AllowBrowserAuthentication enables/disables browser-based authentication for
+  reserved 23; // AllowBrowserAuthentication replaced by AllowCLIAuthViaBrowser
+  reserved "AllowBrowserAuthentication";
+
+  // AllowCLIAuthViaBrowser enables/disables browser-based authentication for
   // authenticating CLI sessions.
   // When set to false, authentication flows that require a browser will be disabled.
-  // Defaults to true.
-  BoolValue AllowBrowserAuthentication = 23 [
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowCLIAuthViaBrowser = 24 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "allow_browser_authentication,omitempty",
+    (gogoproto.jsontag) = "allow_cli_auth_via_browser,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 }
@@ -4897,6 +4901,20 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+  // DBSCPublicKey is the device-bound public key (JWK format) for Device Bound
+  // Session Credentials. When set, session refresh requires proof of possession
+  // of the corresponding private key. See https://www.w3.org/TR/dbsc/
+  bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
+  // Usage identifies the intended usage of the session.
+  WebSessionUsage Usage = 17 [(gogoproto.jsontag) = "usage,omitempty"];
+}
+
+// WebSessionUsage identifies the intended usage of a web session.
+enum WebSessionUsage {
+  // Session usage is unspecified (default web session).
+  WEB_SESSION_USAGE_UNSPECIFIED = 0;
+  // Session is used exclusively for Access Graph API authentication.
+  WEB_SESSION_USAGE_ACCESS_GRAPH_API = 1;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -6298,7 +6316,7 @@ message LockTarget {
   // WindowsDesktop specifies the name of a Windows desktop.
   string WindowsDesktop = 6 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
 
-  // AccessRequest specifies the UUID of an access request.
+  // AccessRequest specifies the UUID of an Access Request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
 
   // Device is the device ID of a trusted device.

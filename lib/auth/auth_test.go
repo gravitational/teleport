@@ -974,7 +974,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err, "NewClient")
 
-	authenticateSSH := func(dev *authtest.Device) (*authclient.SSHLoginResponse, error) {
+	authenticateSSH := func(dev *authtest.Device) (*authclient.CLILoginResponse, error) {
 		chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 				UserCredentials: &proto.UserCredentials{
@@ -1426,61 +1426,95 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.Equal(t, clientAddr.String(), deleteEvt.ConnectionMetadata.RemoteAddr)
 }
 
-func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
+func TestOIDCConnector(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
-		ClientID:     "a",
-		ClientSecret: "b",
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "dummy",
-				Value: "dummy",
-				Roles: []string{"dummy"},
+	ctx := t.Context()
+
+	t.Run("long name", func(t *testing.T) {
+		oidc, err := types.NewOIDCConnector(strings.Repeat("abc", 300), types.OIDCConnectorSpecV3{
+			ClientID:     "a",
+			ClientSecret: "b",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "dummy",
+					Value: "dummy",
+					Roles: []string{"dummy"},
+				},
 			},
-		},
-		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
+
+		_, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		_, err = s.a.UpsertOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		oidc.SetName("short")
+		_, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+
+		oidc.SetName(strings.Repeat("abc", 300))
+		_, err = s.a.UpdateOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
 	})
-	require.NoError(t, err)
 
-	// test oidc create event
-	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+	t.Run("events", func(t *testing.T) {
+		oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
+			ClientID:     "a",
+			ClientSecret: "b",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "dummy",
+					Value: "dummy",
+					Roles: []string{"dummy"},
+				},
+			},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
 
-	// test oidc update event
-	oidc.SetDisplay("llama")
-	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test oidc create event
+		oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test oidc upsert event
-	oidc.SetDisplay("alpaca")
-	upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.NotNil(t, upserted)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test oidc update event
+		oidc.SetDisplay("llama")
+		oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test oidc delete event
-	err = s.a.DeleteOIDCConnector(ctx, "test")
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+		// test oidc upsert event
+		oidc.SetDisplay("alpaca")
+		upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.NotNil(t, upserted)
+		require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
+
+		// test oidc delete event
+		err = s.a.DeleteOIDCConnector(ctx, "test")
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	})
 }
 
-func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
+func TestSAMLConnector(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
@@ -1503,49 +1537,82 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "a",
-		Issuer:                   "b",
-		SSO:                      "https://example.com",
-		AttributesToRoles: []types.AttributeMapping{
-			{
-				Name:  "dummy",
-				Value: "dummy",
-				Roles: []string{role.GetName()},
+	t.Run("long name", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector(strings.Repeat("abc", 300), types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
 			},
-		},
-		Cert: string(certBytes),
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
+
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		saml.SetName("short")
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+
+		saml.SetName(strings.Repeat("abc", 300))
+		_, err = s.a.UpdateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
 	})
-	require.NoError(t, err)
 
-	// test saml create
-	saml, err = s.a.CreateSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+	t.Run("events", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
+			},
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
 
-	// test saml update event
-	saml.SetDisplay("llama")
-	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test saml create
+		saml, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test saml upsert event
-	saml.SetDisplay("alapaca")
-	_, err = s.a.UpsertSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test saml update event
+		saml.SetDisplay("llama")
+		saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test saml delete event
-	err = s.a.DeleteSAMLConnector(ctx, "test")
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+		// test saml upsert event
+		saml.SetDisplay("alapaca")
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
+
+		// test saml delete event
+		err = s.a.DeleteSAMLConnector(ctx, "test")
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	})
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
@@ -4790,6 +4857,40 @@ func testCreateAccessListReminderNotifications(t *testing.T) {
 		"notifications should not have changed after second reconciliation")
 }
 
+func TestPing(t *testing.T) {
+	type fixture struct {
+		name         string
+		envVar       string
+		scopesStatus proto.ScopesStatus
+	}
+	fixtures := []fixture{
+		{
+			name:         "scopes disabled",
+			envVar:       "",
+			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_DISABLED,
+		},
+		{
+			name:         "scopes enabled",
+			envVar:       "yes",
+			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_ENABLED,
+		},
+	}
+
+	for _, f := range fixtures {
+		t.Run(f.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_SCOPES", f.envVar)
+			s := newAuthSuite(t)
+			resp, err := s.a.Ping(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, "test.localhost", resp.ClusterName)
+			assert.Equal(t, teleport.Version, resp.ServerVersion)
+			assert.NotNil(t, resp.ServerFeatures)
+			assert.NotNil(t, resp.LicenseExpiry)
+			assert.Equal(t, f.scopesStatus, resp.ScopesStatus)
+		})
+	}
+}
+
 type createAccessListOptions struct {
 	typ           accesslist.Type
 	nextAuditDate time.Time
@@ -4975,9 +5076,17 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
-			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			err = testTLSServer.AuthServer.AuthServer.InitializeAnonymizationKey()
+			require.NoError(t, err)
+
+			got := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
 			tt.errCheck(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, string(got))
+
+			testTLSServer.AuthServer.AuthServer.SetAnonymizationKey([]byte("somethingelse"))
+			got = testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
+			tt.errCheck(t, err)
+			require.Equal(t, "somethingelse", string(got))
 		})
 	}
 }

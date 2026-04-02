@@ -1182,6 +1182,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] DB Access
     - [ ] K8s Access
+    - [ ] App Access
     - [ ] Desktop Access
   - [ ] Device authorization applies to Trusted Clusters
         (root with mode="optional" and leaf with mode="required")

@@ -361,7 +361,7 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodKubernetes:
 		if joinParams.IDToken == "" {
-			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
+			joinParams.IDToken, err = kubetoken.GetIDToken(joinParams.KubernetesTokenPath, os.Getenv, joinParams.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

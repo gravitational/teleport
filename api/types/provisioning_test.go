@@ -581,6 +581,26 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "kubernetes: too many parts in service account name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "too:many:parts",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			desc: "kubernetes: allow rule blank",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{

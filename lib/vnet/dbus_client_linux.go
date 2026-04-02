@@ -26,7 +26,7 @@ import (
 // startService is called from the normal user process to start
 // the privileged VNet daemon. It connects to the system D-Bus
 // and calls the corresponding Start method, exposed on the VNet
-// D-Bus interface, passing the client service address and credential path.
+// D-Bus interface, passing the client service unix socket path.
 func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
@@ -35,7 +35,7 @@ func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	defer conn.Close()
 
 	// basically this corresponds to calling something like
-	// `busctl --system call org.teleport.vnet1 /org/teleport/vnet1 org.teleport.vnet1.Daemon Start ss "<addr>" "<credPath>"`
+	// `busctl --system call org.teleport.vnet1 /org/teleport/vnet1 org.teleport.vnet1.Daemon Start s "<socketPath>"`
 	// each D-Bus service owns a well-known name you refer to, then you specify an
 	// object path. object path is for granularity (a service can expose
 	// multiple objects, but it rarely used, so in our case it is the same as the name but
@@ -44,7 +44,7 @@ func startService(ctx context.Context, cfg LinuxAdminProcessConfig) error {
 	// interface exposes the same methods as dbusDaemon, so we can call them over
 	// D-Bus.
 	obj := conn.Object(vnetDBusServiceName, dbus.ObjectPath(vnetDBusObjectPath))
-	call := obj.CallWithContext(ctx, vnetDBusStartMethod, 0, cfg.ClientApplicationServiceAddr, cfg.ServiceCredentialPath)
+	call := obj.CallWithContext(ctx, vnetDBusStartMethod, 0, cfg.ClientApplicationServiceSocketPath)
 	if call.Err != nil {
 		return trace.Wrap(call.Err, "calling D-Bus Start")
 	}

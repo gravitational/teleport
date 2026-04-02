@@ -465,6 +465,60 @@ func TestInstaller(t *testing.T) {
 	}
 }
 
+func TestGitHubConnectorNameTooLarge(t *testing.T) {
+	t.Parallel()
+
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	// Create a role that the connector will reference
+	role, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateRole(t.Context(), role)
+	require.NoError(t, err)
+
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleAdmin).I))
+	require.NoError(t, err)
+
+	authWithRoles := auth.NewServerWithRoles(
+		srv.AuthServer,
+		new(eventstest.MockAuditLog),
+		*authContext,
+	)
+
+	conn, err := types.NewGithubConnector(strings.Repeat("abc", 300), types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	created, err := authWithRoles.CreateGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
+	require.Nil(t, created)
+
+	upserted, err := authWithRoles.UpsertGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
+	require.Nil(t, upserted)
+
+	conn.SetName("short")
+	conn, err = authWithRoles.CreateGithubConnector(t.Context(), conn)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+
+	conn.SetName(strings.Repeat("abc", 300))
+	_, err = authWithRoles.UpdateGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
+}
+
 func TestGithubAuthRequest(t *testing.T) {
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 	ctx := context.Background()
@@ -9225,7 +9279,6 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.Empty(t, next)
 	require.Len(t, page2, 1)
 	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
-
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -10076,7 +10129,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
-
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -10243,7 +10295,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	_ = getNextEvent() // drain the role create event
 
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -10275,7 +10328,8 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment.Metadata.Name,
+		Name:    assignment.Metadata.Name,
+		SubKind: assignment.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -10283,7 +10337,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
@@ -11227,7 +11282,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.Len(t, retrievedAcks, 1)
 				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
 
-				//cluster alert is filtered out since it's acknowledged
+				// cluster alert is filtered out since it's acknowledged
 				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -11242,7 +11297,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, retrievedAcks)
 
-				//cluster alert is back since its acknowledgement is cleared
+				// cluster alert is back since its acknowledgement is cleared
 				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,

@@ -1685,7 +1685,7 @@ func (p *accessRequestCollector) getResourcesAndUpdateCurrent(ctx context.Contex
 	}
 	newCurrent := make(map[string]types.AccessRequest, len(accessRequests))
 	for _, accessRequest := range accessRequests {
-		newCurrent[accessRequest.GetName()] = accessRequest
+		newCurrent[accessRequest.GetName()] = accessRequest.Copy()
 	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -1861,7 +1861,7 @@ func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Conte
 
 	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
 	for _, oktaAssignment := range oktaAssignments {
-		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment.Copy()
 	}
 	c.mu.Lock()
 	c.current = newCurrent

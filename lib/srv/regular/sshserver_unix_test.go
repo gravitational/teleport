@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/host"
 )
 
 // BenchmarkRootExecCommand measures performance of running multiple exec requests
@@ -71,7 +71,7 @@ func BenchmarkRootExecCommand(b *testing.B) {
 				func(s *Server) error {
 					s.childLogConfig = &srv.ChildLogConfig{
 						ExecLogConfig: srv.ExecLogConfig{
-							Level: &slog.LevelVar{},
+							Level: slog.LevelError,
 						},
 						Writer: io.Discard,
 					}
