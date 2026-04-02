@@ -34,12 +34,17 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/web"
 )
 
 func TestCLICeremony(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockProxy := newMockProxy(t)
 	username := "alice"
@@ -101,7 +106,7 @@ func TestCLICeremony(t *testing.T) {
 }
 
 func TestCLISAMLCeremony(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const username = "alice"
 
 	mockProxy := newMockProxy(t)
@@ -233,7 +238,7 @@ func TestCLICeremony_MFA(t *testing.T) {
 	const token = "sso-mfa-token"
 	const requestID = "sso-mfa-request-id"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockProxy := newMockProxy(t)
 
 	// Capture stderr.
@@ -298,6 +303,90 @@ func TestCLICeremony_MFA(t *testing.T) {
 	assert.Equal(t, requestID, mfaResponse.GetSSO().RequestId)
 }
 
-// TODO(danielashare): Add full Browser MFA ceremony test once server-side
-// Browser MFA functions have been merged. Test similar to above that tests
-// CLI output, redirect handling, and MFA response.
+func TestCLICeremony_BrowserMFA(t *testing.T) {
+	ctx := t.Context()
+	mockProxy := newMockProxy(t)
+	const username = "alice"
+
+	// Create a basic redirector
+	stderr := bytes.NewBuffer([]byte{})
+	rd, err := sso.NewRedirector(sso.RedirectorConfig{
+		ProxyAddr: mockProxy.URL,
+		Browser:   teleport.BrowserNone,
+		Stderr:    stderr,
+	})
+	require.NoError(t, err)
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testServer.Close()) })
+
+	auth := testServer.Auth()
+
+	chal, err := auth.BeginBrowserMFAChallenge(ctx, mfatypes.BeginBrowserMFAChallengeParams{
+		User:                     username,
+		BrowserMFATSHRedirectURL: rd.ClientCallbackURL,
+		ProxyAddress:             mockProxy.URL,
+		Ext: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a fake webauthn response
+	webauthnResponse := &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{ID: "fake-id", Type: "public-key"},
+		},
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
+				ClientDataJSON: []byte(`{"type":"webauthn.get","challenge":"test"}`),
+			},
+			AuthenticatorData: []byte("test-data"),
+			Signature:         []byte("test-sig"),
+		},
+	}
+
+	// Pre-compute the callback URL the proxy would redirect to after the user completes WebAuthn.
+	userCtx := authz.ContextWithUser(ctx, authtest.TestUserWithRoles(username, []string{"role"}).I)
+	successResponseURL, err := auth.CompleteBrowserMFAChallenge(
+		userCtx,
+		chal.RequestId,
+		wantypes.CredentialAssertionResponseToProto(webauthnResponse),
+	)
+	require.NoError(t, err)
+
+	ceremony := sso.NewCLIMFACeremony(rd)
+	t.Cleanup(ceremony.Close)
+
+	baseHandleRedirect := ceremony.HandleRedirect
+	ceremony.HandleRedirect = func(ctx context.Context, redirectURL string) error {
+		if err := baseHandleRedirect(ctx, redirectURL); err != nil {
+			return trace.Wrap(err)
+		}
+
+		resp, err := http.Get(successResponseURL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// User should be redirected to success screen.
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, sso.LoginSuccessRedirectURL, string(body))
+		return nil
+	}
+
+	mfaResponse, err := ceremony.Run(ctx, &proto.MFAAuthenticateChallenge{
+		BrowserMFAChallenge: &proto.BrowserMFAChallenge{
+			RequestId: chal.RequestId,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, mfaResponse.GetBrowser())
+	assert.Equal(t, wantypes.CredentialAssertionResponseToProto(webauthnResponse), mfaResponse.GetBrowser().WebauthnResponse)
+	assert.Equal(t, chal.RequestId, mfaResponse.GetBrowser().RequestId)
+}
