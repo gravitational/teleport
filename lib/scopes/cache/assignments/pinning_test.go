@@ -518,12 +518,12 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 	}
 
 	tts := []struct {
-		name     string
-		botName  string
-		botScope string
-		pin      *scopesv1.Pin
-		ok       bool
-		expect   *scopesv1.Pin
+		name        string
+		botName     string
+		botScope    string
+		pin         *scopesv1.Pin
+		errContains string
+		expect      *scopesv1.Pin
 	}{
 		{
 			name:     "standard",
@@ -532,7 +532,6 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			pin: &scopesv1.Pin{
 				Scope: bernardScope,
 			},
-			ok: true,
 			expect: &scopesv1.Pin{
 				Scope: bernardScope,
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -540,6 +539,67 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 					bernardScope: {bernardScope: {"role-01"}, bernardScope + "/child": {"role-02"}},
 				}),
 			},
+		},
+		{
+			name:     "pin scope at child of bot scope",
+			botName:  "bernard",
+			botScope: bernardScope,
+			pin: &scopesv1.Pin{
+				Scope: bernardScope + "/child",
+			},
+			expect: &scopesv1.Pin{
+				Scope: bernardScope + "/child",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":          {bernardScope: {"role-03"}, bernardScope + "/child": {"role-04"}},
+					bernardScope: {bernardScope: {"role-01"}, bernardScope + "/child": {"role-02"}},
+				}),
+			},
+		},
+		{
+			name:     "pin scope outside bot scope",
+			botName:  "bernard",
+			botScope: bernardScope,
+			pin: &scopesv1.Pin{
+				Scope: "/bb",
+			},
+			errContains: "is not subject to bot scope",
+		},
+		{
+			name:     "no matching assignments",
+			botName:  "no-such-bot",
+			botScope: "/aa",
+			pin: &scopesv1.Pin{
+				Scope: "/aa",
+			},
+			errContains: "no scoped role assignments found",
+		},
+		{
+			name:     "empty bot name",
+			botScope: "/aa",
+			pin: &scopesv1.Pin{
+				Scope: "/aa",
+			},
+			errContains: "missing bot name",
+		},
+		{
+			name:    "empty bot scope",
+			botName: "bernard",
+			pin: &scopesv1.Pin{
+				Scope: "/aa",
+			},
+			errContains: "missing bot scope",
+		},
+		{
+			name:     "pin with pre-existing assignment tree",
+			botName:  "bernard",
+			botScope: bernardScope,
+			pin: &scopesv1.Pin{
+				Scope: bernardScope,
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {bernardScope: {"role-03"}},
+				}),
+			},
+			errContains: "already contains an assignment tree",
 		},
 	}
 
@@ -549,12 +609,11 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			err := cache.PopulatePinnedAssignmentsForBot(
 				t.Context(), tt.botName, tt.botScope, pin,
 			)
-			if tt.ok {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
 				return
 			}
+			require.NoError(t, err)
 			require.NotNil(t, pin)
 			require.Empty(t, cmp.Diff(pin, tt.expect, protocmp.Transform()))
 		})

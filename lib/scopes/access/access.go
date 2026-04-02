@@ -398,18 +398,19 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	// Assigning to Bot is mutually exclusive with assigning to User. When
 	// assigning to Bot, we also want to ensure Bot's scope is specified.
-	botSet := assignment.GetSpec().BotName != ""
-	if botSet && assignment.GetSpec().User != "" {
+	botSet := assignment.GetSpec().GetBotName() != ""
+	botScope := assignment.GetSpec().GetBotScope()
+	if botSet && assignment.GetSpec().GetUser() != "" {
 		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
 	}
-	if botSet && assignment.GetSpec().BotScope == "" {
+	if botSet && botScope == "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
 	}
-	if !botSet && assignment.GetSpec().BotScope != "" {
+	if !botSet && botScope == "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
 	}
 	if botSet {
-		if err := scopes.StrongValidate(assignment.GetSpec().GetBotScope()); err != nil {
+		if err := scopes.StrongValidate(botScope); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
 		}
 	}
@@ -438,7 +439,6 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			// TODO(strideynet): For Forrest, is it appropriate to use:
 			// > scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope)??
 			// or is another helper more appropriate? or new helper needed?
-			botScope := assignment.GetSpec().GetBotScope()
 			assignmentScope := subAssignment.GetScope()
 			rel := scopes.Compare(botScope, assignmentScope)
 			if rel != scopes.Equivalent && rel != scopes.Descendant {
