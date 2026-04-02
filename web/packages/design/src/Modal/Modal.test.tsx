@@ -26,7 +26,7 @@ import Modal, { ModalProps } from './Modal';
 
 const renderModal = (props: Omit<ModalProps, 'open'>) => {
   return render(
-    <Modal open={true} {...props}>
+    <Modal open {...props}>
       <div>Hello</div>
     </Modal>
   );
@@ -160,7 +160,7 @@ test('restores focus on close', async () => {
 
 test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
   const { rerender } = render(
-    <Modal open={true} keepInDOMAfterClose>
+    <Modal open keepInDOMAfterClose>
       <div>Hello</div>
     </Modal>
   );
@@ -175,6 +175,421 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 
   expect(screen.getByText('Hello')).not.toBeVisible();
 });
+
+describe('trapFocus', () => {
+  let originalOffsetParent: PropertyDescriptor | undefined;
+
+  beforeAll(() => {
+    // JSDOM doesn't implement layout, so offsetParent is always null. Mock it to return the
+    // parent element (non-null) for elements that aren't hidden via display:none on themselves or
+    // an ancestor.
+    originalOffsetParent = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      get(this: HTMLElement) {
+        // Walk up the ancestor chain — in real browsers, offsetParent is null when any
+        // ancestor has display:none.
+        let el: HTMLElement | null = this;
+        while (el) {
+          if (el.style.display === 'none') {
+            return null;
+          }
+          el = el.parentElement; // eslint-disable-line testing-library/no-node-access
+        }
+        return this.parentElement; // eslint-disable-line testing-library/no-node-access
+      },
+      configurable: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalOffsetParent) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetParent',
+        originalOffsetParent
+      );
+    }
+  });
+
+  // In the following describe group, the focused element is removed during a re-render, leaving
+  // lastModalFocus as a stale detached reference. Explicit keys ensure React unmounts the Removable
+  // button rather than reconciling it with Stable.
+  describe('when lastModalFocus was removed from the DOM', () => {
+    test('blurs programmatic focus theft', () => {
+      const { rerender } = render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="removable">Removable</button>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      screen.getByRole('button', { name: 'Removable' }).focus();
+      rerender(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+    });
+
+    test('Tab focuses into the modal', () => {
+      const { rerender } = render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="removable">Removable</button>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      screen.getByRole('button', { name: 'Removable' }).focus();
+      rerender(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <button key="stable">Stable</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Stable' })).toHaveFocus();
+    });
+  });
+
+  describe('when lastModalFocus becomes unfocusable', () => {
+    test('blurs programmatic focus theft', () => {
+      const { rerender } = render(
+        <ModalWithOutsideButton trapFocus>
+          <button>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      screen.getByRole('button', { name: 'Target' }).focus();
+
+      // Disable the focused button — it stays in the DOM but can't receive focus.
+      rerender(
+        <ModalWithOutsideButton trapFocus>
+          <button disabled>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+    });
+
+    test('Tab focuses into the modal', () => {
+      const { rerender } = render(
+        <ModalWithOutsideButton trapFocus>
+          <button>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      screen.getByRole('button', { name: 'Target' }).focus();
+
+      rerender(
+        <ModalWithOutsideButton trapFocus>
+          <button disabled>Target</button>
+          <button>Other</button>
+        </ModalWithOutsideButton>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Other' })).toHaveFocus();
+    });
+  });
+
+  test('returns focus to the modal when an outside element steals it', () => {
+    render(<ModalWithOutsideButton trapFocus />);
+
+    const insideButton = screen.getByRole('button', { name: 'Inside' });
+    insideButton.focus();
+    expect(insideButton).toHaveFocus();
+
+    // Simulate programmatic focus theft from outside the modal.
+    screen.getByRole('button', { name: 'Outside' }).focus();
+    expect(insideButton).toHaveFocus();
+  });
+
+  test('remembers autoFocus target and restores it after focus theft', () => {
+    render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus>
+          <div>
+            <button>First</button>
+            <button autoFocus>Second</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const secondButton = screen.getByRole('button', { name: 'Second' });
+    expect(secondButton).toHaveFocus();
+
+    screen.getByRole('button', { name: 'Outside' }).focus();
+    expect(secondButton).toHaveFocus();
+  });
+
+  test('wraps focus from last to first element on Tab', () => {
+    render(<TwoButtonModalWithOutsideButton />);
+
+    const lastButton = screen.getByRole('button', { name: 'Last' });
+    lastButton.focus();
+    fireEvent.keyDown(lastButton, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+  });
+
+  test('does not interfere with Tab when defaultPrevented', () => {
+    render(<TwoButtonModalWithOutsideButton />);
+
+    const lastButton = screen.getByRole('button', { name: 'Last' });
+    lastButton.focus();
+
+    // Simulate a component inside the modal calling preventDefault on Tab (e.g., a rich-text
+    // editor using Tab for indentation). The handler runs before the modal's document-level
+    // listener because it's registered on the element itself.
+    const preventTab = (e: Event) => {
+      if ((e as KeyboardEvent).key === 'Tab') {
+        e.preventDefault();
+      }
+    };
+    lastButton.addEventListener('keydown', preventTab);
+    fireEvent.keyDown(lastButton, { key: 'Tab' });
+    lastButton.removeEventListener('keydown', preventTab);
+
+    // Focus should stay on Last — the trap should not have intercepted the event.
+    expect(lastButton).toHaveFocus();
+  });
+
+  test('wraps focus from first to last element on Shift+Tab', () => {
+    render(<TwoButtonModalWithOutsideButton />);
+
+    const firstButton = screen.getByRole('button', { name: 'First' });
+    firstButton.focus();
+    fireEvent.keyDown(firstButton, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+  });
+
+  // In the following describe group, we simulate the browser Tab behavior manually: fire keyDown
+  // (which sets lastTabKeyDirection), then focus the outside element (which triggers focusin
+  // and lets handleFocusTrapFocusIn redirect focus into the modal).
+  describe('when nothing inside the modal was focused yet', () => {
+    test('Tab focuses the first element', () => {
+      render(<TwoButtonModalWithOutsideButton />);
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'First' })).toHaveFocus();
+    });
+
+    test('Shift+Tab focuses the last element', () => {
+      render(<TwoButtonModalWithOutsideButton />);
+
+      fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Last' })).toHaveFocus();
+    });
+
+    test('Tab skips hidden elements and focuses the first visible one', () => {
+      render(
+        <ModalWithOutsideButton trapFocus>
+          <button style={{ display: 'none' }}>Hidden</button>
+          <button>Visible</button>
+        </ModalWithOutsideButton>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Visible' })).toHaveFocus();
+    });
+
+    test('Tab skips elements inside a hidden parent', () => {
+      render(
+        <>
+          <button>Outside</button>
+          <Modal open trapFocus>
+            <div>
+              <div style={{ display: 'none' }}>
+                <button>HiddenChild</button>
+              </div>
+              <button>Visible</button>
+            </div>
+          </Modal>
+        </>
+      );
+
+      fireEvent.keyDown(document, { key: 'Tab' });
+      screen.getByRole('button', { name: 'Outside' }).focus();
+      expect(screen.getByRole('button', { name: 'Visible' })).toHaveFocus();
+    });
+
+    test('blurs the thief when focus is stolen programmatically', () => {
+      render(<TwoButtonModalWithOutsideButton />);
+
+      // No element has autoFocus, so lastModalFocus is not pre-populated. The thief should be
+      // blurred rather than auto-focusing the first element inside the modal.
+      const outsideButton = screen.getByRole('button', { name: 'Outside' });
+      outsideButton.focus();
+      expect(outsideButton).not.toHaveFocus();
+      // JSDOM sets document.body as activeElement when blurring any other element.
+      expect(document.body).toHaveFocus();
+    });
+  });
+
+  test('does not trap focus when trapFocus is not set', () => {
+    render(<ModalWithOutsideButton />);
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+
+  test('enables focus trap when trapFocus changes to true while modal is open', () => {
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={false}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={true}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(screen.getByRole('button', { name: 'Inside' })).toHaveFocus();
+  });
+
+  test('disables focus trap when trapFocus changes to false while modal is open', () => {
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={true}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus={false}>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+
+  test('cleans up focus trap listeners on close', () => {
+    // Use keepInDOMAfterClose so that the modal stays in the DOM when closed. Without it, the modal
+    // is fully unmounted and the focusin handler would early-return due to modalEl being null,
+    // making the test pass trivially.
+    const { rerender } = render(
+      <>
+        <button>Outside</button>
+        <Modal open trapFocus keepInDOMAfterClose>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    screen.getByRole('button', { name: 'Inside' }).focus();
+
+    rerender(
+      <>
+        <button>Outside</button>
+        <Modal open={false} trapFocus keepInDOMAfterClose>
+          <div>
+            <button>Inside</button>
+          </div>
+        </Modal>
+      </>
+    );
+
+    const outsideButton = screen.getByRole('button', { name: 'Outside' });
+    outsideButton.focus();
+    expect(outsideButton).toHaveFocus();
+  });
+});
+
+const ModalWithOutsideButton = (
+  props: { trapFocus?: boolean } & Pick<ModalProps, 'keepInDOMAfterClose'> & {
+      children?: React.ReactNode;
+    }
+) => (
+  <>
+    <button>Outside</button>
+    <Modal
+      open
+      trapFocus={props.trapFocus}
+      keepInDOMAfterClose={props.keepInDOMAfterClose}
+    >
+      <div>{props.children ?? <button>Inside</button>}</div>
+    </Modal>
+  </>
+);
+
+const TwoButtonModalWithOutsideButton = () => (
+  <ModalWithOutsideButton trapFocus>
+    <button>First</button>
+    <button>Last</button>
+  </ModalWithOutsideButton>
+);
 
 const ToggleableModal = () => {
   const [isOpen, setIsOpen] = useState(false);
