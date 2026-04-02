@@ -1692,7 +1692,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindKubernetesCluster,
 		UseSearchAsRoles:    true,
-		PredicateExpression: makePredicateConjunction(predicate, tc.PredicateExpression),
+		PredicateExpression: common.MakePredicateConjunction(predicate, tc.PredicateExpression),
 		Labels:              tc.Labels,
 	})
 	if err != nil {
