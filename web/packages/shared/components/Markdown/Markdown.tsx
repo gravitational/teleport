@@ -147,6 +147,7 @@ const headerRegex = /^(?<hashes>#{1,6})\s*(?<content>.*)$/;
 const fencedCodeRegex = /^```(\w*)\s*$/;
 
 const MAX_ITERATIONS = 10000;
+const MAX_DEPTH = 16;
 
 /**
  * Turns a Markdown string into a list of React nodes. CAUTION: this function
@@ -291,17 +292,20 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
           nested += 1;
         }
 
+        const filter = nested >= MAX_DEPTH;
+
         if (nextLine.trim() === '</details>') {
           // If we're nested, then treat this line like any other content.
-          if (nested > 0) {
-            nested -= 1;
-          } else {
+          if (nested < 1) {
             i += 1;
             break;
           }
+          nested -= 1;
         }
 
-        content.push(nextLine);
+        if (!filter) {
+          content.push(nextLine);
+        }
         i += 1;
       }
 

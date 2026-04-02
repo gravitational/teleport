@@ -833,6 +833,23 @@ outer other content`;
       expect(screen.getByText('inner content')).toBeVisible();
     });
 
+    it('caps at 16 levels of nesting', () => {
+      const text = Array.from({ length: 17 }, (_, i) => 17 - i).reduce(
+        (acc, cur) => {
+          return `<details open>
+                    level:${cur}
+                    ${acc}
+                  </details>`;
+        },
+        ''
+      );
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('level:16')).toBeInTheDocument();
+      expect(screen.queryByText('level:17')).not.toBeInTheDocument();
+    });
+
     it('renders an empty section', () => {
       const text = `
 <details open>
