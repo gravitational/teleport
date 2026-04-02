@@ -400,6 +400,33 @@ $(BUILDDIR)/tsh: rdpdecoder
 	fi
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
+.PHONY: $(BUILDDIR)/tsh-touchid-helper
+$(BUILDDIR)/tsh-touchid-helper:
+	clang -ObjC -fobjc-arc -mmacosx-version-min=11.0 \
+		-framework CoreFoundation -framework Foundation \
+		-framework LocalAuthentication -framework Security \
+		-o $(BUILDDIR)/tsh-touchid-helper \
+		tool/tsh-touchid-helper/main.m \
+		lib/auth/touchid/register.m \
+		lib/auth/touchid/authenticate.m \
+		lib/auth/touchid/credentials.m \
+		lib/auth/touchid/diag.m \
+		lib/auth/touchid/context.m \
+		lib/auth/touchid/common.m \
+		-Ilib/auth/touchid
+
+.PHONY: sign-tsh-touchid-helper
+sign-tsh-touchid-helper: $(BUILDDIR)/tsh-touchid-helper
+	codesign \
+		--sign '$(DEVELOPER_ID_APPLICATION)' \
+		--identifier "$(TSH_BUNDLEID).helper" \
+		--force \
+		--verbose \
+		--timestamp \
+		--options kill,hard,runtime \
+		--entitlements build.assets/macos/tsh/tsh.entitlements \
+		$(BUILDDIR)/tsh-touchid-helper
+
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
 # We force cgo to be disabled, else the compiler might decide to enable it.

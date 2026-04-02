@@ -175,6 +175,24 @@ func IsAvailable() bool {
 			logger.WarnContext(context.Background(), "self-diagnostics failed", "error", err)
 			return false
 		}
+
+		// If not available due to missing signature/entitlements (typical for
+		// unsigned dev builds), try falling back to a signed helper binary.
+		if !cachedDiag.IsAvailable && !cachedDiag.HasSignature {
+			if helper, helperErr := tryHelperFallback(); helperErr == nil {
+				native = helper
+				cachedDiag, err = native.Diag()
+				if err != nil {
+					logger.WarnContext(context.Background(), "helper diagnostics failed", "error", err)
+					return false
+				}
+				if cachedDiag.IsAvailable {
+					logger.InfoContext(context.Background(), "Touch ID available via helper binary")
+				}
+			} else {
+				logger.DebugContext(context.Background(), "Touch ID helper not available", "error", helperErr)
+			}
+		}
 	}
 
 	return cachedDiag.IsAvailable
