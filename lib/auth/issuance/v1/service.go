@@ -111,6 +111,21 @@ func (s *Service) IssueScopedBotCerts(
 		return nil, trace.Wrap(err)
 	}
 
+	// Perform any basic validity checks
+	ttl := req.Ttl.AsDuration()
+	if ttl <= 0 {
+		return nil, trace.BadParameter(
+			"ttl: must be provided and positive",
+		)
+	}
+	if ttl > defaults.MaxRenewableCertTTL {
+		return nil, trace.BadParameter(
+			"ttl: value (%s) exceeds maximum permitted value (%s)",
+			ttl,
+			defaults.MaxRenewableCertTTL,
+		)
+	}
+
 	// Perform basic RBAC checks to ensure the correct kind of identity is
 	// invoking the endpoint
 	currentIdentity := authCtx.Identity.GetIdentity()
@@ -128,21 +143,6 @@ func (s *Service) IssueScopedBotCerts(
 	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.Scope == "":
 		return nil, trace.AccessDenied(
 			"scope pin missing, rpc can only be invoked by scoped identities",
-		)
-	}
-
-	// Validate requested TTL
-	ttl := req.Ttl.AsDuration()
-	if ttl <= 0 {
-		return nil, trace.BadParameter(
-			"ttl: must be provided and positive",
-		)
-	}
-	if ttl > defaults.MaxRenewableCertTTL {
-		return nil, trace.BadParameter(
-			"ttl: value (%s) exceeds maximum permitted value (%s)",
-			ttl,
-			defaults.MaxRenewableCertTTL,
 		)
 	}
 
@@ -180,6 +180,8 @@ func (s *Service) IssueScopedBotCerts(
 			botScope,
 		)
 	}
+
+	// Now we've performed
 
 	checker, err := s.authServer.AccessCheckerForScope(
 		ctx, requestedScope, user, []types.ResourceAccessID{},
