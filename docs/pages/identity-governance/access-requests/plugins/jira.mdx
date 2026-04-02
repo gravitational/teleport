@@ -71,16 +71,58 @@ your Teleport cluster.
 
 ## Step 2/8. Define a Teleport Jira plugin user
 
-The required permissions for the plugin are configured in the preset `access-plugin`
-role. To generate credentials for the plugin, define either a Machine ID bot user
-or a regular Teleport user.
+The required permissions for the plugin are configured in the preset
+`access-plugin-update` role. To generate credentials for the plugin, define
+either a Machine ID bot user or a regular Teleport user.
 
 <Tabs>
 <TabItem label="Machine & Workload Identity">
-(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+
+Teleport's Access Request plugins authenticate to your Teleport cluster as a
+user with permissions to list, read, and update Access Requests. This way,
+plugins can retrieve Access Requests from the Teleport Auth Service, present
+them to reviewers, and modify them after a review.
+
+Define a role called `access-plugin-update` by adding the following content to a
+file called `access-plugin-update.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: access-plugin-update
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read', 'update']
+      - resources: ['access_plugin_data']
+        verbs: ['update']
+```
+
+Create the role:
+
+```code
+$ tctl create -f access-plugin-update.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+If you haven't set up a Machine ID bot yet, refer to the [deployment
+guide](../../../machine-workload-identity/deployment/deployment.mdx) to run the
+`tbot` binary on your infrastructure.
+
+Next, allow the Machine ID bot to generate credentials for the
+`access-plugin-update` role. You can do this using `tctl`, replacing `my-bot`
+with the name of your bot:
+
+```code
+$ tctl bots update my-bot --add-roles access-plugin-update
+```
+
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+(!docs/pages/includes/plugins/rbac-update.mdx!)
 </TabItem>
 </Tabs>
 
@@ -96,7 +138,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-jira-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-jira-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin-update" secret="teleport-plugin-jira-identity"!)
 </TabItem>
 </Tabs>
 
