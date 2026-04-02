@@ -20,9 +20,11 @@ import {
   Cluster,
   LoggedInUser,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { ensureError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
+import { serializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { RendererIpc } from 'teleterm/mainProcess/types';
 import { AppUpdater } from 'teleterm/services/appUpdater';
 import {
@@ -285,10 +287,14 @@ export class ClusterLifecycleManager {
     await this.syncOrUpdateCluster(cluster);
   }
 
-  private handleWatcherError(error: ProfileWatcherError): void {
+  private handleWatcherError(watcherError: ProfileWatcherError): void {
+    const serialized: ProfileWatcherError = {
+      reason: watcherError.reason,
+      error: serializeError(ensureError(watcherError.error)),
+    };
     this.windowsManager
       .getWindow()
-      .webContents.send(RendererIpc.ProfileWatcherError, error);
+      .webContents.send(RendererIpc.ProfileWatcherError, serialized);
   }
 }
 
