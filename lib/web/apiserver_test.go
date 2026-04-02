@@ -5059,6 +5059,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 }
 
 func TestGetWebConfig_Beams(t *testing.T) {
+	env := newWebPack(t, 1)
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+
 	testCases := []struct {
 		name                   string
 		hasBeamsEntitlement    bool
@@ -5100,27 +5104,30 @@ func TestGetWebConfig_Beams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			env := newWebPack(t, 1, withModules(&modulestest.Modules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 						entitlements.Beams: {Enabled: tc.hasBeamsEntitlement},
 					},
 					BeamsUI: tc.hasBeamsUI,
 				},
-			}))
+			})
+			env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
-			clt := env.proxies[0].newClient(t)
-			endpoint := clt.Endpoint("web", "config.js")
-			re, err := clt.Get(ctx, endpoint, nil)
-			require.NoError(t, err)
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				re, err := clt.Get(ctx, endpoint, nil)
+				require.NoError(t, err)
 
-			cfg := testGRVConfig(t, re.Bytes())
+				var cfg webclient.WebConfig
+				err = parseGRVConfig(re.Bytes(), &cfg)
+				require.NoError(t, err)
 
-			require.Equal(t, webclient.EntitlementInfo{
-				Enabled: tc.expectBeamsEntitlement,
-				Limit:   0,
-			}, cfg.Entitlements[string(entitlements.Beams)])
-			require.Equal(t, tc.expectBeamsUI, cfg.BeamsUI)
+				require.Equal(t, webclient.EntitlementInfo{
+					Enabled: tc.expectBeamsEntitlement,
+					Limit:   0,
+				}, cfg.Entitlements[string(entitlements.Beams)])
+				require.Equal(t, tc.expectBeamsUI, cfg.BeamsUI)
+			}, time.Second*5, time.Millisecond*50)
 		})
 	}
 }
