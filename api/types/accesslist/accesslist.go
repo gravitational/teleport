@@ -696,6 +696,38 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 	}
 }
 
+// WithIgnoreValidModificationFields configures EqualAccessLists to reset ephemeral
+// fields AND modification fields before comparison. Ephemeral fields are those managed by reconcilers
+// or the backend and should typically be ignored when comparing access lists.
+//
+// The following fields are reset:
+//   - Metadata.Revision: Managed by the backend
+//   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
+//   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+//
+// Modification fields are those managed by reconcilers  or the backend and should typically be
+// ignored when comparing access lists.
+//
+// The following fields are reset:
+//   - Spec.Owners:
+//   - Spec.MembershipRequires:
+//   - Spec.OwnershipRequires:
+//   - Spec.Audit:
+//
+// Note: This option causes the input access lists to be cloned (unless WithSkipClone
+// is also used) to avoid modifying the originals.
+func WithIgnoreValidModificationFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.resetFieldsFn = func(a *AccessList) {
+			resetEphemeralFieldsAccessList(a)
+			a.Spec.Owners = nil
+			a.Spec.MembershipRequires = Requires{}
+			a.Spec.OwnershipRequires = Requires{}
+			a.Spec.Audit = Audit{}
+		}
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()

@@ -857,7 +857,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 					// Compare members and update if necessary.
-					if !deriveTeleportEqualAccessListMember(newMember, existingMember) {
+					if !newMember.IsEqual(existingMember) {
 						// Update the member.
 						upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
 						if err != nil {

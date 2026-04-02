@@ -84,6 +84,11 @@ func NewAccessListMember(metadata header.Metadata, spec AccessListMemberSpec) (*
 	return member, nil
 }
 
+// IsEqual returns true if both AccessListMembers are identical.
+func (a *AccessListMember) IsEqual(other *AccessListMember) bool {
+	return deriveTeleportEqualAccessListMember(a, other)
+}
+
 // CheckAndSetDefaults defaults empty fields and performs metadata validation.
 func (a *AccessListMember) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessListMember)
