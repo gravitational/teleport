@@ -48,8 +48,8 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		Audit:              convertAuditFromProto(spec.GetAudit()),
 		MembershipRequires: convertRequiresFromProto(spec.GetMembershipRequires()),
 		OwnershipRequires:  convertRequiresFromProto(spec.GetOwnershipRequires()),
-		Grants:             convertGrantsFromProto(spec.GetGrants()),
-		OwnerGrants:        convertGrantsFromProto(spec.GetOwnerGrants()),
+		Grants:             ConvertGrantsFromProto(spec.GetGrants()),
+		OwnerGrants:        ConvertGrantsFromProto(spec.GetOwnerGrants()),
 	}
 
 	accessList, err := accesslist.NewAccessList(metadata, accessListSpec)
@@ -84,8 +84,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Audit:              convertAuditToProto(accessList.Spec.Audit),
 			MembershipRequires: convertRequiresToProto(accessList.Spec.MembershipRequires),
 			OwnershipRequires:  convertRequiresToProto(accessList.Spec.OwnershipRequires),
-			Grants:             convertGrantsToProto(accessList.Spec.Grants),
-			OwnerGrants:        convertGrantsToProto(accessList.Spec.OwnerGrants),
+			Grants:             ConvertGrantsToProto(accessList.Spec.Grants),
+			OwnerGrants:        ConvertGrantsToProto(accessList.Spec.OwnerGrants),
 		},
 		Status: convertStatusToProto(&accessList.Status),
 	}
@@ -139,7 +139,7 @@ func convertOwnersFromProto(protoOwners []*accesslistv1.AccessListOwner) []acces
 	return owners
 }
 
-func convertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accesslist.Grants {
+func ConvertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accesslist.Grants {
 	if protoGrants == nil {
 		return accesslist.Grants{}
 	}
@@ -313,7 +313,7 @@ func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListO
 	return protoOwners
 }
 
-func convertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
+func ConvertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
 	return &accesslistv1.AccessListGrants{
 		Roles:       grants.Roles,
 		Traits:      traitv1.ToProto(grants.Traits),
