@@ -261,7 +261,7 @@ test.each([
     expect: false,
   },
   {
-    name: 'isRpcError returns true of error is RPC error',
+    name: 'isRpcError returns true if error is RPC error',
     errorToCheck: { name: 'RpcError', code: 'PERMISSION_DENIED' },
     statusCodeToCheck: undefined,
     expect: true,
