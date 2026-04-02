@@ -73,8 +73,14 @@ const StyledButtonIcon = styled.button<{ size: Size }>`
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  transition: all 0.3s;
+  transition-property: background-color, color, border-color, outline-color, box-shadow;
+  transition-duration: ${({ theme }) => theme.transitions.interactive.duration};
+  transition-timing-function: ${({ theme }) => theme.transitions.interactive.timingFunction};
   -webkit-font-smoothing: antialiased;
+
+  svg {
+    transition: color ${({ theme }) => theme.transitions.interactive.duration} ${({ theme }) => theme.transitions.interactive.timingFunction};
+  }
 
   &:disabled {
     color: ${({ theme }) => theme.colors.text.disabled};
