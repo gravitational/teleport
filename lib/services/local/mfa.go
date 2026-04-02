@@ -234,18 +234,11 @@ func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 
 type validatedMFAChallengeParser struct {
 	baseParser
-
-	filter types.ValidatedMFAChallengeFilter
 }
 
-func newValidatedMFAChallengeParser(filter map[string]string) *validatedMFAChallengeParser {
-	var parsedFilter types.ValidatedMFAChallengeFilter
-
-	parsedFilter.FromMap(filter)
-
+func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
 	return &validatedMFAChallengeParser{
 		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
-		filter:     parsedFilter,
 	}
 }
 
@@ -291,11 +284,23 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 
-	// If the filter specifies a target cluster and it doesn't match the challenge's target cluster, this event is not
-	// relevant to the watcher and should be ignored.
-	if p.filter.TargetCluster != "" && !p.filter.Match(chal.GetSpec().GetTargetCluster()) {
-		return nil, nil
+	return &watchedValidatedMFAChallengeResource{
+		Resource: types.LegacyMetadataToResource(chal),
+		chal:     chal,
+	}, nil
+}
+
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
+type watchedValidatedMFAChallengeResource struct {
+	types.Resource
+
+	chal *mfav1.ValidatedMFAChallenge
+}
+
+func (r *watchedValidatedMFAChallengeResource) GetTargetCluster() string {
+	if r.chal == nil || r.chal.GetSpec() == nil {
+		return ""
 	}
 
-	return types.LegacyMetadataToResource(chal), nil
+	return r.chal.GetSpec().GetTargetCluster()
 }
