@@ -840,6 +840,87 @@ func TestMaterializerDiamond(t *testing.T) {
 	})
 }
 
+func TestMaterializerCascadingMemberExpiries(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+
+		testStart := time.Now()
+
+		runMaterializerTestcase(t, materializerTestcase{
+			collection: accesslists.Collection{
+				AccessListsByName: map[string]*accesslist.AccessList{
+					"testlist": newAccessList(t, "testlist", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/test",
+						Role:  "testrole",
+					}})),
+				},
+				MembersByAccessList: map[string][]*accesslist.AccessListMember{
+					"testlist": {
+						newAccessListMember(t, "testlist", "alice", accesslist.MembershipKindUser, withExpires(testStart.Add(time.Minute))),
+						newAccessListMember(t, "testlist", "bob", accesslist.MembershipKindUser, withExpires(testStart.Add(2*time.Minute))),
+						newAccessListMember(t, "testlist", "charlie", accesslist.MembershipKindUser, withExpires(testStart.Add(3*time.Minute))),
+					},
+				},
+			},
+			// Initially all users are valid members of testlist.
+			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+				expectedScopedRoleAssignment("alice", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+				expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+				expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+			},
+			steps: []materializerTestcaseStep{
+				{
+					// Sleep until alice's membership expires.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+					},
+				},
+				{
+					// Sleep until bob's membership expires.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+					},
+				},
+				{
+					// Sleep until charlie's membership expires.
+					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
+				},
+			},
+		})
+	})
+}
+
 func TestMaterializerDiamondExpiry(t *testing.T) {
 	// The initial condition will look like this, we'll then break the
 	// membership path through left, then break the membership path through
