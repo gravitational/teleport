@@ -28,7 +28,10 @@ import { ensureError } from 'shared/utils/error';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
-import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import {
+  registerAppFileProtocol,
+  setUpProtocolHandlers,
+} from 'teleterm/mainProcess/protocolHandler';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
@@ -82,6 +85,7 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
+  registerAppFileProtocol();
   let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
@@ -228,7 +232,7 @@ async function initializeApp(): Promise<void> {
         });
       }
 
-      enableWebHandlersProtection();
+      setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
 
