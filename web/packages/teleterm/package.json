@@ -29,7 +29,7 @@
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
     "strip-ansi": "^7.2.0",
-    "tar-fs": "^3.1.1",
+    "tar-fs": "^3.1.2",
     "which": "^6.0.1",
     "winston": "^3.19.0"
   },
