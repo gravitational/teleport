@@ -119,6 +119,25 @@ message SSHAccessPermit {
   // Preconditions is a list of conditions that must be satisfied before access is granted.
   // If any precondition is not satisfied, access must be denied.
   repeated Precondition preconditions = 26;
+
+  // DecisionContext provides additional context for select access permit decisions.
+  SSHAccessPermitContext decision_context = 27;
+}
+
+// SSHAccessPermitContext provides additional context for select access permit decisions.
+message SSHAccessPermitContext {
+  // HostUserCreationAllowedBy is a list of determinants that allow host user creation.
+  repeated Determinant host_user_creation_allowed_by = 1;
+  // HostUserCreationDeniedBy is a list of determinants that deny host user creation.
+  repeated Determinant host_user_creation_denied_by = 2;
+}
+
+// Determinant is a resource that provided a determining factor for a decision. For example, a role or scoped_role.
+message Determinant {
+  // Kind is the determinant kind.
+  string kind = 1;
+  // Name is the determinant name.
+  string name = 2;
 }
 
 // SSHAccessDenial describes an SSH access denial.

@@ -20,8 +20,10 @@ package externalauditstorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -407,32 +409,44 @@ func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessi
 	return res, err
 }
 
-// Download calls [c.wrapped.Download] and counts the error or success.
-func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	err := c.wrapped.Download(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
+// StreamSessionRecording calls [c.wrapped.StreamSessionRecording] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionRecording(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadSummary calls [c.wrapped.DownloadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	err := c.wrapped.DownloadSummary(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
+// StreamSessionSummary calls [c.wrapped.StreamSessionSummary] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadMetadata calls [c.wrapped.DownloadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	err := c.wrapped.DownloadMetadata(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
+// StreamSessionMetadata calls [c.wrapped.StreamSessionMetadata] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionMetadata(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
 }
 
-// DownloadThumbnail calls [c.wrapped.DownloadThumbnail()] and counts the error or success.
-func (c *ErrorCountingSessionHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	err := c.wrapped.DownloadThumbnail(ctx, sessionID, writer)
-	c.downloads.observe(err)
-	return err
+// StreamSessionThumbnail calls [c.wrapped.StreamSessionThumbnail()] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionThumbnail(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
 }
 
 // CreateUpload calls [c.wrapped.CreateUpload] and counts the error or success.
@@ -499,4 +513,33 @@ func truncateErrForAlert(err error) string {
 		return s
 	}
 	return s[:maxLength]
+}
+
+// newErrorReportReader wraps r so that read errors and successful completions
+// are forwarded to reporter. It should be used after a download call has
+// already succeeded, to capture errors that occur while streaming the body.
+func newErrorReportReader(r io.ReadCloser, reporter *errorCount) errorReportReader {
+	return errorReportReader{
+		r,
+		reporter,
+	}
+}
+
+// errorReportReader wraps an [io.ReadCloser] and observes read outcomes via
+// reporter. A non-nil, non-EOF error from Read is counted as a download
+// failure. An io.EOF is counted as a success, indicating the full body was
+// consumed without error.
+type errorReportReader struct {
+	io.ReadCloser
+	reporter *errorCount
+}
+
+func (e errorReportReader) Read(buf []byte) (int, error) {
+	n, err := e.ReadCloser.Read(buf)
+	if errors.Is(err, io.EOF) {
+		e.reporter.observe(nil)
+	} else if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, os.ErrClosed) {
+		e.reporter.observe(err)
+	}
+	return n, err
 }

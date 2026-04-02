@@ -99,14 +99,14 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -1563,7 +1563,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, args)
+	utils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(insertDoubleDashAfterKubectl(args))
 	if errors.Is(err, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TSHConfig.Aliases[aliasCommand]; ok {
@@ -4581,17 +4581,26 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 
 func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if status := tc.ExitStatus(); status != 0 {
+		if err == nil {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
+		}
+
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
 		}
-		if err != nil {
-			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+
+		// If we get a basic SSH exit error with no unexpected msg or signal,
+		// convert it to an exitCodeError and return.
+		var sshExitErr *ssh.ExitError
+		if errors.As(err, &sshExitErr) && sshExitErr.Msg() == "" && sshExitErr.Signal() == "" {
+			return trace.Wrap(&common.ExitCodeError{Code: status})
 		}
-		err = &common.ExitCodeError{Code: status}
-		return trace.Wrap(err)
+
+		// For unexpected errors, print the error message before converting to an exitCodeError.
+		fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+		return trace.Wrap(&common.ExitCodeError{Code: status})
 	}
 	return trace.Wrap(err)
 }

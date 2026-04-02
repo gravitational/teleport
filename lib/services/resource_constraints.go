@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // MatcherTransform defines a func wrapping a RoleMatcher to modify or extend its behavior.
@@ -46,36 +47,32 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 
 	switch d := rc.Details.(type) {
 	case *types.ResourceConstraints_AwsConsole:
-		if err := d.Validate(); err != nil {
-			return func(m RoleMatcher) RoleMatcher {
-				return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
-					return false, trace.Wrap(err)
-				})
-			}
-		}
-
-		allowedSet := make(map[string]struct{}, len(d.AwsConsole.RoleArns))
-		for _, arn := range d.AwsConsole.RoleArns {
-			allowedSet[arn] = struct{}{}
-		}
-
-		return func(m RoleMatcher) RoleMatcher {
-			var awsRole string
-			switch lm := m.(type) {
-			case *awsAppLoginMatcher:
-				awsRole = lm.awsRole
-			case *AWSRoleARNMatcher:
-				awsRole = lm.RoleARN
-			default:
-				return m
-			}
-			return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
-				if _, ok := allowedSet[awsRole]; !ok {
-					return false, nil
+		return buildStringConstraintTransform(
+			d.Validate,
+			func() []string { return d.AwsConsole.RoleArns },
+			func(m RoleMatcher) string {
+				principal := ""
+				switch lm := m.(type) {
+				case *awsAppLoginMatcher:
+					principal = lm.awsRole
+				case *AWSRoleARNMatcher:
+					principal = lm.RoleARN
 				}
-				return m.Match(role, cond)
-			})
-		}
+				return principal
+			},
+		)
+	case *types.ResourceConstraints_Ssh:
+		return buildStringConstraintTransform(
+			d.Validate,
+			func() []string { return d.Ssh.Logins },
+			func(m RoleMatcher) string {
+				lm, ok := m.(*loginMatcher)
+				if !ok {
+					return ""
+				}
+				return lm.login
+			},
+		)
 	// TODO(kiosion): Future support for AWS Identity Center.
 	// Need to decide on best way to handle; whether to continue using IdentityCenterAccountAssignments, or just Account, with PermissionSets carried in constraints.
 	default:
@@ -84,6 +81,38 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 				return false, trace.BadParameter("unsupported constraint details type %T", d)
 			})
 		}
+	}
+}
+
+// buildStringConstraintTransform factors out shared logic for string-list-based
+// ResourceConstraints (e.g., AWS role ARNs, SSH logins). It handles validation,
+// then builds the principal-gated RoleMatcher transform.
+func buildStringConstraintTransform(
+	validate func() error,
+	getStrings func() []string,
+	getPrincipal func(RoleMatcher) string,
+) MatcherTransform {
+	if err := validate(); err != nil {
+		return func(m RoleMatcher) RoleMatcher {
+			return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+				return false, trace.Wrap(err)
+			})
+		}
+	}
+
+	allowedSet := set.New(getStrings()...)
+
+	return func(m RoleMatcher) RoleMatcher {
+		principal := getPrincipal(m)
+		if principal == "" {
+			return m // non-principal-bearing matcher; no-op
+		}
+		return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
+			if !allowedSet.Contains(principal) {
+				return false, nil
+			}
+			return m.Match(role, cond)
+		})
 	}
 }
 
@@ -108,6 +137,15 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 		matchers := make([]RoleMatcher, 0, len(d.AwsConsole.RoleArns))
 		for _, arn := range d.AwsConsole.RoleArns {
 			matchers = append(matchers, &AWSRoleARNMatcher{RoleARN: arn})
+		}
+		return RoleMatchers(matchers).AnyOf(), nil
+	case *types.ResourceConstraints_Ssh:
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		matchers := make([]RoleMatcher, 0, len(d.Ssh.Logins))
+		for _, login := range d.Ssh.Logins {
+			matchers = append(matchers, NewLoginMatcher(login))
 		}
 		return RoleMatchers(matchers).AnyOf(), nil
 	default:

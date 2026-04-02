@@ -59,7 +59,7 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
+func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +80,7 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 			return nil, trace.Wrap(err)
 		}
 
-		return services.NewUnscopedSplitAccessCheckerContext(unscopedChecker), nil
+		return services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker), nil
 	}
 
 	// req.Scope is untrusted user input, so perform strong validation before proceeding.
@@ -113,13 +113,13 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		return nil, trace.Wrap(err)
 	}
 
-	return services.NewScopedSplitAccessCheckerContext(scopedCheckerContext), nil
+	return scopedCheckerContext, nil
 }
 
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessCheckerContext, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -207,18 +207,20 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checkerContext *services.SplitAccessCheckerContext
+	checkerContext *services.ScopedAccessCheckerContext
 	authErr        error
 	userOrigin     apievents.UserOrigin
 }
 
-// trimUsername truncates the length of a username to the maximum allowed length, if needed.
-func trimUsername(username string) string {
-	if len(username) <= teleport.MaxUsernameLength {
-		return username
+// trimStr truncates the length of a string, appending '...' for strings
+// that are truncated. If the string is truncated, the result will have
+// len of max + 3 (for the ellipsis).
+func trimStr(str string, max int) string {
+	if len(str) <= max {
+		return str
 	}
 
-	return username[:teleport.MaxUsernameLength] + "..."
+	return str[:max] + "..."
 }
 
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
@@ -231,7 +233,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:       trimUsername(props.username),
+			User:       trimStr(props.username, teleport.MaxUsernameLength),
 			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,
@@ -287,7 +289,7 @@ type verifyMFADeviceLocksParams struct {
 	// CheckerContext is used to verify locks. Lock verification varies depending on whether the context is
 	// scoped or unscoped. If no context is provided, a default unscoped checker context is created from
 	// the user backend state.
-	CheckerContext *services.SplitAccessCheckerContext
+	CheckerContext *services.ScopedAccessCheckerContext
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -338,7 +340,7 @@ func (a *Server) authenticateUser(
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.CheckerContext = services.NewUnscopedSplitAccessCheckerContext(unscopedChecker)
+			p.CheckerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {

@@ -19,7 +19,6 @@
 package limiter
 
 import (
-	"cmp"
 	"context"
 	"net"
 	"net/http"
@@ -31,12 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	// defaultRate is the maximum number of requests per second that the limiter
-	// will allow when no rate limits are configured
-	defaultRate = 100_000_000
 )
 
 // RateLimiter controls connection rate using the token bucket algorithm.
@@ -67,12 +60,6 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if len(config.Rates) == 0 {
-		err := limiter.rates.Add(time.Second, defaultRate, defaultRate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	if config.Clock == nil {
 		config.Clock = clockwork.NewRealClock()
@@ -89,23 +76,29 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
-		// The default TTL here is not super important because we set the
-		// TTL explicitly for each entry we insert.
-		TTL:   10 * time.Second,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if limiter.rates.Len() > 0 {
+		limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
+			// The default TTL here is not super important because we set
+			// the TTL explicitly for each entry we insert.
+			TTL:   10 * time.Second,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &limiter, nil
 }
 
-// IsRateLimited checks if the provided token is currently rate-limited without
-// consuming any tokens. Returns true if the token would be rate-limited, false otherwise.
-// This is useful for checking rate limit status before executing expensive operations.
+// IsRateLimited checks if the provided token is currently
+// rate-limited without consuming any tokens.
 func (l *RateLimiter) IsRateLimited(token string) bool {
+	// No rates configured means no buckets can exist, so skip the
+	// lock entirely.
+	if l.rates.Len() == 0 {
+		return false
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	bucketSet, ok := l.rateLimits.GetIfExists(token)
@@ -119,27 +112,31 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 	return bucket.IsRateLimited()
 }
 
-// RegisterRequest increases number of requests for the provided token
-// Returns error if there are too many requests with the provided token.
-func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+// RegisterRequest increases number of requests for the provided token.
+// It returns an error if there are too many requests with the provided
+// token. If no rates are configured, the request passes through
+// without any limiting.
+func (l *RateLimiter) RegisterRequest(token string) error {
+	if l.rates.Len() == 0 {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	rate := cmp.Or(customRate, l.rates)
-
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
-	ttl := rate.MaxPeriod()*10 + 1
+	ttl := l.rates.MaxPeriod()*10 + 1
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
-			return ratelimit.NewTokenBucketSet(rate, l.clock), nil
+			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	bucketSet.Update(rate)
+	bucketSet.Update(l.rates)
 
 	delay, err := bucketSet.Consume(1)
 	if err != nil {
@@ -151,18 +148,19 @@ func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSe
 	return nil
 }
 
-// RegisterRequestFromAddr increases the number of requests coming for the given
-// remote address, returning an error if the address is invalid or if there have
-// been too many requests from that address recently.
-func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr, customRate *ratelimit.RateSet) error {
-	token, err := clientIPFromAddr(addr)
+// RegisterRequestFromAddr increases the number of requests coming
+// for the given remote address, returning an error if the address is
+// invalid or if there have been too many requests from that address
+// recently.
+func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
+	token, err := utils.ClientIPFromAddr(addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return l.RegisterRequest(token, customRate)
+	return l.RegisterRequest(token)
 }
 
-// Add rate limiter to the handle
+// WrapHandle wraps the given HTTP handler with the rate limiter.
 func (l *RateLimiter) WrapHandle(h http.Handler) {
 	l.TokenLimiter.Wrap(h)
 }

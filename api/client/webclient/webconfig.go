@@ -95,6 +95,9 @@ type WebConfig struct {
 	// IdentitySecurity contains identity security features and settings.
 	// The individual identity security entitlements should be read from the Entitlements field.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
+	// IsPolicyEnabled is true if [Features.Policy] = true
+	// Deprecated, use entitlements
+	IsPolicyEnabled bool `json:"isPolicyEnabled"`
 }
 
 // IdentitySecurity contains identity security features and settings.

@@ -736,14 +736,16 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&required-apps=&state=abc123",
 		},
 		{
+			// ARN inputs are decoded (matching the real flow through q.Get("arn")
+			// which URL-decodes query parameters).
 			name: "OK - with clusterId, publicAddr, and arn",
 			launderURLParams: launcherURLParams{
 				stateToken:  "abc123",
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+				arn:         "arn:aws:iam::123456789012:role/role-name",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&required-apps=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn and path",
@@ -751,10 +753,10 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				stateToken:  "abc123",
 				clusterName: "im-a-cluster-name",
 				publicAddr:  "grafana.localhost",
-				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+				arn:         "arn:aws:iam::123456789012:role/role-name",
 				path:        "/foo/bar?qux=qex",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=&state=abc123",
 		},
 		{
 			name: "OK - with clusterId, publicAddr, arn, path, and required-apps",
@@ -762,11 +764,31 @@ func TestMakeAppRedirectURL(t *testing.T) {
 				stateToken:       "abc123",
 				clusterName:      "im-a-cluster-name",
 				publicAddr:       "grafana.localhost",
-				arn:              "arn:aws:iam::123456789012:role%2Frole-name",
+				arn:              "arn:aws:iam::123456789012:role/role-name",
 				path:             "/foo/bar?qux=qex",
 				requiredAppFQDNs: "api.example.com,grafana.localhost",
 			},
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
+		},
+		{
+			name: "OK - with ARN containing multi-level path",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role/path/to/role-name",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Fpath%2Fto%2Frole-name?path=&required-apps=&state=abc123",
+		},
+		{
+			name: "OK - with ARN containing special characters",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role/path+with=chars",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Fpath+with=chars?path=&required-apps=&state=abc123",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

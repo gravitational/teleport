@@ -187,7 +187,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	installSystemdCmdStr, installSystemdCmdFn := setupInstallSystemdCmd(app)
 
-	utils.UpdateAppUsageTemplate(app, args)
+	utils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)

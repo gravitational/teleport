@@ -30,7 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/lib/sshutils/networking"
+	"github.com/gravitational/teleport/session/networking"
 )
 
 // ConnectionContext manages connection-level state.
