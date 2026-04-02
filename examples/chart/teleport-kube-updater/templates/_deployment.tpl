@@ -47,12 +47,12 @@ spec:
 {{- if .imagePullPolicy }}
         imagePullPolicy: {{ toYaml .imagePullPolicy }}
 {{- end }}
-{{- if or .extraEnv .tls.existingCASecretName }}
+{{- if or .extraEnv (and .tls .tls.existingCASecretName) }}
         env:
   {{- if (gt (len .extraEnv) 0) }}
     {{- toYaml .extraEnv | nindent 8 }}
   {{- end }}
-  {{- if .tls.existingCASecretName }}
+  {{- if (and .tls .tls.existingCASecretName) }}
         - name: SSL_CERT_FILE
           value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .tls.existingCASecretKeyName }}"
   {{- end }}
@@ -61,6 +61,7 @@ spec:
           - "--agent-name={{ .releaseName }}"
           - "--agent-namespace={{ .releaseNamespace }}"
           - "--base-image={{ .baseImage }}"
+          - "--container={{ .container }}"
   {{- if .versionServer}}
           - "--version-server={{ .versionServer }}"
           - "--version-channel={{ .releaseChannel }}"
@@ -106,9 +107,9 @@ spec:
 {{- if .resources }}
         resources: {{- toYaml .resources | nindent 10 }}
 {{- end }}
-{{- if or .tls.existingCASecretName .extraVolumeMounts }}
+{{- if or (and .tls .tls.existingCASecretName) .extraVolumeMounts }}
         volumeMounts:
-  {{- if .tls.existingCASecretName }}
+  {{- if (and .tls .tls.existingCASecretName) }}
           - mountPath: /etc/teleport-tls-ca
             name: "teleport-tls-ca"
             readOnly: true
@@ -117,12 +118,12 @@ spec:
           {{- toYaml .extraVolumeMounts | nindent 10 }}
   {{- end }}
 {{- end }}
-{{- if or .tls.existingCASecretName .extraVolumes }}
+{{- if or (and .tls .tls.existingCASecretName) .extraVolumes }}
       volumes:
   {{- if .extraVolumes }}
         {{- toYaml .extraVolumes | nindent 8 }}
   {{- end }}
-  {{- if .tls.existingCASecretName }}
+  {{- if (and .tls .tls.existingCASecretName) }}
         - name: "teleport-tls-ca"
           secret:
             secretName: {{ .tls.existingCASecretName }}

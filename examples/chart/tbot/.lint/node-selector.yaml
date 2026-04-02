@@ -1,0 +1,2 @@
+nodeSelector:
+  gravitational.io/k8s-role: node

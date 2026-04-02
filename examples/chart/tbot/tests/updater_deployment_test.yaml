@@ -21,26 +21,16 @@ tests:
   #
   # Testing the agent configuration
   #
-  - it: sets the base image used to update the agent
+  - it: sets the base image used to update tbot
     documentIndex: 0
     values:
       - ../.lint/updater.yaml
     set:
-      image: repo.example.com/gravitational/teleport-distroless
+      image: repo.example.com/gravitational/tbot-distroless
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--base-image=repo.example.com/gravitational/teleport-distroless"
-  - it: sets the updater base entreprise image
-    documentIndex: 0
-    values:
-      - ../.lint/updater.yaml
-    set:
-      enterprise: true
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: "--base-image=public.ecr.aws/gravitational/teleport-ent-distroless"
+          content: "--base-image=repo.example.com/gravitational/tbot-distroless"
   - it: sets the updater agent name
     documentIndex: 0
     values:
@@ -64,8 +54,7 @@ tests:
   - it: defaults the updater version server to the proxy address
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
     asserts:
@@ -75,8 +64,7 @@ tests:
   - it: defaults the updater proxy server to the proxy address
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
         versionServer: ""
@@ -87,8 +75,7 @@ tests:
   - it: doesn't enable the RFD-184 proxy protocol if the versionServer is custom
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
         versionServer: "version-server.example.com"
@@ -103,8 +90,7 @@ tests:
   - it: defaults the update group to default when group is unset
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
         versionServer: ""
@@ -115,8 +101,7 @@ tests:
   - it: uses the update group when set
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
         versionServer: ""
@@ -128,8 +113,7 @@ tests:
   - it: unsets the version server when empty
     documentIndex: 0
     set:
-      proxyAddr: proxy.teleport.example.com:443
-      roles: "custom"
+      teleportProxyAddress: proxy.teleport.example.com:443
       updater:
         enabled: true
         versionServer: ""
@@ -241,29 +225,6 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
-  - it: mounts the tls CA if provided and set the env var
-    documentIndex: 0
-    values:
-      - ../.lint/updater.yaml
-      - ../.lint/existing-tls-secret-with-ca.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: teleport-tls-ca
-            secret:
-              secretName: helm-lint-existing-tls-secret-ca
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            mountPath: /etc/teleport-tls-ca
-            name: teleport-tls-ca
-            readOnly: true
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
   - it: sets the updater container extraEnv
     documentIndex: 0
     values:
@@ -293,15 +254,6 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
-  - it: sets the pod priorityClass
-    documentIndex: 0
-    values:
-      - ../.lint/updater.yaml
-      - ../.lint/priority-class-name.yaml
-    asserts:
-      - equal:
-          path: spec.template.spec.priorityClassName
-          value: teleport-kube-agent
   - it: sets the pod service-account
     documentIndex: 0
     values:
@@ -310,7 +262,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
-          value: teleport-kube-agent-sa-updater
+          value: tbot-sa-updater
   - it: sets the pod service-account (override)
     documentIndex: 0
     values:
@@ -354,7 +306,6 @@ tests:
     documentIndex: 0
     values:
       - ../.lint/updater-secret-docker.yaml
-      - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -372,7 +323,6 @@ tests:
     documentIndex: 0
     values:
       - ../.lint/updater-secret-docker.yaml
-      - ../.lint/existing-tls-secret-with-ca.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
