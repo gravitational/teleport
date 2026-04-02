@@ -63,9 +63,15 @@ func WithResourceName(name string) GenerateOpt {
 	return func(o *generateOpts) { o.resourceName = name }
 }
 
+// WithResourceBlockComment adds a comment before the resource block.
+func WithResourceBlockComment(comment string) GenerateOpt {
+	return func(o *generateOpts) { o.resourceBlockComment = comment }
+}
+
 type generateOpts struct {
-	resourceType string
-	resourceName string
+	resourceType         string
+	resourceName         string
+	resourceBlockComment string
 
 	fieldTransforms map[string]Transform
 	fieldComments   map[string]string

@@ -1,0 +1,47 @@
+resource "teleport_access_list" "some-access-list" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "some-access-list"
+    }
+  }
+
+  spec = {
+    description = "An example access list for IaC"
+    owners = [{
+      description       = "some description"
+      ineligible_status = "0"
+      membership_kind   = "1"
+      name              = "llama"
+    }]
+    audit = {
+      next_audit_date = "2023-02-02T00:00:00Z"
+      recurrence = {
+        frequency    = "3"
+        day_of_month = "1"
+      }
+      notifications = {
+        start = "336h0m0s"
+      }
+    }
+    membership_requires = {
+      roles = ["member-role"]
+      traits = [{
+        key    = "trait1"
+        values = ["value1", "value2"]
+      }]
+    }
+    grants = {
+      roles = ["granted-role"]
+      traits = [{
+        key    = "trait1"
+        values = ["value1", "value2"]
+        }, {
+        key    = "trait2"
+        values = ["value1", "value2"]
+      }]
+    }
+    title = "My Access List"
+  }
+}

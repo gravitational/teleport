@@ -476,6 +476,16 @@ func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
 }
 
+// SetOwnerGrants sets the owner grants of the access list.
+func (a *AccessList) SetOwnerGrants(grants Grants) {
+	a.Spec.OwnerGrants = grants
+}
+
+// SetMemberGrants sets the member grants of the access list.
+func (a *AccessList) SetMemberGrants(grants Grants) {
+	a.Spec.Grants = grants
+}
+
 // GetMembershipRequires returns the membership requires configuration from the access list.
 func (a *AccessList) GetMembershipRequires() Requires {
 	return a.Spec.MembershipRequires
