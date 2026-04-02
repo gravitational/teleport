@@ -29,6 +29,7 @@ type SessionType int
 const (
 	SessionTypeUnspecified SessionType = iota
 	SessionTypeTTY
+	SessionTypeDesktop
 )
 
 // Service defines an interface for processing session recordings.
