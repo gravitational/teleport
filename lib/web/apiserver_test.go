@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -151,11 +152,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -233,11 +236,11 @@ type webSuiteConfig struct {
 	// alpnHandler allows setting custom alpnHandler.
 	alpnHandler ConnectionHandler
 
-	// trustXForwardedFor enables NewXForwardedForMiddleware.
-	trustXForwardedFor bool
-
 	// modules to inject into components.
 	modules *modulestest.Modules
+
+	// middleware adds optional middleware to the test handler.
+	middleware func(next http.Handler) http.Handler
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -322,7 +325,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
-			Addr:     s.server.TLS.Listener.Addr().String(),
+			Addr:     s.server.TLS.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -394,7 +397,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -495,7 +498,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DatabaseServerWatcher: databaseServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		LocalAuthAddresses:    []string{s.server.TLS.Listener.Addr().String()},
+		LocalAuthAddresses:    []string{s.server.TLS.Addr().String()},
 		Clock:                 s.clock,
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 			return nil, errors.New("eice disabled in tests")
@@ -564,6 +567,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
 	require.NoError(t, err)
+	getProxyClientCert := func() (*tls.Certificate, error) {
+		return &proxyClientCert, nil
+	}
+
+	proxySigner, err := multiplexer.NewPROXYSigner(s.server.ClusterName(), getProxyClientCert, s.clock, false)
+	require.NoError(t, err)
 
 	handlerConfig := Config{
 		ClusterFeatures:                 features,
@@ -587,16 +596,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 			return ctx, trace.Wrap(err)
 		}),
-		Router:               router,
-		HealthCheckAppServer: cfg.HealthCheckAppServer,
-		UI:                   cfg.uiConfig,
-		PresenceChecker:      cfg.presenceChecker,
-		GetProxyClientCertificate: func() (*tls.Certificate, error) {
-			return &proxyClientCert, nil
-		},
-		IntegrationAppHandler: &mockIntegrationAppHandler{},
-		DatabaseREPLRegistry:  cfg.databaseREPLGetter,
-		ALPNHandler:           cfg.alpnHandler,
+		Router:                    router,
+		HealthCheckAppServer:      cfg.HealthCheckAppServer,
+		UI:                        cfg.uiConfig,
+		PresenceChecker:           cfg.presenceChecker,
+		GetProxyClientCertificate: getProxyClientCert,
+		IntegrationAppHandler:     &mockIntegrationAppHandler{},
+		DatabaseREPLRegistry:      cfg.databaseREPLGetter,
+		ALPNHandler:               cfg.alpnHandler,
+		PROXYSigner:               proxySigner,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -607,8 +615,8 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 
 	var httpTestHandler http.Handler = handler
-	if cfg.trustXForwardedFor {
-		httpTestHandler = NewXForwardedForMiddleware(httpTestHandler)
+	if cfg.middleware != nil {
+		httpTestHandler = cfg.middleware(handler)
 	}
 
 	s.webServer = httptest.NewUnstartedServer(httpTestHandler)
@@ -728,7 +736,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetUUID(uuid),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -789,8 +797,7 @@ func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPac
 
 	s.createUser(t, user, login, pass, otpSecret, roles...)
 
-	ctx := context.Background()
-	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
+	sessionResp, httpResp := loginWebOTP(t, t.Context(), loginWebOTPParams{
 		webClient: s.client(t),
 		clock:     s.clock,
 		user:      user,
@@ -1247,25 +1254,27 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 2, res.TotalCount)
 	require.ElementsMatch(t, res.Items, []webui.Server{
 		{
-			Kind:        types.KindNode,
-			SubKind:     types.SubKindTeleportNode,
-			ClusterName: clusterName,
-			Name:        server1.GetName(),
-			Hostname:    server1.GetHostname(),
-			Tunnel:      server1.GetUseTunnel(),
-			Addr:        server1.GetAddr(),
-			Labels:      []ui.Label{},
-			SSHLogins:   []string{pack.login},
+			Kind:            types.KindNode,
+			SubKind:         types.SubKindTeleportNode,
+			ClusterName:     clusterName,
+			Name:            server1.GetName(),
+			Hostname:        server1.GetHostname(),
+			Tunnel:          server1.GetUseTunnel(),
+			Addr:            server1.GetAddr(),
+			Labels:          []ui.Label{},
+			SSHLogins:       []string{pack.login},
+			SSHLoginDetails: []webui.SSHLogin{{Login: pack.login}},
 		},
 		{
-			Kind:        types.KindNode,
-			SubKind:     types.SubKindTeleportNode,
-			ClusterName: clusterName,
-			Name:        server2.GetName(),
-			Hostname:    server2.GetHostname(),
-			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-			Tunnel:      false,
-			SSHLogins:   []string{pack.login},
+			Kind:            types.KindNode,
+			SubKind:         types.SubKindTeleportNode,
+			ClusterName:     clusterName,
+			Name:            server2.GetName(),
+			Hostname:        server2.GetHostname(),
+			Labels:          []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:          false,
+			SSHLogins:       []string{pack.login},
+			SSHLoginDetails: []webui.SSHLogin{{Login: pack.login}},
 		},
 	})
 
@@ -1455,7 +1464,9 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	app := resp.Items[0]
 	require.True(t, app.AWSConsole)
 
-	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
+	require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{
+		componentfeaturesv1.ComponentFeatureID(feature1),
+	}, app.SupportedFeatureIDs)
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
@@ -1703,13 +1714,13 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		appRes := appResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
 
+		awsRoleSet := set.New("arn:aws:iam::999999999999:role/ProdInstance")
 		appConfig := webui.MakeAppsConfig{
-			LocalClusterName:      clusterName,
-			LocalProxyDNSName:     "proxy-1.example.com",
-			AppClusterName:        clusterName,
-			RequiresRequest:       false,
-			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
-			GrantedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+			LocalClusterName:  clusterName,
+			LocalProxyDNSName: "proxy-1.example.com",
+			AppClusterName:    clusterName,
+			RequiresRequest:   false,
+			AWSRoles:          &webui.PrincipalSet{All: awsRoleSet, Granted: awsRoleSet},
 		}
 
 		expectedApps := []webui.App{
@@ -2421,7 +2432,7 @@ func TestTerminal(t *testing.T) {
 
 func TestTerminalRouting(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	// add nodes with conflicting hostnames
 	llama := s.addNode(t, uuid.NewString(), "llama", "127.0.0.1:0")
@@ -2454,7 +2465,6 @@ func TestTerminalRouting(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		i, tt := i, tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -6647,10 +6657,58 @@ func TestDesktopActive(t *testing.T) {
 	check("\"active\":true")
 }
 
+func TestDecodeURLPathParamField(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name:        "string with special characters encoded",
+			input:       "foo-bar.baz_qux%2B10%40testing.com",
+			expected:    "foo-bar.baz_qux+10@testing.com",
+			assertError: require.NoError,
+		},
+		{
+			name:        "string with special characters NOT encoded",
+			input:       "foo-bar.baz_qux+10@testing.com",
+			expected:    "foo-bar.baz_qux+10@testing.com",
+			assertError: require.NoError,
+		},
+		{
+			name:        "string with special characters double encoded",
+			input:       "foo-bar.baz_qux%252B10%2540testing.com",
+			expected:    "foo-bar.baz_qux%2B10%40testing.com",
+			assertError: require.NoError,
+		},
+		{
+			name:        "plain string",
+			input:       "llama",
+			expected:    "llama",
+			assertError: require.NoError,
+		},
+		{
+			name:        "invalid percent encoding",
+			input:       "bad%2Zvalue",
+			expected:    "",
+			assertError: require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeURLPathParamField(tt.input)
+			tt.assertError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
 func TestGetUserOrResetToken(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()
-	username := "someuser"
+	username := "foo-bar.baz_qux+10@testing.com"
 
 	// Create a username.
 	teleUser, err := types.NewUser(username)
@@ -6677,7 +6735,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 	_, err = env.server.Auth().UpsertRole(ctx, fooRole)
 	require.NoError(t, err)
 
-	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", username), url.Values{})
+	encodedUsername := "foo-bar.baz_qux%2B10%40testing.com"
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", encodedUsername), url.Values{})
 	require.NoError(t, err)
 	require.Contains(t, string(resp.Bytes()), "login1")
 
@@ -8396,7 +8455,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 			Name:      "auth",
 		},
 		Spec: types.ServerSpecV2{
-			Addr:     server.TLS.Listener.Addr().String(),
+			Addr:     server.TLS.Addr().String(),
 			Hostname: "localhost",
 			Version:  teleport.Version,
 		},
@@ -8470,7 +8529,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -8655,7 +8714,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		AppServerWatcher:      appServerWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		LocalAuthAddresses:    []string{authServer.Listener.Addr().String()},
+		LocalAuthAddresses:    []string{authServer.Addr().String()},
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 			return nil, errors.New("eice disabled in tests")
 		},
@@ -8690,7 +8749,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	mux, err := multiplexer.New(multiplexer.Config{
 		Listener:          proxyListener,
-		PROXYProtocolMode: multiplexer.PROXYProtocolOff,
+		PROXYProtocolMode: multiplexer.PROXYProtocolUnspecified,
 		ID:                teleport.Component(teleport.ComponentProxy, "ssh"),
 		CertAuthorityGetter: func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 			return client.GetCertAuthority(ctx, id, loadKeys)
@@ -11127,53 +11186,6 @@ func TestGithubConnector(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
-func TestCalculateAppLogins(t *testing.T) {
-	cases := []struct {
-		name           string
-		allowedLogins  []string
-		expectedLogins []string
-		loginGetter    loginGetterFunc
-	}{
-		{
-			name:           "allowed logins",
-			allowedLogins:  []string{"llama", "fish", "dog"},
-			expectedLogins: []string{"llama", "fish", "dog"},
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name: "no allowed logins",
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:           "no allowed logins with fallback",
-			expectedLogins: []string{"apple", "banana"},
-			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			logins, err := calculateAppLogins(test.loginGetter, &types.AppServerV3{}, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
-}
-
-type loginGetterFunc func(resource services.AccessCheckable) ([]string, error)
-
-func (f loginGetterFunc) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
-	return f(resource)
-}
-
 func TestWebSocketClosedBeforeSSHSessionCreated(t *testing.T) {
 	t.Parallel()
 	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
@@ -11560,4 +11572,61 @@ func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
 		require.NotNil(t, sctx)
 		require.Equal(t, pack.user, sctx.GetUser())
 	})
+}
+
+func TestIPPinning(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	clientAddr := utils.MustParseAddr("1.2.3.4:1234")
+	hostAddr := utils.MustParseAddr("127.0.0.1:3080")
+	clientAddrMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := authz.ContextWithClientAddrs(r.Context(), clientAddr, hostAddr)
+			r.RemoteAddr = clientAddr.String()
+			r = r.WithContext(ctx)
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		middleware: clientAddrMiddleware,
+	})
+
+	// Create a role that enforces IP Pinning.
+	ipPinningRole, err := types.NewRole("pinned-ip", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+	})
+	require.NoError(t, err)
+	ipPinningRole, err = s.server.Auth().UpsertRole(s.ctx, ipPinningRole)
+	require.NoError(t, err)
+
+	// create a user with the ip pinning role and login.
+	pack := s.authPack(t, "foo", ipPinningRole.GetName())
+
+	// IP is pinned on login. Making an Auth server request with the web session
+	// with the same IP should succeed.
+	clusterName := s.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
+	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Requests with a different IP should fail. Use a different client to simulate a cookie hijacking.
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	clt := s.client(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(s.url(), pack.cookies)
+
+	*clientAddr = *utils.MustParseAddr("5.6.7.8:5678")
+	_, err = clt.Get(t.Context(), endpoint, url.Values{})
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %q", err)
+	require.Len(t, jar.Cookies(s.url()), 1)
+	require.Empty(t, jar.Cookies(s.url())[0].Value, "expected hijacked client cookie to be cleared")
+
+	// Requests from the correct IP should succeed.
+	*clientAddr = *utils.MustParseAddr("1.2.3.4:1234")
+	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
+	require.NoError(t, err)
 }

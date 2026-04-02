@@ -328,9 +328,13 @@ func (c *Cluster) GetProfileStatusError() error {
 }
 
 // GetProxyHost returns proxy address (hostname:port) of the root cluster, even when called on a
-// Cluster that represents a leaf cluster.
+// Cluster that represents a leaf cluster. Falls back to WebProxyAddr when the profile status has
+// not been loaded yet (e.g., before the first login).
 func (c *Cluster) GetProxyHost() string {
-	return c.status.ProxyURL.Host
+	if c.status.ProxyURL.Host != "" {
+		return c.status.ProxyURL.Host
+	}
+	return c.WebProxyAddr
 }
 
 // HasDeviceTrustExtensions indicates if the cert contains all required

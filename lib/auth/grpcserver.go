@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -539,6 +540,20 @@ const logInterval = 10000
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
+		// Support scoped identities calling the RPC by falling back to scoped
+		// authorizer check.
+		if errors.Is(err, services.ErrScopedIdentity) {
+			scopedAuth, err := g.scopedAuthenticate(stream.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(WatchEvents(
+				watch,
+				stream,
+				scopedAuth.scopedContext.User.GetName(),
+				scopedAuth,
+			))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -2615,11 +2630,22 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	user := actx.User.GetName()
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
 
-	// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
-	// So we can take either one and generate an auth challenge with it.
-	clientRedirectURL := challengeReq.SSOClientRedirectURL
-	if clientRedirectURL == "" {
-		clientRedirectURL = challengeReq.BrowserMFATSHRedirectURL
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
+	clientRedirectURL := ""
+	if challengeReq.BrowserMfaRequestId == "" {
+		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
+		// So we can take either one and generate an auth challenge with it.
+		ssoURL := challengeReq.SSOClientRedirectURL
+		browserURL := challengeReq.BrowserMFATSHRedirectURL
+		clientRedirectURL = cmp.Or(ssoURL, browserURL)
+		if ssoURL != "" && browserURL != "" && ssoURL != browserURL {
+			slog.WarnContext(ctx, "SSO and Browser MFA redirect URLs do not match, this is a bug.",
+				// Strip out the sensitive query params before printing
+				"sso_url", strings.Split(ssoURL, "?")[0],
+				"browser_url", strings.Split(browserURL, "?")[0],
+			)
+		}
 	}
 	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, clientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
@@ -4877,7 +4903,7 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 			return nil, trace.BadParameter("unable to find peer")
 		}
 
-		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr, nil); err != nil {
+		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 	}

@@ -49,10 +49,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+
 	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
 		os.Exit(1)
+	}
+
+	if mode == modeGitHubReport {
+		if err := writeGitHubReport(resultsPath); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	if mode == modeReport || mode == modeTestResults {
@@ -64,6 +74,7 @@ func main() {
 		cfg := &reportConfig{
 			prNumber:  flags.reportPR,
 			repo:      repo,
+			sha:       flags.reportSHA,
 			e2eDir:    e2eDir,
 			tracePath: flags.tracePath,
 		}
@@ -82,7 +93,7 @@ func main() {
 		return
 	}
 
-	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+	_ = os.Remove(resultsPath)
 
 	isCI := os.Getenv("CI") != ""
 	runErr := run(flags, mode, e2eDir, isCI)
@@ -97,14 +108,8 @@ func main() {
 		tty.Close()
 	}
 
-	if isCI {
-		if err := writeGitHubReport(e2eDir); err != nil {
-			slog.Error("failed to write GitHub report", "error", err)
-		}
-	}
-
 	if !flags.quiet {
-		printTestSummary(e2eDir)
+		printTestSummary(e2eDir, resultsPath)
 	}
 
 	if runErr != nil {

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/session/host"
 )
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend

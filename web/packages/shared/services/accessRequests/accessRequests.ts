@@ -149,6 +149,10 @@ type AwsConsoleConstraints = {
   role_arns: string[];
 };
 
+type SshConstraints = {
+  logins: string[];
+};
+
 type BaseResourceConstraints = {
   version?: 'v1';
 };
@@ -161,9 +165,15 @@ export type ResourceConstraints = BaseResourceConstraints &
   (
     | {
         aws_console: AwsConsoleConstraints;
+        ssh?: never;
       }
     | {
         aws_console?: never;
+        ssh: SshConstraints;
+      }
+    | {
+        aws_console?: never;
+        ssh?: never;
       }
   );
 

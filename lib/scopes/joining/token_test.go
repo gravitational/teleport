@@ -333,6 +333,42 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
 		},
 		{
+			name: "kubernetes token with service account allow rule made up of too many parts",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "too:many:parts"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with service account allow rule with empty account name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "namespace:"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
+			name: "kubernetes token with service account allow rule with empty namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: ":service_account"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
+			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
+		},
+		{
 			name: "kubernetes token with unrecognized join type",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)

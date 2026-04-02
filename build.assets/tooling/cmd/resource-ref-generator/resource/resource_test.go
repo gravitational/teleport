@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // replaceBackticks replaces the "BACKTICK" placeholder text with backticks so
@@ -1866,6 +1867,55 @@ func TestGetJSONTag(t *testing.T) {
 			assert.Equal(t, c.expected, g)
 		})
 	}
+}
+
+// TestAllFieldsDeclEmbeddedPointerCrossPackageSameName tests the pattern where a
+// wrapper struct embeds a pointer to a same-named type from a different package
+// (e.g. api/types/discoveryconfig.IntegrationDiscoveredSummary embedding
+// *discoveryconfigv1.IntegrationDiscoveredSummary).
+func TestAllFieldsDeclEmbeddedPointerCrossPackageSameName(t *testing.T) {
+	fset := token.NewFileSet()
+
+	protoPkg := "github.com/gravitational/teleport/proto"
+	protoFile, err := parser.ParseFile(fset, "proto.go", `package proto
+
+type Foo struct {
+	Name string
+}
+`, parser.ParseComments)
+	require.NoError(t, err)
+
+	wrapperPkg := "github.com/gravitational/teleport/wrapper"
+	wrapperFile, err := parser.ParseFile(fset, "wrapper.go", `package wrapper
+
+import proto "github.com/gravitational/teleport/proto"
+
+type Foo struct {
+	*proto.Foo
+}
+`, parser.ParseComments)
+	require.NoError(t, err)
+
+	allDecls := map[PackageInfo]DeclarationInfo{
+		{DeclName: "Foo", PackagePath: protoPkg}: {
+			Decl:        protoFile.Decls[0],
+			FilePath:    "proto/proto.go",
+			PackageName: protoPkg,
+		},
+		{DeclName: "Foo", PackagePath: wrapperPkg}: {
+			Decl:         wrapperFile.Decls[1], // skip import decl
+			FilePath:     "wrapper/wrapper.go",
+			PackageName:  wrapperPkg,
+			NamedImports: NamedImports(wrapperFile),
+		},
+	}
+
+	wrapperDecl := allDecls[PackageInfo{DeclName: "Foo", PackagePath: wrapperPkg}]
+	rs, err := typeForDecl(wrapperDecl, allDecls)
+	require.NoError(t, err)
+
+	_, err = allFieldsForDecl(wrapperDecl, rs.fields, allDecls)
+	require.NoError(t, err)
 }
 
 func TestPrintableDescription(t *testing.T) {

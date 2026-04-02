@@ -12,10 +12,13 @@ types:
     - "ClusterNetworkingConfigV2"
     - "DatabaseV3"
     - "GithubConnectorV3"
+    - "KubernetesClusterV3"
+    - "LockV2"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
     - "RoleV6"
     - "SAMLConnectorV2"
+    - "SAMLIdPServiceProviderV1"
     - "ServerV2"
     - "SessionRecordingConfigV2"
     - "TrustedClusterV2"
@@ -70,6 +73,20 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  KubernetesClusterV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  LockV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   OIDCConnectorV3:
     -
       name: id
@@ -99,6 +116,13 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   SAMLConnectorV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  SAMLIdPServiceProviderV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -173,6 +197,9 @@ exclude_fields:
     # Status
     - "DatabaseV3.Status"
 
+    # Status (warning, this field is a special case and has no capital "S").
+    - "KubernetesClusterV3.status"
+
     # Role
     - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
     - "RoleV6.Spec.Deny.Namespaces"
@@ -236,6 +263,12 @@ computed_fields:
     # Github connector
     - "GithubConnectorV3.Kind"
 
+    # Kubernetes cluster
+    - "KubernetesClusterV3.Kind"
+
+    # Lock
+    - "LockV2.Kind"
+
     # OIDC connector
     - "OIDCConnectorV3.Kind"
 
@@ -296,6 +329,13 @@ computed_fields:
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.Cert"
     - "SAMLConnectorV2.Kind"
 
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Kind"
+    - "SAMLIdPServiceProviderV1.Spec.EntityDescriptor"
+    - "SAMLIdPServiceProviderV1.Spec.EntityID"
+    - "SAMLIdPServiceProviderV1.Spec.Presets"
+    - "SAMLIdPServiceProviderV1.Spec.RelayState"
+
     # Server
     - "ServerV2.Kind"
     # Name is not required for servers, this is a special case.
@@ -354,6 +394,10 @@ required_fields:
     - "GithubConnectorV3.Metadata.Name"
     - "GithubConnectorV3.Version"
 
+    # KubernetesCluster
+    - "KubernetesClusterV3.Metadata.Name"
+    - "KubernetesClusterV3.Version"
+
     # OIDC connector
     - "OIDCConnectorV3.Spec"
     - "OIDCConnectorV3.Metadata.Name"
@@ -380,6 +424,11 @@ required_fields:
     - "SAMLConnectorV2.Spec.AttributesToRoles"
     - "SAMLConnectorV2.Metadata.Name"
     - "SAMLConnectorV2.Version"
+
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Spec"
+    - "SAMLIdPServiceProviderV1.Metadata.Name"
+    - "SAMLIdPServiceProviderV1.Version"
 
     # Server
     - "ServerV2.Version"
@@ -419,6 +468,7 @@ required_fields:
 
 # These fields must be marked as sensitive
 sensitive_fields:
+    - "KubernetesClusterV3.Spec.Kubeconfig"
     - "ProvisionTokenV2.Metadata.Name"
     - "SAMLConnectorV2.Spec.Cert"
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
@@ -450,6 +500,16 @@ plan_modifiers:
       - "DefaultRoleOptions()"
     RoleV6.Spec.Allow.KubernetesResources:
       - "DefaultKubernetesResources()"
+    # The API populates these SAML IdP fields if unset. UseStateForUnknown()
+    # makes them idempotent.
+    SAMLIdPServiceProviderV1.Spec.EntityDescriptor:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.EntityID:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.Preset:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.RelayState:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
 
 validators:
   # Expires must be in the future
@@ -471,6 +531,10 @@ validators:
     - UseMapKeysPresentValidator("teleport.dev/origin")
   GithubConnectorV3.Version:
     - UseVersionBetween(3,3)
+  KubernetesClusterV3.Version:
+    - UseVersionBetween(3,3)
+  LockV2.Version:
+    - UseVersionBetween(2,2)
   OIDCConnectorV3.Version:
     - UseVersionBetween(3,3)
   OktaImportRuleV1.Version:
@@ -483,6 +547,12 @@ validators:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:
     - UseAnyOfValidator("entity_descriptor", "entity_descriptor_url")
+  SAMLAttributeMapping.name_format:
+    - SAMLIdPAttributeNameFormatValidator()
+  SAMLIdPServiceProviderV1.Spec:
+    - SAMLIdPSpecValidator()
+  SAMLIdPServiceProviderV1.Version:
+    - UseVersionBetween(1,1)
   ServerV2.Version:
     - UseVersionBetween(2,2)
   ServerV2.SubKind:
