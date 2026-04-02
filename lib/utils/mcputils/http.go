@@ -119,14 +119,27 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 		return n, nil
 	}
 
-	msg, err := r.ReadMessage(r.ctx)
-	if err != nil {
-		// Note that the underlying connection may be canceled by connection
-		// monitoring.
-		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
-			return 0, io.EOF
+	var msg string
+	for {
+		var err error
+		msg, err = r.ReadMessage(r.ctx)
+		if err != nil {
+			switch {
+			// Note that the underlying connection may be canceled by connection
+			// monitoring.
+			case utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled):
+				return 0, io.EOF
+			case errors.Is(err, errSSEEventNoData):
+				slog.DebugContext(r.ctx, "empty data event received, ignoring it", "error", err)
+				continue
+			case isReaderParseError(err):
+				slog.WarnContext(r.ctx, "non-MCP event received, this can indicate a protocol that is currently not supported by Teleport or a malfunction on the MCP server", "error", err)
+				continue
+			default:
+				return 0, trace.Wrap(err)
+			}
 		}
-		return 0, trace.Wrap(err)
+		break
 	}
 
 	var base BaseJSONRPCMessage
