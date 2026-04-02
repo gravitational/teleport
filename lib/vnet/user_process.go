@@ -67,6 +67,17 @@ type ClientApplication interface {
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 	// because the provided port does not match any of the TCP ports in the app spec.
 	OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16)
+
+	// ReissueDBCert issues a new cert for the target database.
+	ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error)
+
+	// OnNewDBConnection gets called whenever a new database connection is about to be established
+	// through VNet. By the time OnNewDBConnection is called, VNet has already verified that the user
+	// holds a valid cert for the database.
+	//
+	// The connection won't be established until OnNewDBConnection returns. Returning an error prevents
+	// the connection from being made.
+	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient]

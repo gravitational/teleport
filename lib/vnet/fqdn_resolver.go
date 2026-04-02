@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"net"
 	"slices"
 	"strings"
 
@@ -76,6 +77,16 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		switch {
 		case err == nil:
 			// Found a matching app, return it immediately.
+			return result, nil
+		case !errors.Is(err, errNoMatch):
+			return nil, err
+		}
+
+		// Check if there's a matching database in this cluster.
+		result, err = r.resolveDBInfoForCluster(ctx, candidate, fqdn)
+		switch {
+		case err == nil:
+			// Found a matching database, return it immediately.
 			return result, nil
 		case !errors.Is(err, errNoMatch):
 			return nil, err
@@ -164,6 +175,10 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 		// checking configured DNS zones.
 		shouldYieldAllCandidates := isDirectSubdomain(fqdn, profileName)
 
+		// Check if fqdn looks like a database FQDN using the root proxy address
+		rootProxyHost := rootProxyHostFromProfile(profileName)
+		fqdnMatchesDBZone := strings.HasSuffix(fqdn, dbFQDNInfix+fullyQualify(rootProxyHost))
+
 		shouldYieldCandidate := func(candidate clusterResolutionCandidate) bool {
 			if shouldYieldAllCandidates {
 				return true
@@ -171,6 +186,12 @@ func (r *fqdnResolver) clusterResolutionCandidatesInProfile(ctx context.Context,
 
 			if isDescendantSubdomain(fqdn, candidate.clusterName) {
 				// This may match an SSH server, must yield the client.
+				return true
+			}
+
+			if fqdnMatchesDBZone {
+				// This FQDN has a .db.<root-proxy> pattern, so it may
+				// match a database in any cluster (including leaves).
 				return true
 			}
 
@@ -357,6 +378,96 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	}, nil
 }
 
+func (r *fqdnResolver) resolveDBInfoForCluster(
+	ctx context.Context,
+	candidate clusterResolutionCandidate,
+	fqdn string,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
+
+	// Try to parse the FQDN as a database FQDN against each possible zone.
+	// Use the proxy public addr from the cluster config (which has the port
+	// stripped) as the primary zone. The profileName may contain a port
+	// (e.g. "proxy.example.com:3080") which is not valid in DNS names.
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get VNet config for database resolution", "error", err)
+		return nil, errNoMatch
+	}
+	if clusterConfig.ProxyPublicAddr == "" {
+		return nil, errNoMatch
+	}
+	zones := []string{clusterConfig.ProxyPublicAddr}
+	// For leaf clusters, the FQDN uses the root proxy address (e.g.
+	// reader.my-db.db.root-proxy.example.com), but the leaf cluster's
+	// ProxyPublicAddr may differ. Also try the root proxy address (the
+	// profileName with port stripped) so leaf cluster databases resolve.
+	rootProxyHost := rootProxyHostFromProfile(candidate.profileName)
+	if rootProxyHost != clusterConfig.ProxyPublicAddr {
+		zones = append(zones, rootProxyHost)
+	}
+
+	var dbUser, dbName string
+	var matched bool
+	for _, zone := range zones {
+		dbUser, dbName, err = parseDatabaseFQDN(fqdn, zone)
+		if err == nil {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return nil, errNoMatch
+	}
+
+	// Query the cluster for a database server matching the parsed name.
+	expr := fmt.Sprintf(`name == "%s"`, dbName)
+	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: expr,
+		Limit:               1,
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.InfoContext(ctx, "Failed to list database servers", "error", err)
+		return nil, errNoMatch
+	}
+	if len(resp.Resources) == 0 {
+		log.DebugContext(ctx, "Found no matching database servers")
+		return nil, errNoMatch
+	}
+
+	db := resp.Resources[0].GetDatabase()
+	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
+		return nil, trace.Wrap(err, "getting dial options for matching database")
+	}
+
+	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "db_user", dbUser, "protocol", db.GetProtocol())
+	dbInfo := &vnetv1.DatabaseInfo{
+		DatabaseKey: &vnetv1.DatabaseKey{
+			Profile:     candidate.profileName,
+			LeafCluster: candidate.leafClusterName,
+			Name:        db.GetName(),
+		},
+		Cluster:       candidate.clusterName,
+		Protocol:      db.GetProtocol(),
+		Username:      dbUser,
+		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+		DialOptions:   dialOpts,
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
+			MatchedDatabase: &vnetv1.MatchedDatabase{
+				DatabaseInfo: dbInfo,
+			},
+		},
+	}, nil
+}
+
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
 // the <cluster-name> may be the name of a root or leaf cluster.
 // We never actually query for whether or not a matching SSH node exists, we
@@ -419,4 +530,12 @@ func fullyQualify(domain string) string {
 		return domain
 	}
 	return domain + "."
+}
+
+// rootProxyHostFromProfile returns the root proxy hostname from a profile name,
+func rootProxyHostFromProfile(profileName string) string {
+	if host, _, err := net.SplitHostPort(profileName); err == nil {
+		return host
+	}
+	return profileName
 }
