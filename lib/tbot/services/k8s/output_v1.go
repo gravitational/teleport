@@ -53,7 +53,7 @@ const defaultKubeconfigPath = "kubeconfig.yaml"
 
 func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &OutputV1Service{
