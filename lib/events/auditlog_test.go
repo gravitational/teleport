@@ -363,7 +363,7 @@ func TestStreamSessionEvents(t *testing.T) {
 		}
 	})
 
-	// NoStartEvent: stream contains events but none are a recognised start type.
+	// NoStartEvent: stream contains events but none are a recognized start type.
 	// The callback should be called with a NotFound error and a nil event.
 	t.Run("NoStartEvent", func(t *testing.T) {
 		joinOnlyEvents := []apievents.AuditEvent{
