@@ -31,5 +31,7 @@ type thumbnailGenerator interface {
 	// metadata generation process is aborted for this recording.
 	handleEvent(event apievents.AuditEvent) error
 	// produceThumbnail creates a thumbnail using the current state of the generator.
-	produceThumbnail() *pb.SessionRecordingThumbnail
+	produceThumbnail() (*pb.SessionRecordingThumbnail, error)
+	// release releases any resources held by the generator. It should be called after thumbnail generation is complete.
+	release()
 }

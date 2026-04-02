@@ -366,13 +366,13 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 		return trace.Wrap(err)
 	}
 
-	// For PTY sessions, process recording metadata and summarization.
+	// For PTY and Desktop sessions, process recording metadata.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
 	if duration, sessionType := isPTYSession(sessionEndEvent); duration > 0 {
 		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
-	} else if sessionType == recordingmetadata.SessionTypeTTY {
+	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
 		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 	}
 
@@ -418,9 +418,9 @@ func isPTYSession(sessionEnd apievents.AuditEvent) (time.Duration, recordingmeta
 		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
 	case *apievents.WindowsDesktopSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeUnspecified
+			return -1, recordingmetadata.SessionTypeDesktop
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
 	}
 	return 0, recordingmetadata.SessionTypeUnspecified
 }

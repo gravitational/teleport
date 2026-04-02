@@ -199,6 +199,10 @@ func (t *ttyRecordingProcessor) addInactivityEvent(start, end time.Time) {
 }
 
 func (t *ttyRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {
+	if t.lastEvent == nil {
+		return nil, nil
+	}
+
 	// Finish off any remaining activity events
 	for user, userStartOffset := range t.activeUsers {
 		t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{

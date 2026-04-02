@@ -21,7 +21,10 @@ import { useMemo } from 'react';
 import Box from 'design/Box';
 
 import { useSuspenseGetRecordingThumbnail } from 'teleport/services/recordings/hooks';
-import { useThumbnailSvg } from 'teleport/SessionRecordings/svg';
+import {
+  injectSVGStyles, pngToDataURIBase64,
+  svgToDataURIBase64,
+} from 'teleport/SessionRecordings/svg';
 
 interface RecordingThumbnailProps {
   clusterId: string;
@@ -49,16 +52,22 @@ export function RecordingThumbnail({
     }
   );
 
+  const isDesktop = !!data.png;
+
+  // Desktop thumbnails are already cropped/zoomed by the backend, swe display them
+  // without additional zoom.
+  const effectiveZoom = isDesktop ? 1 : zoomLevel;
+
   // calculate the background position based on the cursor position and zoom level
   const { bgPosX, bgPosY } = useMemo(() => {
-    if (!data.cursorVisible) {
+    if (isDesktop || !data.cursorVisible) {
       return { bgPosX: 50, bgPosY: 50 };
     }
 
     const cursorXPercent = (data.cursorX / data.cols) * 100;
     const cursorYPercent = (data.cursorY / data.rows) * 100;
 
-    const viewportPercent = (1 / zoomLevel) * 100;
+    const viewportPercent = (1 / effectiveZoom) * 100;
 
     const bgPosX = Math.max(
       0,
@@ -70,16 +79,30 @@ export function RecordingThumbnail({
     );
 
     return { bgPosX, bgPosY };
-  }, [data.cols, data.cursorX, data.cursorY, data.rows, data.cursorVisible]);
+  }, [
+    isDesktop,
+    effectiveZoom,
+    data.cols,
+    data.cursorX,
+    data.cursorY,
+    data.rows,
+    data.cursorVisible,
+  ]);
 
-  const dataUri = useThumbnailSvg(data.svg, styles);
+  const dataUri = useMemo(() => {
+    if (data.png) {
+      return pngToDataURIBase64(data.png);
+    }
+
+    return svgToDataURIBase64(injectSVGStyles(data.svg, styles));
+  }, [data.png, data.svg, styles]);
 
   return (
     <Box
       data-testid="recording-thumbnail"
       background={`url("${dataUri}")`}
       backgroundPosition={`${bgPosX}% ${bgPosY}%`}
-      backgroundSize={`${zoomLevel * 100}%`}
+      backgroundSize={`${effectiveZoom * 100}%`}
       height="100%"
       width="100%"
     />
