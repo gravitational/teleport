@@ -897,6 +897,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetUserTask gets a single User Task by its name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+
+	// GetAutoUpdateAgentRollout gets AutoUpdateAgentRollout resource.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be

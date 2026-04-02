@@ -454,6 +454,7 @@ func ForDiscovery(cfg Config) Config {
 		{Kind: types.KindIntegration},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProxy},
+		{Kind: types.KindAutoUpdateAgentRollout},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
