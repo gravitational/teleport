@@ -21,6 +21,7 @@
 package mfav2
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -39,7 +40,7 @@ const (
 // during a browser-based MFA authentication flow.
 type CompleteBrowserMFAChallengeRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
-	BrowserMfaResponse *BrowserMFAResponse    `protobuf:"bytes,1,opt,name=browser_mfa_response,json=browserMfaResponse,proto3" json:"browser_mfa_response,omitempty"`
+	BrowserMfaResponse *v1.BrowserMFAResponse `protobuf:"bytes,1,opt,name=browser_mfa_response,json=browserMfaResponse,proto3" json:"browser_mfa_response,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -74,7 +75,7 @@ func (*CompleteBrowserMFAChallengeRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_mfa_v2_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *CompleteBrowserMFAChallengeRequest) GetBrowserMfaResponse() *BrowserMFAResponse {
+func (x *CompleteBrowserMFAChallengeRequest) GetBrowserMfaResponse() *v1.BrowserMFAResponse {
 	if x != nil {
 		return x.BrowserMfaResponse
 	}
@@ -133,9 +134,9 @@ var File_teleport_mfa_v2_service_proto protoreflect.FileDescriptor
 
 const file_teleport_mfa_v2_service_proto_rawDesc = "" +
 	"\n" +
-	"\x1dteleport/mfa/v2/service.proto\x12\x0fteleport.mfa.v2\x1a\x1fteleport/mfa/v2/challenge.proto\"{\n" +
+	"\x1dteleport/mfa/v2/service.proto\x12\x0fteleport.mfa.v2\x1a\x1fteleport/mfa/v1/challenge.proto\"{\n" +
 	"\"CompleteBrowserMFAChallengeRequest\x12U\n" +
-	"\x14browser_mfa_response\x18\x01 \x01(\v2#.teleport.mfa.v2.BrowserMFAResponseR\x12browserMfaResponse\"O\n" +
+	"\x14browser_mfa_response\x18\x01 \x01(\v2#.teleport.mfa.v1.BrowserMFAResponseR\x12browserMfaResponse\"O\n" +
 	"#CompleteBrowserMFAChallengeResponse\x12(\n" +
 	"\x10tsh_redirect_url\x18\x01 \x01(\tR\x0etshRedirectUrl2\x97\x01\n" +
 	"\n" +
@@ -158,10 +159,10 @@ var file_teleport_mfa_v2_service_proto_msgTypes = make([]protoimpl.MessageInfo, 
 var file_teleport_mfa_v2_service_proto_goTypes = []any{
 	(*CompleteBrowserMFAChallengeRequest)(nil),  // 0: teleport.mfa.v2.CompleteBrowserMFAChallengeRequest
 	(*CompleteBrowserMFAChallengeResponse)(nil), // 1: teleport.mfa.v2.CompleteBrowserMFAChallengeResponse
-	(*BrowserMFAResponse)(nil),                  // 2: teleport.mfa.v2.BrowserMFAResponse
+	(*v1.BrowserMFAResponse)(nil),               // 2: teleport.mfa.v1.BrowserMFAResponse
 }
 var file_teleport_mfa_v2_service_proto_depIdxs = []int32{
-	2, // 0: teleport.mfa.v2.CompleteBrowserMFAChallengeRequest.browser_mfa_response:type_name -> teleport.mfa.v2.BrowserMFAResponse
+	2, // 0: teleport.mfa.v2.CompleteBrowserMFAChallengeRequest.browser_mfa_response:type_name -> teleport.mfa.v1.BrowserMFAResponse
 	0, // 1: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:input_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeRequest
 	1, // 2: teleport.mfa.v2.MFAService.CompleteBrowserMFAChallenge:output_type -> teleport.mfa.v2.CompleteBrowserMFAChallengeResponse
 	2, // [2:3] is the sub-list for method output_type
@@ -176,7 +177,6 @@ func file_teleport_mfa_v2_service_proto_init() {
 	if File_teleport_mfa_v2_service_proto != nil {
 		return
 	}
-	file_teleport_mfa_v2_challenge_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

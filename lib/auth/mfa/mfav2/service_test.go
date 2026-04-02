@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -48,7 +49,7 @@ func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
 		&mfav2.CompleteBrowserMFAChallengeRequest{
-			BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 				RequestId: requestID,
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -73,7 +74,7 @@ func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
 		&mfav2.CompleteBrowserMFAChallengeRequest{
-			BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 				RequestId: "test-request-id",
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -109,7 +110,7 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		{
 			name: "missing RequestId",
 			req: &mfav2.CompleteBrowserMFAChallengeRequest{
-				BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 					RequestId: "",
 					WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 						Type: "public-key",
@@ -121,7 +122,7 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		{
 			name: "missing WebauthnResponse",
 			req: &mfav2.CompleteBrowserMFAChallengeRequest{
-				BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 					RequestId:        "test-request-id",
 					WebauthnResponse: nil,
 				},
@@ -132,7 +133,7 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 			name: "non-existent RequestId",
 			req: func() *mfav2.CompleteBrowserMFAChallengeRequest {
 				return &mfav2.CompleteBrowserMFAChallengeRequest{
-					BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+					BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 						RequestId: "non-existent-request-id",
 						WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 							Type: "public-key",

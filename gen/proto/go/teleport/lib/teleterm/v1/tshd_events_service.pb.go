@@ -24,7 +24,7 @@
 package teletermv1
 
 import (
-	v2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -775,7 +775,7 @@ type PromptMFARequest struct {
 	// configured as an option.
 	PerSessionMfa bool `protobuf:"varint,7,opt,name=per_session_mfa,json=perSessionMfa,proto3" json:"per_session_mfa,omitempty"`
 	// BrowserMFAChallenge is sent when browser-based MFA is supported.
-	Browser       *v2.BrowserMFAChallenge `protobuf:"bytes,8,opt,name=browser,proto3" json:"browser,omitempty"`
+	Browser       *v1.BrowserMFAChallenge `protobuf:"bytes,8,opt,name=browser,proto3" json:"browser,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -852,7 +852,7 @@ func (x *PromptMFARequest) GetPerSessionMfa() bool {
 	return false
 }
 
-func (x *PromptMFARequest) GetBrowser() *v2.BrowserMFAChallenge {
+func (x *PromptMFARequest) GetBrowser() *v1.BrowserMFAChallenge {
 	if x != nil {
 		return x.Browser
 	}
@@ -1603,7 +1603,7 @@ var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDes
 
 const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\n" +
-	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\x1a\x1fteleport/mfa/v2/challenge.proto\"\xff\x01\n" +
+	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\xff\x01\n" +
 	"\x0eReloginRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12`\n" +
 	"\x14gateway_cert_expired\x18\x02 \x01(\v2,.teleport.lib.teleterm.v1.GatewayCertExpiredH\x00R\x12gatewayCertExpired\x12W\n" +
@@ -1656,7 +1656,7 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"clusterUri\x128\n" +
 	"\x03sso\x18\x06 \x01(\v2&.teleport.lib.teleterm.v1.SSOChallengeR\x03sso\x12&\n" +
 	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfa\x12>\n" +
-	"\abrowser\x18\b \x01(\v2$.teleport.mfa.v2.BrowserMFAChallengeR\abrowserJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
+	"\abrowser\x18\b \x01(\v2$.teleport.mfa.v1.BrowserMFAChallengeR\abrowserJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
 	"\fSSOChallenge\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12%\n" +
 	"\x0econnector_type\x18\x02 \x01(\tR\rconnectorType\x12!\n" +
@@ -1750,7 +1750,7 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
 	(*RouteToApp)(nil),                                // 28: teleport.lib.teleterm.v1.RouteToApp
 	(*PortRange)(nil),                                 // 29: teleport.lib.teleterm.v1.PortRange
-	(*v2.BrowserMFAChallenge)(nil),                    // 30: teleport.mfa.v2.BrowserMFAChallenge
+	(*v1.BrowserMFAChallenge)(nil),                    // 30: teleport.mfa.v1.BrowserMFAChallenge
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1763,7 +1763,7 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	8,  // 7: teleport.lib.teleterm.v1.CannotProxyVnetConnection.invalid_local_port:type_name -> teleport.lib.teleterm.v1.InvalidLocalPort
 	29, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
 	13, // 9: teleport.lib.teleterm.v1.PromptMFARequest.sso:type_name -> teleport.lib.teleterm.v1.SSOChallenge
-	30, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v2.BrowserMFAChallenge
+	30, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v1.BrowserMFAChallenge
 	25, // 11: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
 	0,  // 12: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
 	4,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest

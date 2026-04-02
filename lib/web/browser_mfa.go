@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -56,7 +57,7 @@ func (h *Handler) putBrowserMFA(_ http.ResponseWriter, r *http.Request, params h
 	}
 
 	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav2.CompleteBrowserMFAChallengeRequest{
-		BrowserMfaResponse: &mfav2.BrowserMFAResponse{
+		BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 			RequestId:        requestID,
 			WebauthnResponse: mfaResp.GetWebauthn(),
 		},
