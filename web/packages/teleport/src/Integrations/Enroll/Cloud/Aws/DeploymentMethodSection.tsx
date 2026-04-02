@@ -25,10 +25,11 @@ import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
+import { CopyTerraformButton } from 'teleport/components/Terraform/CopyTerraformButton';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber, CopyTerraformButton } from '../Shared';
+import { CircleNumber } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
