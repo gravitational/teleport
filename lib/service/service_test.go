@@ -2481,19 +2481,19 @@ func TestInitKubernetesUnlicensed(t *testing.T) {
 	log := logtest.NewLogger()
 	supervisor, err := NewSupervisor("test-initKube", log, clock)
 	require.NoError(t, err)
-	t.Cleanup(func() { supervisor.signalExit() })
-
 	dataDir := t.TempDir()
 	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { stor.Close() })
+	t.Cleanup(func() { supervisor.signalExit() })
 
 	process := &TeleportProcess{
-		Supervisor: supervisor,
-		Clock:      clock,
-		Config:     servicecfg.MakeDefaultConfig(),
-		logger:     log,
-		storage:    stor,
+		Supervisor:    supervisor,
+		Clock:         clock,
+		Config:        servicecfg.MakeDefaultConfig(),
+		logger:        log,
+		storage:       stor,
+		instanceRoles: map[types.SystemRole]string{types.RoleKube: KubeIdentityEvent},
 	}
 	// clusterFeatures is zero-valued so K8s entitlement is
 	// disabled, matching the unlicensed early-return path.
