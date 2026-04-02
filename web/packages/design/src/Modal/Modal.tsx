@@ -269,8 +269,8 @@ export default class Modal extends React.Component<ModalProps> {
       const focusable = this.getFocusableElements();
       const el =
         this.lastTabKeyDirection === 'forward'
-          ? focusable[0]
-          : focusable[focusable.length - 1];
+          ? focusable.at(0)
+          : focusable.at(-1);
       el?.focus();
     } else {
       // Programmatic focus theft (Tab was not pressed) with nothing focused inside yet — just
@@ -317,15 +317,15 @@ export default class Modal extends React.Component<ModalProps> {
       return;
     }
 
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+    const first = focusable.at(0);
+    const last = focusable.at(-1);
 
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
-      last.focus();
+      last?.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault();
-      first.focus();
+      first?.focus();
     }
   };
 
