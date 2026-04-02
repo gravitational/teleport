@@ -626,13 +626,14 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		},
 		// Mock the actual CRL publishing.
 		ca: caClient,
-		// Short-circuit the "loadTLSConfigForLDAPlogic.
+		// Short-circuit the "loadTLSConfigForLDAP" logic.
 		ldapTLSConfig:          &tls.Config{},
 		ldapTLSConfigExpiresAt: clock.Now().Add(1000000 * time.Hour), // Arbitrary. "Never" expires.
 		// ctx for background methods.
 		closeCtx: wsCtx,
 		close:    cancel,
 	}
+	require.NoError(t, winService.initCAWatcher(), "initCAWatcher() errored")
 
 	runCRLLoopWG.Go(func() {
 		t.Log("Calling runCRLUpdateLoop()")
