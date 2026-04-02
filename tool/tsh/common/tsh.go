@@ -274,6 +274,8 @@ type CLIConf struct {
 	AppName string
 	// BeamID identifies a beam resource.
 	BeamID string
+	// BeamID identifies a list of beam resources.
+	BeamIDs []string
 	// BeamConsole controls whether `tsh beams add` connects to the beam after creation.
 	BeamConsole bool
 	// BeamTCP switches "tsh beams publish" from HTTP to TCP protocol.
@@ -1067,7 +1069,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beamsLS := beams.Command("ls", "List beams. By default, filters to show only beams belonging to the current user.")
 	beamsLS.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	beamsRM := beams.Command("rm", "Delete a beam.")
-	beamsRM.Arg("beam-id", "ID or Alias of the beam to delete.").Required().StringVar(&cf.BeamID)
+	beamsRM.Arg("beam-id", "ID or Alias of the beam to delete.").Required().StringsVar(&cf.BeamIDs)
 	beamsPublish := beams.Command("publish", "Publish a beam application.")
 	beamsPublish.Arg("beam-id", "ID or Alias of the beam to publish").Required().StringVar(&cf.BeamID)
 	beamsPublish.Flag("tcp", "Publish as a plain TCP app instead of an HTTP app.").BoolVar(&cf.BeamTCP)

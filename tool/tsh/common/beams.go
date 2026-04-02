@@ -123,7 +123,7 @@ func onBeamsAdd(cf *CLIConf) error {
 
 	reconnectStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	fmt.Fprintf(cf.Stdout(), "\nTo reconnect to this beam, run:\n    %s\n",
-		reconnectStyle.Render("tsh beams console "+name))
+		reconnectStyle.Render("tsh beams ssh "+name))
 	return nil
 }
 
@@ -247,27 +247,33 @@ func onBeamsDelete(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	beamID, err := resolveBeamID(cf.Context, tc, cf.BeamID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(cf.Context)
+	idMap := make(map[string]string)
+	for _, input := range cf.BeamIDs {
+		beamID, err := resolveBeamID(cf.Context, tc, input)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer clusterClient.Close()
-
-		_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
-			BeamId: beamID,
-		})
-		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
+		idMap[input] = beamID
 	}
 
-	fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", cf.BeamID)
+	for _, input := range cf.BeamIDs {
+		if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+			clusterClient, err := tc.ConnectToCluster(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clusterClient.Close()
+
+			_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
+				BeamId: idMap[input],
+			})
+			return trace.Wrap(err)
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", input)
+	}
 	return nil
 }
 
