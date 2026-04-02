@@ -1,0 +1,27 @@
+{{- if .Values.crd.create -}}
+{{- if not .Values.tbot.enabled -}}
+{{- fail "Custom resources cannot be deployed without tbot enabled" -}}
+{{- end -}}
+apiVersion: resources.teleport.dev/v1
+kind: TeleportBotV1
+metadata:
+  name: {{ include "mattermost.fullname" . }}
+  namespace: {{ include "mattermost.crd.namespace" . }}
+  labels:
+    {{- include "mattermost.labels" . | nindent 4 }}
+spec:
+  roles:
+    - access-plugin
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: {{ include "mattermost.tbot.tokenName" . }}
+  namespace: {{ include "mattermost.crd.namespace" . }}
+  labels:
+    {{- include "mattermost.labels" . | nindent 4 }}
+spec:
+  roles: [Bot]
+  bot_name: {{ include "mattermost.fullname" . }}
+  {{- include "mattermost.crd.tokenJoinSpec" . | nindent 2 -}}
+{{- end -}}
