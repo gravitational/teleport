@@ -179,7 +179,7 @@ export function Navigation<T>({
       <Flex
         flex={1}
         minWidth={0}
-        css="overflow-x: auto; "
+        css="overflow-x: auto;"
         data-scrollbar="default"
       >
         <StepList views={views} currentStep={currentStep} />

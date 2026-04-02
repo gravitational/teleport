@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { Button, ButtonPrimary, Flex } from 'design';
-import { Check, Copy } from 'design/Icon';
+import { ButtonPrimary, Flex } from 'design';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
