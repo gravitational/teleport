@@ -27,6 +27,9 @@ import (
 )
 
 func accessListMetadataToPrehog(u *usageeventsv1.AccessListMetadata, userMD UserMetadata) *prehogv1a.AccessListMetadata {
+	if u == nil {
+		return nil
+	}
 	return &prehogv1a.AccessListMetadata{
 		Id:       u.Id,
 		UserName: userMD.Username,
@@ -47,6 +50,9 @@ func validateAccessListMetadata(u *prehogv1a.AccessListMetadata) error {
 }
 
 func accessListStatusToPrehog(u *usageeventsv1.AccessListStepStatus) *prehogv1a.AccessListStepStatus {
+	if u == nil {
+		return nil
+	}
 	return &prehogv1a.AccessListStepStatus{
 		Status: prehogv1a.AccessListStatus(u.Status),
 		Error:  u.Error,

@@ -137,6 +137,9 @@ func (d *AccessListEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usa
 		}}, nil
 
 	case uiAccessListIntegrateEvent:
+		if len(d.Integrate) == 0 {
+			return nil, trace.BadParameter("integrate is required for %s", eventName)
+		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiAccessListIntegrateEvent{
 			UiAccessListIntegrateEvent: &usageeventsv1.UIAccessListIntegrateEvent{
 				Metadata:  metadata,

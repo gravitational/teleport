@@ -257,6 +257,18 @@ func TestAccessListEventDataToUsageEvent(t *testing.T) {
 			},
 		},
 		{
+			name:  uiAccessListIntegrateEvent + "/missing integrate",
+			event: uiAccessListIntegrateEvent,
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
+			},
+			req: AccessListEventData{
+				ID:         "someid",
+				StepStatus: "ACCESS_LIST_STATUS_SUCCESS",
+				Preset:     "ACCESS_LIST_PRESET_LONG_TERM",
+			},
+		},
+		{
 			name:     uiAccessListCustomEvent + "/success",
 			event:    uiAccessListCustomEvent,
 			errCheck: require.NoError,
