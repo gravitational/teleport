@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
@@ -505,6 +505,329 @@ code here
           element.tagName === 'CODE' && element.textContent === 'code here'
       );
       expect(code).toBeInTheDocument();
+    });
+  });
+
+  describe('tables', () => {
+    it('renders a table with header', () => {
+      const text = `| Name | Age |
+| --- | --- |
+| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers).toHaveLength(2);
+      expect(headers[0]).toHaveTextContent('Name');
+      expect(headers[1]).toHaveTextContent('Age');
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+      expect(cells[0]).toHaveTextContent('Alice');
+      expect(cells[1]).toHaveTextContent('30');
+      expect(cells[2]).toHaveTextContent('Bob');
+      expect(cells[3]).toHaveTextContent('25');
+    });
+
+    it('renders a table without header separator as all data rows', () => {
+      const text = `| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+    });
+
+    it('renders inline formatting inside table cells', () => {
+      const text = `| Feature | Status |
+| --- | --- |
+| **Auth** | \`enabled\` |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Auth').tagName).toBe('STRONG');
+      expect(screen.getByText('enabled').tagName).toBe('CODE');
+    });
+
+    it('handles paragraph ending at table', () => {
+      const text = `Some paragraph text
+| Col1 | Col2 |
+| --- | --- |
+| A | B |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Some paragraph text')).toBeInTheDocument();
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+
+    it('treats single pipe line as paragraph', () => {
+      renderMarkdown(`| just one line |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('applies column alignment from separator row', () => {
+      const text = `| Left | Center | Right |
+| :--- | :---: | ---: |
+| A | B | C |`;
+
+      renderMarkdown(text);
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers[0]).not.toHaveStyle({ textAlign: 'center' });
+      expect(headers[1]).toHaveStyle({ textAlign: 'center' });
+      expect(headers[2]).toHaveStyle({ textAlign: 'right' });
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[1]).toHaveStyle({ textAlign: 'center' });
+      expect(cells[2]).toHaveStyle({ textAlign: 'right' });
+    });
+
+    it('handles escaped pipes in cells', () => {
+      const text = `| Name | Value |
+| --- | --- |
+| A\\|B | C |`;
+
+      renderMarkdown(text);
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[0]).toHaveTextContent('A|B');
+      expect(cells[1]).toHaveTextContent('C');
+    });
+
+    it('requires at least two cells to detect a table', () => {
+      renderMarkdown(`| single cell |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('nested lists', () => {
+    it('renders a nested list', () => {
+      const text = `- Item 1
+  - Nested 1
+  - Nested 2
+- Item 2`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      expect(outerItems[0]).toHaveTextContent('Item 1');
+
+      const nestedList = within(outerItems[0]).getByRole('list');
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('Nested 1');
+      expect(nestedItems[1]).toHaveTextContent('Nested 2');
+
+      expect(outerItems[3]).toHaveTextContent('Item 2');
+      expect(within(outerItems[3]).queryByRole('list')).not.toBeInTheDocument();
+    });
+
+    it('renders deeply nested lists', () => {
+      const text = `- Level 1
+  - Level 2
+    - Level 3`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const level1Item = within(outerList).getAllByRole('listitem')[0];
+
+      expect(level1Item).toHaveTextContent('Level 1');
+
+      const midList = within(level1Item).getAllByRole('list')[0];
+      const level2Item = within(midList).getAllByRole('listitem')[0];
+
+      expect(level2Item).toHaveTextContent('Level 2');
+
+      const innerList = within(level2Item).getAllByRole('list')[0];
+      const level3Item = within(innerList).getAllByRole('listitem')[0];
+
+      expect(level3Item).toHaveTextContent('Level 3');
+    });
+
+    it('renders nested list with inline formatting', () => {
+      const text = `- **Bold item**
+  - \`code item\``;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+      const nestedList = within(outerItem).getByRole('list');
+
+      expect(screen.getByText('Bold item').tagName).toBe('STRONG');
+      expect(within(nestedList).getByText('code item').tagName).toBe('CODE');
+    });
+
+    it('handles multiple nested groups', () => {
+      const text = `- A
+  - A1
+  - A2
+- B
+  - B1`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      const aNestedList = within(outerItems[0]).getByRole('list');
+      const aNestedItems = within(aNestedList).getAllByRole('listitem');
+
+      expect(aNestedItems).toHaveLength(2);
+      expect(aNestedItems[0]).toHaveTextContent('A1');
+      expect(aNestedItems[1]).toHaveTextContent('A2');
+
+      const bNestedList = within(outerItems[3]).getByRole('list');
+      const bNestedItems = within(bNestedList).getAllByRole('listitem');
+
+      expect(bNestedItems).toHaveLength(1);
+      expect(bNestedItems[0]).toHaveTextContent('B1');
+    });
+
+    it('collects multi-line list items', () => {
+      const text = `- First item that
+  continues on next line
+- Second item`;
+
+      renderMarkdown(text);
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent(
+        'First item that continues on next line'
+      );
+      expect(items[1]).toHaveTextContent('Second item');
+    });
+
+    it('handles blank lines between parent and nested children', () => {
+      const text = `- Parent
+
+  - Nested child`;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+
+      expect(outerItem).toHaveTextContent('Parent');
+
+      const nestedList = within(outerItem).getByRole('list');
+      const nestedItem = within(nestedList).getByRole('listitem');
+
+      expect(nestedItem).toHaveTextContent('Nested child');
+    });
+  });
+
+  describe('ordered lists', () => {
+    it('renders an ordered list', () => {
+      const text = `1. First
+2. Second
+3. Third`;
+
+      renderMarkdown(text);
+
+      const list = screen.getByRole('list');
+
+      expect(list.tagName).toBe('OL');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent('First');
+      expect(items[1]).toHaveTextContent('Second');
+      expect(items[2]).toHaveTextContent('Third');
+    });
+
+    it('renders ordered list with inline formatting', () => {
+      const text = `1. **Bold** item
+2. Item with \`code\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Bold').tagName).toBe('STRONG');
+      expect(screen.getByText('code').tagName).toBe('CODE');
+    });
+
+    it('renders nested ordered list inside unordered', () => {
+      const text = `- Item
+  1. Sub one
+  2. Sub two`;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+      const nestedList = within(outerItem).getByRole('list');
+
+      expect(nestedList.tagName).toBe('OL');
+
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('Sub one');
+      expect(nestedItems[1]).toHaveTextContent('Sub two');
+    });
+
+    it('handles paragraph ending at ordered list', () => {
+      const text = `Some paragraph
+1. First item`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Some paragraph')).toBeInTheDocument();
+      expect(screen.getByRole('listitem')).toHaveTextContent('First item');
+    });
+
+    it('stops consuming items when marker type changes', () => {
+      const text = `1. Step
+- Note`;
+
+      renderMarkdown(text);
+
+      const lists = screen.getAllByRole('list');
+
+      expect(lists).toHaveLength(2);
+      expect(lists[0].tagName).toBe('OL');
+      expect(lists[1].tagName).toBe('UL');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent('Step');
+      expect(items[1]).toHaveTextContent('Note');
+    });
+
+    it('preserves explicit start number on ordered lists', () => {
+      const text = `3. Third
+4. Fourth
+5. Fifth`;
+
+      renderMarkdown(text);
+
+      const list = screen.getByRole('list');
+
+      expect(list.tagName).toBe('OL');
+      expect(list).toHaveAttribute('start', '3');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent('Third');
     });
   });
 
