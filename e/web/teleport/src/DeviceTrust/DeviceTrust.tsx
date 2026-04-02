@@ -78,7 +78,7 @@ export const DeviceTrust = () => {
                     Trusted Devices can be{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/identity-governance/device-trust/device-management/#register-a-trusted-device"
+                      href="https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#register-a-trusted-device"
                       target="_blank"
                     >
                       registered with tctl
@@ -86,7 +86,7 @@ export const DeviceTrust = () => {
                     or synced from either{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/identity-governance/device-trust/jamf-integration/"
+                      href="https://goteleport.com/docs/zero-trust-access/device-trust/jamf-integration/"
                       target="_blank"
                     >
                       Jamf&nbsp;Pro
@@ -94,7 +94,7 @@ export const DeviceTrust = () => {
                     or{' '}
                     <Link
                       color="text.main"
-                      href="https://goteleport.com/docs/identity-governance/device-trust/intune-integration/"
+                      href="https://goteleport.com/docs/zero-trust-access/device-trust/intune-integration/"
                       target="_blank"
                     >
                       Microsoft&nbsp;Intune

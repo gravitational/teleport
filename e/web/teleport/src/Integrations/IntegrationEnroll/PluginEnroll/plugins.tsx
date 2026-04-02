@@ -419,7 +419,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     description:
       'Update trusted devices in Teleport to match available devices in your Intune inventory.',
     icon: 'intune',
-    url: 'https://goteleport.com/docs/identity-governance/device-trust/intune-integration/',
+    url: 'https://goteleport.com/docs/zero-trust-access/device-trust/intune-integration/',
     cloudHostable: true,
     selfHostable: true,
     disabledIfNoMdmSupport: true,
@@ -432,7 +432,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           match available devices in your Intune inventory. For more details,
           see our docs page about{' '}
           <Link
-            href="https://goteleport.com/docs/identity-governance/device-trust/intune-integration/"
+            href="https://goteleport.com/docs/zero-trust-access/device-trust/intune-integration/"
             target="_blank"
           >
             Device Trust and the Intune integration
