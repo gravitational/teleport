@@ -3453,7 +3453,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+		vnetConfig, err := client.VnetConfigClient().GetVnetConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4184,9 +4184,9 @@ func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authcli
 	}
 
 	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().CreateVnetConfig(ctx, vnetConfig)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -4201,7 +4201,7 @@ func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authcli
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
+	if _, err := client.VnetConfigClient().UpdateVnetConfig(ctx, vnetConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("vnet_config has been updated")
