@@ -102,7 +102,7 @@ endif
 		--set authToken=${NODE_TOKEN} \
 		--set annotations.serviceAccount."eks\.amazonaws\.com/role-arn"=${DATABASE_ROLE_ARN} \
 		--set awsDatabases[0].types[0]=rdsproxy \
-		--set awsDatabases[0].regions[0]=us-east-1 \
+		--set awsDatabases[0].regions[0]=us-west-2 \
 		--set awsDatabases[0].tags."loadtest"="${LOADTEST_TAG_VALUE}"
 
 	$(MAKE) -C control-plane enable-database-agents-monitoring

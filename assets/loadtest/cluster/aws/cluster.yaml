@@ -1,11 +1,11 @@
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 metadata:
-  name:
-  region:
+  name: adamkpickering-loadtest-3
+  region: us-west-2
   version: "1.35"
   tags:
-    teleport.dev/creator:
+    teleport.dev/creator: "adam.pickering@goteleport.com"
 
 iam:
   withOIDC: true
@@ -16,9 +16,9 @@ addons:
       - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
 
 managedNodeGroups:
-  - name:
+  - name: adamkpickering-loadtest-3-node-group
     instanceType: m5.4xlarge
     minSize: 3
     maxSize: 10
     tags:
-      teleport.dev/creator:
+      teleport.dev/creator: "adam.pickering@goteleport.com"

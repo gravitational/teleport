@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-bench-r50
+  namespace: tsh-bench
+spec:
+  template:
+    spec:
+      containers:
+      - name: tsh
+        image: "public.ecr.aws/gravitational-staging/teleport-distroless:19.0.0-prealpha.2"
+        command: ["tsh", "--proxy", "adamkpickering-loadtest-3.dev.aws.stevexin.me:443", "-i", "/tmp/identity/identity",  "bench", "mysql", "adamkpickering-loadtest-3-mysql-proxy-rdsproxy-us-west-2-278576220453", "--db-user", "teleport", "--db-name", "mysql", "--rate", "50", "--duration", "30m"]
+        volumeMounts:
+        - name: identity
+          mountPath: "/tmp/identity/"
+          readOnly: true
+      restartPolicy: Never
+      volumes:
+      - name: identity
+        secret:
+          secretName: identity
+  backoffLimit: 4
