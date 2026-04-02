@@ -1,0 +1,33 @@
+# This workflow runs some checks on release branches to ensure correctness
+# for the release.
+name: Lint Release
+
+on:
+  push:
+    branches:
+      - release/*
+  pull_request:
+    branches:
+      - release/*
+
+jobs:
+  lint-release:
+    name: Check Release Correctness
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Ensure Changelog Entry
+        run: make ensure-changelog-entry
+
+      # Base branch is only available for Pull Requests
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Ensure Version Changed
+        if: github.event_name == 'pull_request'
+        run: make ensure-version-changed BASE_REF=origin/${{ github.base_ref }}

@@ -2123,3 +2123,27 @@ ifndef BENCH_FILES
 	$(error "Please provide BENCH_FILES=<file1> <file2> ...")
 endif
 	@$(BENCHSTAT) $(BENCH_FILES) | tee test-logs/benchstat.txt
+
+# ensure-changelog-entry will check that the VERSION is present as a changelog entry
+.PHONY: ensure-changelog-entry
+ensure-changelog-entry:
+	@if ! grep -q "$(VERSION)" CHANGELOG.md; then \
+		echo Missing changelog entry for $(VERSION); \
+		exit 1; \
+	fi
+
+# ensure-version-changed checks that the version has been updated between current ref and base ref
+# Usage:
+#   git fetch origin <branch>
+#   make ensure-version-changed BASE_REF=origin/<branch>
+.PHONY: ensure-version-changed
+ensure-version-changed:
+	@if [ -z "$(BASE_REF)" ]; then \
+		echo "BASE_REF is not set"; \
+		exit 1; \
+	fi
+	@BASE_VER=$$(git show $(BASE_REF):Makefile | grep "^VERSION=" | cut -d= -f2); \
+	if [ "$(VERSION)" \= "$$BASE_VER" ]; then \
+		echo "VERSION $(VERSION) has not changed from $(BASE_REF)"; \
+		exit 1; \
+	fi
