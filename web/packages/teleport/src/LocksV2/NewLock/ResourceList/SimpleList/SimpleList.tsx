@@ -46,7 +46,7 @@ export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {
     let fetchFn;
     switch (props.selectedResourceKind) {
       case 'user':
-        fetchFn = ctx.userService.fetchUsers;
+        fetchFn = () => ctx.userService.fetchAllUsers();
         break;
       case 'mfa_device':
         fetchFn = ctx.mfaService.fetchDevices;
