@@ -200,6 +200,12 @@ The following table identifies all metrics available for incoming connections.
 | `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of joining sessions.                   |
 
 
+## Application Service
+
+| Name | Type | Component | Description |
+|------|------|-----------|-------------|
+| `teleport_app_active_sessions` | gauge | Teleport Application Service | Number of active HTTP app sessions on this agent. Does not include TCP or MCP sessions. |
+
 ## Teleport SSH Service
 
 | Name | Type | Component | Description |
