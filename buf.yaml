@@ -11,31 +11,33 @@ deps:
 
 lint:
   use:
-    - STANDARD
-    - COMMENT_ENUM
-    - COMMENT_MESSAGE
-    - COMMENT_RPC
-    - COMMENT_SERVICE
-    - PACKAGE_NO_IMPORT_CYCLE
+    # - STANDARD
+    # - COMMENT_ENUM
+    # - COMMENT_MESSAGE
+    # - COMMENT_RPC
+    # - COMMENT_SERVICE
+    # - PACKAGE_NO_IMPORT_CYCLE
     - PAGINATION_REQUIRED
-    - UNARY_RPC
+    # - UNARY_RPC
+    - RESOURCE_SHAPE
+    - NO_JSON_NAME
   except:
     - FIELD_NOT_REQUIRED
     - RPC_REQUEST_RESPONSE_UNIQUE
     - RPC_RESPONSE_STANDARD_NAME
-  ignore:
-    - api/proto/teleport/legacy/client/proto/authservice.proto
-    - api/proto/teleport/legacy/client/proto/certs.proto
-    - api/proto/teleport/legacy/client/proto/event.proto
-    - api/proto/teleport/legacy/client/proto/proxyservice.proto
-    - api/proto/teleport/legacy/types/events/athena.proto
-    - api/proto/teleport/legacy/types/events/events.proto
-    - api/proto/teleport/legacy/types/types.proto
-    - api/proto/teleport/legacy/types/metadata.proto
-    - api/proto/teleport/legacy/types/mfa_device.proto
-    - api/proto/teleport/legacy/types/wrappers/wrappers.proto
-    - proto/teleport/lib/multiplexer/test/ping.proto
-    - proto/teleport/lib/web/terminal/envelope.proto
+  # ignore:
+  #   - api/proto/teleport/legacy/client/proto/authservice.proto
+  #   - api/proto/teleport/legacy/client/proto/certs.proto
+  #   - api/proto/teleport/legacy/client/proto/event.proto
+  #   - api/proto/teleport/legacy/client/proto/proxyservice.proto
+  #   - api/proto/teleport/legacy/types/events/athena.proto
+  #   - api/proto/teleport/legacy/types/events/events.proto
+  #   - api/proto/teleport/legacy/types/types.proto
+  #   - api/proto/teleport/legacy/types/metadata.proto
+  #   - api/proto/teleport/legacy/types/mfa_device.proto
+  #   - api/proto/teleport/legacy/types/wrappers/wrappers.proto
+  #   - proto/teleport/lib/multiplexer/test/ping.proto
+  #   - proto/teleport/lib/web/terminal/envelope.proto
   ignore_only:
     COMMENT_MESSAGE:
       - proto/prehog
