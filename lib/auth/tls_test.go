@@ -1532,7 +1532,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope", nil))
 	require.NoError(t, err)
 	defer scopedClt.Close()
 
@@ -2614,7 +2614,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	scopedClt, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope", nil))
 	require.NoError(t, err)
 	defer scopedClt.Close()
 

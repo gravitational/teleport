@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -1110,12 +1112,16 @@ func TestUser(username string) TestIdentity {
 
 // TestScopedUser returns a TestIdentity for a local user with a scoped identity
 // pinned to the given scope.
-func TestScopedUser(username string, scope string) TestIdentity {
+func TestScopedUser(username, scope string, assignments map[string]map[string][]string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
 			Identity: tlsca.Identity{
 				Username: username,
+				ScopePin: &scopesv1.Pin{
+					Scope:          scope,
+					AssignmentTree: pinning.AssignmentTreeFromMap(assignments),
+				},
 			},
 		},
 		Scope: scope,
@@ -1182,6 +1188,19 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: string(role),
+		},
+	}
+}
+
+// TestScopedBuiltin returns a scoped TestIdentity for builtin user
+func TestScopedBuiltin(role types.SystemRole, scope string) TestIdentity {
+	return TestIdentity{
+		I: authz.BuiltinRole{
+			Role:     role,
+			Username: string(role),
+			Identity: tlsca.Identity{
+				AgentScope: scope,
+			},
 		},
 	}
 }
