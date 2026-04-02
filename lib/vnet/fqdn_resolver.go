@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // fqdnResolver resolves fully-qualified domain names to possible VNet targets.
@@ -440,13 +441,21 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	}
 
 	db := resp.Resources[0].GetDatabase()
+	protocol := db.GetProtocol()
+
+	if err := validateDBUserForProtocol(dbUser, dbName, protocol); err != nil {
+		log.InfoContext(ctx, "Database FQDN username validation failed",
+			"protocol", protocol, "db_name", dbName, "db_user", dbUser, "error", err)
+		return nil, errNoMatch
+	}
+
 	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
 		return nil, trace.Wrap(err, "getting dial options for matching database")
 	}
 
-	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "db_user", dbUser, "protocol", db.GetProtocol())
+	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "db_user", dbUser, "protocol", protocol)
 	dbInfo := &vnetv1.DatabaseInfo{
 		DatabaseKey: &vnetv1.DatabaseKey{
 			Profile:     candidate.profileName,
@@ -454,7 +463,7 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 			Name:        db.GetName(),
 		},
 		Cluster:       candidate.clusterName,
-		Protocol:      db.GetProtocol(),
+		Protocol:      protocol,
 		Username:      dbUser,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
@@ -538,4 +547,31 @@ func rootProxyHostFromProfile(profileName string) string {
 		return host
 	}
 	return profileName
+}
+
+// validateDBUserForProtocol checks that the db-user parsed from the FQDN is
+// appropriate for the database protocol
+func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
+	if shouldGetDBUsernameFromWireProtocol(protocol) {
+		if dbUser != "" {
+			return trace.BadParameter("database does not support username in domain name")
+		}
+		return nil
+	}
+	if dbUser == "" {
+		return trace.BadParameter("database requires username in domain name ")
+	}
+	return nil
+}
+
+// shouldGetDBUsernameFromWireProtocol returns true for database protocols where the
+// db_service extracts the database username from the wire protocol
+func shouldGetDBUsernameFromWireProtocol(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB,
+		defaults.ProtocolMySQL, defaults.ProtocolSQLServer:
+		return true
+	default:
+		return false
+	}
 }

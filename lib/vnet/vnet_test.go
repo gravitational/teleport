@@ -1251,6 +1251,7 @@ func TestDialFakeDatabase(t *testing.T) {
 				databases: []dbSpec{
 					{name: "my-postgres", protocol: "postgres"},
 					{name: "my-mysql", protocol: "mysql"},
+					{name: "my-mongo", protocol: "mongodb"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
@@ -1278,17 +1279,7 @@ func TestDialFakeDatabase(t *testing.T) {
 		expectRouteToDatabase proto.RouteToDatabase
 	}{
 		{
-			name:       "root cluster postgres with user",
-			fqdn:       "reader.my-postgres.db.root1.example.com",
-			expectCIDR: "192.168.2.0/24",
-			expectRouteToDatabase: proto.RouteToDatabase{
-				ServiceName: "my-postgres",
-				Protocol:    "postgres",
-				Username:    "reader",
-			},
-		},
-		{
-			name:       "root cluster postgres without user",
+			name:       "postgres without user in FQDN",
 			fqdn:       "my-postgres.db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
@@ -1298,33 +1289,33 @@ func TestDialFakeDatabase(t *testing.T) {
 			},
 		},
 		{
-			name:       "root cluster mysql with user",
-			fqdn:       "admin.my-mysql.db.root1.example.com",
+			name:       "mysql without user in FQDN",
+			fqdn:       "my-mysql.db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "my-mysql",
 				Protocol:    "mysql",
-				Username:    "admin",
+				Username:    "",
 			},
 		},
 		{
 			name:       "leaf cluster postgres via root proxy",
-			fqdn:       "reader.leaf-postgres.db.root1.example.com",
+			fqdn:       "leaf-postgres.db.root1.example.com",
 			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "leaf-postgres",
 				Protocol:    "postgres",
-				Username:    "reader",
+				Username:    "", // user stripped — postgres gets it from wire protocol
 			},
 		},
 		{
-			name:       "dotted username",
-			fqdn:       "some.dotted.user.my-postgres.db.root1.example.com",
+			name:       "mongodb with user in FQDN",
+			fqdn:       "admin.my-mongo.db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
-				ServiceName: "my-postgres",
-				Protocol:    "postgres",
-				Username:    "some.dotted.user",
+				ServiceName: "my-mongo",
+				Protocol:    "mongodb",
+				Username:    "admin", // mongodb requires user in cert
 			},
 		},
 	}
@@ -1427,7 +1418,7 @@ func TestOnNewDBConnection(t *testing.T) {
 	require.Equal(t, uint32(0), clientApp.onNewDBConnectionCallCount.Load())
 
 	// Connect to a valid database and verify OnNewDBConnection was called.
-	conn, err := p.dialHost(ctx, "reader.my-postgres.db.root1.example.com", 5432)
+	conn, err := p.dialHost(ctx, "my-postgres.db.root1.example.com", 5432)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), clientApp.onNewDBConnectionCallCount.Load())
