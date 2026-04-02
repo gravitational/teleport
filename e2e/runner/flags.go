@@ -151,7 +151,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 			return nil, 0, err
 		}
 
-		if len(f.testFiles) > 0 || mode == modeTest {
+		if len(f.testFiles) > 0 || mode != modeUI {
 			for _, fix := range scanFixtures(e2eDir, f.testFiles) {
 				fix.Enabled = true
 			}
