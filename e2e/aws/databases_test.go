@@ -32,7 +32,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/gravitational/trace"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -369,7 +370,7 @@ func getMasterUserPassword(t *testing.T, ctx context.Context, secretID string) s
 func getSecretValue(t *testing.T, ctx context.Context, secretID string) secretsmanager.GetSecretValueOutput {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 

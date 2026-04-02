@@ -22,7 +22,7 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
@@ -76,7 +77,7 @@ func newAWSConfig(ctx context.Context, req *AWSClientRequest) (*aws.Config, erro
 		return nil, trace.Wrap(err)
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(req.Region))
+	cfg, err := config.LoadDefaultConfig(ctx, awsconfig.WithRegion(req.Region))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

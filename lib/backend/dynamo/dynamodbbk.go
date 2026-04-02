@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
@@ -250,21 +251,21 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	l.InfoContext(ctx, "Initializing backend", "table", cfg.TableName, "poll_stream_period", cfg.PollStreamPeriod)
 
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
-		config.WithHTTPClient(&http.Client{
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConns:        defaults.HTTPMaxIdleConns,
 				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 			},
 		}),
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
+		awsconfig.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		awsconfig.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
 	if cfg.AccessKey != "" || cfg.SecretKey != "" {
-		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, "")))
+		opts = append(opts, awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, "")))
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)

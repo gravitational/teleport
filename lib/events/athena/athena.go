@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -445,8 +446,8 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	cfg.Region = spec.Region
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(cfg.Region),
-		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
+		awssdkconfig.WithRegion(cfg.Region),
+		awssdkconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
