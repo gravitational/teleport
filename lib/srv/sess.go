@@ -800,6 +800,8 @@ type session struct {
 
 	// started is true after the session start.
 	started atomic.Bool
+	// started is true after the session is being closed.
+	closing atomic.Bool
 }
 
 type sessionType bool
@@ -1013,6 +1015,11 @@ func (s *session) haltTerminal() {
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
 func (s *session) Close() error {
+	if s.closing.Swap(true) {
+		s.logger.DebugContext(s.serverCtx, "Session is already closing.")
+		return nil
+	}
+
 	s.BroadcastMessage("Closing session...")
 	s.logger.InfoContext(s.serverCtx, "Closing session.")
 
@@ -1742,6 +1749,20 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Emit session leave event to both the Audit Log and over the
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEventUnderLock(p.ctx)
+
+	return s.handlePartyLeavePolicyUnderLock(p)
+}
+
+// handlePartyLeavePolicyUnderLock applies any session state changes caused by a
+// party leaving, such as terminating or pausing the session when required
+// participants are no longer present.
+func (s *session) handlePartyLeavePolicyUnderLock(p *party) error {
+	// Skip leave policy handling during normal session teardown to avoid
+	// retriggering forced termination while the session is already closing.
+	if s.closing.Load() {
+		s.logger.DebugContext(s.serverCtx, "Session is already closing, skipping forced termination.")
+		return nil
+	}
 
 	canRun, policyOptions, err := s.checkIfStartUnderLock()
 	if err != nil {
