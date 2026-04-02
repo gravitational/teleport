@@ -161,7 +161,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	hello.Username = s.login
 
 	// Whether we forward the ClientHello as-is, or send a triple
-	// (Username, ClientScreenSpec, ClientKeyboardLayout) depends on
+	// (Username, ClientScreenSpec, ClientScreenSpec) depends on
 	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
 	var tdpServerConn tdp.MessageReadWriteCloser
@@ -178,11 +178,15 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		defer tdpServerConn.Close()
 
 		// Now that we have a connection to the desktop service, we can
-		// send the username, clientScreenSpec, and clientKeyboardlayout.
+		// send the username, and clientScreenSpec messages.
 		for _, msg := range []tdp.Message{
 			legacy.ClientUsername{Username: s.login},
 			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
-			legacy.ClientKeyboardLayout{KeyboardLayout: hello.KeyboardLayout},
+			// For backwards compatibility with v17 Windows Desktop Servers, send a duplicate
+			// client screenspec message. This satisfies v18's requirement to receive exactly
+			// 3 handshake messages, while preventing v17 from receiving a keyboard message that
+			// it does not support. Teleport Connect doesn't support non-default keyboard layouts anyhow.
+			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
 		} {
 			err = tdpServerConn.WriteMessage(msg)
 			if err != nil {
