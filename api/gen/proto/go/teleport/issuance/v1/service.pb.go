@@ -156,7 +156,7 @@ type Certs struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// SSH certificate marshaled in the authorized key format.
 	Ssh []byte `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
-	// TLS X.509 certificate as an ASN.1 PEM DER.
+	// TLS X.509 certificate as PEM-wrapped ASN.1 DER.
 	Tls           []byte `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -72,6 +72,6 @@ message IssueScopedBotCertsResponse {
 message Certs {
   // SSH certificate marshaled in the authorized key format.
   bytes ssh = 1;
-  // TLS X.509 certificate as an ASN.1 PEM DER.
+  // TLS X.509 certificate as PEM-wrapped ASN.1 DER.
   bytes tls = 2;
 }

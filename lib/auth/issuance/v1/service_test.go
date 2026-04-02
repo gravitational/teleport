@@ -339,7 +339,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 		require.True(
 			t,
 			trace.IsAccessDenied(err),
-			"expected bad parameter, got: %v", err,
+			"expected access denied, got: %v", err,
 		)
 	})
 

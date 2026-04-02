@@ -105,18 +105,20 @@ func (s *Service) IssueScopedBotCerts(
 	}
 
 	// Perform any basic validity checks
-	ttl := req.Ttl.AsDuration()
+	ttl := req.GetTtl().AsDuration()
 	switch {
-	case req.Ttl == nil:
-		return nil, trace.BadParameter("ttl: must be specified")
-	case req.Ttl.AsDuration() <= 0:
+	case ttl <= 0:
 		return nil, trace.BadParameter("ttl: must be greater than zero")
-	case req.Ttl.AsDuration() >= defaults.MaxRenewableCertTTL:
+	case ttl > defaults.MaxRenewableCertTTL:
 		return nil, trace.BadParameter(
 			"ttl: value (%s) exceeds maximum permitted value (%s)",
 			ttl,
 			defaults.MaxRenewableCertTTL,
 		)
+	}
+	// Ensure at least one key is provided
+	if len(req.TlsPublicKey) == 0 && len(req.SshPublicKey) == 0 {
+		return nil, trace.BadParameter("at least one of ssh_public_key or tls_public_key is required")
 	}
 
 	// Perform basic RBAC checks to ensure the correct kind of identity is
@@ -160,15 +162,15 @@ func (s *Service) IssueScopedBotCerts(
 	// nb(strideynet): Today, this endpoint will only generate certs with the
 	// same scope as the current tlsidentity, and the same scope as the Bot
 	// resource itself. In the future, we will allow "sub-pinning" where the
-	// resulting certs may be a descendent scope of the current scope and
+	// resulting certs may be a descendant scope of the current scope and
 	// bot scope.
 	requestedScope := currentIdentity.ScopePin.Scope
-	// Sanity check that the requested scope is still descendent or equiv to
+	// Sanity check that the requested scope is still descendant or equiv to
 	// botScope - in case bot scope has changed.
 	rel := scopes.Compare(botScope, requestedScope)
 	if rel != scopes.Equivalent && rel != scopes.Descendant {
 		return nil, trace.AccessDenied(
-			"requested scope %q is not descendent or equivalent to bot's scope %q",
+			"requested scope %q is not descendant or equivalent to bot's scope %q",
 			requestedScope,
 			botScope,
 		)
