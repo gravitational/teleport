@@ -53,8 +53,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
-				} else if s.c.OnReconcile != nil {
-					s.c.OnReconcile(s.getApps())
+				} else {
+					s.reconcileDoneOnce.Do(func() { close(s.reconcileDone) })
+					if s.c.OnReconcile != nil {
+						s.c.OnReconcile(s.getApps())
+					}
 				}
 			case <-ctx.Done():
 				s.log.DebugContext(ctx, "Reconciler done.")
