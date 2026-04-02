@@ -640,6 +640,8 @@ code.dny.dev/ssrf v0.2.0 h1:wCBP990rQQ1CYfRpW+YK1+8xhwUjv189AQ3WMo1jQaI=
 code.dny.dev/ssrf v0.2.0/go.mod h1:B+91l25OnyaLIeCx0WRJN5qfJ/4/ZTZxRXgm0lj/2w8=
 connectrpc.com/connect v1.19.1 h1:R5M57z05+90EfEvCY1b7hBxDVOUl45PrtXtAV2fOC14=
 connectrpc.com/connect v1.19.1/go.mod h1:tN20fjdGlewnSFeZxLKb0xwIZ6ozc3OQs2hTXy4du9w=
+cyphar.com/go-pathrs v0.2.1 h1:9nx1vOgwVvX1mNBWDu93+vaceedpbsDqo+XuBGL40b8=
+cyphar.com/go-pathrs v0.2.1/go.mod h1:y8f1EMG7r+hCuFf/rXsKqMJrJAUoADZGNh5/vZPKcGc=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
@@ -1538,8 +1540,6 @@ github.com/gravitational/roundtrip v1.0.3 h1:n5JLvJVs8XrnJxXGYOzb8I9zGMEr5WVhSA1
 github.com/gravitational/roundtrip v1.0.3/go.mod h1:AR9OSmv3WN0qJObMyMYJUrPRXtzhdjAQSKIACv7F9b4=
 github.com/gravitational/saml v0.4.15-teleport.2 h1:ruNtaIkDrCJ5eS+OBcKeER+P5ldDDys7SeCoyFJAX1o=
 github.com/gravitational/saml v0.4.15-teleport.2/go.mod h1:wGckhUH/I+hcDR2uo9WC4GyL+o4rid5JUe1Ze/joarI=
-github.com/gravitational/selinux v1.13.0-teleport h1:XZQpZK5tteK9ZV2wIC1avhagqoVghXYv+O21GOpG6wU=
-github.com/gravitational/selinux v1.13.0-teleport/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
 github.com/gravitational/trace v1.5.1 h1:CdSymAjkE1VOef+lsC5x29jX9WbgI0fBtnRqeT4Fh+c=
 github.com/gravitational/trace v1.5.1/go.mod h1:sJKfJHIQ7IkG8kvYpFPEr6mj3WDEdZ0YAc7xAD8w7lw=
 github.com/gravitational/vt10x v0.0.3-teleport.1 h1:QYNPZGCQRcz1JehDn5m75UvRQbEJvT5X1pVblnCfZrY=
@@ -1934,6 +1934,8 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
+github.com/opencontainers/selinux v1.13.2-0.20260327092831-80faa86e69a8 h1:wxUvfOPoKWhpeJvlo7hg8VXsdR+q8LwiaXxWaqjNoc0=
+github.com/opencontainers/selinux v1.13.2-0.20260327092831-80faa86e69a8/go.mod h1:S10WXZ/osk2kWOYKy1x2f/eXF5ZHJoUs8UU/2caNRbg=
 github.com/opensearch-project/opensearch-go/v2 v2.3.0 h1:nQIEMr+A92CkhHrZgUhcfsrZjibvB3APXf2a1VwCmMQ=
 github.com/opensearch-project/opensearch-go/v2 v2.3.0/go.mod h1:8LDr9FCgUTVoT+5ESjc2+iaZuldqE+23Iq0r1XeNue8=
 github.com/oracle/oci-go-sdk/v65 v65.107.0 h1:ZBnDn495o4beF+bidJuIDYubwEVypiOhtVrmIQd0kWY=

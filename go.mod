@@ -193,7 +193,7 @@ require (
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/openai/openai-go/v3 v3.8.1
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/selinux v1.12.0
+	github.com/opencontainers/selinux v1.13.2-0.20260327092831-80faa86e69a8
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/oracle/oci-go-sdk/v65 v65.107.0
 	github.com/parquet-go/parquet-go v0.25.1
@@ -297,6 +297,7 @@ require (
 	cloud.google.com/go/longrunning v0.8.0 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/pubsub/v2 v2.3.0 // indirect
+	cyphar.com/go-pathrs v0.2.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
@@ -646,7 +647,6 @@ replace (
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
-	github.com/opencontainers/selinux => github.com/gravitational/selinux v1.13.0-teleport
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
