@@ -311,13 +311,24 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
-	botName := authCtx.Identity.GetIdentity().BotName
-	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
+	ident := authCtx.Identity.GetIdentity()
+	botName := ident.BotName
+	botInstanceID := ident.BotInstanceID
 	switch {
 	case botName == "":
 		return nil, trace.AccessDenied("identity did not contain bot name")
 	case botInstanceID == "":
 		return nil, trace.AccessDenied("identity did not contain bot instance ID")
+	}
+
+	// For now, we just require that Scoped Bots have the BotInternal identity
+	// flag set - however - once sufficient time has passed and we're sure all
+	// existing bots will have the BotInternal flag set in their certs, we can
+	// make this check always applied.
+	if ident.ScopePin != nil && ident.ScopePin.Scope != "" {
+		if !ident.BotInternal {
+			return nil, trace.AccessDenied("identity not marked BotInternal")
+		}
 	}
 
 	b.logger.DebugContext(
