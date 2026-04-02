@@ -26,11 +26,24 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
+)
+
+// truncateMode controls how a column's cell text is truncated when it
+// exceeds MaxCellLength.
+type truncateMode int
+
+const (
+	// truncateEnd truncates from the end ("start...").
+	truncateEnd truncateMode = iota
+	// truncateMiddle truncates from the middle ("start...end").
+	truncateMiddle
 )
 
 // Column represents a column in the table.
@@ -38,6 +51,7 @@ type Column struct {
 	Title         string
 	MaxCellLength int
 	FootnoteLabel string
+	truncateMode  truncateMode
 	width         int
 }
 
@@ -72,51 +86,86 @@ func MakeTable(headers []string, rows ...[]string) Table {
 	return t
 }
 
-// MakeTableWithTruncatedColumn creates a table where the column
-// matching truncatedColumn will be shortened to account for terminal
-// width.
-func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
-	width, _, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil || width == 0 {
-		width = 80
+// terminalWidth returns the width to use for table truncation.
+// It checks, in order:
+//  1. The COLUMNS environment variable (explicit override).
+//  2. The terminal width via term.GetSize (interactive terminal).
+//  3. Zero when stdout is not a terminal (pipe/file redirect),
+//     signaling that no truncation should be applied.
+func terminalWidth() int {
+	if n, err := strconv.Atoi(os.Getenv("COLUMNS")); err == nil && n > 0 {
+		return n
 	}
-	truncatedColMinSize := 16
-	maxColWidth := (width - truncatedColMinSize) / (len(columnOrder) - 1)
-	t := MakeTable([]string{})
-	totalLen := 0
-	columns := []Column{}
-
-	for collIndex, colName := range columnOrder {
-		column := Column{
-			Title:         colName,
-			MaxCellLength: len(colName),
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+			return w
 		}
-		if colName == truncatedColumn { // truncated column is handled separately in next loop
-			columns = append(columns, column)
+		return teleport.DefaultTerminalWidth
+	}
+	return 0
+}
+
+// MakeTableWithTruncatedColumn creates a table that fits the terminal width
+// by truncating the named column from the end ("start...").
+func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
+	return makeTableWithTruncatedColumn(columnOrder, rows, truncatedColumn, truncateEnd)
+}
+
+// MakeTableWithEllipsisColumn creates a table that fits the terminal width
+// by truncating the named column from the middle ("start...end").
+func MakeTableWithEllipsisColumn(columnOrder []string, rows [][]string, ellipsisColumn string) Table {
+	return makeTableWithTruncatedColumn(columnOrder, rows, ellipsisColumn, truncateMiddle)
+}
+
+func makeTableWithTruncatedColumn(columnOrder []string, rows [][]string, targetColumn string, mode truncateMode) Table {
+	width := terminalWidth()
+	if width == 0 {
+		return MakeTable(columnOrder, rows...)
+	}
+
+	const targetColMinSize = 16                      // minimum chars reserved for the target column
+	const ellipsisSeparatorWidth = len("... ")        // truncation marker ("...") plus column separator (" ")
+
+	// Each non-target column gets an equal share of the remaining width.
+	maxColWidth := (width - targetColMinSize) / (len(columnOrder) - 1)
+	usedWidth := 0
+
+	// First pass: measure each non-target column's natural width (capped
+	// at maxColWidth) and accumulate the total space they consume.
+	colWidths := make(map[int]int, len(columnOrder))
+	for colIndex, colName := range columnOrder {
+		if colName == targetColumn {
 			continue
 		}
+		w := len(colName)
 		for _, row := range rows {
-			cellLen := row[collIndex]
-			if len(cellLen) > column.MaxCellLength {
-				column.MaxCellLength = len(cellLen)
+			if len(row[colIndex]) > w {
+				w = len(row[colIndex])
 			}
 		}
-		if column.MaxCellLength > maxColWidth {
-			column.MaxCellLength = maxColWidth
-			totalLen += column.MaxCellLength + 4 // "...<space>"
+		w = min(w, maxColWidth)
+		colWidths[colIndex] = w
+		if w >= maxColWidth {
+			// Column was capped — it will display with a "..." suffix.
+			usedWidth += w + ellipsisSeparatorWidth
 		} else {
-			totalLen += column.MaxCellLength + 1 // +1 for column separator
+			usedWidth += w + 1 // +1 for column separator
 		}
-		columns = append(columns, column)
 	}
 
-	for _, column := range columns {
-		if column.Title == truncatedColumn {
-			column.MaxCellLength = max(width-totalLen-len("... "), 0)
+	// Second pass: build the table, giving the target column whatever
+	// terminal width remains after the other columns.
+	t := MakeTable([]string{})
+	for colIndex, colName := range columnOrder {
+		column := Column{Title: colName}
+		if colName == targetColumn {
+			column.MaxCellLength = max(width-usedWidth-ellipsisSeparatorWidth, 0)
+			column.truncateMode = mode
+		} else {
+			column.MaxCellLength = colWidths[colIndex]
 		}
 		t.AddColumn(column)
 	}
-
 	for _, row := range rows {
 		t.AddRow(row)
 	}
@@ -147,16 +196,25 @@ func (t *Table) AddFootnote(label string, note string) {
 // truncateCell truncates cell contents to shorter than the column's
 // MaxCellLength, and adds the footnote symbol if specified.
 func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
-	maxCellLength := t.columns[colIndex].MaxCellLength
-	if maxCellLength == 0 || len(cell) <= maxCellLength {
+	col := t.columns[colIndex]
+	if col.MaxCellLength == 0 || len(cell) <= col.MaxCellLength {
 		return cell, false
 	}
-	truncatedCell := fmt.Sprintf("%v...", cell[:maxCellLength])
-	footnoteLabel := t.columns[colIndex].FootnoteLabel
-	if footnoteLabel == "" {
+
+	var truncatedCell string
+	if col.truncateMode == truncateMiddle {
+		avail := col.MaxCellLength
+		head := (avail + 1) / 2
+		tail := avail / 2
+		truncatedCell = cell[:head] + "..." + cell[len(cell)-tail:]
+	} else {
+		truncatedCell = fmt.Sprintf("%v...", cell[:col.MaxCellLength])
+	}
+
+	if col.FootnoteLabel == "" {
 		return truncatedCell, false
 	}
-	return fmt.Sprintf("%v %v", truncatedCell, footnoteLabel), true
+	return fmt.Sprintf("%v %v", truncatedCell, col.FootnoteLabel), true
 }
 
 // AsBuffer returns a *bytes.Buffer with the printed output of the table.
