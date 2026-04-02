@@ -2314,6 +2314,53 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Deleting a child Access List removes users from the parent.
     - [ ] Verify behavior when users are moved between overlapping Access Lists with different permissions.
 
+## SCIM Integration
+
+### Generic SCIM Flow
+- [ ] Verify SCIM PATCH operations (RFC 7644 Section 3.5.2)
+- [ ] Verify audit logging
+  - [ ] SCIM user create/update/delete events appear in audit log
+  - [ ] SCIM group membership changes appear in audit log
+- [ ] Install SCIM plugin with OAuth authentication
+  ```
+  tctl plugins install scim --connector <connector-name> --connector-type saml --auth oauth
+  ```
+  - [ ] Verify output displays Base URL, Client ID, and Client Secret
+  - [ ] Verify OAuth Token URL is displayed
+  - [ ] Verify token can be obtained via `POST /webapi/plugin/<name>/token` with `client_credentials` grant
+- [ ] Install SCIM plugin with Bearer token authentication
+  ```
+  tctl plugins install scim --connector <connector-name> --connector-type oidc --auth bearer
+  ```
+  - [ ] Verify output displays Base URL and Bearer Token
+  - [ ] Verify Bearer token authenticates SCIM requests via `Authorization: Bearer <token>` header
+- [ ] Verify `--connector-type` supports both `oidc` and `saml`
+- [ ] SCIM Connector Setup via Web UI
+  - [ ] Verify SCIM integration can be configured through the Web UI enrollment flow
+  - [ ] Verify SSO connector selection works (OIDC and SAML connectors listed)
+  - [ ] Verify generated credentials (Client ID/Secret or Bearer Token) are displayed
+  - [ ] Verify the SCIM Base URL is displayed correctly
+
+### SailPoint Enrollment
+- [ ] SailPoint SCIM 2.0 Connector Setup
+  - [ ] Configure SailPoint application with SCIM 2.0 connector type
+  - [ ] Set authentication to OAuth 2.0 Client Credentials using Teleport-generated credentials
+  - [ ] Verify Token URL, Client ID, and Client Secret from `tctl plugins install scim` work in SailPoint
+  - [ ] Verify Base URL (`https://<proxy>/v1/webapi/scim/<plugin-name>`) is accepted by SailPoint
+- [ ] SailPoint Account Aggregation
+  - [ ] Aggregation task retrieves all SCIM-managed Teleport users
+- [ ] SailPoint Group Aggregation
+  - [ ] Aggregation task retrieves all SCIM-type Access Lists from Teleport
+  - [ ] Group membership is correctly reflected in SailPoint
+- [ ] SailPoint Provisioning
+  - [ ] Creating a user in SailPoint provisions the user in Teleport
+  - [ ] Adding a user to a group in SailPoint adds them to the Teleport Access List
+  - [ ] Removing a user from a group in SailPoint removes them from the Access List
+- [ ] SailPoint Retry Configuration
+  - [ ] Configure `412 Precondition Failed` as a retryable error in SailPoint
+  - [ ] Verify concurrent group updates succeed with retry configuration enabled
+- [ ] SailPoint HTTP PATCH Testing
+
 ## Teleport SAML Identity Provider
 Verify SAML IdP service provider resource management.
 
