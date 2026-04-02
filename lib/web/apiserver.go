@@ -1365,9 +1365,14 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 	// having one means we have an username
 	if len(pathFields) == 1 {
+		username, err := decodeURLPathParamField(pathFields[0])
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
 		params = httprouter.Params{httprouter.Param{
 			Key:   "username",
-			Value: pathFields[0],
+			Value: username,
 		}}
 
 		handleFunc = h.WithAuth(h.getUserHandle)
@@ -1375,15 +1380,32 @@ func (h *Handler) handleGetUserOrResetToken(w http.ResponseWriter, r *http.Reque
 
 	// if we have exactly 3 and they look like /password/token/:token
 	if len(pathFields) == 3 && pathFields[0] == "password" && pathFields[1] == "token" && pathFields[2] != "" {
+		token, err := decodeURLPathParamField(pathFields[2])
+		if err != nil {
+			trace.WriteError(w, err)
+			return
+		}
 		params = httprouter.Params{httprouter.Param{
 			Key:   "token",
-			Value: pathFields[2],
+			Value: token,
 		}}
 
 		handleFunc = httplib.MakeHandler(h.getResetPasswordTokenHandle)
 	}
 
 	handleFunc(w, r, params)
+}
+
+// decodeURLPathParamField URL-decodes a manually extracted path segment.
+// Use this when path params are set manually, since httprouter.Params.ByName()
+// only auto-decodes params captured by the router itself.
+func decodeURLPathParamField(value string) (string, error) {
+	decoded, err := url.PathUnescape(value)
+	if err != nil {
+		return "", trace.BadParameter("failed to decode URL path segment: %v", err)
+	}
+
+	return decoded, nil
 }
 
 // getUserContext returns user context
