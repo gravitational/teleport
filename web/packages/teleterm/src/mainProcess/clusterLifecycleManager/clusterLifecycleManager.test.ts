@@ -86,7 +86,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -133,7 +136,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -196,7 +202,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -282,7 +291,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
