@@ -1079,6 +1079,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Create a beam and connect to it over SSH.")
 	beamsAdd.Flag("console", "Connect to the beam after creation.").Default("true").BoolVar(&cf.BeamConsole)
+	beamsAdd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	beamsSSH := beams.Command("ssh", "Connect to an existing beam over SSH.").Alias("console")
 	beamsSSH.Arg("beam-id", "Beam ID to connect to.").Required().StringVar(&cf.BeamID)
 	beamsExec := beams.Command("exec", "Execute a command on an existing beam over SSH.").Interspersed(false)

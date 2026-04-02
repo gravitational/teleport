@@ -30,7 +30,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
-	"github.com/ghodss/yaml"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -45,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 func onBeamsAdd(cf *CLIConf) error {
@@ -52,10 +53,27 @@ func onBeamsAdd(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	tc.AllowHeadless = true
 
-	stopCreating := startBeamSpinner(cf.Stdout(), "creating...")
+	// Only show the spinner and SSH into the beam if there's a real terminal
+	// connected (i.e. not piping the output somewhere else) and the user hasn't
+	// requested JSON or YAML.
+	interactive := utils.IsTerminal(cf.Stdout())
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		interactive = false
+	}
+
+	stopSpinner := func(message string) {
+		if message != "" {
+			fmt.Fprintln(cf.Stdout(), message)
+		}
+	}
+	if interactive {
+		stopSpinner = startBeamSpinner(cf.Stdout(), "creating...")
+	}
+
 	var beam *beamsv1.Beam
 	createErr := client.RetryWithRelogin(cf.Context, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
@@ -71,11 +89,22 @@ func onBeamsAdd(cf *CLIConf) error {
 		return nil
 	})
 	if createErr != nil {
-		stopCreating("")
+		stopSpinner("")
 		return trace.Wrap(createErr)
 	}
-	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+
+	switch format {
+	case teleport.JSON:
+		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeam(beam)); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case teleport.YAML:
+		if err := common.PrintYAML(cf.Stdout(), serializeBeam(beam)); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
 
 	// TODO(boxofrad): Remove this once all tenants have been updated to a
 	// version that supports beam aliases.
@@ -83,9 +112,11 @@ func onBeamsAdd(cf *CLIConf) error {
 	if alias := beam.GetStatus().GetAlias(); alias != "" {
 		name = alias
 	}
-	stopCreating(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(name)))
+	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	diamondStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+	stopSpinner(fmt.Sprintf("%s created %s", diamondStyle.Render("◆"), idStyle.Render(name)))
 
-	if !cf.BeamConsole {
+	if !cf.BeamConsole || !interactive {
 		return nil
 	}
 
@@ -176,49 +207,61 @@ func onBeamsList(cf *CLIConf) error {
 
 	format := strings.ToLower(cf.Format)
 	switch format {
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeBeams(beams, format, mountsByBeam)
+	case teleport.JSON:
+		_, proxyAddr, err := fetchProxyVersion(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), out)
+		if err := common.PrintJSONIndent(cf.Stdout(), serializeBeams(beams, mountsByBeam, proxyAddr)); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.YAML:
+		_, proxyAddr, err := fetchProxyVersion(cf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := common.PrintYAML(cf.Stdout(), serializeBeams(beams, mountsByBeam, proxyAddr)); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		fmt.Fprint(cf.Stdout(), renderBeamsTable(beams, tc.WebProxyHost(), mountsByBeam))
 	}
 	return nil
 }
 
-// beamWithMounts wraps a protobuf Beam with local mount info for JSON/YAML
-// serialization. The local_mounts field is always present (empty array if
-// no mounts) so consumers don't need nil checks.
-type beamWithMounts struct {
-	*beamsv1.Beam
-	LocalMounts []beamsmount.MountEntry `json:"local_mounts"`
+type serializedBeam struct {
+	ID             string                  `json:"id"`
+	Alias          string                  `json:"alias"`
+	Owner          string                  `json:"owner"`
+	Expires        time.Time               `json:"expires"`
+	PublishAddress string                  `json:"publish_address,omitempty"`
+	LocalMounts    []beamsmount.MountEntry `json:"local_mounts,omitempty"`
 }
 
-func serializeBeams(beams []*beamsv1.Beam, format string, mountsByBeam map[string][]beamsmount.MountEntry) (string, error) {
-	enriched := make([]beamWithMounts, 0, len(beams))
-	for _, beam := range beams {
-		mounts := mountsByBeam[beam.GetMetadata().GetName()]
-		if mounts == nil {
-			mounts = []beamsmount.MountEntry{}
-		}
-		enriched = append(enriched, beamWithMounts{
-			Beam:        beam,
-			LocalMounts: mounts,
-		})
+func serializeBeam(beam *beamsv1.Beam) serializedBeam {
+	return serializedBeam{
+		ID:      beam.GetMetadata().GetName(),
+		Alias:   beam.GetStatus().GetAlias(),
+		Owner:   beam.GetStatus().GetUser(),
+		Expires: beam.GetMetadata().Expires.AsTime(),
 	}
+}
 
-	var (
-		out []byte
-		err error
-	)
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(enriched, "", "  ")
-	} else {
-		out, err = yaml.Marshal(enriched)
-	}
-	return string(out), trace.Wrap(err)
+func serializeBeams(
+	beams []*beamsv1.Beam,
+	mountsByBeam map[string][]beamsmount.MountEntry,
+	proxyAddr string,
+) []serializedBeam {
+	return sliceutils.Map(beams, func(beam *beamsv1.Beam) serializedBeam {
+		e := serializeBeam(beam)
+		if appName := beam.GetStatus().GetAppName(); appName != "" {
+			e.PublishAddress = utils.DefaultAppPublicAddr(appName, proxyAddr)
+		}
+		if mounts := mountsByBeam[beam.GetMetadata().GetName()]; len(mounts) != 0 {
+			e.LocalMounts = mounts
+		}
+		return e
+	})
 }
 
 func onBeamsDelete(cf *CLIConf) error {
@@ -544,7 +587,7 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 }
 
 func renderBeamsTable(beams []*beamsv1.Beam, proxyHost string, mountsByBeam map[string][]beamsmount.MountEntry) string {
-	table := asciitable.MakeTable([]string{"Alias", "Name", "Expires", "Mount"})
+	table := asciitable.MakeTable([]string{"Alias", "ID", "Expires", "Mount"})
 	for _, beam := range beams {
 		beamID := beam.GetMetadata().GetName()
 		mounts := mountsByBeam[beamID]
