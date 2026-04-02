@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Mattermost
 
 ## Installation
 
-See the [Access Requests with Mattermost guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/).
+See the [Access Requests with Mattermost guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/mattermost/).
 
 ## Values
 

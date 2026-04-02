@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request Jira plugi
 
 ## Installation
 
-See the [Access Requests with JIRA guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira/).
+See the [Access Requests with JIRA guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/jira/).
 
 ## Values
 
