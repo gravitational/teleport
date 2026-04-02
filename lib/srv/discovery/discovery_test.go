@@ -1466,7 +1466,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					require.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k]))
+					require.True(t, a1[k].IsEqual(a2[k]))
 				}
 			}, 5*time.Second, 200*time.Millisecond)
 		})
@@ -1887,9 +1887,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
 				c2 := types.KubeClusters(kubeClusters).ToMap()
 				for k := range c1 {
-					if services.CompareResources(c1[k], c2[k]) != services.Equal {
-						require.Equal(t, c1[k], c2[k], "expected no differences")
-					}
+					require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
 				}
 			case <-time.After(10 * time.Second):
 				require.FailNow(t, "Didn't receive reconcile event after 10s")
