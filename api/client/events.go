@@ -398,6 +398,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Plugin{
 			Plugin: r,
 		}
+
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -725,6 +726,7 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	}
 }
 
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 type validatedMFAChallengeUnwrapper interface {
 	UnwrapT() *mfav1.ValidatedMFAChallenge
 }

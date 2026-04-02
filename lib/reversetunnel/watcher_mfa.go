@@ -131,8 +131,5 @@ func NewValidatedMFAChallengeWatcher(
 		return nil, trace.Wrap(err)
 	}
 
-	// Inject kind filter into watcher to scope it to the cluster. This ensures that the watcher will only receive
-	// events for ValidatedMFAChallenges with the correct target cluster.
-
 	return w, nil
 }

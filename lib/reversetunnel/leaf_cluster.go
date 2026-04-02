@@ -1165,7 +1165,7 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 
 	log.DebugContext(
 		ctx,
-		"Successfully synced ValidatedMFAChallenges to leaf cluster",
+		"Finished syncing ValidatedMFAChallenges to leaf cluster",
 		"replicated_count", len(challenges)-len(failed),
 		"failed_count", len(failed),
 	)
