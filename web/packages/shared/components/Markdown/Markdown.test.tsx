@@ -803,6 +803,36 @@ more content here`;
       expect(screen.queryByText('content goes here')).not.toBeVisible();
     });
 
+    it('renders nested sections', async () => {
+      const text = `
+<details>
+  <summary>outer title</summary>
+  outer content
+  <details>
+    <summary>inner title</summary>
+    inner content
+  </details>
+  inner other content
+</details>
+outer other content`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('outer title')).toBeInTheDocument();
+      expect(screen.getByText('outer content')).not.toBeVisible();
+      expect(screen.getByText('inner title')).not.toBeVisible();
+      expect(screen.getByText('outer other content')).toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'outer title' }));
+      expect(screen.getByText('outer content')).toBeVisible();
+      expect(screen.getByText('inner title')).toBeVisible();
+      expect(screen.getByText('inner content')).not.toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'inner title' }));
+      expect(screen.getByText('inner content')).toBeVisible();
+    });
+
     it('renders an empty section', () => {
       const text = `
 <details open>

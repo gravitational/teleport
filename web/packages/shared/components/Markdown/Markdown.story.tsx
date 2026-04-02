@@ -154,10 +154,16 @@ Use backslashes to escape special characters: \\\\ \\\` \\* \\_ \\{ \\} \\[ \\] 
   This is a paragraph.
 
   \`\`\`
-  Here's a code block
+main() {
+  print("Here's a code block")
+}
   \`\`\`
 
-  [And, a link](https://example.com)
+  <details>
+    <summary>A nested section</summary>
+
+    [And, a link](https://example.com)
+  </details>
 </details>
 
 <details open>

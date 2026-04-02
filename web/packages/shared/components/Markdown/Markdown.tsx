@@ -274,6 +274,9 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
         i += 1;
       }
 
+      // Support nested sections by counting opening tags and ignoring that
+      // many closing tags.
+      let nested = 0;
       while (true) {
         const nextLine = lines.at(i);
         if (nextLine === undefined) {
@@ -284,10 +287,18 @@ function processMarkdown(text: string, options: MarkdownOptions): ReactNode[] {
           break;
         }
 
-        // Simple check for section end prevents nested sections
-        if (nextLine.trim() == '</details>') {
-          i += 1;
-          break;
+        if (nextLine.trim().startsWith('<details')) {
+          nested += 1;
+        }
+
+        if (nextLine.trim() === '</details>') {
+          // If we're nested, then treat this line like any other content.
+          if (nested > 0) {
+            nested -= 1;
+          } else {
+            i += 1;
+            break;
+          }
         }
 
         content.push(nextLine);
