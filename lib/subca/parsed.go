@@ -32,6 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// SupportedCATypes returns a slice of supported CA types for CA overrides.
+func SupportedCATypes() []string {
+	caTypes := make([]string, len(allowedCAOverrideSubKinds))
+	copy(caTypes, allowedCAOverrideSubKinds)
+	return caTypes
+}
+
 var (
 	allowedCAOverrideSubKinds = []string{
 		string(types.DatabaseClientCA),
