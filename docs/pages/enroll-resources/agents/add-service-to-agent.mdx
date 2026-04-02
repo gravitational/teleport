@@ -285,7 +285,7 @@ If your Teleport Agent runs on a Linux server:
 1. Restart the agent:
 
    ```code
-   $ sudo systemctl reload teleport
+   $ sudo systemctl restart teleport
    ```
 
 ### Helm chart
@@ -293,7 +293,7 @@ If your Teleport Agent runs on a Linux server:
 Upgrade your Helm release:
 
 ```code
-$ helm upgrade teleport-agent teleport-kube-agent
+$ helm upgrade teleport-agent teleport/teleport-kube-agent -f values.yaml
 ```
 
 ## Further reading: manage tokens as code

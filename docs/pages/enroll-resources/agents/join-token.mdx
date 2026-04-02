@@ -231,12 +231,12 @@ process into communicating with a malicious service.
 
 ### Obtain a CA pin
 
-On you local machine, retrieve the CA pin of the Auth Service:
+On your local machine, retrieve the CA pin of the Auth Service:
 
 ```code
 $ tctl status
 Cluster      teleport.example.com
-Version      12.1.1
+Version      (=teleport.version=)
 host CA      never updated
 user CA      never updated
 db CA        never updated
@@ -315,7 +315,7 @@ Run the following command on your local machine to create a token for a new
 Proxy Service:
 
 ```code
-$ tctl nodes add --ttl=5m --roles=proxy
+$ tctl tokens add --ttl=5m --type=proxy
 # The invite token: (=presets.tokens.first=).
 # This token will expire in 5 minutes.
 #
