@@ -154,6 +154,10 @@ type Request struct {
 	// BotInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken is the name of the join token used to join, set only for bot
 	// identities. It is unset for token-joined bots, whose token names are
 	// secret values.
