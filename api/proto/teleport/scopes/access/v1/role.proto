@@ -176,7 +176,7 @@ message SSHPortForwarding {
 // CreateHostUser configures what types of host user creation are allowed by a role.
 message CreateHostUser {
   // CreateHostUserMode specifies how the host user should be created.
-  CreateHostUserMode create_host_user_mode = 1;
+  optional CreateHostUserMode create_host_user_mode = 1;
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string host_sudoers = 2;
 

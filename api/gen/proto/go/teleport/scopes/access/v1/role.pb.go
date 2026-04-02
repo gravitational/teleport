@@ -611,7 +611,7 @@ func (x *SSHPortForwarding) GetRemote() bool {
 type CreateHostUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// CreateHostUserMode specifies how the host user should be created.
-	CreateHostUserMode CreateHostUserMode `protobuf:"varint,1,opt,name=create_host_user_mode,json=createHostUserMode,proto3,enum=teleport.scopes.access.v1.CreateHostUserMode" json:"create_host_user_mode,omitempty"`
+	CreateHostUserMode *CreateHostUserMode `protobuf:"varint,1,opt,name=create_host_user_mode,json=createHostUserMode,proto3,enum=teleport.scopes.access.v1.CreateHostUserMode,oneof" json:"create_host_user_mode,omitempty"`
 	// HostSudoers is a list of entries to include in a users sudoer file
 	HostSudoers []string `protobuf:"bytes,2,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
 	// HostGroups is a list of host groups to add the user to.
@@ -653,8 +653,8 @@ func (*CreateHostUser) Descriptor() ([]byte, []int) {
 }
 
 func (x *CreateHostUser) GetCreateHostUserMode() CreateHostUserMode {
-	if x != nil {
-		return x.CreateHostUserMode
+	if x != nil && x.CreateHostUserMode != nil {
+		return *x.CreateHostUserMode
 	}
 	return CreateHostUserMode_CREATE_HOST_USER_MODE_UNSPECIFIED
 }
@@ -728,14 +728,15 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05local\x18\x01 \x01(\bH\x00R\x05local\x88\x01\x01\x12\x1b\n" +
 	"\x06remote\x18\x02 \x01(\bH\x01R\x06remote\x88\x01\x01B\b\n" +
 	"\x06_localB\t\n" +
-	"\a_remote\"\xe9\x01\n" +
-	"\x0eCreateHostUser\x12`\n" +
-	"\x15create_host_user_mode\x18\x01 \x01(\x0e2-.teleport.scopes.access.v1.CreateHostUserModeR\x12createHostUserMode\x12!\n" +
+	"\a_remote\"\x88\x02\n" +
+	"\x0eCreateHostUser\x12e\n" +
+	"\x15create_host_user_mode\x18\x01 \x01(\x0e2-.teleport.scopes.access.v1.CreateHostUserModeH\x00R\x12createHostUserMode\x88\x01\x01\x12!\n" +
 	"\fhost_sudoers\x18\x02 \x03(\tR\vhostSudoers\x12\x1f\n" +
 	"\vhost_groups\x18\x03 \x03(\tR\n" +
 	"hostGroups\x12\"\n" +
 	"\n" +
-	"host_shell\x18\x04 \x01(\tH\x00R\thostShell\x88\x01\x01B\r\n" +
+	"host_shell\x18\x04 \x01(\tH\x01R\thostShell\x88\x01\x01B\x18\n" +
+	"\x16_create_host_user_modeB\r\n" +
 	"\v_host_shell*\xa3\x01\n" +
 	"\x12CreateHostUserMode\x12%\n" +
 	"!CREATE_HOST_USER_MODE_UNSPECIFIED\x10\x00\x12\x1d\n" +
