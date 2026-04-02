@@ -5137,7 +5137,11 @@ func parseGRVConfig(data []byte, cfg *webclient.WebConfig) error {
 	// Response is type application/javascript, we need to strip off the variable name
 	// and the semicolon at the end, then we are left with json like object.
 	str := strings.ReplaceAll(string(data), "var GRV_CONFIG = ", "")
-	err := json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	if len(str) > 0 {
+		// Remove the training semi-colon
+		str = str[:len(str)-1]
+	}
+	err := json.Unmarshal([]byte(str), &cfg)
 	return err
 }
 
