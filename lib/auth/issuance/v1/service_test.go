@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -256,6 +257,39 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 	require.NoError(t, err)
 	sshPubKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
 
+	scopedBot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-bot",
+			},
+			Scope: testScope,
+			Spec:  &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: testScope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  scopedBot.Metadata.Name,
+				BotScope: testScope,
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "test-role", Scope: testScope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	req := &issuancev1pb.IssueScopedBotCertsRequest{
 		SshPublicKey: sshPubKeyBytes,
 		TlsPublicKey: tlsPubKeyPEM,
@@ -266,7 +300,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 		_, err := adminClient.IssuanceClient().IssueScopedBotCerts(ctx, req)
 		require.True(
 			t,
-			trace.IsBadParameter(err),
+			trace.IsAccessDenied(err),
 			"expected bad parameter, got: %v", err,
 		)
 	})
@@ -304,7 +338,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 		_, err = scopedUserClient.IssuanceClient().IssueScopedBotCerts(ctx, req)
 		require.True(
 			t,
-			trace.IsBadParameter(err),
+			trace.IsAccessDenied(err),
 			"expected bad parameter, got: %v", err,
 		)
 	})
@@ -326,6 +360,39 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 		botClient, err := srv.NewClient(
 			authtest.TestBot(unscopedBot.Metadata.Name, true),
 		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = botClient.Close() })
+
+		_, err = botClient.IssuanceClient().IssueScopedBotCerts(ctx, req)
+		require.True(
+			t,
+			trace.IsAccessDenied(err),
+			"expected access denied, got: %v", err,
+		)
+	})
+
+	t.Run("scoped bot without BotInternal", func(t *testing.T) {
+		botClient, err := srv.NewClient(
+			authtest.TestScopedBot(scopedBot.Metadata.Name, testScope, false),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = botClient.Close() })
+
+		_, err = botClient.IssuanceClient().IssueScopedBotCerts(ctx, req)
+		require.True(
+			t,
+			trace.IsAccessDenied(err),
+			"expected access denied, got: %v", err,
+		)
+	})
+
+	t.Run("scoped bot with DisallowReissue", func(t *testing.T) {
+		ident := authtest.TestScopedBot(scopedBot.Metadata.Name, testScope, true)
+		lu := ident.I.(authz.LocalUser)
+		lu.Identity.DisallowReissue = true
+		ident.I = lu
+
+		botClient, err := srv.NewClient(ident)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = botClient.Close() })
 

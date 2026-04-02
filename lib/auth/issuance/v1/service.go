@@ -38,8 +38,6 @@ type authServer interface {
 	GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error)
 }
 
-type cache interface{}
-
 // Service implements teleport.issuance.v1.IssuanceService
 //
 // It provides methods for issuing certificates and other types of credential.
@@ -61,14 +59,12 @@ type cache interface{}
 type Service struct {
 	issuancev1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
-	cache            cache
 	authServer       authServer
 }
 
 // ServiceConfig is the config for instantiating a [Service].
 type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
-	Cache            cache
 	AuthServer       authServer
 }
 
@@ -77,15 +73,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	switch {
 	case cfg.ScopedAuthorizer == nil:
 		return nil, trace.BadParameter("scoped authorizer is required")
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("auth server is required")
 	}
 
 	return &Service{
 		scopedAuthorizer: cfg.ScopedAuthorizer,
-		cache:            cfg.Cache,
 		authServer:       cfg.AuthServer,
 	}, nil
 }
@@ -113,12 +106,12 @@ func (s *Service) IssueScopedBotCerts(
 
 	// Perform any basic validity checks
 	ttl := req.Ttl.AsDuration()
-	if ttl <= 0 {
-		return nil, trace.BadParameter(
-			"ttl: must be provided and positive",
-		)
-	}
-	if ttl > defaults.MaxRenewableCertTTL {
+	switch {
+	case req.Ttl == nil:
+		return nil, trace.BadParameter("ttl: must be specified")
+	case req.Ttl.AsDuration() <= 0:
+		return nil, trace.BadParameter("ttl: must be greater than zero")
+	case req.Ttl.AsDuration() >= defaults.MaxRenewableCertTTL:
 		return nil, trace.BadParameter(
 			"ttl: value (%s) exceeds maximum permitted value (%s)",
 			ttl,
@@ -131,7 +124,7 @@ func (s *Service) IssueScopedBotCerts(
 	currentIdentity := authCtx.Identity.GetIdentity()
 	switch {
 	case !currentIdentity.IsBot():
-		return nil, trace.BadParameter(
+		return nil, trace.AccessDenied(
 			"IssueScopedBotCerts can only be invoked by bots",
 		)
 	case !currentIdentity.BotInternal:
@@ -181,8 +174,6 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	}
 
-	// Now we've performed
-
 	checker, err := s.authServer.AccessCheckerForScope(
 		ctx, requestedScope, user, []types.ResourceAccessID{},
 	)
@@ -221,7 +212,7 @@ func (s *Service) IssueScopedBotCerts(
 	// auth server struct.
 	certs, err := s.authServer.GenerateUserCerts(ctx, certReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "generating user certs")
 	}
 
 	// We do not return any CAs. The Bot already has an internal identity and

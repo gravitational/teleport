@@ -755,6 +755,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			Usage:                    identity.AcceptedUsage,
 			Scope:                    identity.Scope,
 			BotInternal:              id.Identity.BotInternal,
+			DisallowReissue:          id.Identity.DisallowReissue,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
