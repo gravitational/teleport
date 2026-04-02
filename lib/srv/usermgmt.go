@@ -41,7 +41,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/session/host"
 )
 
 type HostUsersOpt = func(hostUsers *HostUserManagement)

@@ -106,13 +106,28 @@ func Handlers() map[string]Handler {
 // Some resources might not implement all functions (e.g. some resources are
 // read-only, they cannot be created).
 type Handler struct {
-	getHandler    func(context.Context, *authclient.Client, services.Ref, GetOpts) (Collection, error)
+	// getHandler powers "tctl get {kind}" and its variants "{kind}/{name}" and
+	// "{kind}/{subkind}/{name}".
+	// Make sure to inspect the services.Ref and implement as many modes as
+	// appropriate (typically, List and Get).
+	getHandler func(context.Context, *authclient.Client, services.Ref, GetOpts) (Collection, error)
+	// createHandler powers "tctl create", "tctl create -f" and "tctl edit"
+	// (fallback from a nil updateHandler).
 	createHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error
+	// updateHandler powers "tctl edit".
 	updateHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error
+	// deleteHandler powers "tctl rm".
 	deleteHandler func(context.Context, *authclient.Client, services.Ref) error
-	singleton     bool
-	mfaRequired   bool
-	description   string
+	// singleton informs tctl whether the resource is a single instance, instead
+	// of a collection of resources.
+	// Examples of singleton resources include cluster_auth_preference and
+	// session_recording_config.
+	singleton bool
+	// mfaRequired informs "tctl get" whether the resource is read sensitive
+	// (exposes secrets or otherwise requires admin MFA protection).
+	mfaRequired bool
+	// description is a resource description used by "tctl list-kinds".
+	description string
 }
 
 // GetOpts contains the possible options when getting a resource.
@@ -160,7 +175,7 @@ func (r *Handler) Update(ctx context.Context, clt *authclient.Client, raw servic
 // in Teleport.
 func (r *Handler) Delete(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
 	if r.deleteHandler == nil {
-		return trace.NotImplemented("resource does not support 'tctl delete'")
+		return trace.NotImplemented("resource does not support 'tctl rm'")
 	}
 	if ref.Name == "" && !r.singleton {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")

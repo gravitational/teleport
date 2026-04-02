@@ -1,8 +1,10 @@
 packages:
   - web/packages/*
   - e/web/*
+  - e2e
 onlyBuiltDependencies:
   - '@swc/core'
+  - cbor-extract
   - electron
   - esbuild
   - msw

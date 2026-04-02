@@ -23,7 +23,6 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -79,41 +78,38 @@ func (c PromptConfig) GetWebauthnOrigin() string {
 	return c.ProxyAddress
 }
 
-// MFAGoroutineResponse is an MFA goroutine response.
-type MFAGoroutineResponse struct {
-	Resp *proto.MFAAuthenticateResponse
-	Err  error
-}
-
-// HandleMFAPromptGoroutines spawns MFA prompt goroutines and returns the first successful response,
+// HandleConcurrentMFAPrompts handles concurrently prompting for MFA with all
+// of the given promptFuncs and returning the the first successful response,
 // terminating error, or an aggregated error if they all fail.
-func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context.Context, *sync.WaitGroup, chan<- MFAGoroutineResponse)) (*proto.MFAAuthenticateResponse, error) {
-	respC := make(chan MFAGoroutineResponse, 3)
-	var wg sync.WaitGroup
-
+func HandleConcurrentMFAPrompts(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptFuncs ...mfa.PromptFunc) (*proto.MFAAuthenticateResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		cancel()
-		// wait for all goroutines to complete to ensure there are no leaks.
-		wg.Wait()
-	}()
+	defer cancel()
 
-	startGoroutines(ctx, &wg, respC)
+	type promptResponse struct {
+		resp *proto.MFAAuthenticateResponse
+		err  error
+	}
 
-	// Wait for spawned goroutines above to complete, then close respC.
-	go func() {
-		wg.Wait()
-		close(respC)
-	}()
+	respC := make(chan promptResponse, len(promptFuncs))
+	for _, prompt := range promptFuncs {
+		go func() {
+			resp, err := prompt(ctx, chal)
+			respC <- promptResponse{
+				resp: resp,
+				err:  err,
+			}
+		}()
+	}
 
 	// Wait for a successful response, or terminating error, from the spawned goroutines.
-	// The goroutine above will ensure the response channel is closed once all goroutines are done.
 	var errs []error
-	for resp := range respC {
-		switch err := resp.Err; {
+	for range len(promptFuncs) {
+		resp := <-respC
+
+		switch err := resp.err; {
 		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
 			// Surface error immediately.
-			return nil, trace.Wrap(resp.Err)
+			return nil, trace.Wrap(resp.err)
 		case err != nil:
 			slog.DebugContext(ctx, "MFA goroutine failed, continuing so other goroutines have a chance to succeed", "error", err)
 			errs = append(errs, err)
@@ -122,10 +118,15 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 			continue
 		}
 
+		if resp.resp == nil {
+			continue
+		}
+
 		// Return successful response.
-		return resp.Resp, nil
+		return resp.resp, nil
 	}
 
+	// If the prompts result in no response or error, it's a no-op.
 	if len(errs) == 0 {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}

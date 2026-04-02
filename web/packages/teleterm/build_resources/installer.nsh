@@ -25,6 +25,22 @@
   LangString forAll ${LANG_ENGLISH} "Anyone who uses this computer (&all users). Includes VNet support."
 !macroend
 
+# For fresh silent installs with no explicit mode, align with selectPerMachineByDefault: true.
+# This is a workaround for https://github.com/electron-userland/electron-builder/issues/9644.
+# Remove once fixed.
+# Using customInit instead of customInstallMode, since this hook is always invoked (customInstallMode runs only in
+# non-silent mode).
+!macro customInit
+  ${If} ${Silent}
+  ${AndIfNot} ${isUpdated}
+  ${AndIfNot} ${isForAllUsers}
+  ${AndIfNot} ${isForCurrentUser}
+  ${AndIf} $hasPerMachineInstallation == "0"
+  ${AndIf} $hasPerUserInstallation == "0"
+    StrCpy $hasPerMachineInstallation "1"
+  ${EndIf}
+!macroend
+
 # Migration from one-click -> assisted multi-user.
 # In non-silent updater runs without an explicit mode flag (now set by NsisDualModeUpdater), elevated launches can wait
 # on the install-mode page without a visible UI. To prevent this, enforce a mode when the installer is run with --update but no install mode flag is provided.

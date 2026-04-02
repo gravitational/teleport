@@ -330,7 +330,7 @@ func (p *playwrightRunner) outputWriters() (io.Writer, io.Writer) {
 	var showReportCmd string
 	if p.config.isCI {
 		if pr := ciPRNumber(); pr > 0 {
-			showReportCmd = fmt.Sprintf("e2e/run.sh --report %d", pr)
+			showReportCmd = ciReportCmd(pr)
 		}
 	}
 	if showReportCmd == "" {

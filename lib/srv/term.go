@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -56,7 +57,7 @@ type Terminal interface {
 	AddParty(delta int)
 
 	// Run will run the terminal.
-	Run(ctx context.Context) error
+	Run(ctx context.Context, errorWriter io.Writer) error
 
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
@@ -145,6 +146,11 @@ type terminal struct {
 	// the process running in the shell should be killed.
 	terminateFD *os.File
 
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
+
 	pid int
 
 	termType string
@@ -187,32 +193,55 @@ func (t *terminal) AddParty(delta int) {
 	t.wg.Add(delta)
 }
 
-// Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
+// Run will run the terminal. If the shell fails to start due to a [teleport.RemoteCommandFailure],
+// the error will be written to the given error writer.
+func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	var err error
-	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.serverContext)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Pass the TTY to the child since a terminal is attached.
 	// we need the lock here to protect from concurrent calls to Close()
 	t.mu.Lock()
 	tty := t.tty
 	t.mu.Unlock()
 
-	// Intentionally passing a nil value instead of the PTY. The child
-	// process does not need the PTY, but for compatibility purposes the
-	// first ExtraFiles is left for the PTY descriptor.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, nil)
-	// Pass the TTY to the child since a terminal is attached.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, tty)
+	var err error
+	// Create the command that will actually execute.
+	t.cmd, err = ConfigureCommand(t.serverContext, tty)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrW.Close()
+	t.cmd.Stderr = stderrW
+
+	t.waitForOutputStreams.Go(func() {
+		defer stderrR.Close()
+
+		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+			DecisionContext: t.serverContext.Identity.AccessPermit.DecisionContext,
+			Login:           t.serverContext.Identity.Login,
+		})
+		if err != nil {
+			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := io.WriteString(errorWriter, childErr); err != nil {
+			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
+		}
+	})
 
 	// Close the TTY before returning to ensure that our half of the pipe is
 	// closed. This ensures that reading from the PTY will unblock when the
@@ -239,6 +268,7 @@ func (t *terminal) Run(ctx context.Context) error {
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.cmd.Wait()
+	t.waitForOutputStreams.Wait()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -551,7 +581,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 	return b.w.Write(p)
 }
 
-func (t *remoteTerminal) Run(ctx context.Context) error {
+func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 

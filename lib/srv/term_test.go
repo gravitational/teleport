@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -108,7 +109,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	ctx := context.Background()
 
 	// Run sh
-	err = term.Run(ctx)
+	err = term.Run(ctx, io.Discard)
 	require.NoError(t, err)
 
 	errors := make(chan error)

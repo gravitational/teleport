@@ -1516,6 +1516,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -2597,6 +2598,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -4963,6 +4965,132 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 		out[i] = tc.kind
 	}
 	return out
+}
+
+// TestWatchEvents_ScopedIdentity verifies that scoped identities can use the
+// WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
+// and that watching with secrets is correctly denied.
+func TestWatchEvents_ScopedIdentity(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
+
+	// Create a scoped role with an empty allow block (no permissions).
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "empty-role",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test/scope"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-watcher")
+	require.NoError(t, err)
+
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "empty-role", Scope: "/test/scope"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(user.GetName(), "/test/scope"))
+	require.NoError(t, err)
+	defer scopedClient.Close()
+
+	t.Run("ca without secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: false,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
+	t.Run("ca with secrets", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "ca-watch-secrets",
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: true,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
+
+	t.Run("unauthorized kind", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "user-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindUser,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case <-watcher.Events():
+			t.Fatal("expected watcher to close with error, got event")
+		case <-watcher.Done():
+			require.True(t, trace.IsAccessDenied(watcher.Error()),
+				"expected access denied, got: %v", watcher.Error())
+		}
+	})
 }
 
 // TestEventsClusterConfig test cluster configuration

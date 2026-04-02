@@ -50,14 +50,15 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/sshutils/x11forward"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -468,8 +469,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -696,7 +697,7 @@ func (s *Server) Serve() {
 
 	// Once the client and server connections are established, ensure we forward
 	// x11 channel requests from the server to the client.
-	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+	if err := x11forward.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to forward x11 channel requests", "error", err)
 		return
 	}
