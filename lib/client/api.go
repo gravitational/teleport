@@ -874,7 +874,8 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		// errors returned explicitly, as described below by codingllama.
 		isClientCredentialsHaveExpired := errors.Is(err, client.ErrClientCredentialsHaveExpired)
 		isTLSExpiredCertificate := strings.Contains(err.Error(), "tls: expired certificate")
-		return isClientCredentialsHaveExpired || isTLSExpiredCertificate
+		isSSHCertExpired := strings.Contains(err.Error(), "ssh: cert has expired")
+		return isClientCredentialsHaveExpired || isTLSExpiredCertificate || isSSHCertExpired
 	}
 
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
