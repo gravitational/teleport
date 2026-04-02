@@ -247,34 +247,38 @@ func onBeamsDelete(cf *CLIConf) error {
 	}
 
 	tc.AllowHeadless = true
-	idMap := make(map[string]string)
-	for _, input := range cf.BeamIDs {
-		beamID, err := resolveBeamID(cf.Context, tc, input)
+
+	idMap := make(map[string]string, len(cf.BeamIDs))
+	return trace.Wrap(client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		idMap[input] = beamID
-	}
+		defer clusterClient.Close()
 
-	for _, input := range cf.BeamIDs {
-		if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-			clusterClient, err := tc.ConnectToCluster(cf.Context)
+		beamSvc := clusterClient.AuthClient.BeamsServiceClient()
+		for _, input := range cf.BeamIDs {
+			beam, err := beamSvc.GetBeam(cf.Context, getBeamRequest(input))
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			defer clusterClient.Close()
-
-			_, err = clusterClient.AuthClient.BeamsServiceClient().DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
-				BeamId: idMap[input],
-			})
-			return trace.Wrap(err)
-		}); err != nil {
-			return trace.Wrap(err)
+			if beam.GetMetadata().GetName() == "" {
+				return trace.NotFound("beam %q has no ID", input)
+			}
+			idMap[input] = beam.GetMetadata().GetName()
 		}
 
-		fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", input)
-	}
-	return nil
+		for _, input := range cf.BeamIDs {
+			_, err = beamSvc.DeleteBeam(cf.Context, &beamsv1.DeleteBeamRequest{
+				BeamId: idMap[input],
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprintf(cf.Stdout(), "Deleted beam %q\n", input)
+		}
+		return nil
+	}))
 }
 
 func onBeamsPublish(cf *CLIConf) error {
