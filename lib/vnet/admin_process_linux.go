@@ -14,35 +14,34 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows && !linux
-
 package vnet
 
 import (
 	"context"
-	"runtime"
 
 	"github.com/gravitational/trace"
 )
 
-// ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
-var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-func (*UserProcess) runPlatformUserProcess(_ context.Context) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-type platformOSConfigState struct{}
-
-func platformConfigureOS(_ context.Context, _ *osConfig, _ *platformOSConfigState) error {
-	return trace.Wrap(ErrVnetNotImplemented)
-}
-
-// Satisfy unused linter.
-var (
-	_ = newOSConfigurator
-	_ = (*osConfigurator).runOSConfigurationLoop
-	_ = runCommand
-	_ = newNetworkStackConfig
-	_ = (*networkStack).addDNSAddress
+const (
+	tunInterfaceName = "TeleportVNet"
 )
+
+// LinuxAdminProcessConfig configures RunLinuxAdminProcess.
+type LinuxAdminProcessConfig struct {
+	// ClientApplicationServiceSocketPath is the unix socket path of the client
+	// application service.
+	ClientApplicationServiceSocketPath string
+}
+
+// RunLinuxAdminProcess must run as root.
+func RunLinuxAdminProcess(ctx context.Context, config LinuxAdminProcessConfig) error {
+	log.InfoContext(ctx, "Running VNet admin process")
+
+	clt, err := newUnixClientApplicationServiceClient(ctx, config.ClientApplicationServiceSocketPath)
+	if err != nil {
+		return trace.Wrap(err, "creating user process client")
+	}
+	defer clt.close()
+
+	return runUnixAdminProcess(ctx, clt, tunInterfaceName)
+}

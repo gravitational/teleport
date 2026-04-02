@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows && !linux
-
 package common
 
 import (
@@ -24,29 +22,45 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
-// Satisfy unused linter.
-var _ = newVnetClientApplication
+// vnetAdminSetupCommand is the fallback command ran as root when there is no
+// available vnet daemon on system.
+type vnetAdminSetupCommand struct {
+	*kingpin.CmdClause
+	cfg vnet.LinuxAdminProcessConfig
+}
 
-func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
+func (c *vnetAdminSetupCommand) run(clf *CLIConf) error {
+	return trace.Wrap(vnet.RunLinuxAdminProcess(clf.Context, c.cfg))
+}
+
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
+	cmd := &vnetAdminSetupCommand{
+		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
+	}
+	cmd.Flag("socket", "Client application service unix socket path.").Required().StringVar(&cmd.cfg.ClientApplicationServiceSocketPath)
+	return cmd
+}
+
+// The vnet-service command is only supported on windows.
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
 }
 
-func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
-	return vnetCommandNotSupported{}
-}
-
+// The vnet-install-service command is only supported on windows.
 func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
 }
 
+// The vnet-uninstall-service command is only supported on windows.
 func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
 }
 
-//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
 func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
-	return trace.NotImplemented("diagnostics are not implemented yet on this platform")
+	return trace.NotImplemented("diagnostics not implemented")
 }
