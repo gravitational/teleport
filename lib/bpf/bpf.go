@@ -54,6 +54,28 @@ type sessionHandler interface {
 	endSession(auditSessionID uint32) error
 }
 
+// LostEventTracker allows callers to easily check the number of lost
+// events since the last check.
+type LostEventTracker struct {
+	oldLostCmd  uint64
+	oldLostDisk uint64
+	oldLostNet  uint64
+}
+
+// NewlyLost returns the number of lost command, disk, and network
+// events respectively since the it was called last.
+func (l *LostEventTracker) NewlyLost(lostCmd, lostDisk, lostNet uint64) (uint64, uint64, uint64) {
+	newLostCmd := lostCmd - l.oldLostCmd
+	newLostDisk := lostDisk - l.oldLostDisk
+	newLostNet := lostNet - l.oldLostNet
+
+	l.oldLostCmd = lostCmd
+	l.oldLostDisk = lostDisk
+	l.oldLostNet = lostNet
+
+	return newLostCmd, newLostDisk, newLostNet
+}
+
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*servicecfg.BPFConfig
@@ -83,6 +105,8 @@ type Service struct {
 	// conn is a BPF programs that hooks connect.
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
+
+	eventTracker LostEventTracker
 
 	wg sync.WaitGroup
 }
@@ -294,8 +318,8 @@ func (s *Service) Enabled() bool {
 	return true
 }
 
-// LostEvents returns the number of lost events for command, disk,
-// and network events respectively.
+// LostEvents returns the total number of lost events for command, disk,
+// and network events respectively since the service was started.
 func (s *Service) LostEvents() (uint64, uint64, uint64) {
 	return s.exec.lostCounter.Count(), s.open.lostCounter.Count(), s.conn.lostCounter.Count()
 }
@@ -322,32 +346,18 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 func (s *Service) logLostEvents() {
 	ticker := time.NewTicker(5 * time.Second)
 
-	// keep track of how many events were lost previously so we only
-	// log when events have been lost in the last 5 seconds
-	oldLostCmd := uint64(0)
-	oldLostDisk := uint64(0)
-	oldLostNet := uint64(0)
 	for {
 		select {
 		case <-ticker.C:
-			lostCmd, lostDisk, lostNet := s.LostEvents()
-
-			newLostCmd := lostCmd - oldLostCmd
-			newLostDisk := lostDisk - oldLostDisk
-			newLostNet := lostNet - oldLostNet
-
-			oldLostCmd = lostCmd
-			oldLostDisk = lostDisk
-			oldLostNet = lostNet
-
-			if newLostCmd > 0 {
-				logger.WarnContext(s.closeContext, "Lost some command events in the last 5 seconds", "lost_events", newLostCmd)
+			lostCmd, lostDisk, lostNet := s.eventTracker.NewlyLost(s.LostEvents())
+			if lostCmd > 0 {
+				logger.WarnContext(s.closeContext, "Lost some command events in the last 5 seconds", "lost_events", lostCmd)
 			}
-			if newLostDisk > 0 {
-				logger.WarnContext(s.closeContext, "Lost some disk events in the last 5 seconds", "lost_events", newLostDisk)
+			if lostDisk > 0 {
+				logger.WarnContext(s.closeContext, "Lost some disk events in the last 5 seconds", "lost_events", lostDisk)
 			}
-			if newLostNet > 0 {
-				logger.WarnContext(s.closeContext, "Lost some network events in the last 5 seconds", "lost_events", newLostNet)
+			if lostNet > 0 {
+				logger.WarnContext(s.closeContext, "Lost some network events in the last 5 seconds", "lost_events", lostNet)
 			}
 		case <-s.closeContext.Done():
 			return

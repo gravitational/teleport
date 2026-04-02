@@ -44,8 +44,8 @@ type BPF interface {
 	// Enabled returns whether enhanced recording is active.
 	Enabled() bool
 
-	// LostEvents returns the number of lost events for command, disk,
-	// and network events respectively.
+	// LostEvents returns the total number of lost events for command, disk,
+	// and network events respectively since the service was started.
 	LostEvents() (uint64, uint64, uint64)
 }
 

@@ -162,6 +162,8 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 // Filesystem Hierarchy Standard (FHS) or are specified in their
 // respective man pages.
 func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	var eventTracker bpf.LostEventTracker
+
 	// Create a temp dir and files for commands to use.
 	cmdDir := t.TempDir()
 	tempFilePath := filepath.Join(cmdDir, "file")
@@ -522,6 +524,18 @@ eval $(echo %s | base64 --decode)`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			runBPFTestCase(t, srv, bpfSrv, tt, false)
+
+			lostCmd, lostDisk, lostNet := eventTracker.NewlyLost(bpfSrv.LostEvents())
+			if lostCmd > 0 {
+				// TODO(capnspacehook): make error once new trace points are in place
+				t.Logf("error: %d command events were lost", lostCmd)
+			}
+			if lostDisk > 0 {
+				t.Errorf("error: %d disk events were lost", lostDisk)
+			}
+			if lostNet > 0 {
+				t.Errorf("error: %d network events were lost", lostNet)
+			}
 		})
 	}
 }
@@ -635,18 +649,6 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 				t.Errorf("error: disk event for program %q opening library %q was expected %d more times", cmd, lib.value, lib.count)
 			}
 		}
-	}
-
-	// TODO(capnspacehook): make errors once new trace points are in place
-	lostCmd, lostDisk, lostNet := bpfSrv.LostEvents()
-	if lostCmd > 0 {
-		t.Logf("error: %d command events were lost", lostCmd)
-	}
-	if lostDisk > 0 {
-		t.Logf("error: %d disk events were lost", lostDisk)
-	}
-	if lostNet > 0 {
-		t.Logf("error: %d network events were lost", lostNet)
 	}
 }
 
