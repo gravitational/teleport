@@ -157,6 +157,10 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Errorf("expected ClientHello message but received %T", msg)
 	}
 
+	if hello.ScreenSpec == nil {
+		return trace.Errorf("received ClientHello with missing screen spec")
+	}
+
 	// Enrich with username
 	hello.Username = s.login
 
