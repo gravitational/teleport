@@ -22,11 +22,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	mfav1impl "github.com/gravitational/teleport/lib/auth/mfa/mfav1"
+	mfav2impl "github.com/gravitational/teleport/lib/auth/mfa/mfav2"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
@@ -47,8 +47,8 @@ func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
-		&mfav1.CompleteBrowserMFAChallengeRequest{
-			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+		&mfav2.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav2.BrowserMFAResponse{
 				RequestId: requestID,
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -72,8 +72,8 @@ func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
-		&mfav1.CompleteBrowserMFAChallengeRequest{
-			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+		&mfav2.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav2.BrowserMFAResponse{
 				RequestId: "test-request-id",
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -96,20 +96,20 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name          string
-		req           *mfav1.CompleteBrowserMFAChallengeRequest
+		req           *mfav2.CompleteBrowserMFAChallengeRequest
 		expectedError string
 	}{
 		{
 			name: "missing BrowserMfaResponse",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+			req: &mfav2.CompleteBrowserMFAChallengeRequest{
 				BrowserMfaResponse: nil,
 			},
 			expectedError: "missing browser_mfa_response in request",
 		},
 		{
 			name: "missing RequestId",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{
-				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+			req: &mfav2.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav2.BrowserMFAResponse{
 					RequestId: "",
 					WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 						Type: "public-key",
@@ -120,8 +120,8 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "missing WebauthnResponse",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{
-				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+			req: &mfav2.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav2.BrowserMFAResponse{
 					RequestId:        "test-request-id",
 					WebauthnResponse: nil,
 				},
@@ -130,9 +130,9 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "non-existent RequestId",
-			req: func() *mfav1.CompleteBrowserMFAChallengeRequest {
-				return &mfav1.CompleteBrowserMFAChallengeRequest{
-					BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+			req: func() *mfav2.CompleteBrowserMFAChallengeRequest {
+				return &mfav2.CompleteBrowserMFAChallengeRequest{
+					BrowserMfaResponse: &mfav2.BrowserMFAResponse{
 						RequestId: "non-existent-request-id",
 						WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 							Type: "public-key",
@@ -157,7 +157,7 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 	}
 }
 
-func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav1impl.Service, *eventstest.MockRecorderEmitter, types.User) {
+func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav2impl.Service, *eventstest.MockRecorderEmitter, types.User) {
 	t.Helper()
 
 	emitter := &eventstest.MockRecorderEmitter{}
@@ -194,7 +194,7 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
 	require.NoError(t, err)
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
 		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 	})

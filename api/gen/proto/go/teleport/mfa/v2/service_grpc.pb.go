@@ -16,9 +16,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/mfa/v1/service.proto
+// source: teleport/mfa/v2/service.proto
 
-package mfav1
+package mfav2
 
 import (
 	context "context"
@@ -33,7 +33,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MFAService_CompleteBrowserMFAChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/CompleteBrowserMFAChallenge"
+	MFAService_CompleteBrowserMFAChallenge_FullMethodName = "/teleport.mfa.v2.MFAService/CompleteBrowserMFAChallenge"
 )
 
 // MFAServiceClient is the client API for MFAService service.
@@ -73,7 +73,7 @@ func (c *mFAServiceClient) CompleteBrowserMFAChallenge(ctx context.Context, in *
 }
 
 // MFAServiceServer is the server API for MFAService service.
-// All implementations should embed UnimplementedMFAServiceServer
+// All implementations must embed UnimplementedMFAServiceServer
 // for forward compatibility.
 //
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
@@ -88,9 +88,10 @@ type MFAServiceServer interface {
 	// response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
 	// More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
 	CompleteBrowserMFAChallenge(context.Context, *CompleteBrowserMFAChallengeRequest) (*CompleteBrowserMFAChallengeResponse, error)
+	mustEmbedUnimplementedMFAServiceServer()
 }
 
-// UnimplementedMFAServiceServer should be embedded to have
+// UnimplementedMFAServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -100,7 +101,8 @@ type UnimplementedMFAServiceServer struct{}
 func (UnimplementedMFAServiceServer) CompleteBrowserMFAChallenge(context.Context, *CompleteBrowserMFAChallengeRequest) (*CompleteBrowserMFAChallengeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteBrowserMFAChallenge not implemented")
 }
-func (UnimplementedMFAServiceServer) testEmbeddedByValue() {}
+func (UnimplementedMFAServiceServer) mustEmbedUnimplementedMFAServiceServer() {}
+func (UnimplementedMFAServiceServer) testEmbeddedByValue()                    {}
 
 // UnsafeMFAServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to MFAServiceServer will
@@ -142,7 +144,7 @@ func _MFAService_CompleteBrowserMFAChallenge_Handler(srv interface{}, ctx contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var MFAService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.mfa.v1.MFAService",
+	ServiceName: "teleport.mfa.v2.MFAService",
 	HandlerType: (*MFAServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -151,5 +153,5 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/mfa/v1/service.proto",
+	Metadata: "teleport/mfa/v2/service.proto",
 }

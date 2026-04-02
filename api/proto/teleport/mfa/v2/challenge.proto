@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package teleport.mfa.v1;
+package teleport.mfa.v2;
 
 import "teleport/legacy/types/webauthn/webauthn.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2";
 
 // BrowserMFAChallenge contains browser MFA request details to perform a browser MFA check.
 message BrowserMFAChallenge {

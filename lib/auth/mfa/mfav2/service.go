@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 )
@@ -45,7 +45,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
-	mfav1.UnimplementedMFAServiceServer
+	mfav2.UnimplementedMFAServiceServer
 
 	logger     *slog.Logger
 	authorizer authz.Authorizer
@@ -71,7 +71,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 // CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
 // it via an encrypted response parameter in a callback URL for the browser to
 // return to tsh.
-func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav2.CompleteBrowserMFAChallengeRequest) (*mfav2.CompleteBrowserMFAChallengeResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +102,7 @@ func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.Co
 		return nil, trace.Wrap(err)
 	}
 
-	return &mfav1.CompleteBrowserMFAChallengeResponse{
+	return &mfav2.CompleteBrowserMFAChallengeResponse{
 		TshRedirectUrl: tshRedirectURL,
 	}, nil
 }

@@ -31,7 +31,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { BrowserMFAChallenge } from "../../../mfa/v1/challenge_pb";
+import { BrowserMFAChallenge } from "../../../mfa/v2/challenge_pb";
 import { PortRange } from "./app_pb";
 import { RouteToApp } from "./app_pb";
 /**
@@ -294,7 +294,7 @@ export interface PromptMFARequest {
     /**
      * BrowserMFAChallenge is sent when browser-based MFA is supported.
      *
-     * @generated from protobuf field: teleport.mfa.v1.BrowserMFAChallenge browser = 8;
+     * @generated from protobuf field: teleport.mfa.v2.BrowserMFAChallenge browser = 8;
      */
     browser?: BrowserMFAChallenge;
 }
@@ -1172,7 +1172,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                 case /* bool per_session_mfa */ 7:
                     message.perSessionMfa = reader.bool();
                     break;
-                case /* teleport.mfa.v1.BrowserMFAChallenge browser */ 8:
+                case /* teleport.mfa.v2.BrowserMFAChallenge browser */ 8:
                     message.browser = BrowserMFAChallenge.internalBinaryRead(reader, reader.uint32(), options, message.browser);
                     break;
                 default:
@@ -1205,7 +1205,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* bool per_session_mfa = 7; */
         if (message.perSessionMfa !== false)
             writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
-        /* teleport.mfa.v1.BrowserMFAChallenge browser = 8; */
+        /* teleport.mfa.v2.BrowserMFAChallenge browser = 8; */
         if (message.browser)
             BrowserMFAChallenge.internalBinaryWrite(message.browser, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;

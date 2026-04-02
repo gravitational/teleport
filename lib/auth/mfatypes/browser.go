@@ -21,7 +21,7 @@ import (
 )
 
 // BeginBrowserMFAChallengeParams contains parameters for lib/auth/Server.BeginBrowserMFAChallenge. This struct is in this
-// package in order to avoid a circular dependency between lib/auth and lib/auth/mfa/mfav1.
+// package in order to avoid a circular dependency between lib/auth and lib/auth/mfa/mfav2.
 type BeginBrowserMFAChallengeParams struct {
 	User                     string
 	BrowserMFATSHRedirectURL string

@@ -90,7 +90,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -5488,8 +5488,8 @@ func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServic
 }
 
 // MFAServiceClient returns a client for the MFA service.
-func (c *Client) MFAServiceClient() mfav1.MFAServiceClient {
-	return mfav1.NewMFAServiceClient(c.conn)
+func (c *Client) MFAServiceClient() mfav2.MFAServiceClient {
+	return mfav2.NewMFAServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

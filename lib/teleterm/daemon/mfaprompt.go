@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -92,9 +93,9 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}
 	}
 
-	var browserMfaChallenge *mfav1.BrowserMFAChallenge
+	var browserMfaChallenge *mfav2.BrowserMFAChallenge
 	if promptBrowserMfa {
-		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
+		browserMfaChallenge = &mfav2.BrowserMFAChallenge{
 			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}
