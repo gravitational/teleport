@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
@@ -545,7 +546,7 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
+	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID), "start_index", startIndex)
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
@@ -561,6 +562,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
+
 	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
@@ -585,7 +587,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()
 
-		firstEvent := true
+		startEventSent := false
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
@@ -602,9 +604,20 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				return
 			}
 
-			if firstEvent {
-				sessionStartCh <- event
-				firstEvent = false
+			// The `start` event is not strictly guaranteed to be the first in the stream,
+			// so we check the type of each event until we find one of the session start types
+			// For context Kubernetes sessions can have a `SessionJoin` event before the `SessionStart` event
+			// See: [sess.go](https://github.com/gravitational/teleport/blob/master/lib/kube/proxy/sess.go)
+			if !startEventSent {
+				switch event.(type) {
+				case *apievents.SessionStart,
+					*apievents.DatabaseSessionStart,
+					*apievents.AppSessionStart,
+					*apievents.WindowsDesktopSessionStart:
+					l.log.DebugContext(ctx, "Found session start event", "session_id", string(sessionID), "event_type", fmt.Sprintf("%T", event))
+					sessionStartCh <- event
+					startEventSent = true
+				}
 			}
 
 			if event.GetIndex() >= startIndex {
