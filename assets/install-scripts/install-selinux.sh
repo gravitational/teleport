@@ -15,17 +15,18 @@
 
 # This script installs the SELinux module for Teleport SSH.
 
-set -uo pipefail
+set -o errexit
+set -o nounset
+set -o pipefail
 
 if [[ ! -f "/usr/share/selinux/devel/Makefile" ]]; then
     echo "SELinux Makefile not found, please install selinux-policy-devel"
     exit 1
 fi
 
-TELEPORT="$(which teleport 2>/dev/null || echo -n UNKNOWN)"
+TELEPORT="teleport"
+TELEPORT_SET=false
 TELEPORT_ARGS=""
-
-set -e
 
 USAGE="Usage: $0 [-c config_path] [-t teleport_path]"
 
@@ -36,6 +37,11 @@ while getopts "c:t:h" opt; do
             ;;
         t)
             TELEPORT="${OPTARG}"
+            TELEPORT_SET=true
+            if ! type -p "${TELEPORT}" >/dev/null; then
+                echo "Teleport binary ${TELEPORT} not found"
+                exit 1
+            fi
             ;;
         h)
             echo "${USAGE}"
@@ -48,7 +54,7 @@ while getopts "c:t:h" opt; do
     esac
 done
 
-if [[ "${TELEPORT}" == "UNKNOWN" ]]; then
+if ! ${TELEPORT_SET} && ! type -p teleport >/dev/null; then
     echo "Teleport binary not found, please specify with -t"
     exit 1
 fi
@@ -59,11 +65,13 @@ trap 'rm -rf "${WORK_DIR}"' EXIT INT TERM
 
 "${TELEPORT}" selinux-ssh module-source > "${WORK_DIR}/teleport_ssh.te"
 "${TELEPORT}" selinux-ssh file-contexts ${TELEPORT_ARGS} > "${WORK_DIR}/teleport_ssh.fc"
-DIRS=$(${TELEPORT} selinux-ssh dirs ${TELEPORT_ARGS})
+DIRS=$("${TELEPORT}" selinux-ssh dirs ${TELEPORT_ARGS})
 
 # Build SELinux module
 pushd "${WORK_DIR}"
 make -f /usr/share/selinux/devel/Makefile teleport_ssh.pp
+# Install the module first so that the file contexts are available so
+# we can label the directories and binary correctly.
 semodule -i teleport_ssh.pp
 popd
 
@@ -75,6 +83,4 @@ while IFS= read -r dir; do
 done <<< "$DIRS"
 
 # Label the Teleport binary
-restorecon -v "${TELEPORT}"
-
-rm -rf "${WORK_DIR}"
+restorecon -v "$(which ${TELEPORT})"
