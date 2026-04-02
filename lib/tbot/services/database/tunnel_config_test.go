@@ -127,6 +127,19 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:   "tcp://0.0.0.0:3621",
+					Service:  "service",
+					Database: "database",
+					Username: "username",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

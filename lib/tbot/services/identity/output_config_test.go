@@ -109,6 +109,52 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
+		{
+			name:   "scoped valid",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+				}
+			},
+			want: &OutputConfig{
+				Destination:   destination.NewMemory(),
+				SSHConfigMode: SSHConfigModeOn,
+			},
+		},
+		{
+			name:   "scoped with roles",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Roles:       []string{"access"},
+				}
+			},
+			wantErr: "roles: not supported with scopes",
+		},
+		{
+			name:   "scoped with allow_reissue",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:  destination.NewMemory(),
+					AllowReissue: true,
+				}
+			},
+			wantErr: "allow_reissue: not supported with scopes",
+		},
+		{
+			name:   "scoped with cluster",
+			scoped: true,
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination: destination.NewMemory(),
+					Cluster:     "leaf.example.com",
+				}
+			},
+			wantErr: "cluster: not supported with scopes",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

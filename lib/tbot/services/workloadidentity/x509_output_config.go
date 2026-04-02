@@ -70,7 +70,10 @@ func (o *X509OutputConfig) GetDestination() destination.Destination {
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *X509OutputConfig) CheckAndSetDefaults() error {
+func (o *X509OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", X509OutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
