@@ -796,6 +796,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Reader:           cfg.ScopedAccess,
 		AccessListEvents: as.Cache,
 		AccessListReader: as.Cache,
+		Tracer:           cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
