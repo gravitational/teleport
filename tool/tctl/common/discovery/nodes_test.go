@@ -265,14 +265,8 @@ func TestCombineOutput(t *testing.T) {
 }
 
 // TestMatchUserTasks verifies that matchUserTasks correctly populates the
-// UserTask field on instances by looking up their cloud instance ID in the
-// DiscoverEC2 instance maps carried by user tasks. It checks that:
-//   - known issue types resolve to human-readable titles (from embedded descriptions)
-//   - unknown issue types fall back to the raw issue type string
-//   - instances not mentioned in any task remain unchanged
-//   - instances without cloud metadata are safely skipped
-//   - tasks with nil specs are safely skipped
-//   - multiple tasks can match different instances independently
+// UserTaskID and UserTaskIssue fields on instances by looking up their
+// cloud instance ID in the DiscoverEC2 instance maps carried by user tasks.
 func TestMatchUserTasks(t *testing.T) {
 	makeTask := func(t *testing.T, issueType string, instanceIDs ...string) *usertasksv1.UserTask {
 		t.Helper()
@@ -303,37 +297,22 @@ func TestMatchUserTasks(t *testing.T) {
 		desc      string
 		instances []instanceInfo
 		tasks     []*usertasksv1.UserTask
-		wantTasks map[string]string // instance ID -> expected UserTask value
+		want      []instanceInfo
 	}{
 		{
-			desc: "known issue type populates title from description",
+			desc: "matched instance gets task ID and issue type",
 			instances: []instanceInfo{
 				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
 			},
 			tasks: []*usertasksv1.UserTask{
 				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
 			},
-			wantTasks: map[string]string{
-				"i-aaa": "SSM Script failure",
-			},
-		},
-		{
-			desc: "unknown issue type falls back to raw issue type string",
-			instances: []instanceInfo{
-				{AWS: &awsInfo{InstanceID: "i-bbb", AccountID: "111"}},
-			},
-			tasks: []*usertasksv1.UserTask{
-				{Spec: &usertasksv1.UserTaskSpec{
-					IssueType: "some-unknown-issue",
-					DiscoverEc2: &usertasksv1.DiscoverEC2{
-						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-							"i-bbb": {InstanceId: "i-bbb"},
-						},
-					},
-				}},
-			},
-			wantTasks: map[string]string{
-				"i-bbb": "some-unknown-issue",
+			want: []instanceInfo{
+				{
+					AWS:           &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
+					UserTaskID:    "07cccc8f-bb13-5f93-99d8-0ba51ca1da92",
+					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
+				},
 			},
 		},
 		{
@@ -344,8 +323,8 @@ func TestMatchUserTasks(t *testing.T) {
 			tasks: []*usertasksv1.UserTask{
 				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
 			},
-			wantTasks: map[string]string{
-				"i-other": "",
+			want: []instanceInfo{
+				{AWS: &awsInfo{InstanceID: "i-other", AccountID: "111"}},
 			},
 		},
 		{
@@ -356,7 +335,9 @@ func TestMatchUserTasks(t *testing.T) {
 			tasks: []*usertasksv1.UserTask{
 				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
 			},
-			wantTasks: map[string]string{},
+			want: []instanceInfo{
+				{Region: "us-east-1"},
+			},
 		},
 		{
 			desc: "task with nil spec is skipped",
@@ -366,8 +347,8 @@ func TestMatchUserTasks(t *testing.T) {
 			tasks: []*usertasksv1.UserTask{
 				{Spec: nil},
 			},
-			wantTasks: map[string]string{
-				"i-aaa": "",
+			want: []instanceInfo{
+				{AWS: &awsInfo{InstanceID: "i-aaa", AccountID: "111"}},
 			},
 		},
 		{
@@ -381,30 +362,31 @@ func TestMatchUserTasks(t *testing.T) {
 				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure, "i-aaa"),
 				makeTask(t, usertaskstypes.AutoDiscoverEC2IssueSSMInstanceNotRegistered, "i-bbb"),
 			},
-			wantTasks: map[string]string{
-				"i-aaa": "SSM Script failure",
-				"i-bbb": "SSM Agent not registered",
-				"i-ccc": "",
+			want: []instanceInfo{
+				{
+					AWS:           &awsInfo{InstanceID: "i-aaa", AccountID: "111"},
+					UserTaskID:    "07cccc8f-bb13-5f93-99d8-0ba51ca1da92",
+					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMScriptFailure,
+				},
+				{
+					AWS:           &awsInfo{InstanceID: "i-bbb", AccountID: "111"},
+					UserTaskID:    "a08ac321-89b2-57bc-a10e-f2cf7e6e5901",
+					UserTaskIssue: usertaskstypes.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
+				},
+				{AWS: &awsInfo{InstanceID: "i-ccc", AccountID: "111"}},
 			},
 		},
 		{
 			desc:      "empty tasks and instances",
 			instances: nil,
 			tasks:     nil,
-			wantTasks: map[string]string{},
+			want:      nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			matchUserTasks(tt.instances, tt.tasks)
-			for _, inst := range tt.instances {
-				ci := inst.cloud()
-				if ci == nil {
-					continue
-				}
-				want := tt.wantTasks[ci.cloudInstanceID()]
-				require.Equal(t, want, inst.UserTask, "instance %s", ci.cloudInstanceID())
-			}
+			require.Equal(t, tt.want, tt.instances)
 		})
 	}
 }
@@ -414,7 +396,7 @@ func TestFilterFailures(t *testing.T) {
 	instances := []instanceInfo{
 		{AWS: &awsInfo{InstanceID: "i-ok"}, IsOnline: true, RunResult: &runResult{ExitCode: 0}},
 		{AWS: &awsInfo{InstanceID: "i-fail"}, RunResult: &runResult{ExitCode: 1, IsFailure: true, Time: now}},
-		{AWS: &awsInfo{InstanceID: "i-task"}, UserTask: "Some issue", IsOnline: true},
+		{AWS: &awsInfo{InstanceID: "i-task"}, UserTaskID: "some-task-id", UserTaskIssue: "ec2-ssm-script-failure", IsOnline: true},
 		{AWS: &awsInfo{InstanceID: "i-online"}, IsOnline: true},
 	}
 	got := filterFailures(instances)
