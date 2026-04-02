@@ -21,6 +21,7 @@ package connection
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -37,6 +38,13 @@ type ProxyPinger interface {
 // ProxyPong is the response of a proxy ping request.
 type ProxyPong struct {
 	*webclient.PingResponse
+
+	// ServerTime is the timestamp returned by the server. Will be zero if no
+	// timestamp could be extracted from the pong response.
+	ServerTime time.Time
+
+	// ClientTime is the timestamp at which the ping was received.
+	ClientTime time.Time
 
 	// StaticProxyAddress is the user-configured proxy address when the user
 	// requests their given address is preferred over pinging the proxy or auth
@@ -70,4 +78,18 @@ func (p *ProxyPong) ProxySSHAddr() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return net.JoinHostPort(host, port), nil
+}
+
+// ClockDriftEstimate attempts to return an estimate of clock drift relative to
+// the server's reported time. If no server time is available, returns
+// (0, false). Client time is subtracted from server time, so positive values
+// indicate the server is ahead of the client; negative values indicate the
+// client is ahead of the server. Note that the HTTP Date header only provides
+// 1 second precision, so assume +/- 1 second accuracy at best.
+func (p *ProxyPong) ClockDriftEstimate() (time.Duration, bool) {
+	if p.ServerTime.IsZero() {
+		return 0, false
+	}
+
+	return p.ServerTime.Sub(p.ClientTime), true
 }
