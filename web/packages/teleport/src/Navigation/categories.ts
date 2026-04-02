@@ -55,14 +55,8 @@ export const NAVIGATION_CATEGORIES = [
 ];
 
 // BEAMS_NAVIGATION_CATEGORIES is a re-ordered list of categories for the beams
-// onboarding experience. Some categories (such as MachineWorkloadId) won't
-// have features, but keeping them here for consistency.
-export const BEAMS_NAVIGATION_CATEGORIES = [
+// onboarding experience.
+export const BEAMS_NAVIGATION_CATEGORIES: typeof NAVIGATION_CATEGORIES = [
   NavigationCategory.Beams,
-  NavigationCategory.ZeroTrustAccess,
-  NavigationCategory.MachineWorkloadId,
-  NavigationCategory.IdentityGovernance,
-  NavigationCategory.IdentitySecurity,
-  NavigationCategory.Audit,
-  NavigationCategory.AddNew,
+  ...NAVIGATION_CATEGORIES.filter(c => c !== NavigationCategory.Beams),
 ];
