@@ -8272,7 +8272,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutput(r ReaderWithDeadline, substr string) error {
+func waitForOutput(r io.Reader, substr string) error {
 	const timeout = 10 * time.Second
 	timeoutCh := time.After(timeout)
 
@@ -8285,9 +8285,6 @@ func waitForOutput(r ReaderWithDeadline, substr string) error {
 		default:
 		}
 
-		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return trace.Wrap(err)
-		}
 		n, err := r.Read(out)
 		outStr := removeSpace(string(out[:n]))
 
@@ -8306,18 +8303,6 @@ func waitForOutput(r ReaderWithDeadline, substr string) error {
 		}
 		prev = outStr
 	}
-}
-
-type ReaderWithDeadline interface {
-	io.Reader
-	SetReadDeadline(time.Time) error
-}
-
-type ReadWriterWithDeadline interface {
-	io.Reader
-	io.Writer
-	SetReadDeadline(time.Time) error
-	SetWriteDeadline(time.Time) error
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -9183,7 +9168,7 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
+func validateTerminal(t *testing.T, term io.ReadWriter) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
