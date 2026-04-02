@@ -10,9 +10,7 @@ Cloud licenses are signed by [sales-center local development CA](https://github.
 
 ## Generating test license
 
-To generate a new test license, use the generator program in:
-
-https://github.com/gravitational/ops/tree/master/license
+To generate a new test license, use the generator program in the [Cloud](https://github.com/gravitational/cloud) repository: [generate_teleport_license](https://github.com/gravitational/cloud/tree/master/scripts/generate_teleport_license).
 
 ## Testing Team plan features
 
