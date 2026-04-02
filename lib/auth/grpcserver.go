@@ -676,7 +676,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		if errors.Is(services.ErrScopedIdentity, err) {
+		if errors.Is(err, services.ErrScopedIdentity) {
 			scopedAuth, err := g.scopedAuthenticate(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2900,6 +2900,10 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			// MFA is not supported for scoped identities, so return false
+			return &authpb.IsMFARequiredResponse{Required: false}, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	resp, err := actx.IsMFARequired(ctx, req)
