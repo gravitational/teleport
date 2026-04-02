@@ -630,6 +630,19 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
 		server.WithClock[*server.EC2Instances](s.clock),
+		server.WithPerInstanceHookFn(func(instanceGroups []*server.EC2Instances) {
+			for _, group := range instanceGroups {
+				s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
+					discoveryConfigName: group.DiscoveryConfigName,
+					integration:         group.Integration,
+				}, len(group.Instances))
+
+				if err := s.handleEC2Instances(group); err != nil {
+					s.logHandleInstancesErr(err)
+				}
+			}
+		}),
+		server.WithPostFetchHookFn[*server.EC2Instances](s.ec2WatcherIterationEnded),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -668,12 +681,6 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 }
 
 func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2Instances]) {
-	if len(fetchers) == 0 {
-		return
-	}
-
-	s.submitFetchEvent(types.CloudAWS, types.AWSMatcherEC2)
-
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
 		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
@@ -685,16 +692,26 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 			return resourceGroup, include
 		},
 	)
-	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
-		return g.discoveryConfigName, true
-	})
-	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-	s.awsEC2ResourcesStatus.reset()
-	for _, g := range awsResultGroups {
-		s.awsEC2ResourcesStatus.iterationStarted(g)
-	}
+	syncStarted := s.clock.Now()
+	s.awsEC2ResourcesStatus.iterationStarted(awsResultGroups, syncStarted)
 
 	s.awsEC2Tasks.reset()
+
+	discoveryConfigs := s.awsEC2ResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+	if len(fetchers) > 0 {
+		s.submitFetchEvent(types.CloudAWS, types.AWSMatcherEC2)
+	}
+}
+
+func (s *Server) ec2WatcherIterationEnded() {
+	syncEnded := s.clock.Now()
+	s.awsEC2ResourcesStatus.iterationEnded(syncEnded)
+
+	discoveryConfigs := s.awsEC2ResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+	s.upsertTasksForAWSEC2FailedEnrollments()
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
@@ -1348,7 +1365,7 @@ func (s *Server) findUnrotatedEC2Nodes(ctx context.Context) ([]types.Server, err
 	return found, nil
 }
 
-func (s *Server) handleEC2Discovery() {
+func (s *Server) startAWSServerDiscovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
@@ -1356,27 +1373,6 @@ func (s *Server) handleEC2Discovery() {
 
 	go s.ec2Watcher.Run()
 	go s.watchCARotation(s.ctx)
-
-	for {
-		select {
-		case instances := <-s.ec2Watcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
-
-			s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
-				discoveryConfigName: instances.DiscoveryConfigName,
-				integration:         instances.Integration,
-			}, len(instances.Instances))
-
-			if err := s.handleEC2Instances(instances); err != nil {
-				s.logHandleInstancesErr(err)
-			}
-
-			s.upsertTasksForAWSEC2FailedEnrollments()
-		case <-s.ctx.Done():
-			s.ec2Watcher.Stop()
-			return
-		}
-	}
 }
 
 func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallFailure, error) {
@@ -1471,7 +1467,7 @@ func (s *Server) startAzureServerDiscovery() {
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
 			}
-			sm = newStatusMap(types.AzureMatcherVM)
+			sm = newStatusMap(types.AzureMatcherVM, runStart)
 			vmTasks = &azureVMTasks{}
 
 			// Initialize the status map with an entry per fetcher (discoveryConfig + integration).
@@ -1487,6 +1483,7 @@ func (s *Server) startAzureServerDiscovery() {
 				}
 				sm.add(fgKey, make(map[statusType]int))
 			}
+			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
 			s.Log.DebugContext(s.ctx, "Processing instances", "groups", len(instanceGroups))
@@ -1501,6 +1498,7 @@ func (s *Server) startAzureServerDiscovery() {
 			}
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
+			sm.syncEnded(s.clock.Now())
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
@@ -1775,7 +1773,7 @@ func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
 // Start starts the discovery service.
 func (s *Server) Start() error {
 	if s.ec2Watcher != nil {
-		go s.handleEC2Discovery()
+		go s.startAWSServerDiscovery()
 		go s.reconciler.run(s.ctx)
 	}
 	go s.startAzureServerDiscovery()
