@@ -17,9 +17,10 @@
 package discovery
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/asciitable"
 )
@@ -28,37 +29,31 @@ import (
 // If instances is empty, it prints a short message and returns.
 func renderText(w io.Writer, instances []instanceInfo) error {
 	if len(instances) == 0 {
-		_, err := fmt.Fprintln(w, "No instances found.")
-		return err
+		_, _ = fmt.Fprintln(w, "No instances found.")
+		return nil
 	}
 
-	t := asciitable.MakeTable([]string{"Instance ID", "Region", "Account", "Online", "Time", "Result", "SSM Output"})
+	columns := []string{"Cloud", "Account", "Region", "Instance ID", "Time", "Status", "Details"}
+	rows := make([][]string, 0, len(instances))
 	for _, inst := range instances {
-		online := "no"
-		if inst.IsOnline {
-			online = "yes"
+		ci := inst.cloud()
+		var cloudName, instanceID, accountID string
+		if ci != nil {
+			cloudName = ci.cloudName()
+			instanceID = ci.cloudInstanceID()
+			accountID = ci.cloudAccountID()
 		}
-		t.AddRow([]string{
-			inst.InstanceID,
+		rows = append(rows, []string{
+			cloudName,
+			accountID,
 			inst.Region,
-			inst.AccountID,
-			online,
+			instanceID,
 			inst.lastTime(),
-			inst.result(),
-			inst.ssmOutput(),
+			inst.status(),
+			inst.details(),
 		})
 	}
+	t := asciitable.MakeTableWithTruncatedColumn(columns, rows, "Details")
 	_, err := t.AsBuffer().WriteTo(w)
-	return err
-}
-
-// renderJSON encodes instances as JSON with 2-space indentation.
-// A nil slice is encoded as an empty array [] rather than null.
-func renderJSON(w io.Writer, instances []instanceInfo) error {
-	if instances == nil {
-		instances = []instanceInfo{}
-	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(instances)
+	return trace.Wrap(err)
 }

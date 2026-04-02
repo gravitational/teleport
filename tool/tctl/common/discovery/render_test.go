@@ -18,7 +18,6 @@ package discovery
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -38,14 +37,13 @@ func TestRenderText(t *testing.T) {
 `,
 		},
 		{
-			desc: "SSM failure",
+			desc: "run failure",
 			instances: []instanceInfo{
 				{
-					InstanceID: "i-ssm001",
-					Region:     "us-east-1",
-					AccountID:  "111111111111",
-					IsOnline:   false,
-					SSMResult: &ssmResult{
+					AWS:      &awsInfo{InstanceID: "i-ssm001", AccountID: "111111111111"},
+					Region:   "us-east-1",
+					IsOnline: false,
+					RunResult: &runResult{
 						ExitCode:  1,
 						Output:    "install script failed",
 						Time:      time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
@@ -53,63 +51,59 @@ func TestRenderText(t *testing.T) {
 					},
 				},
 			},
-			want: `Instance ID Region    Account      Online Time                 Result SSM Output              
------------ --------- ------------ ------ -------------------- ------ ----------------------- 
-i-ssm001    us-east-1 111111111111 no     2026-01-15T10:00:00Z exit=1 "install script failed" 
+			want: `Cloud Account       Region    Instance ID Time          Status        Details 
+----- ------------- --------- ----------- ------------- ------------- ------- 
+AWS   1111111111... us-east-1 i-ssm001    2026-01-15... Failed (ex... Scri... 
 `,
 		},
 		{
-			desc: "online instance with no SSM result",
+			desc: "online instance with no run result",
 			instances: []instanceInfo{
 				{
-					InstanceID: "i-ok001",
-					Region:     "eu-west-1",
-					AccountID:  "222222222222",
-					IsOnline:   true,
-					Expiry:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+					AWS:      &awsInfo{InstanceID: "i-ok001", AccountID: "222222222222"},
+					Region:   "eu-west-1",
+					IsOnline: true,
+					Expiry:   time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
 				},
 			},
-			want: `Instance ID Region    Account      Online Time                 Result SSM Output 
------------ --------- ------------ ------ -------------------- ------ ---------- 
-i-ok001     eu-west-1 222222222222 yes    2026-01-15T11:00:00Z                   
+			want: `Cloud Account       Region    Instance ID Time          Status Details 
+----- ------------- --------- ----------- ------------- ------ ------- 
+AWS   2222222222... eu-west-1 i-ok001     2026-01-15... Online         
 `,
 		},
 		{
-			desc: "SSM success with output",
+			desc: "success with output",
 			instances: []instanceInfo{
 				{
-					InstanceID: "i-ok002",
-					Region:     "us-west-2",
-					AccountID:  "444444444444",
-					IsOnline:   true,
-					SSMResult: &ssmResult{
+					AWS:      &awsInfo{InstanceID: "i-ok002", AccountID: "444444444444"},
+					Region:   "us-west-2",
+					IsOnline: true,
+					RunResult: &runResult{
 						ExitCode: 0,
 						Output:   "installed successfully",
 						Time:     time.Date(2026, 1, 15, 11, 30, 0, 0, time.UTC),
 					},
 				},
 			},
-			want: `Instance ID Region    Account      Online Time                 Result SSM Output               
------------ --------- ------------ ------ -------------------- ------ ------------------------ 
-i-ok002     us-west-2 444444444444 yes    2026-01-15T11:30:00Z exit=0 "installed successfully" 
+			want: `Cloud Account       Region    Instance ID Time          Status Details        
+----- ------------- --------- ----------- ------------- ------ -------------- 
+AWS   4444444444... us-west-2 i-ok002     2026-01-15... Online Script outp... 
 `,
 		},
 		{
 			desc: "mixed instances",
 			instances: []instanceInfo{
 				{
-					InstanceID: "i-ok001",
-					Region:     "eu-west-1",
-					AccountID:  "222222222222",
-					IsOnline:   true,
-					Expiry:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
+					AWS:      &awsInfo{InstanceID: "i-ok001", AccountID: "222222222222"},
+					Region:   "eu-west-1",
+					IsOnline: true,
+					Expiry:   time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
 				},
 				{
-					InstanceID: "i-ssm001",
-					Region:     "us-east-1",
-					AccountID:  "111111111111",
-					IsOnline:   false,
-					SSMResult: &ssmResult{
+					AWS:      &awsInfo{InstanceID: "i-ssm001", AccountID: "111111111111"},
+					Region:   "us-east-1",
+					IsOnline: false,
+					RunResult: &runResult{
 						ExitCode:  1,
 						Output:    "install script failed",
 						Time:      time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
@@ -117,12 +111,11 @@ i-ok002     us-west-2 444444444444 yes    2026-01-15T11:30:00Z exit=0 "installed
 					},
 				},
 				{
-					InstanceID: "i-ssm002",
-					Region:     "ap-south-1",
-					AccountID:  "333333333333",
-					IsOnline:   true,
-					Expiry:     time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
-					SSMResult: &ssmResult{
+					AWS:      &awsInfo{InstanceID: "i-ssm002", AccountID: "333333333333"},
+					Region:   "ap-south-1",
+					IsOnline: true,
+					Expiry:   time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+					RunResult: &runResult{
 						ExitCode:  2,
 						Output:    "permission denied",
 						Time:      time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
@@ -130,11 +123,11 @@ i-ok002     us-west-2 444444444444 yes    2026-01-15T11:30:00Z exit=0 "installed
 					},
 				},
 			},
-			want: `Instance ID Region     Account      Online Time                 Result SSM Output              
------------ ---------- ------------ ------ -------------------- ------ ----------------------- 
-i-ok001     eu-west-1  222222222222 yes    2026-01-15T11:00:00Z                                
-i-ssm001    us-east-1  111111111111 no     2026-01-15T10:00:00Z exit=1 "install script failed" 
-i-ssm002    ap-south-1 333333333333 yes    2026-01-15T12:00:00Z exit=2 "permission denied"     
+			want: `Cloud Account       Region     Instance ID Time          Status        Details 
+----- ------------- ---------- ----------- ------------- ------------- ------- 
+AWS   2222222222... eu-west-1  i-ok001     2026-01-15... Online                
+AWS   1111111111... us-east-1  i-ssm001    2026-01-15... Failed (ex... Scr...  
+AWS   3333333333... ap-south-1 i-ssm002    2026-01-15... Online, ex... Scr...  
 `,
 		},
 	}
@@ -143,74 +136,6 @@ i-ssm002    ap-south-1 333333333333 yes    2026-01-15T12:00:00Z exit=2 "permissi
 			var buf bytes.Buffer
 			require.NoError(t, renderText(&buf, tt.instances))
 			require.Equal(t, tt.want, buf.String())
-		})
-	}
-}
-
-func TestRenderJSON(t *testing.T) {
-	tests := []struct {
-		desc      string
-		instances []instanceInfo
-		want      []instanceInfo
-	}{
-		{
-			desc: "round-trip preserves all fields",
-			instances: []instanceInfo{
-				{
-					InstanceID: "i-ssm001",
-					Region:     "us-east-1",
-					AccountID:  "111111111111",
-					IsOnline:   false,
-					SSMResult: &ssmResult{
-						ExitCode:  1,
-						Output:    "install script failed",
-						Time:      time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-						IsFailure: true,
-					},
-				},
-				{
-					InstanceID: "i-ok001",
-					Region:     "eu-west-1",
-					AccountID:  "222222222222",
-					IsOnline:   true,
-					Expiry:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
-				},
-			},
-			want: []instanceInfo{
-				{
-					InstanceID: "i-ssm001",
-					Region:     "us-east-1",
-					AccountID:  "111111111111",
-					SSMResult: &ssmResult{
-						ExitCode:  1,
-						Output:    "install script failed",
-						Time:      time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-						IsFailure: true,
-					},
-				},
-				{
-					InstanceID: "i-ok001",
-					Region:     "eu-west-1",
-					AccountID:  "222222222222",
-					IsOnline:   true,
-					Expiry:     time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
-				},
-			},
-		},
-		{
-			desc:      "nil produces empty JSON array",
-			instances: nil,
-			want:      []instanceInfo{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			var buf bytes.Buffer
-			require.NoError(t, renderJSON(&buf, tt.instances))
-
-			var got []instanceInfo
-			require.NoError(t, json.Unmarshal(buf.Bytes(), &got))
-			require.Equal(t, tt.want, got)
 		})
 	}
 }
