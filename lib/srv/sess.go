@@ -1321,17 +1321,7 @@ func (s *session) launch() {
 	}
 
 	s.logger.DebugContext(s.serverCtx, "Launching session.")
-	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
-
-	s.io.On()
-
-	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
-		s.logger.WarnContext(
-			s.serverCtx, "Failed to set tracker state.",
-			"error", err,
-			"state", types.SessionState_SessionStateRunning,
-		)
-	}
+	s.start()
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
@@ -1387,6 +1377,44 @@ func (s *session) launch() {
 			"error", err,
 		)
 	}()
+}
+
+// start the session IO, broadcast an update to participants, and update tracker state in that order.
+func (s *session) start() {
+	s.io.On()
+	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"error", err,
+			"state", types.SessionState_SessionStateRunning,
+		)
+	}
+}
+
+// pause the session IO, broadcast an update to participants, and update tracker state in that order.
+func (s *session) pause() {
+	s.io.Off()
+	s.BroadcastMessage("Session paused, Waiting for required participants...")
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"error", err,
+			"state", types.SessionState_SessionStatePending,
+		)
+	}
+}
+
+// resume the session IO, broadcast an update to participants, and update tracker state in that order.
+func (s *session) resume() {
+	s.io.On()
+	s.BroadcastMessage("Resuming session...")
+	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+		s.logger.WarnContext(
+			s.serverCtx, "Failed to set tracker state.",
+			"state", types.SessionState_SessionStateRunning,
+		)
+	}
 }
 
 // startInteractive starts a new interactive process (or a shell) in the
@@ -1756,22 +1784,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 		}
 
 		// pause session and wait for another party to resume
-		s.io.Off()
-		s.BroadcastMessage("Session paused, Waiting for required participants...")
-		if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
-			s.logger.WarnContext(
-				s.serverCtx, "Failed to set tracker state.",
-				"error", err,
-				"state", types.SessionState_SessionStatePending,
-			)
-		}
-
-		go func() {
-			if state := s.tracker.WaitForStateUpdate(types.SessionState_SessionStatePending); state == types.SessionState_SessionStateRunning {
-				s.BroadcastMessage("Resuming session...")
-				s.io.On()
-			}
-		}()
+		s.pause()
 	}
 
 	// If the leaving party was the last one in the session, start the lingerAndDie
@@ -2124,33 +2137,20 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			return trace.Wrap(err)
 		}
 
-		switch {
-		case canStart && !s.started.Load():
-			s.launch()
-
-			return nil
-		case canStart:
-			// If the session is already running, but the party is a moderator that leaved
-			// a session with onLeave=pause and then rejoined, we need to unpause the session.
-			// When the moderator leaved the session, the session was paused, and we spawn
-			// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
-			// before the session ends, we need to unpause the session by updating its state and
-			// the goroutine will unblock the s.io terminal.
-			// types.SessionState_SessionStatePending marks a session that is waiting for
-			// a moderator to rejoin.
-			if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
-				s.logger.WarnContext(
-					s.serverCtx, "Failed to set tracker state.",
-					"state", types.SessionState_SessionStateRunning,
-				)
-			}
-		default:
+		if !canStart {
 			const base = "Waiting for required participants..."
 			if s.displayParticipantRequirements {
 				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
 			} else {
 				s.BroadcastMessage(base)
 			}
+			return nil
+		}
+
+		if s.started.Load() {
+			s.resume()
+		} else {
+			s.launch()
 		}
 	}
 
