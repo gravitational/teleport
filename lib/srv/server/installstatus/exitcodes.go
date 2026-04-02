@@ -74,7 +74,7 @@ func (c ExitCode) String() string {
 			"Ensure this host can access your cluster and its certificate is trusted."
 	case JoinFailure:
 		return "Teleport was installed successfully but the agent " +
-			fmt.Sprintf("did not become ready within %d minutes. ", int(JoinFailureTimeout/time.Minute)) +
+			fmt.Sprintf("did not become ready within %v. ", JoinFailureTimeout) +
 			"Check standard error output for join diagnostics."
 	default:
 		return fmt.Sprintf(
