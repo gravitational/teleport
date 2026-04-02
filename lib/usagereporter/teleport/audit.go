@@ -186,7 +186,15 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			// for completeness.
 			UserKind: PrehogUserKindFromEventKind(e.UserKind),
 		}
+	case *apievents.LinuxDesktopSessionStart:
+		return &SessionStartEvent{
+			UserName:    e.User,
+			SessionType: string(types.LinuxDesktopSessionKind),
 
+			// Note: Unlikely for this to ever be a bot session, but included
+			// for completeness.
+			UserKind: PrehogUserKindFromEventKind(e.UserKind),
+		}
 	case *apievents.GithubConnectorCreate:
 		return &SSOCreateEvent{
 			ConnectorType: types.KindGithubConnector,

@@ -146,6 +146,8 @@ message UserActivityRecord {
   uint64 saml_idp_sessions = 24;
   // counter of session summaries accessed by this user per session type and resource name.
   repeated SessionSummariesAccessedRecord session_summaries_accessed = 25;
+  // counter of linux.desktop.session.start events
+  uint64 linux_desktop_sessions = 26;
 }
 
 // UserOrigin is the origin of a user account.

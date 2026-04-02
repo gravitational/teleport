@@ -3960,11 +3960,12 @@ func onListSessions(cf *CLIConf) error {
 	}
 
 	kinds := map[string]types.SessionKind{
-		"ssh":     types.SSHSessionKind,
-		"db":      types.DatabaseSessionKind,
-		"app":     types.AppSessionKind,
-		"desktop": types.WindowsDesktopSessionKind,
-		"k8s":     types.KubernetesSessionKind,
+		"ssh":          types.SSHSessionKind,
+		"db":           types.DatabaseSessionKind,
+		"app":          types.AppSessionKind,
+		"desktop":      types.WindowsDesktopSessionKind,
+		"linuxdesktop": types.LinuxDesktopSessionKind,
+		"k8s":          types.KubernetesSessionKind,
 		// tsh commands often use "kube" to mean kubernetes,
 		// so add an alias to make it more intuitive
 		"kube": types.KubernetesSessionKind,
@@ -4051,6 +4052,8 @@ func target(s types.SessionTracker) string {
 	case types.DatabaseSessionKind:
 		return s.GetDatabaseName()
 	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	case types.LinuxDesktopSessionKind:
 		return s.GetLogin() + "@" + s.GetDesktopName()
 	default:
 		return s.GetHostname()

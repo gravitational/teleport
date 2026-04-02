@@ -94,10 +94,10 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 	d := &desktopSessionAuditor{
 		clock: s.cfg.Clock,
 
-		sessionID:   "sessionID",
-		identity:    id,
-		windowsUser: "Administrator",
-		desktop:     desktop,
+		sessionID:      "sessionID",
+		identity:       id,
+		targetUser:     "Administrator",
+		windowsDesktop: desktop,
 
 		startTime:          startTime,
 		clusterName:        s.clusterName,
@@ -167,7 +167,7 @@ func TestSessionStartEvent(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			startEvent := audit.makeSessionStart(test.err)
+			startEvent := audit.makeWindowsSessionStart(test.err)
 			require.Empty(t, cmp.Diff(test.exp(), *startEvent))
 		})
 	}
@@ -178,7 +178,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	audit.clock.(*clockwork.FakeClock).Advance(30 * time.Second)
 
-	endEvent := audit.makeSessionEnd(true)
+	endEvent := audit.makeWindowsSessionEnd(true)
 
 	userMeta := id.GetUserMetadata()
 	userMeta.Login = "Administrator"
@@ -285,14 +285,14 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					LocalAddr:  id.LoginIP,
-					RemoteAddr: audit.desktop.GetAddr(),
+					RemoteAddr: audit.windowsDesktop.GetAddr(),
 					Protocol:   libevents.EventProtocolTDP,
 				},
 				Status:        statusFromErrCode(test.errCode),
-				DesktopAddr:   audit.desktop.GetAddr(),
+				DesktopAddr:   audit.windowsDesktop.GetAddr(),
 				DirectoryName: testDirName,
 				DirectoryID:   uint32(testDirectoryID),
-				DesktopName:   audit.desktop.GetName(),
+				DesktopName:   audit.windowsDesktop.GetName(),
 			}
 
 			expected := test.expected(baseEvent)
@@ -428,17 +428,17 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					LocalAddr:  id.LoginIP,
-					RemoteAddr: audit.desktop.GetAddr(),
+					RemoteAddr: audit.windowsDesktop.GetAddr(),
 					Protocol:   libevents.EventProtocolTDP,
 				},
 				Status:        statusFromErrCode(test.errCode),
-				DesktopAddr:   audit.desktop.GetAddr(),
+				DesktopAddr:   audit.windowsDesktop.GetAddr(),
 				DirectoryName: testDirName,
 				DirectoryID:   uint32(testDirectoryID),
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
-				DesktopName:   audit.desktop.GetName(),
+				DesktopName:   audit.windowsDesktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), readEvent))
@@ -573,17 +573,17 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					LocalAddr:  id.LoginIP,
-					RemoteAddr: audit.desktop.GetAddr(),
+					RemoteAddr: audit.windowsDesktop.GetAddr(),
 					Protocol:   libevents.EventProtocolTDP,
 				},
 				Status:        statusFromErrCode(test.errCode),
-				DesktopAddr:   audit.desktop.GetAddr(),
+				DesktopAddr:   audit.windowsDesktop.GetAddr(),
 				DirectoryName: testDirName,
 				DirectoryID:   uint32(testDirectoryID),
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
-				DesktopName:   audit.desktop.GetName(),
+				DesktopName:   audit.windowsDesktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), writeEvent))
@@ -635,7 +635,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  id.LoginIP,
-			RemoteAddr: audit.desktop.GetAddr(),
+			RemoteAddr: audit.windowsDesktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
 		Status: events.Status{
@@ -643,10 +643,10 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 			Error:       "audit cache exceeded maximum size",
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   audit.desktop.GetAddr(),
+		DesktopAddr:   audit.windowsDesktop.GetAddr(),
 		DirectoryName: testDirName,
 		DirectoryID:   uint32(testDirectoryID),
-		DesktopName:   audit.desktop.GetName(),
+		DesktopName:   audit.windowsDesktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, startEvent))
@@ -689,7 +689,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  id.LoginIP,
-			RemoteAddr: audit.desktop.GetAddr(),
+			RemoteAddr: audit.windowsDesktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
 		Status: events.Status{
@@ -697,13 +697,13 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 			Error:       "audit cache exceeded maximum size",
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   audit.desktop.GetAddr(),
+		DesktopAddr:   audit.windowsDesktop.GetAddr(),
 		DirectoryName: testDirName,
 		DirectoryID:   uint32(testDirectoryID),
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
-		DesktopName:   audit.desktop.GetName(),
+		DesktopName:   audit.windowsDesktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, readEvent))
@@ -743,7 +743,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			LocalAddr:  id.LoginIP,
-			RemoteAddr: audit.desktop.GetAddr(),
+			RemoteAddr: audit.windowsDesktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
 		Status: events.Status{
@@ -751,13 +751,13 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 			Error:       "audit cache exceeded maximum size",
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   audit.desktop.GetAddr(),
+		DesktopAddr:   audit.windowsDesktop.GetAddr(),
 		DirectoryName: testDirName,
 		DirectoryID:   uint32(testDirectoryID),
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
-		DesktopName:   audit.desktop.GetName(),
+		DesktopName:   audit.windowsDesktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, writeEvent))

@@ -249,6 +249,12 @@ export interface UserActivityRecord {
      * @generated from protobuf field: repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed = 25;
      */
     sessionSummariesAccessed: SessionSummariesAccessedRecord[];
+    /**
+     * counter of linux.desktop.session.start events
+     *
+     * @generated from protobuf field: uint64 linux_desktop_sessions = 26;
+     */
+    linuxDesktopSessions: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -832,7 +838,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 22, name: "access_lists_reviewed", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 23, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord }
+            { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord },
+            { no: 26, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -862,6 +869,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.accessListsGrants = 0n;
         message.samlIdpSessions = 0n;
         message.sessionSummariesAccessed = [];
+        message.linuxDesktopSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -945,6 +953,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed */ 25:
                     message.sessionSummariesAccessed.push(SessionSummariesAccessedRecord.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* uint64 linux_desktop_sessions */ 26:
+                    message.linuxDesktopSessions = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1033,6 +1044,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* repeated prehog.v1.SessionSummariesAccessedRecord session_summaries_accessed = 25; */
         for (let i = 0; i < message.sessionSummariesAccessed.length; i++)
             SessionSummariesAccessedRecord.internalBinaryWrite(message.sessionSummariesAccessed[i], writer.tag(25, WireType.LengthDelimited).fork(), options).join();
+        /* uint64 linux_desktop_sessions = 26; */
+        if (message.linuxDesktopSessions !== 0n)
+            writer.tag(26, WireType.Varint).uint64(message.linuxDesktopSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -349,11 +349,12 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	// at this point, we don't know whether we'll need to emit a session.end or a
-	// windows.desktop.session.end, but as soon as we see the session start we'll
-	// be able to start filling in the details
+	// at this point, we don't know whether we'll need to emit a session.end, a
+	// windows.desktop.session.end or a linux.desktop.session.end, but as soon
+	// as we see the session start we'll be able to start filling in the details
 	var sshSessionEnd events.SessionEnd
-	var desktopSessionEnd events.WindowsDesktopSessionEnd
+	var windowsDesktopSessionEnd events.WindowsDesktopSessionEnd
+	var linuxDesktopSessionEnd events.LinuxDesktopSessionEnd
 
 	// We use the streaming events API to search through the session events, because it works
 	// for both Desktop and SSH sessions
@@ -377,24 +378,38 @@ loop:
 
 			switch e := evt.(type) {
 			// Return if session end event already exists
-			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
+			case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.LinuxDesktopSessionEnd:
 				return nil
 
 			case *events.WindowsDesktopSessionStart:
 				startTime = e.Time
-				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
-				desktopSessionEnd.Code = DesktopSessionEndCode
-				desktopSessionEnd.ClusterName = e.ClusterName
-				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
-				desktopSessionEnd.Recorded = true
-				desktopSessionEnd.UserMetadata = e.UserMetadata
-				desktopSessionEnd.SessionMetadata = e.SessionMetadata
-				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
-				desktopSessionEnd.Domain = e.Domain
-				desktopSessionEnd.DesktopAddr = e.DesktopAddr
-				desktopSessionEnd.DesktopLabels = e.DesktopLabels
-				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+				windowsDesktopSessionEnd.Type = WindowsDesktopSessionEndEvent
+				windowsDesktopSessionEnd.Code = DesktopSessionEndCode
+				windowsDesktopSessionEnd.ClusterName = e.ClusterName
+				windowsDesktopSessionEnd.StartTime = e.Time
+				windowsDesktopSessionEnd.Participants = append(windowsDesktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
+				windowsDesktopSessionEnd.Recorded = true
+				windowsDesktopSessionEnd.UserMetadata = e.UserMetadata
+				windowsDesktopSessionEnd.SessionMetadata = e.SessionMetadata
+				windowsDesktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
+				windowsDesktopSessionEnd.Domain = e.Domain
+				windowsDesktopSessionEnd.DesktopAddr = e.DesktopAddr
+				windowsDesktopSessionEnd.DesktopLabels = e.DesktopLabels
+				windowsDesktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+
+			case *events.LinuxDesktopSessionStart:
+				startTime = e.Time
+				linuxDesktopSessionEnd.Type = LinuxDesktopSessionEndEvent
+				linuxDesktopSessionEnd.Code = LinuxDesktopSessionEndCode
+				linuxDesktopSessionEnd.ClusterName = e.ClusterName
+				linuxDesktopSessionEnd.StartTime = e.Time
+				linuxDesktopSessionEnd.Participants = append(linuxDesktopSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
+				linuxDesktopSessionEnd.Recorded = true
+				linuxDesktopSessionEnd.UserMetadata = e.UserMetadata
+				linuxDesktopSessionEnd.SessionMetadata = e.SessionMetadata
+				linuxDesktopSessionEnd.DesktopAddr = e.DesktopAddr
+				linuxDesktopSessionEnd.DesktopLabels = e.DesktopLabels
+				linuxDesktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
 
 			case *events.SessionStart:
 				sessionType = recordingmetadata.SessionTypeTTY
@@ -435,14 +450,17 @@ loop:
 
 	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
 	sshSessionEnd.EndTime = lastEvent.GetTime()
-	desktopSessionEnd.EndTime = lastEvent.GetTime()
+	windowsDesktopSessionEnd.EndTime = lastEvent.GetTime()
+	linuxDesktopSessionEnd.EndTime = lastEvent.GetTime()
 
 	var sessionEndEvent events.AuditEvent
 	switch {
 	case sshSessionEnd.Code != "":
 		sessionEndEvent = &sshSessionEnd
-	case desktopSessionEnd.Code != "":
-		sessionEndEvent = &desktopSessionEnd
+	case windowsDesktopSessionEnd.Code != "":
+		sessionEndEvent = &windowsDesktopSessionEnd
+	case linuxDesktopSessionEnd.Code != "":
+		sessionEndEvent = &linuxDesktopSessionEnd
 	default:
 		return trace.BadParameter("invalid session, could not find session start")
 	}

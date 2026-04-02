@@ -300,6 +300,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
 	case DesktopRecordingEvent:
 		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:

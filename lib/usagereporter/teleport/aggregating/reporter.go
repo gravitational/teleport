@@ -484,6 +484,8 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
 				userRecord(te.UserName, te.UserKind).DesktopSessions++
+			case string(types.LinuxDesktopSessionKind):
+				userRecord(te.UserName, te.UserKind).LinuxDesktopSessions++
 			case usagereporter.PortSSHSessionType:
 				userRecord(te.UserName, te.UserKind).SshPortV2Sessions++
 			case usagereporter.PortKubeSessionType:
