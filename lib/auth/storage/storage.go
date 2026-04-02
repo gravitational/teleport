@@ -297,7 +297,7 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 
 // ReadBoundKeypairItem reads an arbitrary key with the bound keypair prefix
 func (p *ProcessStorage) ReadBoundKeypairItem(ctx context.Context, name string) ([]byte, error) {
-	item, err := p.BackendStorage.Get(ctx, backend.NewKey(boundKeypairPrefix, name))
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(boundKeypairPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -310,7 +310,7 @@ func (p *ProcessStorage) WriteBoundKeypairItem(ctx context.Context, name string,
 		Key:   backend.NewKey(boundKeypairPrefix, name),
 		Value: data,
 	}
-	_, err := p.BackendStorage.Put(ctx, item)
+	_, err := p.stateStorage.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
