@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate/rdpstatetest"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
@@ -60,7 +61,7 @@ func TestFastPathPDU_UpdatesImage(t *testing.T) {
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 	// Draw a 4x2 white rectangle at (10, 20).
-	sendPDU(t, s, buildBitmapPDU(10, 20, 4, 2, rgb565White))
+	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(10, 20, 4, 2, rdpstatetest.RGB565White))
 
 	img := s.Image()
 	require.NotNil(t, img)
@@ -86,8 +87,8 @@ func TestFastPathPDU_MultipleBitmaps(t *testing.T) {
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 	// Red at row 0, blue at row 1.
-	sendPDU(t, s, buildBitmapPDU(0, 0, 4, 1, rgb565Red))
-	sendPDU(t, s, buildBitmapPDU(0, 1, 4, 1, rgb565Blue))
+	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 4, 1, rdpstatetest.RGB565Red))
+	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 1, 4, 1, rdpstatetest.RGB565Blue))
 
 	img := s.Image()
 	require.NotNil(t, img)
@@ -109,7 +110,7 @@ func TestFastPathPDU_AfterResize(t *testing.T) {
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
-	sendPDU(t, s, buildBitmapPDU(0, 0, 4, 1, rgb565White))
+	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 4, 1, rdpstatetest.RGB565White))
 
 	// Resize clears the framebuffer.
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 200, 200)))
@@ -127,7 +128,7 @@ func TestFastPathPDU_AfterResize(t *testing.T) {
 	require.Equal(t, uint32(0), a)
 
 	// New PDU after resize still works.
-	sendPDU(t, s, buildBitmapPDU(0, 0, 4, 1, rgb565White))
+	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 4, 1, rdpstatetest.RGB565White))
 	img = s.Image()
 	require.NotNil(t, img)
 
@@ -192,8 +193,8 @@ func TestCursorState_PointerPosition(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
-	sendPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
-	sendPDU(t, s, buildPointerPositionPDU(50, 60))
+	sendPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
+	sendPDU(t, s, rdpstatetest.BuildPointerPositionPDU(50, 60))
 
 	cs := s.CursorState()
 	require.Equal(t, decoder.CursorState{Visible: true, X: 50, Y: 60}, cs)
@@ -204,10 +205,10 @@ func TestCursorState_PointerHidden(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
-	sendPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
+	sendPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
 	require.True(t, s.CursorState().Visible)
 
-	sendPDU(t, s, buildPointerHiddenPDU())
+	sendPDU(t, s, rdpstatetest.BuildPointerHiddenPDU())
 	require.False(t, s.CursorState().Visible)
 }
 
@@ -216,11 +217,11 @@ func TestCursorState_PointerDefaultRestoresVisibility(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
-	sendPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
-	sendPDU(t, s, buildPointerHiddenPDU())
+	sendPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
+	sendPDU(t, s, rdpstatetest.BuildPointerHiddenPDU())
 	require.False(t, s.CursorState().Visible)
 
-	sendPDU(t, s, buildPointerDefaultPDU())
+	sendPDU(t, s, rdpstatetest.BuildPointerDefaultPDU())
 	require.True(t, s.CursorState().Visible)
 }
 
@@ -229,8 +230,8 @@ func TestLegacyCursorState_PointerPosition(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
 
-	sendLegacyPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
-	sendLegacyPDU(t, s, buildPointerPositionPDU(50, 60))
+	sendLegacyPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
+	sendLegacyPDU(t, s, rdpstatetest.BuildPointerPositionPDU(50, 60))
 
 	cs := s.CursorState()
 	require.Equal(t, decoder.CursorState{Visible: true, X: 50, Y: 60}, cs)
@@ -241,10 +242,10 @@ func TestLegacyCursorState_PointerHidden(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
 
-	sendLegacyPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
+	sendLegacyPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
 	require.True(t, s.CursorState().Visible)
 
-	sendLegacyPDU(t, s, buildPointerHiddenPDU())
+	sendLegacyPDU(t, s, rdpstatetest.BuildPointerHiddenPDU())
 	require.False(t, s.CursorState().Visible)
 }
 
@@ -253,11 +254,11 @@ func TestLegacyCursorState_PointerDefaultRestoresVisibility(t *testing.T) {
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
 
-	sendLegacyPDU(t, s, buildNewPointerPDU(2, 2, 0, 0, bgraRed))
-	sendLegacyPDU(t, s, buildPointerHiddenPDU())
+	sendLegacyPDU(t, s, rdpstatetest.BuildNewPointerPDU(2, 2, 0, 0, rdpstatetest.BGRARed))
+	sendLegacyPDU(t, s, rdpstatetest.BuildPointerHiddenPDU())
 	require.False(t, s.CursorState().Visible)
 
-	sendLegacyPDU(t, s, buildPointerDefaultPDU())
+	sendLegacyPDU(t, s, rdpstatetest.BuildPointerDefaultPDU())
 	require.True(t, s.CursorState().Visible)
 }
 

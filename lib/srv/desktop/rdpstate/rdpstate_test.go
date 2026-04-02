@@ -24,9 +24,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate/rdpstatetest"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
@@ -97,42 +96,21 @@ func TestUnknownMessage_Ignored(t *testing.T) {
 }
 
 func encodeTDPBServerHello(t *testing.T, width, height uint32) *events.DesktopRecording {
-	t.Helper()
-
-	data, err := (&tdpb.ServerHello{
-		ActivationSpec: &tdpbv1.ConnectionActivated{
-			ScreenWidth:  width,
-			ScreenHeight: height,
-		},
-	}).Encode()
-
-	require.NoError(t, err)
-
-	return tdpbEvent(data)
+	return rdpstatetest.EncodeTDPBServerHello(t, width, height)
 }
 
 func encodeTDPBFastPathPDU(t *testing.T, pdu []byte) *events.DesktopRecording {
-	t.Helper()
-
-	data, err := (&tdpb.FastPathPDU{Pdu: pdu}).Encode()
-	require.NoError(t, err)
-
-	return tdpbEvent(data)
+	return rdpstatetest.EncodeTDPBFastPathPDU(t, pdu)
 }
 
 func legacyConnectionActivated(t *testing.T, width, height uint16) *events.DesktopRecording {
-	t.Helper()
-
-	data, err := legacy.ConnectionActivated{ScreenWidth: width, ScreenHeight: height}.Encode()
-	require.NoError(t, err)
-
-	return legacyEvent(data)
+	return rdpstatetest.LegacyConnectionActivated(t, width, height)
 }
 
 func tdpbEvent(data []byte) *events.DesktopRecording {
-	return &events.DesktopRecording{TDPBMessage: data}
+	return rdpstatetest.TDPBEvent(data)
 }
 
 func legacyEvent(data []byte) *events.DesktopRecording {
-	return &events.DesktopRecording{Message: data}
+	return rdpstatetest.LegacyEvent(data)
 }
