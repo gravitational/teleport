@@ -39,7 +39,6 @@ func splitDBUserAndName(prefix string) (dbUser, dbName string) {
 		return prefix[:lastDot], prefix[lastDot+1:]
 	}
 	// No dot — the entire prefix is the database name with no user
-	// (auto-user provisioning or single allowed user).
 	return "", prefix
 }
 
