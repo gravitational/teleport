@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -297,90 +298,95 @@ func TestProxyPubSub(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
 
-			clock := clockwork.NewFakeClock()
-			baseTime := clock.Now()
-			mkServers := func(states []proxy) []types.Server {
-				servers := make([]types.Server, 0, len(states))
-				for _, state := range states {
-					s, err := types.NewServer(state.name, types.KindProxy, types.ServerSpecV2{})
-					require.NoError(t, err)
-					if state.expiryOffset != 0 {
-						s.SetExpiry(baseTime.Add(state.expiryOffset))
-					} else {
-						s.SetExpiry(baseTime)
+				clock := clockwork.NewFakeClock()
+				baseTime := clock.Now()
+				mkServers := func(states []proxy) []types.Server {
+					servers := make([]types.Server, 0, len(states))
+					for _, state := range states {
+						s, err := types.NewServer(state.name, types.KindProxy, types.ServerSpecV2{})
+						require.NoError(t, err)
+						if state.expiryOffset != 0 {
+							s.SetExpiry(baseTime.Add(state.expiryOffset))
+						} else {
+							s.SetExpiry(baseTime)
+						}
+						servers = append(servers, s)
 					}
-					servers = append(servers, s)
+					return servers
 				}
-				return servers
-			}
-			proxyNames := func(proxies []discoveryProxy) []string {
-				names := make([]string, 0, len(proxies))
-				for _, proxy := range proxies {
-					names = append(names, proxy.Metadata.Name)
+				proxyNames := func(proxies []discoveryProxy) []string {
+					names := make([]string, 0, len(proxies))
+					for _, proxy := range proxies {
+						names = append(names, proxy.Metadata.Name)
+					}
+					slices.Sort(names)
+					return names
 				}
-				slices.Sort(names)
-				return names
-			}
-			stateNames := func(states []proxy) []string {
-				names := make([]string, 0, len(states))
-				for _, state := range states {
-					names = append(names, state.name)
+				stateNames := func(states []proxy) []string {
+					names := make([]string, 0, len(states))
+					for _, state := range states {
+						names = append(names, state.name)
+					}
+					slices.Sort(names)
+					return names
 				}
-				slices.Sort(names)
-				return names
-			}
 
-			client := &mockLocalClusterClient{
-				proxies: mkServers(tt.initial),
-			}
-			watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
-				ResourceWatcherConfig: services.ResourceWatcherConfig{
-					Component: "test",
-					Clock:     clock,
-					Logger:    logtest.NewLogger(),
-					Client:    client,
-				},
-				ProxyGetter: client,
-				ProxiesC:    make(chan []types.Server, len(tt.updates)+1),
+				client := &mockLocalClusterClient{
+					proxies: mkServers(tt.initial),
+				}
+				watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+					ResourceWatcherConfig: services.ResourceWatcherConfig{
+						Component: "test",
+						Clock:     clock,
+						Logger:    logtest.NewLogger(),
+						Client:    client,
+					},
+					ProxyGetter: client,
+					ProxiesC:    make(chan []types.Server, len(tt.updates)+1),
+				})
+				require.NoError(t, err)
+				require.NoError(t, watcher.WaitInitialization())
+
+				pb := newDiscoPub(ctx, watcher)
+				pb.compact = tt.compact
+				t.Cleanup(pb.Close)
+
+				sub := pb.Subscribe()
+				t.Cleanup(sub.Close)
+
+				// Wait until discoPub is blocked before continuing
+				synctest.Wait()
+				select {
+				case <-sub.Wait():
+				case <-time.After(5 * time.Second):
+					t.Fatal("timed out waiting for initial proxy state")
+				}
+
+				require.ElementsMatch(t, tt.wantInitialGet, proxyNames(sub.Get()))
+				require.ElementsMatch(t, stateNames(tt.initial), proxyNames(sub.GetAll()))
+
+				for _, update := range tt.updates {
+					clock.Advance(update.expiryAdvance)
+					if len(update.update) > 0 {
+						// Wait until discoPub is blocked before continuing
+						synctest.Wait()
+						watcher.ResourcesC <- mkServers(update.update)
+
+						select {
+						case <-sub.Wait():
+						case <-time.After(5 * time.Second):
+							t.Fatal("timed out waiting for proxy update")
+						}
+					}
+
+					require.ElementsMatch(t, update.wantGet, proxyNames(sub.Get()))
+					require.ElementsMatch(t, update.wantAll, proxyNames(sub.GetAll()))
+				}
 			})
-			require.NoError(t, err)
-
-			pb := newDiscoPub(ctx, watcher)
-			pb.compact = tt.compact
-			t.Cleanup(pb.Close)
-
-			require.NoError(t, watcher.WaitInitialization())
-
-			sub := pb.Subscribe()
-			t.Cleanup(sub.Close)
-
-			select {
-			case <-sub.Wait():
-			case <-time.After(5 * time.Second):
-				t.Fatal("timed out waiting for initial proxy state")
-			}
-
-			require.ElementsMatch(t, tt.wantInitialGet, proxyNames(sub.Get()))
-			require.ElementsMatch(t, stateNames(tt.initial), proxyNames(sub.GetAll()))
-
-			for _, update := range tt.updates {
-				clock.Advance(update.expiryAdvance)
-				if len(update.update) > 0 {
-					watcher.ResourcesC <- mkServers(update.update)
-
-					select {
-					case <-sub.Wait():
-					case <-time.After(5 * time.Second):
-						t.Fatal("timed out waiting for proxy update")
-					}
-				}
-
-				require.ElementsMatch(t, update.wantGet, proxyNames(sub.Get()))
-				require.ElementsMatch(t, update.wantAll, proxyNames(sub.GetAll()))
-			}
 		})
 	}
 }

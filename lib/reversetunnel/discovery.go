@@ -266,13 +266,13 @@ func (pb *discoPub) Subscribe() *discoSub {
 	pb.pm.RLock()
 	version := pb.version
 	pb.pm.RUnlock()
-
 	if version > 0 {
 		select {
 		case s.notify <- struct{}{}:
 		default:
 		}
 	}
+
 	return s
 }
 
