@@ -64,11 +64,12 @@ type runResult struct {
 // instanceInfo represents a discovered cloud instance, built by correlating
 // audit events, online Teleport nodes, and user tasks on the cloud instance ID.
 type instanceInfo struct {
-	Region    string     `json:"region"`
-	IsOnline  bool       `json:"is_online"`
-	Expiry    time.Time  `json:"expiry,omitempty"`
-	RunResult *runResult `json:"run_result,omitempty"`
-	UserTask  string     `json:"user_task,omitempty"`
+	Region        string     `json:"region"`
+	IsOnline      bool       `json:"is_online"`
+	Expiry        time.Time  `json:"expiry,omitempty"`
+	RunResult     *runResult `json:"run_result,omitempty"`
+	UserTaskID    string     `json:"user_task_id,omitempty"`
+	UserTaskIssue string     `json:"user_task_issue,omitempty"`
 
 	AWS *awsInfo `json:"aws,omitempty"`
 }
@@ -130,12 +131,16 @@ func (inst instanceInfo) runOutput() string {
 	return fmt.Sprintf("%q", out)
 }
 
-// details returns a combined column: user task title if present, otherwise
+// details returns a combined column: user task description if present, otherwise
 // the run output prefixed with its source for clarity.
 // Full details are always available in JSON output.
 func (inst instanceInfo) details() string {
-	if inst.UserTask != "" {
-		return inst.UserTask
+	if inst.UserTaskIssue != "" {
+		title, _ := usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
+		if title == "" {
+			title = inst.UserTaskIssue
+		}
+		return title
 	}
 	out := inst.runOutput()
 	if out == "" {
@@ -168,7 +173,7 @@ func (inst instanceInfo) status() string {
 func filterFailures(instances []instanceInfo) []instanceInfo {
 	result := make([]instanceInfo, 0, len(instances))
 	for _, inst := range instances {
-		if (inst.RunResult != nil && inst.RunResult.IsFailure) || inst.UserTask != "" {
+		if (inst.RunResult != nil && inst.RunResult.IsFailure) || inst.UserTaskID != "" {
 			result = append(result, inst)
 		}
 	}
@@ -213,12 +218,12 @@ func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([
 	return instances, nil
 }
 
-// matchUserTasks populates the UserTask field on instances whose cloud instance
+// matchUserTasks populates user task fields on instances whose cloud instance
 // ID appears in a user task's instance list (e.g. DiscoverEC2.Instances map).
 func matchUserTasks(instances []instanceInfo, tasks []*usertasksv1.UserTask) {
-	// Build lookup: cloud name -> instance ID -> issue title.
-	issues := map[string]map[string]string{
-		cloudAWS: make(map[string]string),
+	// Build lookup: cloud name -> instance ID -> user task.
+	taskByInstance := map[string]map[string]*usertasksv1.UserTask{
+		cloudAWS: make(map[string]*usertasksv1.UserTask),
 	}
 
 	for _, task := range tasks {
@@ -226,14 +231,9 @@ func matchUserTasks(instances []instanceInfo, tasks []*usertasksv1.UserTask) {
 		if spec == nil {
 			continue
 		}
-		title, _ := usertasks.DescriptionForDiscoverEC2Issue(spec.GetIssueType())
-		if title == "" {
-			title = spec.GetIssueType()
-		}
-
 		if ec2 := spec.GetDiscoverEc2(); ec2 != nil {
 			for instanceID := range ec2.GetInstances() {
-				issues[cloudAWS][instanceID] = title
+				taskByInstance[cloudAWS][instanceID] = task
 			}
 		}
 	}
@@ -243,8 +243,9 @@ func matchUserTasks(instances []instanceInfo, tasks []*usertasksv1.UserTask) {
 		if ci == nil {
 			continue
 		}
-		if title, ok := issues[ci.cloudName()][ci.cloudInstanceID()]; ok {
-			instances[i].UserTask = title
+		if task, ok := taskByInstance[ci.cloudName()][ci.cloudInstanceID()]; ok {
+			instances[i].UserTaskID = task.GetMetadata().GetName()
+			instances[i].UserTaskIssue = task.GetSpec().GetIssueType()
 		}
 	}
 }
