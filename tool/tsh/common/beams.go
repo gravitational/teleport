@@ -36,12 +36,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	"github.com/gravitational/teleport/lib/client/beamsmount"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/beamsmount"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	filesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -580,7 +580,13 @@ func connectToBeamSSHWithRetry(cf *CLIConf, tc *client.TeleportClient, nodeID st
 			return nil
 		}
 		logger.DebugContext(cf.Context, "Connect to beam with retry", "attempt", i+1, "error", lastErr)
-		if !trace.IsNotFound(lastErr) {
+
+		switch {
+		case trace.IsNotFound(lastErr):
+			// Cache may not have caught up with the node write.
+		case trace.IsConnectionProblem(lastErr):
+			// Beam network may not be ready yet, even if sshd is.
+		default:
 			return trace.Wrap(lastErr)
 		}
 
