@@ -26,30 +26,6 @@ import { Check, Copy } from 'design/Icon';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-export function CopyTerraformButton({
-  onClick,
-}: {
-  onClick: (e: React.SyntheticEvent) => void;
-}) {
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleClick = (e: React.SyntheticEvent) => {
-    onClick(e);
-
-    if (!e.defaultPrevented) {
-      setConfigCopied(true);
-      setTimeout(() => setConfigCopied(false), 1000);
-    }
-  };
-
-  return (
-    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
-      {configCopied ? <Check size="small" /> : <Copy size="small" />}
-      Copy Terraform Module
-    </Button>
-  );
-}
-
 type CheckIntegrationButtonProps = {
   integrationExists?: boolean;
   integrationName?: string;
