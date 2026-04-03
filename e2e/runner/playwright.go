@@ -34,8 +34,7 @@ import (
 )
 
 type playwrightRunner struct {
-	config        *e2eConfig
-	extraProjects []string
+	config *e2eConfig
 }
 
 func (p *playwrightRunner) startURL(inst *browserInstance) string {
@@ -91,9 +90,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
 
-	baseProjects := make([]string, 0, 2+len(p.extraProjects))
-	baseProjects = append(baseProjects, "authenticated", "unauthenticated")
-	baseProjects = append(baseProjects, p.extraProjects...)
+	baseProjects := []string{"authenticated", "unauthenticated"}
 
 	var extraArgs []string
 	if p.config.updateSnapshots {
@@ -115,7 +112,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
 
 			for _, proj := range baseProjects {
 				args = append(args, "--project="+inst.browser+":"+proj)
@@ -152,7 +149,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test"}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,./scripts/dot-progress-reporter.ts", "--project=connect")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect")
 
 			if len(p.config.testFiles) > 0 {
 				args = append(args, p.config.testFiles...)
@@ -196,7 +193,12 @@ func (p *playwrightRunner) ui(ctx context.Context) error {
 		return err
 	}
 
-	return p.pnpm(ctx, []string{"exec", "playwright", "test", "--ui"}, env)
+	args := []string{"exec", "playwright", "test", "--ui"}
+	if len(p.config.testFiles) > 0 {
+		args = append(args, p.config.testFiles...)
+	}
+
+	return p.pnpm(ctx, args, env)
 }
 
 func (p *playwrightRunner) codegen(ctx context.Context) error {
@@ -221,7 +223,7 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 	slog.Info("opening playwright " + playwrightCmd + " (with auth and WebAuthn)")
 
 	return p.pnpm(ctx, []string{
-		"exec", "tsx", "scripts/open-with-webauthn.ts",
+		"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-with-webauthn.ts"),
 		playwrightCmd,
 		p.startURL(inst),
 	}, env)
@@ -239,7 +241,7 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 
 	slog.Info("opening Teleport Connect (with auth)")
 
-	return p.pnpm(ctx, []string{"exec", "tsx", "scripts/open-connect.ts"}, env)
+	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
 }
 
 

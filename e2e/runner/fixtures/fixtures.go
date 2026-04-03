@@ -16,38 +16,60 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package fixtures
 
-import (
-	"flag"
+import "flag"
+
+var (
+	SSHNode = register("ssh-node")
+	Connect = register("connect")
 )
 
-var allFixtures []*fixture
-
-type fixture struct {
-	name    string
-	usage   string
-	enabled bool
+type Fixture struct {
+	Name    string
+	Enabled bool
 }
 
-// registerFixture declares a new optional piece of test infrastructure
-// (like an SSH node) and adds it to the global registry so it gets a --with-<name> flag.
-func registerFixture(name, usage string) *fixture {
-	f := &fixture{name: name, usage: usage}
+func (f *Fixture) String() string {
+	return f.Name
+}
 
-	allFixtures = append(allFixtures, f)
+var all []*Fixture
+
+func register(name string) *Fixture {
+	f := &Fixture{Name: name}
+
+	all = append(all, f)
 
 	return f
 }
 
-func bindFixtureFlags(fs *flag.FlagSet) {
-	for _, f := range allFixtures {
-		fs.BoolVar(&f.enabled, "with-"+f.name, false, f.usage)
+func All() []*Fixture {
+	return all
+}
+
+func Enabled() []*Fixture {
+	var enabled []*Fixture
+	for _, f := range all {
+		if f.Enabled {
+			enabled = append(enabled, f)
+		}
+	}
+	return enabled
+}
+
+func BindFlags(fs *flag.FlagSet) {
+	for _, f := range all {
+		fs.BoolVar(&f.Enabled, "with-"+f.Name, false, "enable the "+f.Name+" fixture")
 	}
 }
 
-func enableAllFixtures() {
-	for _, f := range allFixtures {
-		f.enabled = true
+func FindByName(name string) *Fixture {
+	for _, f := range all {
+		if f.Name == name {
+			return f
+		}
 	}
+
+	return nil
 }

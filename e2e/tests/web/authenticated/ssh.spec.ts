@@ -18,6 +18,8 @@
 
 import { test } from '@gravitational/e2e/helpers/test';
 
+test.use({ fixtures: ['ssh-node'] });
+
 test('verify that a user can SSH into a node', async ({
   unifiedResourcesPage,
 }) => {

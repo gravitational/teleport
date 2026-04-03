@@ -26,16 +26,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-)
 
-var sshNode = registerFixture("ssh-node", "start and connect a Teleport SSH node, runs in Docker")
-var connect = registerFixture("connect", "build Teleport Connect")
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
+)
 
 var validBrowsers = []string{"chromium", "firefox", "webkit"}
 
 type e2eFlags struct {
 	noBuild          bool
-	full             bool
 	quiet            bool
 	verbose          bool
 	replaceCerts     bool
@@ -76,7 +74,6 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.BoolVar(&f.verbose, "v", false, "enable debug logging")
 	flag.BoolVar(&f.noBuild, "no-build", false, "skip make binaries")                          // useful for running during development to avoid rebuilding Teleport every time
 	flag.BoolVar(&f.quiet, "quiet", false, "redirect Teleport logs to file instead of stdout") // used in CI to avoid flooding logs with Teleport logs
-	flag.BoolVar(&f.full, "full", false, "enable all optional fixtures")
 	flag.BoolVar(&f.replaceCerts, "replace-certs", false, "generate new self-signed certificates")
 	flag.BoolVar(&f.updateSnapshots, "update-snapshots", false, "update Playwright snapshot baselines")
 	flag.StringVar(&f.teleportLogLevel, "teleport-log-level", "INFO", "Teleport log severity (DEBUG, INFO, WARN, ERROR)")
@@ -94,7 +91,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	flag.StringVar(&f.reportRepo, "repo", "", "GitHub repo name (e.g. teleport.e), auto-detected if omitted")
 	flag.StringVar(&f.reportSHA, "sha", "", "commit SHA to download artifacts for (overrides PR head SHA)")
 
-	bindFixtureFlags(flag.CommandLine)
+	fixtures.BindFlags(flag.CommandLine)
 	modes.bindFlags(flag.CommandLine)
 
 	flag.Parse()
@@ -105,10 +102,6 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	if f.verbose {
 		logLevel.Set(slog.LevelDebug)
-	}
-
-	if f.full {
-		enableAllFixtures()
 	}
 
 	f.teleportLogLevel = strings.ToUpper(f.teleportLogLevel)
@@ -149,39 +142,48 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		f.tracePath = args[0]
 	}
 
-	if mode != modeReport && mode != modeTestResults {
+	isTestRun := mode == modeTest || mode == modeUI || mode == modeDebug
+	if isTestRun {
 		e2eDir := filepath.Join(repoRoot, "e2e")
 
 		f.testFiles, err = normalizeTestFiles(e2eDir, flag.Args())
 		if err != nil {
 			return nil, 0, err
 		}
+
+		if len(f.testFiles) > 0 || mode != modeUI {
+			for _, fix := range scanFixtures(e2eDir, f.testFiles) {
+				fix.Enabled = true
+			}
+		}
 	}
 
 	// Auto-enable Connect if intent is explicit via mode or selected test paths.
 	if mode == modeBrowseConnect {
-		connect.enabled = true
+		fixtures.Connect.Enabled = true
 		f.browsers = []string{}
 	}
 
-	for _, file := range f.testFiles {
-		slashPath := filepath.ToSlash(file)
-		if slashPath == "." || slashPath == "tests" || slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
-			connect.enabled = true
-			break
-		}
+	if enabled := fixtures.Enabled(); len(enabled) > 0 {
+		slog.Info("enabled fixtures", "fixtures", enabled)
 	}
 
 	// If every specified test file targets connect, skip browser instances.
 	if len(f.testFiles) > 0 {
 		allConnect := true
+		anyConnect := false
 
 		for _, file := range f.testFiles {
 			slashPath := filepath.ToSlash(file)
-			if slashPath != "tests/connect" && !strings.HasPrefix(slashPath, "tests/connect/") {
+			if slashPath == "tests/connect" || strings.HasPrefix(slashPath, "tests/connect/") {
+				anyConnect = true
+			} else {
 				allConnect = false
-				break
 			}
+		}
+
+		if anyConnect && mode == modeUI {
+			return nil, 0, fmt.Errorf("--ui is not supported for Connect tests (Connect runs in Electron, not a browser)")
 		}
 
 		if allConnect {

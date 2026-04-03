@@ -38,8 +38,7 @@ const (
 )
 
 // generateSelfSignedCert creates a self-signed TLS certificate and key in certsDir.
-// If withDockerHost is true, host.docker.internal is added to the SANs.
-func generateSelfSignedCert(certsDir string, withDockerHost bool) error {
+func generateSelfSignedCert(certsDir string) error {
 	if err := os.MkdirAll(certsDir, 0o755); err != nil {
 		return err
 	}
@@ -54,10 +53,7 @@ func generateSelfSignedCert(certsDir string, withDockerHost bool) error {
 		return err
 	}
 
-	dnsNames := []string{"localhost", "teleport-e2e"}
-	if withDockerHost {
-		dnsNames = append(dnsNames, "host.docker.internal")
-	}
+	dnsNames := []string{"localhost", "teleport-e2e", "host.docker.internal"}
 
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,

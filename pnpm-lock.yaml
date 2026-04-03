@@ -7,7 +7,7 @@ settings:
 overrides:
   styled-components@6.1.19>csstype@3.1.3: ^3.2.3
 
-pnpmfileChecksum: sha256-UhbfH9wqbTOi0Lx+Gm0eQ8EkqLSQxYCWXAFDAbl28uo=
+pnpmfileChecksum: sha256-TR6zTaL3sXZMyu+QoRdd27aSUTH6sH0gp+M2XjxgTUI=
 
 patchedDependencies:
   jest-canvas-mock@2.5.2:
@@ -223,6 +223,12 @@ importers:
       vite:
         specifier: ^8.0.0
         version: 8.0.0(@types/node@24.10.9)(esbuild@0.27.3)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2)
+
+  e/e2e:
+    dependencies:
+      '@gravitational/e2e':
+        specifier: workspace:*
+        version: link:../../e2e
 
   e/web/teleport: {}
 

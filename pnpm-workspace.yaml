@@ -2,6 +2,7 @@ packages:
   - web/packages/*
   - e/web/*
   - e2e
+  - e/e2e
 onlyBuiltDependencies:
   - '@swc/core'
   - cbor-extract

@@ -70,12 +70,6 @@ export default defineConfig({
           testDir: './tests/web/unauthenticated',
           use: { ...browserDevices[browser] },
         },
-        {
-          name: `${browser}:with-ssh-node`,
-          testDir: './tests/web/with-ssh-node',
-          use: { ...browserDevices[browser], storageState: authState },
-          dependencies: [setupName],
-        },
       ];
     }),
 
