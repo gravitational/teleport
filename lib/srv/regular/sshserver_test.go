@@ -1331,9 +1331,6 @@ func TestAgentForward(t *testing.T) {
 	// All sessions have been closed, verify agent can still be connected to.
 	file, err := net.Dial("unix", socketPath)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, file.Close())
-	})
 
 	clientAgent := agent.NewClient(file)
 
@@ -1356,6 +1353,7 @@ func TestAgentForward(t *testing.T) {
 
 	// Close the connection, after this errors are expected during cleanup,
 	// change assertion accordingly.
+	require.NoError(t, file.Close())
 	require.NoError(t, f.ssh.clt.Close())
 	f.ssh.assertCltClose = require.Error
 
