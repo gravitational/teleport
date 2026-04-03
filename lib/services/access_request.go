@@ -2429,9 +2429,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return roles, nil
 	}
 
-	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
+	roles, mappedRequestedRolesToAllowedKubeKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
 	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
-		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
+		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKubeKinds, false /* requestedRoles */)
 	}
 
 	clusterNameResource, err := m.getter.GetClusterName(ctx)
@@ -2462,6 +2462,8 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
+	noRoleAllowingRequestedKubeResource := false
+	hasKubeResourceKindRestrictions := len(mappedRequestedRolesToAllowedKubeKinds) > 0
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range underlyingResources {
 		var constraints *types.ResourceConstraints
@@ -2548,12 +2550,28 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			// requested login and will include it.
 			rolesForResource = fewestLogins(rolesForResource)
 		}
+
+		if hasKubeResourceKindRestrictions && len(rolesForResource) == 0 {
+			kind := resource.GetKind()
+			if kind == types.KindKubernetesCluster ||
+				slices.Contains(types.KubernetesResourcesKinds, kind) {
+				noRoleAllowingRequestedKubeResource = true
+			}
+		}
 		for _, role := range rolesForResource {
 			necessaryRoles[role.GetName()] = struct{}{}
 		}
 	}
 
 	if len(necessaryRoles) == 0 {
+		// If a kube resource was requested but no role allows it, return a specific kube
+		// error rather than a generic "no access" error. The kube error may point to an
+		// easy fix (e.g. the request is missing a required namespace), so surfacing it
+		// first gives the user actionable guidance even when non-kube resources were also
+		// requested and similarly unmatched.
+		if noRoleAllowingRequestedKubeResource {
+			return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKubeKinds, false /* requestedRoles */)
+		}
 		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -3750,7 +3750,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-kube-no-access"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -3766,7 +3766,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-kube-no-access"},
+			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4447,7 +4447,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-kube-no-access"},
+			expectedRequestRoles: []string{"v7-kube-access-namespace", "v7-kube-db-access-wildcard", "v7-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4463,7 +4463,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			// db-access-wildcard and kube-no-access shouldn't be in the list, but a leaf is present
 			// which skips matcher tests.
-			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-kube-no-access"},
+			expectedRequestRoles: []string{"v8-kube-access-namespace", "v8-kube-db-access-wildcard", "v8-empty-access"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
 				{Kind: "kube:cw:namespaces", ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
@@ -4749,6 +4749,31 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			},
 			wantInvalidRequestKindErr: true,
 		},
+
+		{
+			desc: "v7 reject when requested role does not allow all requested kind and there is an unrelated requested role",
+			userStaticRoles: []string{
+				"v7-kube-request-namespace_search-namespace",
+				"v7-request-empty-access",
+			},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+			},
+			wantInvalidRequestKindErr: true,
+			wantNoRolesConfiguredErr:  false,
+		},
+		{
+			desc: "v8 reject when requested role does not allow all requested kind and there is an unrelated requested role",
+			userStaticRoles: []string{
+				"v8-kube-request-namespace_search-namespace",
+				"v8-request-empty-access",
+			},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+			},
+			wantInvalidRequestKindErr: true,
+			wantNoRolesConfiguredErr:  false,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -4767,15 +4792,21 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 
 			// Execute the validation.
 			err = validator.validate(t.Context(), req, tlsca.Identity{Expires: clock.Now().UTC().Add(8 * time.Hour)})
-			if tc.wantInvalidRequestKindErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
-			} else if tc.wantNoRolesConfiguredErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), `no roles configured in the "search_as_roles"`)
-			} else {
+			if !tc.wantInvalidRequestKindErr && !tc.wantNoRolesConfiguredErr {
 				require.NoError(t, err)
 				require.ElementsMatch(t, tc.expectedRequestRoles, req.GetRoles())
+			} else {
+				require.Error(t, err)
+				if tc.wantInvalidRequestKindErr {
+					require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
+				} else {
+					require.NotContains(t, err.Error(), InvalidKubernetesKindAccessRequest)
+				}
+				if tc.wantNoRolesConfiguredErr {
+					require.Contains(t, err.Error(), `no roles configured in the "search_as_roles"`)
+				} else {
+					require.NotContains(t, err.Error(), `no roles configured in the "search_as_roles"`)
+				}
 			}
 		})
 	}
