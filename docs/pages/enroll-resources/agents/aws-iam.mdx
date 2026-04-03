@@ -58,11 +58,60 @@ specific IAM policy or permissions are needed. Any IAM user or role can call
 this API.
 
 If running Teleport on an EC2 instance, it is sufficient to attach any IAM role
-to the instance. To attach an IAM role from the EC2 dashboard, select `Actions >
+to the instance, using either the AWS Management Console or CLI: 
+
+<Tabs>
+<TabItem label="AWS Management Console">
+
+To attach an IAM role from the EC2 dashboard, select `Actions >
 Security > Modify IAM role`. It is not necessary for the role to have any
 attached IAM policies at all. If your instance does not otherwise need AWS
 credentials, it is preferred to create and attach an empty role with no attached
 policies.
+
+</TabItem>
+<TabItem label="AWS CLI">
+
+1. **Optional.** Create a role with no policies for the EC2 instance called
+   `ExampleNoOpRole`. You can attach this role to the instance by following the
+   remaining steps:
+
+   ```code
+   $ aws iam create-role --role-name ExampleNoOpRole \
+       --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+   ```
+
+1. Assign <Var name="ExampleNoOpRole" /> with the name of the IAM role you want to
+   attach to your instance.
+
+1. Create an instance profile:
+
+   ```code
+   $ aws iam create-instance-profile --instance-profile-name <Var name="ExampleNoOpRole" />
+   ```
+
+1. Add the <Var name="ExampleNoOpRole" /> role to the profile:
+
+   ```code
+   $ aws iam add-role-to-instance-profile \
+   --instance-profile-name <Var name="ExampleNoOpRole" /> \
+   --role-name <Var name="ExampleNoOpRole" />
+   ```
+
+1. Obtain the ID of the EC2 instance where you will install your Teleport
+   Agent.
+
+1. Run the following command to associate the new instance profile with your
+   instance, assigning <Var name="INSTANCE_ID" /> to your instance ID and 
+   <Var name="AWS_REGION" /> to your AWS region:
+
+   ```code
+   $ aws ec2 associate-iam-instance-profile --iam-instance-profile Name="<Var name="ExampleNoOpRole" />" \
+   --instance-id <Var name="INSTANCE_ID" /> --region <Var name="AWS_REGION" />
+   ```
+
+</TabItem>
+</Tabs>
 
 ## Step 2/5. Create the AWS joining token
 
