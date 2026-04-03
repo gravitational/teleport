@@ -23,11 +23,13 @@ import (
 	"strings"
 )
 
-// ArgValueRedactor redacts a sensitive CLI flag value.
+// ArgValueRedactor transforms a sensitive CLI flag value into a redacted form suitable for logging.
 type ArgValueRedactor func(value string) string
 
-// RedactFlagArgs returns a copy of args with values redacted for any flag key
-// present in redactors.
+// RedactFlagArgs returns a copy of args with sensitive flag values replaced by the output
+// of the corresponding redactor function. This is used when logging command-line arguments
+// that may contain secrets (e.g. join tokens passed to "teleport node configure" during
+// EC2 auto-discovery), so that structured log output does not leak credentials.
 //
 // Supported formats:
 //   - --flag=value
