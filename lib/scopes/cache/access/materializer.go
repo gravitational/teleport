@@ -28,6 +28,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -115,6 +118,7 @@ type materializer struct {
 	materializedAssignments map[materializedAssignmentKey]ancestorRelation
 
 	logger *slog.Logger
+	tracer oteltrace.Tracer
 
 	repairTimeMu                 sync.Mutex
 	repairEventC                 chan repairEvent
@@ -136,13 +140,14 @@ func (k materializedAssignmentKey) assignmentName() string {
 	return "acl-" + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
-func newMaterializer(aclReader AccessListReader) *materializer {
+func newMaterializer(aclReader AccessListReader, tracer oteltrace.Tracer) *materializer {
 	now := time.Now()
 	return &materializer{
 		aclReader:                    aclReader,
 		ancestorCache:                newAncestorCache(),
 		materializedAssignments:      make(map[materializedAssignmentKey]ancestorRelation),
 		logger:                       slog.With(teleport.ComponentKey, "sra_materializer"),
+		tracer:                       tracer,
 		repairEventC:                 make(chan repairEvent),
 		wakeRepairLoop:               make(chan struct{}, 1),
 		nextExpiredMembersRepairTime: now.Add(century),
@@ -152,7 +157,17 @@ func newMaterializer(aclReader AccessListReader) *materializer {
 
 // Init materializes all necessary scoped role assignments into [state] based
 // on the current set of access list memberships.
-func (m *materializer) Init(ctx context.Context, state state) error {
+func (m *materializer) Init(ctx context.Context, state state) (err error) {
+	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/init")
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+	m.syncMaterializedAssignmentsMetric()
+
 	// First populate the ancestor cache with all list->list memberships and
 	// ownerships, it's critical for this to be up to date to process
 	// relationships and future changes. The ancestor cache should include even
@@ -175,6 +190,7 @@ func (m *materializer) Init(ctx context.Context, state state) error {
 		}
 	}
 	m.reportFutureMemberExpiry(ctx, nextExpiry)
+
 	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
 		if err != nil {
 			return trace.Wrap(err, "reading access lists")
@@ -205,6 +221,11 @@ func (m *materializer) Init(ctx context.Context, state state) error {
 // ProcessEvent is the entry point for all event-driven changes to materializer
 // state, driven by access list and access list member events.
 func (m *materializer) ProcessEvent(ctx context.Context, state state, event types.Event) error {
+	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/process_event",
+		oteltrace.WithAttributes(materializerEventAttributes(event)...),
+	)
+	defer span.End()
+
 	switch event.Type {
 	case types.OpPut:
 		switch item := event.Resource.(type) {
@@ -221,7 +242,9 @@ func (m *materializer) ProcessEvent(ctx context.Context, state state, event type
 			listName := event.Resource.GetMetadata().Description
 			if listName == "" {
 				// This is a bug, return a hard failure.
-				return trace.Errorf("missing access list name in access list member delete event description")
+				err := trace.Errorf("missing access list name in access list member delete event description")
+				span.SetStatus(codes.Error, err.Error())
+				return err
 			}
 			m.handleAccessListMemberDelete(ctx, state, listName, event.Resource.GetName())
 		}
@@ -803,6 +826,7 @@ func (m *materializer) materializeAssignment(
 		return trace.Wrap(err, "putting materialized assignment into cache")
 	}
 	m.materializedAssignments[key] = relation
+	m.syncMaterializedAssignmentsMetric()
 	return nil
 }
 
@@ -813,8 +837,13 @@ func (m *materializer) deleteMaterializedAssignment(ctx context.Context, state s
 			"list", key.list)
 		state.assignments.Delete(key.assignmentName(), scopedaccess.SubKindMaterialized)
 		delete(m.materializedAssignments, key)
+		m.syncMaterializedAssignmentsMetric()
 
 	}
+}
+
+func (m *materializer) syncMaterializedAssignmentsMetric() {
+	materializedAssignmentsMetric.Set(float64(len(m.materializedAssignments)))
 }
 
 func (m *materializer) recheckAssignment(ctx context.Context, state state, key materializedAssignmentKey) error {
@@ -1349,6 +1378,11 @@ func (m *materializer) RepairEvents() <-chan repairEvent {
 // [materializer.RepairEvents]. It must not be called concurrently with
 // [materializer.ProcessEvent].
 func (m *materializer) ProcessRepairEvent(ctx context.Context, state state, event repairEvent) {
+	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/process_repair_event",
+		oteltrace.WithAttributes(attribute.String("repair.type", event.String())),
+	)
+	defer span.End()
+
 	switch event {
 	case repairExpiredMembersEvent:
 		m.repairExpiredMembers(ctx, state)
@@ -1426,7 +1460,9 @@ func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
 	expiredMembersOf, nextExpiry := m.collectExpiredMembers(ctx)
 	m.reportFutureMemberExpiry(ctx, nextExpiry)
 
+	affected := 0
 	for key := range m.affectedAssignmentsForExpiredMembers(expiredMembersOf) {
+		affected++
 		if err := m.recheckAssignment(ctx, state, key); err != nil {
 			// Must pessimistically assume any assignment is invalid if we
 			// encountered an error trying to validate it.
@@ -1436,6 +1472,7 @@ func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
 			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
+	oteltrace.SpanFromContext(ctx).SetAttributes(attribute.Int("assignments.affected", affected))
 }
 
 // collectExpiredMembers collects all expired access list members by parent
@@ -1450,6 +1487,7 @@ func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 	nextExpiry = now.Add(century)
 
 	expiredMembersOf = make(map[string]expiredMembers)
+	expiredCount := 0
 
 	// Iterate all access list members to find any that are expired.
 	for member, err := range clientutils.Resources(ctx, m.aclReader.ListAllAccessListMembers) {
@@ -1482,7 +1520,9 @@ func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 		knownExpiredMembers := expiredMembersOf[member.Spec.AccessList]
 		knownExpiredMembers.insert(member)
 		expiredMembersOf[member.Spec.AccessList] = knownExpiredMembers
+		expiredCount++
 	}
+	oteltrace.SpanFromContext(ctx).SetAttributes(attribute.Int("members.expired", expiredCount))
 
 	return expiredMembersOf, nextExpiry
 }
@@ -1588,16 +1628,20 @@ func (m *materializer) repairMissedMembers(ctx context.Context, state state) {
 
 	// Iterate all access lists to additively materialize assignments for all
 	// their members and owners.
+	repairedLists := 0
 	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
 		if err != nil {
 			m.logger.InfoContext(ctx, "Missed membership repair failed to read all access lists, scheduling another repair",
 				"error", err)
+			oteltrace.SpanFromContext(ctx).RecordError(err)
 			m.scheduleMissedMembersRepair(ctx)
 			return
 		}
+		repairedLists++
 		m.initAccessListMembers(ctx, state, list)
 		m.initAccessListOwners(ctx, state, list)
 	}
+	oteltrace.SpanFromContext(ctx).SetAttributes(attribute.Int("lists.repaired", repairedLists))
 }
 
 func hasMemberGrants(list *accesslist.AccessList) bool {
@@ -1614,4 +1658,29 @@ func hasMembershipRequires(list *accesslist.AccessList) bool {
 
 func hasOwnershipRequires(list *accesslist.AccessList) bool {
 	return !list.Spec.OwnershipRequires.IsEmpty()
+}
+
+func materializerEventAttributes(event types.Event) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("event.type", event.Type.String()),
+	}
+	if event.Resource == nil {
+		return attrs
+	}
+	attrs = append(attrs,
+		attribute.String("resource.kind", event.Resource.GetKind()),
+		attribute.String("resource.name", event.Resource.GetName()),
+	)
+	return attrs
+}
+
+func (e repairEvent) String() string {
+	switch e {
+	case repairExpiredMembersEvent:
+		return "expired_members"
+	case repairMissedMembersEvent:
+		return "missed_members"
+	default:
+		return "unknown"
+	}
 }
