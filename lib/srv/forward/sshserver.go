@@ -1182,6 +1182,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// file copying isn't supported for OpenSSH nodes. Users not allowed
 	// to copy files will still get checked and denied properly.
 	scx.SetAllowFileCopying(true)
+	scx.BeginSessionEstablishmentActivity()
 	defer scx.Close()
 
 	// If this is a Teleport node server, it should send the session ID
@@ -1599,6 +1600,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 		})
 		return trace.Wrap(err)
 	}
+	serverContext.FinishSessionEstablishmentActivity()
 
 	// wait for the subsystem to finish and return that result
 	go func() {
