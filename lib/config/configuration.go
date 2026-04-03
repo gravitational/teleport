@@ -2128,7 +2128,8 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		if application.AWS != nil {
 			app.AWS = &servicecfg.AppAWS{
-				ExternalID: application.AWS.ExternalID,
+				ExternalID:     application.AWS.ExternalID,
+				SourceIdentity: application.AWS.SourceIdentity,
 			}
 		}
 

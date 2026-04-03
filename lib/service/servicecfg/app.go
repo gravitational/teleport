@@ -255,6 +255,9 @@ func (a *App) checkPorts() error {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string
+	// SourceIdentity when true, sets the Teleport username as the AWS STS
+	// source identity on assumed role sessions.
+	SourceIdentity bool
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

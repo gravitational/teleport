@@ -70,6 +70,7 @@ Optional:
 
 - `external_id` (String) ExternalID is the AWS External ID used when assuming roles in this app.
 - `roles_anywhere_profile` (Attributes) RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps. (see [below for nested schema](#nested-schema-for-specawsroles_anywhere_profile))
+- `source_identity` (Boolean) When true, sets the Teleport username as the AWS STS source identity on assumed role sessions. Persists across role chaining and is logged in CloudTrail. Requires `sts:SetSourceIdentity` in the target role's trust policy.
 
 ### Nested Schema for `spec.aws.roles_anywhere_profile`
 

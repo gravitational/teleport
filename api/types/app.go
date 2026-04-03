@@ -85,6 +85,9 @@ type Application interface {
 	GetAWSRolesAnywhereProfileARN() string
 	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
 	GetAWSRolesAnywhereAcceptRoleSessionName() bool
+	// GetAWSSourceIdentity returns whether the Teleport username should be set
+	// as the AWS STS source identity on assumed role sessions.
+	GetAWSSourceIdentity() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -353,6 +356,15 @@ func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
 		return false
 	}
 	return a.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName
+}
+
+// GetAWSSourceIdentity returns whether the Teleport username should be set
+// as the AWS STS source identity on assumed role sessions.
+func (a *AppV3) GetAWSSourceIdentity() bool {
+	if a.Spec.AWS == nil {
+		return false
+	}
+	return a.Spec.AWS.SourceIdentity
 }
 
 // GetUserGroups will get the list of user group IDss associated with the application.

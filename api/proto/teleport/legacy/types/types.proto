@@ -1235,6 +1235,12 @@ message AppAWS {
   // RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application.
   // These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.
   AppAWSRolesAnywhereProfile RolesAnywhereProfile = 2 [(gogoproto.jsontag) = "roles_anywhere_profile,omitempty"];
+  // SourceIdentity when true, sets the Teleport username as the AWS STS
+  // source identity on assumed role sessions. The source identity persists
+  // across role chaining and is logged in CloudTrail, enabling actions to
+  // be traced back to the original user.
+  // Requires sts:SetSourceIdentity permission in the target role's trust policy.
+  bool SourceIdentity = 3 [(gogoproto.jsontag) = "source_identity,omitempty"];
 }
 
 // AppAWSRolesAnywhereProfile contains the fields that represent an AWS IAM Roles Anywhere Profile.
