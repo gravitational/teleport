@@ -57,6 +57,9 @@ const (
 	teleportPrefix = "teleport"
 	// lastKnownVersion is a key for storing version of teleport
 	lastKnownVersion = "last-known-version"
+	// boundKeypairPrefix is a key prefix for the agent's bound keypair state,
+	// if any
+	boundKeypairPrefix = "bound-keypair"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -290,6 +293,28 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 		return nil, trace.Wrap(err)
 	}
 	return license.Data, nil
+}
+
+// ReadBoundKeypairItem reads an arbitrary key with the bound keypair prefix
+func (p *ProcessStorage) ReadBoundKeypairItem(ctx context.Context, name string) ([]byte, error) {
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(boundKeypairPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return item.Value, nil
+}
+
+// WriteBoundKeypairItem writes a (key, value) into the bound keypair prefix.
+func (p *ProcessStorage) WriteBoundKeypairItem(ctx context.Context, name string, data []byte) error {
+	item := backend.Item{
+		Key:   backend.NewKey(boundKeypairPrefix, name),
+		Value: data,
+	}
+	_, err := p.stateStorage.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // ReadLocalIdentityForRole reads, parses and returns the given pub/pri key +
