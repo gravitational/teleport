@@ -36,6 +36,7 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  bool directory_remove_supported = 3;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -168,6 +169,11 @@ message MFA {
 message SharedDirectoryAnnounce {
   uint32 directory_id = 1;
   string name = 2;
+}
+
+// Sent by client to remove a previously announced shared directory.
+message SharedDirectoryRemove {
+  uint32 directory_id = 1;
 }
 
 // Sent by server to acknowledge a new shared directory.
@@ -341,5 +347,6 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    SharedDirectoryRemove shared_directory_remove = 21;
   }
 }

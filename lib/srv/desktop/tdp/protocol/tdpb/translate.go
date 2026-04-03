@@ -378,6 +378,8 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			},
 			// Assume all legacy TDP servers support clipboard sharing
 			ClipboardEnabled: true,
+			// No data to map, default to false
+			DirectoryRemoveSupported: false,
 		}}, nil
 	case legacy.SyncKeys:
 		return []tdp.Message{&SyncKeys{
