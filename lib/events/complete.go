@@ -360,7 +360,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var lastEvent events.AuditEvent
 	var startTime time.Time
 	var sessionType recordingmetadata.SessionType
-	var isPTYSession bool
+	var shouldProcessMetadata bool
+	var shouldSummarize bool
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
@@ -381,6 +382,8 @@ loop:
 				return nil
 
 			case *events.WindowsDesktopSessionStart:
+				sessionType = recordingmetadata.SessionTypeDesktop
+				shouldProcessMetadata = true
 				startTime = e.Time
 				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
 				desktopSessionEnd.Code = DesktopSessionEndCode
@@ -398,7 +401,8 @@ loop:
 
 			case *events.SessionStart:
 				sessionType = recordingmetadata.SessionTypeTTY
-				isPTYSession = true
+				shouldSummarize = true
+				shouldProcessMetadata = true
 				startTime = e.Time
 				sshSessionEnd.Type = SessionEndEvent
 				sshSessionEnd.Code = SessionEndCode
@@ -414,9 +418,6 @@ loop:
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
-
-			case *events.DatabaseSessionStart:
-				startTime = e.Time
 
 			case *events.SessionJoin:
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
@@ -463,25 +464,26 @@ loop:
 		return trace.Wrap(err)
 	}
 
-	if !isPTYSession {
-		return nil
-	}
-
-	// For PTY sessions, process recording metadata and summarization.
-	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if !startTime.IsZero() && !sessionEndEvent.GetTime().IsZero() {
-		duration := sessionEndEvent.GetTime().Sub(startTime)
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
-			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
+	if shouldProcessMetadata {
+		// For Desktop and PTY sessions, process recording metadata.
+		recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
+		if !startTime.IsZero() && !sessionEndEvent.GetTime().IsZero() {
+			duration := sessionEndEvent.GetTime().Sub(startTime)
+			if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
+				slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
+			}
+		} else {
+			slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 		}
-	} else {
-		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 	}
 
-	summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
-	if err := summarizer.SummarizeSSH(ctx, &sshSessionEnd); err != nil {
-		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
-		return trace.Wrap(err)
+	if shouldSummarize {
+		// For PTY sessions, summarize the session recording.
+		summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
+		if err := summarizer.SummarizeSSH(ctx, &sshSessionEnd); err != nil {
+			slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

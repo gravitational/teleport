@@ -42,6 +42,9 @@ type recordingProcessor interface {
 	// collect finalizes the metadata and returns the session recording metadata along with the chosen thumbnail.
 	// It should be called after all events have been processed.
 	collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail)
+	// release releases any resources held by the processor, such as thumbnail generators. It should be called after
+	// metadata collection is complete.
+	release()
 }
 
 func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, duration time.Duration) recordingProcessor {
@@ -53,8 +56,15 @@ func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionTy
 		thumbnailTime:     getRandomThumbnailTime(duration),
 	}
 
-	if sessionType == recordingmetadata.SessionTypeTTY {
+	switch sessionType {
+	case recordingmetadata.SessionTypeTTY:
 		return newTTYRecordingProcessor(base)
+
+	case recordingmetadata.SessionTypeDesktop:
+		return newDesktopProcessor(base)
+
+	default:
+		logger.WarnContext(context.Background(), "unsupported session type for recording metadata generation, skipping thumbnail generation", "sessionType", sessionType)
 	}
 
 	return &noopRecordingProcessor{}
@@ -84,9 +94,19 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time) {
 		return
 	}
 
+	thumbnail, err := b.thumbnailGenerator.produceThumbnail()
+	if err != nil {
+		b.logger.WarnContext(context.Background(), "Failed to produce thumbnail", "error", err)
+
+		return
+	}
+
+	if thumbnail == nil {
+		return
+	}
+
 	b.lastThumbnailTime = eventTime
 
-	thumbnail := b.thumbnailGenerator.produceThumbnail()
 	thumbnail.StartOffset = durationpb.New(eventTime.Sub(b.startTime))
 	thumbnail.EndOffset = durationpb.New(eventTime.Add(b.thumbnailInterval).Add(-1 * time.Millisecond).Sub(b.startTime))
 
@@ -110,6 +130,10 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time) {
 	}
 }
 
+func (b *baseRecordingProcessor) release() {
+	b.thumbnailGenerator.release()
+}
+
 type noopRecordingProcessor struct{}
 
 func (n *noopRecordingProcessor) handleEvent(event apievents.AuditEvent) error {
@@ -119,3 +143,5 @@ func (n *noopRecordingProcessor) handleEvent(event apievents.AuditEvent) error {
 func (n *noopRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {
 	return nil, nil
 }
+
+func (n *noopRecordingProcessor) release() {}

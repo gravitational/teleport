@@ -223,6 +223,8 @@ func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
 		return "ssh"
 	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES:
 		return "k8s"
+	case recordingmetadatav1.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP:
+		return "desktop"
 	default:
 		return "unknown"
 	}
@@ -282,6 +284,9 @@ type sessionRecordingThumbnailResponse struct {
 	CursorVisible bool   `json:"cursorVisible"`
 	StartOffset   int64  `json:"startOffset"`
 	EndOffset     int64  `json:"endOffset"`
+	Png           []byte `json:"png,omitempty"`
+	ScreenWidth   int32  `json:"screenWidth,omitempty"`
+	ScreenHeight  int32  `json:"screenHeight,omitempty"`
 }
 
 // encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
@@ -295,6 +300,9 @@ func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecor
 		CursorVisible: thumbnail.CursorVisible,
 		StartOffset:   convertDurationToMs(thumbnail.StartOffset),
 		EndOffset:     convertDurationToMs(thumbnail.EndOffset),
+		Png:           thumbnail.Png,
+		ScreenWidth:   thumbnail.ScreenWidth,
+		ScreenHeight:  thumbnail.ScreenHeight,
 	}
 }
 

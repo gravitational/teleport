@@ -107,9 +107,7 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
 func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	if sessionType != recordingmetadata.SessionTypeTTY {
-		// Currently only TTY sessions (SSH + Kubernetes) are supported, so avoid doing any unnecessary work if the session
-		// is a different type.
+	if sessionType == recordingmetadata.SessionTypeUnspecified {
 		return nil
 	}
 
@@ -146,6 +144,8 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	}()
 
 	processor := newRecordingProcessor(w, s.logger.With("session_id", sessionID), sessionType, duration)
+	defer processor.release()
+
 	evts, errors := s.streamer.StreamSessionEvents(ctx, sessionID, 0)
 
 loop:

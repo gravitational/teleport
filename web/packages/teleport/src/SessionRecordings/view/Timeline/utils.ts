@@ -33,10 +33,15 @@ export function calculateThumbnailViewport(
   width: number,
   height: number
 ) {
-  // Use different zoom levels based on cursor visibility
-  const zoomLevel = thumbnail.cursorVisible
-    ? zoomLevelWithCursor
-    : zoomLevelWithoutCursor;
+  const isDesktop = !!thumbnail.png;
+
+  // Desktop thumbnails are already cropped/zoomed by the backend, so
+  // we always display them at 1:1 without additional zoom.
+  const zoomLevel = isDesktop
+    ? zoomLevelWithoutCursor
+    : thumbnail.cursorVisible
+      ? zoomLevelWithCursor
+      : zoomLevelWithoutCursor;
 
   const visibleWidthPercent = 100 / zoomLevel;
   const visibleHeightPercent = 100 / zoomLevel;
@@ -44,7 +49,7 @@ export function calculateThumbnailViewport(
   let bgPosX: number;
   let bgPosY: number;
 
-  if (thumbnail.cursorVisible) {
+  if (!isDesktop && thumbnail.cursorVisible) {
     // Calculate cursor position as percentage
     const cursorPercentX = (thumbnail.cursorX / thumbnail.cols) * 100;
     const cursorPercentY = (thumbnail.cursorY / thumbnail.rows) * 100;
@@ -65,7 +70,7 @@ export function calculateThumbnailViewport(
       )
     );
   } else {
-    // Center the viewport when cursor is not visible
+    // Center the viewport when cursor is not visible or for desktop thumbnails
     bgPosX = (100 - visibleWidthPercent) / 2;
     bgPosY = (100 - visibleHeightPercent) / 2;
   }
