@@ -279,7 +279,11 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 
 // localServerAction returns an access denied error if the role is not one of the builtin server roles.
 func (a *ServerWithRoles) localServerAction() error {
-	role, ok := a.context.Identity.(authz.BuiltinRole)
+	identity := a.context.Identity
+	if a.scopedContext != nil {
+		identity = a.scopedContext.Identity
+	}
+	role, ok := identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -288,7 +292,15 @@ func (a *ServerWithRoles) localServerAction() error {
 
 // remoteServerAction returns an access denied error if the role is not one of the remote builtin server roles.
 func (a *ServerWithRoles) remoteServerAction() error {
-	role, ok := a.context.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	unmappedIdent := a.context.UnmappedIdentity
+	if a.scopedContext != nil {
+		unscopedCtx, ok := a.scopedContext.UnscopedContext()
+		if !ok {
+			return trace.AccessDenied("scoped identities do not support remote server actions")
+		}
+		unmappedIdent = unscopedCtx.UnmappedIdentity
+	}
+	role, ok := unmappedIdent.(authz.RemoteBuiltinRole)
 	if !ok || !role.IsRemoteServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport remote server")
 	}
