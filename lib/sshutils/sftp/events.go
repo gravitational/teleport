@@ -1,0 +1,148 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package sftp
+
+import (
+	"time"
+
+	"github.com/gravitational/trace"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/session/sftputils"
+)
+
+func SFTPEventToProto(ev *sftputils.SFTPEvent) (*apievents.SFTP, error) {
+	event := &apievents.SFTP{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPEvent,
+			Time: time.Unix(0, ev.Time),
+		},
+	}
+
+	switch ev.Method {
+	case MethodOpen, MethodGet, MethodPut:
+		if ev.Error == "" {
+			event.Code = events.SFTPOpenCode
+		} else {
+			event.Code = events.SFTPOpenFailureCode
+		}
+		event.Action = apievents.SFTPAction_OPEN
+	case MethodSetStat:
+		if ev.Error == "" {
+			event.Code = events.SFTPSetstatCode
+		} else {
+			event.Code = events.SFTPSetstatFailureCode
+		}
+		event.Action = apievents.SFTPAction_SETSTAT
+	case MethodList:
+		if ev.Error == "" {
+			event.Code = events.SFTPReaddirCode
+		} else {
+			event.Code = events.SFTPReaddirFailureCode
+		}
+		event.Action = apievents.SFTPAction_READDIR
+	case MethodRemove:
+		if ev.Error == "" {
+			event.Code = events.SFTPRemoveCode
+		} else {
+			event.Code = events.SFTPRemoveFailureCode
+		}
+		event.Action = apievents.SFTPAction_REMOVE
+	case MethodMkdir:
+		if ev.Error == "" {
+			event.Code = events.SFTPMkdirCode
+		} else {
+			event.Code = events.SFTPMkdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_MKDIR
+	case MethodRmdir:
+		if ev.Error == "" {
+			event.Code = events.SFTPRmdirCode
+		} else {
+			event.Code = events.SFTPRmdirFailureCode
+		}
+		event.Action = apievents.SFTPAction_RMDIR
+	case MethodRename:
+		if ev.Error == "" {
+			event.Code = events.SFTPRenameCode
+		} else {
+			event.Code = events.SFTPRenameFailureCode
+		}
+		event.Action = apievents.SFTPAction_RENAME
+	case MethodSymlink:
+		if ev.Error == "" {
+			event.Code = events.SFTPSymlinkCode
+		} else {
+			event.Code = events.SFTPSymlinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_SYMLINK
+	case MethodLink:
+		if ev.Error == "" {
+			event.Code = events.SFTPLinkCode
+		} else {
+			event.Code = events.SFTPLinkFailureCode
+		}
+		event.Action = apievents.SFTPAction_LINK
+	default:
+		return nil, trace.BadParameter("unknown SFTP request %+q", ev.Method)
+	}
+
+	event.Path = ev.Path
+	event.TargetPath = ev.Target
+	event.Flags = ev.Flags
+	event.WorkingDirectory = ev.WorkDir
+
+	if ev.Attrs != nil {
+		event.Attributes = new(apievents.SFTPAttributes)
+		if ev.Attrs.Atime != nil {
+			t := time.Unix(int64(*ev.Attrs.Atime), 0)
+			event.Attributes.AccessTime = &t
+		}
+		if ev.Attrs.Mtime != nil {
+			t := time.Unix(int64(*ev.Attrs.Mtime), 0)
+			event.Attributes.ModificationTime = &t
+		}
+		event.Attributes.Permissions = ev.Attrs.Perms
+		event.Attributes.FileSize = ev.Attrs.Size
+		event.Attributes.UID = ev.Attrs.UID
+		event.Attributes.GID = ev.Attrs.GID
+	}
+
+	event.Error = ev.Error
+
+	return event, nil
+}
+
+func SFTPSummaryEventToProto(ev *sftputils.SFTPSummaryEvent) *apievents.SFTPSummary {
+	event := &apievents.SFTPSummary{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPSummaryEvent,
+			Code: events.SFTPSummaryCode,
+			Time: time.Now(),
+		},
+		FileTransferStats: make([]*apievents.FileTransferStat, 0, len(ev.Stats)),
+	}
+	for _, stat := range ev.Stats {
+		event.FileTransferStats = append(event.FileTransferStats, &apievents.FileTransferStat{
+			Path:         stat.Path,
+			BytesRead:    stat.Read,
+			BytesWritten: stat.Written,
+		})
+	}
+	return event
+}

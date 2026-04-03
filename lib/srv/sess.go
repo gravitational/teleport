@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -520,7 +521,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.Wrap(err)
 	}
 	if approved {
-		scx.setApprovedFileTransferRequest(sess.fileTransferReq)
+		scx.setApprovedFileTransferRequest(&sess.fileTransferReq.FileTransferRequest)
 		sess.fileTransferReq = nil
 	}
 
@@ -545,7 +546,7 @@ const (
 
 // notifyFileTransferRequestUnderLock is called to notify all members of a party that a file transfer request has been created/approved/denied.
 // The notification is a global ssh request and requires the client to update its UI state accordingly.
-func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
+func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *fileTransferRequestWithApprovers, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
 		s.logger.DebugContext(
@@ -744,7 +745,7 @@ type session struct {
 	// fileTransferReq a pending file transfer request for this session.
 	// If the request is denied or approved it should be set to nil to
 	// prevent its reuse.
-	fileTransferReq *FileTransferRequest
+	fileTransferReq *fileTransferRequestWithApprovers
 
 	io       *TermManager
 	inWriter io.WriteCloser
@@ -1854,24 +1855,16 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-// FileTransferRequest is a request to upload or download a file from a node.
-type FileTransferRequest struct {
-	// ID is a UUID that uniquely identifies a file transfer request
-	// and is unlikely to collide with another file transfer request
-	ID string
-	// Requester is the Teleport User that requested the file transfer
-	Requester string
-	// Download is true if the request is a download, false if its an upload
-	Download bool
-	// Filename is the name of the file to upload.
-	Filename string
-	// Location of the requested download or where a file will be uploaded
-	Location string
+//go:fix inline
+type FileTransferRequest = reexecsftp.FileTransferRequest
+
+type fileTransferRequestWithApprovers struct {
+	FileTransferRequest
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
 
-func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, error) {
+func (s *session) checkIfFileTransferApproved(req *fileTransferRequestWithApprovers) (bool, error) {
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
@@ -1912,12 +1905,14 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 		return trace.BadParameter("no source file is set for the upload")
 	}
 
-	s.fileTransferReq = &FileTransferRequest{
-		ID:        uuid.New().String(),
-		Requester: params.Requester,
-		Location:  params.Location,
-		Filename:  params.Filename,
-		Download:  params.Download,
+	s.fileTransferReq = &fileTransferRequestWithApprovers{
+		FileTransferRequest: FileTransferRequest{
+			ID:        uuid.New().String(),
+			Requester: params.Requester,
+			Location:  params.Location,
+			Filename:  params.Filename,
+			Download:  params.Download,
+		},
 		approvers: make(map[string]*party),
 	}
 

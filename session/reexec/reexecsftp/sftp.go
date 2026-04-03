@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package reexecsftp
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,17 +32,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv"
-	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 type compositeCh struct {
@@ -77,10 +70,10 @@ type sftpHandler struct {
 	mtx   sync.Mutex
 	files []*sftputils.TrackedFile
 
-	events chan<- apievents.AuditEvent
+	events chan<- sftputils.Event
 }
 
-func newSFTPHandler(logger *slog.Logger, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
+func newSFTPHandler(logger *slog.Logger, req *FileTransferRequest, events chan<- sftputils.Event) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -193,7 +186,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 		return nil, err
 	}
 
-	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), defaults.FilePermissions)
+	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), 0o644)
 	if err != nil {
 		return nil, err
 	}
@@ -261,10 +254,10 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	} else if reqErr != nil {
 		s.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
 	}
-	s.events <- event
+	s.events <- sftputils.Event{SFTP: event}
 }
 
-func onSFTP() error {
+func RunSFTP(logger *slog.Logger) error {
 	chr, err := openFD(3, "chr")
 	if err != nil {
 		return trace.Wrap(err)
@@ -281,9 +274,6 @@ func onSFTP() error {
 	}
 	defer auditFile.Close()
 
-	// Ensure the parent process will receive log messages from us
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
-
 	currentUser, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err)
@@ -296,7 +286,7 @@ func onSFTP() error {
 	// Read the file transfer request for this session if one exists
 	bufferedReader := bufio.NewReader(chr)
 	var encodedReq []byte
-	var fileTransferReq *srv.FileTransferRequest
+	var fileTransferReq *FileTransferRequest
 	for {
 		b, err := bufferedReader.ReadByte()
 		if err != nil {
@@ -309,14 +299,14 @@ func onSFTP() error {
 		encodedReq = append(encodedReq, b)
 	}
 	if len(encodedReq) != 0 {
-		fileTransferReq = new(srv.FileTransferRequest)
+		fileTransferReq = new(FileTransferRequest)
 		if err := json.Unmarshal(encodedReq, fileTransferReq); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	ch := compositeCh{io.NopCloser(bufferedReader), chw}
 
-	sftpEvents := make(chan apievents.AuditEvent, 1)
+	sftpEvents := make(chan sftputils.Event, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
 	if err != nil {
 		return trace.Wrap(err)
@@ -334,25 +324,10 @@ func onSFTP() error {
 	// process to avoid blocking the SFTP connection on event handling
 	done := make(chan struct{})
 	go func() {
-		var m jsonpb.Marshaler
-		var buf bytes.Buffer
+		enc := json.NewEncoder(auditFile)
+		enc.SetEscapeHTML(false)
 		for event := range sftpEvents {
-			oneOfEvent, err := apievents.ToOneOf(event)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to convert SFTP event to OneOf", "error", err)
-				continue
-			}
-
-			buf.Reset()
-			if err := m.Marshal(&buf, oneOfEvent); err != nil {
-				logger.WarnContext(ctx, "Failed to marshal SFTP event", "error", err)
-				continue
-			}
-
-			// Append a NULL byte so the parent process will know where
-			// this event ends
-			buf.WriteByte(0x0)
-			_, err = io.Copy(auditFile, &buf)
+			err := enc.Encode(event)
 			if err != nil {
 				logger.WarnContext(ctx, "Failed to send SFTP event to parent", "error", err)
 			}
@@ -369,23 +344,20 @@ func onSFTP() error {
 	}
 
 	// Send a summary event last
-	summaryEvent := &apievents.SFTPSummary{
-		Metadata: apievents.Metadata{
-			Type: events.SFTPSummaryEvent,
-			Code: events.SFTPSummaryCode,
-			Time: time.Now(),
-		},
+	summaryEvent := &sftputils.SFTPSummaryEvent{
+		Time:  time.Now().UnixNano(),
+		Stats: make([]sftputils.SummaryFileTransferStat, 0, len(h.files)),
 	}
 	// We don't need to worry about closing these files, handler will
 	// take care of that for us
 	for _, f := range h.files {
-		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
-			Path:         f.Name(),
-			BytesRead:    f.BytesRead(),
-			BytesWritten: f.BytesWritten(),
+		summaryEvent.Stats = append(summaryEvent.Stats, sftputils.SummaryFileTransferStat{
+			Path:    f.Name(),
+			Read:    f.BytesRead(),
+			Written: f.BytesWritten(),
 		})
 	}
-	sftpEvents <- summaryEvent
+	sftpEvents <- sftputils.Event{Summary: summaryEvent}
 
 	// Wait until event marshaling goroutine is finished
 	close(sftpEvents)

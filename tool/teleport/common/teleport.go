@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 )
 
@@ -739,7 +740,7 @@ Examples:
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
 	case sftp.FullCommand():
-		err = onSFTP()
+		err = reexecsftp.RunSFTP(slog.With(teleport.ComponentKey, "sftp"))
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():

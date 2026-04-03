@@ -16,20 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package sftp
+package sftputils
 
 import (
 	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// localFS provides API for accessing the files on
+// LocalFS provides API for accessing the files on
 // the local file system
-type localFS struct{}
+type LocalFS struct{}
+
+//go:fix inline
+type localFS = LocalFS
 
 func (l localFS) Type() string {
 	return "local"
@@ -83,11 +84,11 @@ func (l localFS) Create(path string, _ int64) (File, error) {
 }
 
 func (l localFS) OpenFile(path string, flags int) (File, error) {
-	return os.OpenFile(path, flags, defaults.FilePermissions)
+	return os.OpenFile(path, flags, 0o644)
 }
 
 func (l localFS) Mkdir(path string) error {
-	err := os.MkdirAll(path, defaults.DirectoryPermissions)
+	err := os.MkdirAll(path, 0o755)
 	if err != nil && !os.IsExist(err) {
 		return err
 	}
