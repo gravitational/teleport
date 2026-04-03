@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -1122,6 +1123,12 @@ func RunAndExit(commandType string) {
 		code = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code = runPark()
+	case reexecconstants.SFTPSubCommand:
+		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		err = reexecsftp.RunSFTP(slog.Default())
+		if err != nil {
+			code = 1
+		}
 	default:
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
