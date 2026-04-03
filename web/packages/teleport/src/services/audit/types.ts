@@ -1381,6 +1381,7 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
+      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1448,7 +1449,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
+    typeof eventCodes.BOT_JOIN_FAILURE,
     {
       bot_name: string;
       method: string;
@@ -1464,7 +1465,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
+    typeof eventCodes.INSTANCE_JOIN_FAILURE,
     {
       node_name: string;
       method: string;
@@ -1616,7 +1617,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
     {
       name: string;
       source: string;
