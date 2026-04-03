@@ -392,27 +392,33 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	clock := a.getClock()
 	deadline := clock.Now().Add(a.readyzPollTimeout)
 
-	for {
-		ready, err := a.readyzChecker.check(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if ready {
-			return nil
-		}
+	// Run the first check immediately, then poll on a reusable timer.
+	ready, err := a.readyzChecker.check(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	pollTimer := clock.NewTimer(a.readyzPollInterval)
+	defer pollTimer.Stop()
+
+	for !ready {
 		if !clock.Now().Before(deadline) {
 			break
 		}
-
-		waitFor := minDuration(a.readyzPollInterval, clock.Until(deadline))
-		timer := clock.NewTimer(waitFor)
+		pollTimer.Reset(minDuration(a.readyzPollInterval, clock.Until(deadline)))
 		select {
-		case <-timer.Chan():
+		case <-pollTimer.Chan():
+			ready, err = a.readyzChecker.check(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		case <-ctx.Done():
-			timer.Stop()
 			return trace.Wrap(ctx.Err())
 		}
+	}
+
+	if ready {
+		return nil
 	}
 
 	var parts []string
