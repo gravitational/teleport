@@ -38,6 +38,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -2850,7 +2851,15 @@ func TestSSHAddingMFA(t *testing.T) {
 func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx := t.Context()
+	const sshRunTimeout = 2 * time.Minute
 
+	var phase atomic.Int64
+	setPhase := func(name string) {
+		t.Logf("phase: %s", name)
+		phase.Add(1)
+	}
+
+	setPhase("start")
 	localUser, err := user.Current()
 	require.NoError(t, err)
 
@@ -2936,6 +2945,7 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	tmpHomePath := t.TempDir()
+	setPhase("login")
 	err = Run(ctx, []string{
 		"login",
 		"--insecure",
@@ -2947,6 +2957,7 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	// Wait for the proxy to see the node so that future SSH attempts may
 	// succeed, the most reliable way seems to make an SSH attempt and look for
 	// an AccessDenied error.
+	setPhase("wait proxy sees node")
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var output strings.Builder
 		err = Run(ctx, []string{
@@ -3007,20 +3018,35 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	requestReason := uuid.NewString()
 
 	attemptOut := &output{}
-	err = Run(ctx, []string{
-		"ssh",
-		"--debug",
-		"--insecure",
-		"--request-mode", accessRequestModeRole,
-		"--request-reason", requestReason,
-		fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
-		"echo", greeting,
-	}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
-		cf.OverrideStdout = attemptOut
-		cf.WebauthnRegister = webauthnRegister
-		cf.WebauthnLogin = webauthnLogin
-		return nil
-	})
+	setPhase("run ssh with auto-request and mfa add")
+	sshErr := make(chan error, 1)
+	go func() {
+		sshErr <- Run(ctx, []string{
+			"ssh",
+			"--debug",
+			"--insecure",
+			"--request-mode", accessRequestModeRole,
+			"--request-reason", requestReason,
+			fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
+			"echo", greeting,
+		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+			cf.OverrideStdout = attemptOut
+			cf.WebauthnRegister = webauthnRegister
+			cf.WebauthnLogin = webauthnLogin
+			return nil
+		})
+	}()
+
+	select {
+	case err = <-sshErr:
+		setPhase("ssh run completed")
+	case <-time.After(sshRunTimeout):
+		t.Logf("timed out waiting for ssh run after %v, phase=%d", sshRunTimeout, phase.Load())
+		if g := pprof.Lookup("goroutine"); g != nil {
+			_ = g.WriteTo(os.Stderr, 2)
+		}
+		require.FailNow(t, "ssh run timed out", "timed out waiting for ssh run after %v", sshRunTimeout)
+	}
 	require.NoError(t, err)
 	stdout := attemptOut.String()
 	require.Contains(t, stdout, mfaPromptQuestion)
