@@ -449,7 +449,7 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // is not found.
 func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
 	if uploadID != "" {
-		return nil, trace.NotImplemented("")
+		return nil, trace.NotImplemented("streaming temporary session recordings not supported for S3")
 	}
 	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
 }

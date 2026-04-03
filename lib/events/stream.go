@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -210,9 +209,9 @@ func (s *ProtoStreamer) createAuditStream(ctx context.Context, sid session.ID, o
 
 // ResumeAuditStream resumes the stream that has not been completed yet
 func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	log := slog.With("session_id", sid, "upload_id", uploadID)
 	// Note, that if the session ID does not match the upload ID,
 	// the request will fail
-	fmt.Println("ResumeAuditStream", sid, uploadID)
 	upload := s.cfg.Uploader.GetUploadMetadata(sid, uploadID).StreamUpload
 	parts, err := s.cfg.Uploader.ListParts(ctx, upload)
 	if err == nil && len(parts) > 0 {
@@ -251,18 +250,16 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		if tempRecordingExists {
 			// Both recordings exist, this stream is merging the two and overwriting
 			// the current recording.
+			log.DebugContext(ctx, "Found existing temporary recording. Creating upload to replace current recording.")
 			createOpts = append(createOpts, WithUploadReplace(currentRecordingVersion))
 		} else {
 			// Only current recording exists, we need to create the temporary recording.
+			log.DebugContext(ctx, "Found existing complete recording. Creating a new upload to merge with it.")
 			upload.Temporary = true
 			createOpts = append(createOpts, WithUploadTemporary())
 		}
-	}
-
-	if upload.Temporary {
-		slog.DebugContext(ctx, "Found existing complete recording. Creating a new upload to merge with it.", "session_id", sid)
 	} else {
-		slog.DebugContext(ctx, "Upload missing, creating a new one.", "session_id", sid, "upload_id", uploadID)
+		log.DebugContext(ctx, "Upload missing, creating a new one.")
 	}
 	return s.createAuditStream(ctx, sid, createOpts...)
 }
@@ -1483,116 +1480,4 @@ func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, erro
 // isReserveUploadPartError identifies uploader reserve part errors.
 func isReserveUploadPartError(err error) bool {
 	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
-}
-
-// TempSessionStreamer is an alternate version of [SessionStreamer] that can stream
-// events from temporary recordings.
-type TempSessionStreamer interface {
-	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-// MergeUpload merges the current recording for a session with a temporary
-// recording, replacing the current recording with one that includes all
-// events from both.
-func MergeUpload(
-	ctx context.Context,
-	uploadStreamer TempSessionStreamer,
-	streamer Streamer,
-	upload StreamUpload,
-) (err error) {
-	stream, err := streamer.ResumeAuditStream(ctx, upload.SessionID, upload.ID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer func() {
-		if err != nil {
-			if closeErr := stream.Close(ctx); closeErr != nil {
-				slog.WarnContext(ctx, "Failed to close steam.", "error", closeErr)
-			}
-		}
-	}()
-	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "", 0)
-	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var nextCurrentEvent apievents.AuditEvent
-	var nextIncomingEvent apievents.AuditEvent
-	fetchCurrent := true
-	fetchIncoming := true
-	fetchEvents := func() chan struct{} {
-		// Fetch event from one or both streams concurrently.
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			wg := &sync.WaitGroup{}
-			if fetchCurrent {
-				wg.Go(func() {
-					select {
-					case event := <-currentStream:
-						nextCurrentEvent = event
-						fetchCurrent = false
-					case <-ctx.Done():
-					}
-				})
-			}
-			if fetchIncoming {
-				wg.Go(func() {
-					select {
-					case event := <-incomingStream:
-						nextIncomingEvent = event
-						fetchIncoming = false
-					case <-ctx.Done():
-					}
-				})
-			}
-			wg.Wait()
-		}()
-		return done
-	}
-
-	nopPreparer := NoOpPreparer{}
-	for {
-		select {
-		case <-fetchEvents():
-		case err := <-currentErr:
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		case err := <-incomingErr:
-			if err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
-		// Both streams are exhausted, we are done.
-		if nextCurrentEvent == nil && nextIncomingEvent == nil {
-			return trace.Wrap(stream.Complete(ctx))
-		}
-
-		var nextEvent apievents.AuditEvent
-		switch {
-		// There are no incoming events, or the current event is next by index.
-		case nextIncomingEvent == nil || (nextCurrentEvent != nil && nextCurrentEvent.GetIndex() < nextIncomingEvent.GetIndex()):
-			nextEvent = nextCurrentEvent
-			fetchCurrent = true
-			// There are no current events, or the incoming event is next by index.
-		case nextCurrentEvent == nil || (nextIncomingEvent != nil && nextIncomingEvent.GetIndex() < nextCurrentEvent.GetIndex()):
-			nextEvent = nextIncomingEvent
-			fetchIncoming = true
-			// Duplicate event. Send the current event, replace both.
-		case nextCurrentEvent.GetIndex() == nextIncomingEvent.GetIndex():
-			nextEvent = nextCurrentEvent
-			fetchCurrent = true
-			fetchIncoming = true
-		}
-
-		if nextEvent != nil {
-			preparedEvent, _ := nopPreparer.PrepareSessionEvent(nextEvent)
-			if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
 }

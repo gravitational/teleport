@@ -385,7 +385,7 @@ func (h *Handler) uploadBlob(
 // StreamSessionRecording implements [events.UploadHandler] and downloads a session recording.
 func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
 	if uploadID != "" {
-		return nil, trace.NotImplemented("")
+		return nil, trace.NotImplemented("streaming temporary session recordings not supported for Azure Blob Storage")
 	}
 	return h.blobRetrier(ctx, sessionID, h.sessionBlob(sessionID))
 }
@@ -476,7 +476,7 @@ func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobCli
 }
 
 func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
-	return "", trace.NotImplemented("")
+	return "", trace.NotImplemented("GetRecordingVersion not implemented for Azure Blob Storage")
 }
 
 // CreateUpload implements [events.MultipartUploader].

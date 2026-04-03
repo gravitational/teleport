@@ -1141,7 +1141,7 @@ type StreamUpload struct {
 	// be eventually merged with the real recording.
 	Temporary bool `json:"temporary,omitempty"`
 	// ReplaceVersion indicates the recording version that this upload should
-	// replace. If empty, there should not be a preexisting version.
+	// replace. If empty, this upload must be the first.
 	ReplaceVersion string `json:"replace_version,omitempty"`
 }
 

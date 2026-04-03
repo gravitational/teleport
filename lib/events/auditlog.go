@@ -546,7 +546,7 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
-	return l.streamEvents(ctx, sessionID, "", startIndex)
+	return l.streamEvents(ctx, sessionID, "" /* upload ID */, startIndex)
 }
 
 // StreamTempSessionEvents streams events from a temporary recording associated with the uploadID.

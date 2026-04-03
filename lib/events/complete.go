@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,12 +34,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -190,6 +193,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	defer periodic.Stop()
 	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
 	var reuploadCh <-chan time.Time
+	// Only the local audit log on the auth server can perform reuploads.
 	if _, ok := u.cfg.AuditLog.(TempSessionStreamer); ok {
 		reuploadPeriodic := interval.New(interval.Config{
 			Clock:         u.cfg.Clock,
@@ -401,6 +405,7 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 	}
 	for _, upload := range uploads {
 		log := u.log.With("upload_id", upload.ID, "session_id", upload.SessionID)
+		// Merge any complete temporary recordings.
 		if !upload.Temporary {
 			continue
 		}
@@ -415,11 +420,120 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 			log.ErrorContext(ctx, "failed to merge recordings", "error", err)
 			continue
 		}
+		// Clean up temporary recording.
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, nil); err != nil {
 			log.WarnContext(ctx, "failed to clean up temporary upload", "error", err)
 		}
 	}
 	return nil
+}
+
+// TempSessionStreamer is an alternate version of [SessionStreamer] that can stream
+// events from temporary recordings.
+type TempSessionStreamer interface {
+	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// MergeUpload merges the current recording for a session with a temporary
+// recording, replacing the current recording with one that includes all
+// events from both.
+func MergeUpload(
+	ctx context.Context,
+	uploadStreamer TempSessionStreamer,
+	streamer Streamer,
+	upload StreamUpload,
+) (err error) {
+	stream, err := streamer.ResumeAuditStream(ctx, upload.SessionID, upload.ID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			if closeErr := stream.Close(ctx); closeErr != nil {
+				slog.WarnContext(ctx, "Failed to close steam.", "error", closeErr)
+			}
+		}
+	}()
+	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "" /* upload ID */, 0)
+	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type fetchedEvents struct {
+		current  apievents.AuditEvent
+		incoming apievents.AuditEvent
+	}
+	fetchEvents := func(previous fetchedEvents) chan fetchedEvents {
+		// Fetch event from one or both streams concurrently.
+		events := make(chan fetchedEvents, 1)
+		go func() {
+			defer close(events)
+			wg := &sync.WaitGroup{}
+			fetched := previous
+			if previous.current == nil {
+				wg.Go(func() {
+					select {
+					case fetched.current = <-currentStream:
+					case <-ctx.Done():
+					}
+				})
+			}
+			if previous.incoming == nil {
+				wg.Go(func() {
+					select {
+					case fetched.incoming = <-incomingStream:
+					case <-ctx.Done():
+					}
+				})
+			}
+			wg.Wait()
+			events <- fetched
+		}()
+		return events
+	}
+
+	nopPreparer := NoOpPreparer{}
+	var nextEvents fetchedEvents
+	for {
+		select {
+		case nextEvents = <-fetchEvents(nextEvents):
+		case err := <-currentErr:
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		case err := <-incomingErr:
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+		// Both streams are exhausted, we are done.
+		if nextEvents.current == nil && nextEvents.incoming == nil {
+			return trace.Wrap(stream.Complete(ctx))
+		}
+
+		var nextEvent apievents.AuditEvent
+		switch {
+		// There are no incoming events, or the current event is next by index.
+		case nextEvents.incoming == nil || (nextEvents.current != nil && nextEvents.current.GetIndex() < nextEvents.incoming.GetIndex()):
+			nextEvent = nextEvents.current
+			nextEvents.current = nil
+			// There are no current events, or the incoming event is next by index.
+		case nextEvents.current == nil || (nextEvents.incoming != nil && nextEvents.incoming.GetIndex() < nextEvents.current.GetIndex()):
+			nextEvent = nextEvents.incoming
+			nextEvents.incoming = nil
+			// Duplicate event. Send the current event, replace both.
+		case nextEvents.current.GetIndex() == nextEvents.incoming.GetIndex():
+			nextEvent = nextEvents.current
+			nextEvents = fetchedEvents{}
+		}
+
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(nextEvent)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {

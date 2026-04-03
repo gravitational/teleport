@@ -709,7 +709,7 @@ func validateSessionRecordingEvents(t *testing.T, testCtx *TestContext, sessionI
 
 	// validate that session recording was correctly uploaded.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rc, err := testCtx.UploadHandler.StreamSessionRecording(testCtx.Context, sessionpkg.ID(sessionID), "")
+		rc, err := testCtx.UploadHandler.StreamSessionRecording(testCtx.Context, sessionpkg.ID(sessionID), "" /* upload ID */)
 		if assert.NoError(t, err) {
 			rc.Close()
 		}

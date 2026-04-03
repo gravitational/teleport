@@ -128,6 +128,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, opts .
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+
 	upload := events.StreamUpload{
 		SessionID:      sessionID,
 		ID:             uuid.New().String(),
@@ -373,11 +374,6 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 				continue
 			}
 			return nil, trace.Wrap(err)
-		}
-		// Expect two entries, the parts directory and the metadata file.
-		if len(files) != 2 {
-			h.logger.WarnContext(ctx, "Skipping upload, missing subdirectory or metadata file.", "upload_id", uploadID)
-			continue
 		}
 
 		info, err := dir.Info()
