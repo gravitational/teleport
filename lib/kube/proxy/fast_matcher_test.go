@@ -846,7 +846,12 @@ func BenchmarkFilterObj(b *testing.B) {
 		return rf, obj
 	}
 
-	for _, ruleCount := range []int{4, 50, 150, 4000} {
+	// 150 rules is a realistic upper bound for most deployments.
+	// The theoretical maximum is ~4000 kubernetes_resources entries per role
+	// (limited by the backend object size), but that case is excluded because
+	// the default_matcher sub-benchmark takes ~125s per iteration at 4000 rules
+	// and causes CI timeouts.
+	for _, ruleCount := range []int{4, 50, 150} {
 		allowed, denied := buildRules(ruleCount)
 
 		for _, itemCount := range []int{500, 5000} {
