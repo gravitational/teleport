@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-func validateRequest(req any) error {
+func validateRequest(req any, f modules.Features) error {
 	switch t := req.(type) {
 	case *pb.RunAuditQueryRequest:
 		if t.Query == "" {
@@ -19,7 +19,7 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, t.Days); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(t.Days); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(t.Days, f); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -34,7 +34,7 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.GetReportResultRequest:
@@ -47,7 +47,7 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.RunReportRequest:
@@ -57,7 +57,7 @@ func validateRequest(req any) error {
 		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days)); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.DeleteReportRequest:
@@ -78,8 +78,7 @@ func validateRequest(req any) error {
 	return nil
 }
 
-func verifyAccessMonitoringMaxReportRangeLimit(days int32) error {
-	f := modules.GetModules().Features()
+func verifyAccessMonitoringMaxReportRangeLimit(days int32, f modules.Features) error {
 	if !f.GetEntitlement(entitlements.AccessMonitoring).Enabled {
 		return trace.AccessDenied("access monitoring is not enabled")
 	}

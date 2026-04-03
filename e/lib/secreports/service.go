@@ -87,6 +87,8 @@ type ServiceConfig struct {
 	// ExternalAuditStorage is optional and can be nil. It's only set when running in
 	// a Teleport Cloud environment.
 	ExternalAuditStorage *externalauditstorage.Configurator
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 const (
@@ -101,6 +103,9 @@ const (
 func (c *ServiceConfig) CheckAndSetDefaults() error {
 	if c.Authorizer == nil {
 		return trace.BadParameter("authorizer param is missing")
+	}
+	if c.Modules == nil {
+		return trace.BadParameter("modules param is missing")
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "secreports")
@@ -248,6 +253,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		ParentCtx:          cfg.ProcessContext,
 		Scheduler:          sched,
 		userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
+		modules:            cfg.Modules,
 	}, nil
 }
 
@@ -266,6 +272,7 @@ type Service struct {
 	ParentCtx          context.Context
 	Scheduler          *scheduler.Scheduler
 	userQueriesLimiter *limiter.UserQuery
+	modules            modules.Modules
 
 	pb.UnimplementedSecReportsServiceServer
 }
@@ -305,8 +312,7 @@ var reportValidDaysRange = []int32{7, 30, 90, 120}
 // getReportExecutionDaysRange returns a valid days range for the report time rage.
 // If access monitoring is enabled, the function returns a range up to max report range
 // where unsupported days are filtered out.
-func getReportExecutionDaysRange() []int32 {
-	f := modules.GetModules().Features()
+func getReportExecutionDaysRange(f modules.Features) []int32 {
 	entitlement := f.GetEntitlement(entitlements.AccessMonitoring)
 	if entitlement.Enabled && entitlement.Limit == 0 {
 		return reportValidDaysRange
@@ -327,7 +333,7 @@ func (s *Service) maybeUpdateSecurityReports(ctx context.Context, threshold time
 		return trace.Wrap(err)
 	}
 	for _, report := range reports {
-		for _, days := range getReportExecutionDaysRange() {
+		for _, days := range getReportExecutionDaysRange(s.modules.Features()) {
 			if err := s.runReport(ctx, report, days, withReportReadyRerunThreshold(threshold)); err != nil {
 				s.log.ErrorContext(ctx, "Failed to run report", "name", report.GetName(), "days", days, "error", err)
 			}

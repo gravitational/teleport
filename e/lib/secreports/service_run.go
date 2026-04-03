@@ -22,7 +22,7 @@ import (
 
 // RunAuditQuery runs the audit query.
 func (s *Service) RunAuditQuery(ctx context.Context, req *pb.RunAuditQueryRequest) (*pb.RunAuditQueryResponse, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -90,7 +90,7 @@ func (s *Service) runAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 
 // GetAuditQueryResult returns the audit query result.
 func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQueryResultRequest) (*pb.GetAuditQueryResultResponse, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -122,7 +122,7 @@ func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQuery
 
 // GetReportResult returns security reports result.
 func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRequest) (*pb.GetReportResultResponse, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -153,7 +153,7 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 
 // GetReportState returns security report state.
 func (s *Service) GetReportState(ctx context.Context, req *pb.GetReportStateRequest) (*pb.ReportState, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -182,7 +182,7 @@ func (s *Service) GetReportState(ctx context.Context, req *pb.GetReportStateRequ
 
 // RunReport runs the security report.
 func (s *Service) RunReport(ctx context.Context, req *pb.RunReportRequest) (*emptypb.Empty, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

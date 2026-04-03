@@ -117,7 +117,7 @@ func (s *Service) GetSchema(ctx context.Context, _ *pb.GetSchemaRequest) (*pb.Ge
 
 // DeleteAuditQuery deletes the Audit Query.
 func (s *Service) DeleteAuditQuery(ctx context.Context, req *pb.DeleteAuditQueryRequest) (*emptypb.Empty, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -181,7 +181,7 @@ func (s *Service) upsertSecurityReport(ctx context.Context, req *pb.UpsertReport
 
 // GetReport returns the security Report.
 func (s *Service) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.Report, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -244,7 +244,7 @@ func (s *Service) listSecurityReports(ctx context.Context, req *pb.ListReportsRe
 
 // DeleteReport deletes the Security Report.
 func (s *Service) DeleteReport(ctx context.Context, req *pb.DeleteReportRequest) (*emptypb.Empty, error) {
-	if err := validateRequest(req); err != nil {
+	if err := validateRequest(req, s.modules.Features()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authCtx, err := s.authorizer.Authorize(ctx)

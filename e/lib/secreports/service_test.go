@@ -36,13 +36,6 @@ import (
 )
 
 func TestListReportStates(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(100)},
-			},
-		},
-	})
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -150,6 +143,13 @@ func TestListReportStates(t *testing.T) {
 				},
 				ParentCtx:          context.Background(),
 				userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
+				modules: &modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.AccessMonitoring: {Enabled: true, Limit: int32(100)},
+						},
+					},
+				},
 			}
 
 			var states []*pb.ReportState
@@ -177,13 +177,6 @@ func TestService(t *testing.T) {
 	maxLimit := 7
 	overLimit := 120
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
-			},
-		},
-	})
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -232,6 +225,13 @@ func TestService(t *testing.T) {
 		},
 		ParentCtx:          context.Background(),
 		userQueriesLimiter: limiter.NewUserQuery(defaultMaxParallelUserQueries),
+		modules: &modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessMonitoring: {Enabled: true, Limit: int32(maxLimit)},
+				},
+			},
+		},
 	}
 	err = svc.initPrebuiltReports(ctx)
 	require.NoError(t, err)
@@ -310,13 +310,13 @@ func TestService(t *testing.T) {
 		}, time.Second*2, time.Millisecond*100)
 	})
 
-	modulestest.SetTestModules(t, modulestest.Modules{
+	svc.modules = &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true, Limit: 0},
 			},
 		},
-	})
+	}
 
 	t.Run("run security report without max limit error", func(t *testing.T) {
 		clock.Advance(time.Hour)
@@ -526,15 +526,13 @@ var (
 )
 
 func TestScheduleReportUpdate(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	s := newSuite(t, &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessMonitoring: {Enabled: true},
 			},
 		},
 	})
-
-	s := newSuite(t)
 	ctx := context.Background()
 
 	t.Run("first run", func(t *testing.T) {
@@ -593,18 +591,19 @@ func TestScheduleReportUpdate(t *testing.T) {
 }
 
 func TestReportUpdateThreshold(t *testing.T) {
-	s := newSuite(t)
+	t.Parallel()
 	ctx := context.Background()
 
-	t.Run("Enabled & Unlimited Access Monitoring", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.AccessMonitoring: {Enabled: true},
-				},
+	testModules := &modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessMonitoring: {Enabled: true},
 			},
-		})
+		},
+	}
 
+	s := newSuite(t, testModules)
+	t.Run("Enabled & Unlimited Access Monitoring", func(t *testing.T) {
 		err := s.svc.schedulesReportsUpdate(ctx)
 		require.NoError(t, err)
 		state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
@@ -645,13 +644,9 @@ func TestReportUpdateThreshold(t *testing.T) {
 	})
 
 	t.Run("no-IGS license", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
-				},
-			},
-		})
+		testModules.TestFeatures.Entitlements = map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.AccessMonitoring: {Enabled: true, Limit: 30},
+		}
 
 		t.Run("24h threshold not reached report should not be executed", func(t *testing.T) {
 			wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
@@ -712,8 +707,7 @@ func TestGetReportExecutionDaysRange(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: tc.features})
-			got := getReportExecutionDaysRange()
+			got := getReportExecutionDaysRange(tc.features)
 			require.Equal(t, tc.want, got)
 
 		})
@@ -744,7 +738,7 @@ func (s *suite) mustGetDetails(t *testing.T) *limiter.Details {
 	return details
 }
 
-func newSuite(t *testing.T) *suite {
+func newSuite(t *testing.T, modules *modulestest.Modules) *suite {
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -784,6 +778,7 @@ func newSuite(t *testing.T) *suite {
 		RefillAfter:        days30,
 		PreAllocationValue: 100,
 		TotalLimit:         1000,
+		Modules:            modules,
 	})
 	require.NoError(t, err)
 
@@ -813,6 +808,7 @@ func newSuite(t *testing.T) *suite {
 			m: map[string]*pb.ReportResult{},
 		},
 		ParentCtx: context.Background(),
+		modules:   modules,
 	}
 	mustUpsertReport(t, store)
 

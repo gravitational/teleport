@@ -46,6 +46,8 @@ type Config struct {
 	PreAllocationValue uint64
 	// TotalLimit is the total limit of scanned bytes.
 	TotalLimit uint64
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 const (
@@ -64,6 +66,9 @@ func (l *Config) CheckAndSetDefaults() error {
 	if l.Store == nil {
 		return trace.BadParameter("missing Store")
 	}
+	if l.Modules == nil {
+		return trace.BadParameter("missing Modules")
+	}
 	if l.Logger == nil {
 		l.Logger = slog.Default()
 	}
@@ -75,7 +80,7 @@ func (l *Config) CheckAndSetDefaults() error {
 		l.PreAllocationValue = defaultPreAllocationValue
 	}
 	if l.TotalLimit == 0 {
-		l.TotalLimit = getDefaultLimit()
+		l.TotalLimit = getDefaultLimit(l.Modules)
 	}
 	if l.Name == "" {
 		l.Name = defaultName
@@ -271,7 +276,7 @@ type cloudClientGetter interface {
 // The Features obtained from License doesn't provide information about the Cloud product.
 // For that reason BillingInformation are fetched.
 func (l *Limiter) UpdateLimiterBasedOnCloudProduct(ctx context.Context, clientGetter cloudClientGetter) {
-	if !modules.GetModules().Features().Cloud {
+	if !l.Modules.Features().Cloud {
 		return
 	}
 	for {
@@ -288,7 +293,7 @@ func (l *Limiter) UpdateLimiterBasedOnCloudProduct(ctx context.Context, clientGe
 				l.Logger.DebugContext(ctx, "Failed to get billing information", "error", err)
 				continue
 			}
-			l.updateLimit(cloudLimits(resp))
+			l.updateLimit(cloudLimits(resp, l.Modules.Features()))
 			l.Logger.InfoContext(ctx, "Access Monitoring Limiter.TotalLimits updated")
 			return
 		}
@@ -312,8 +317,7 @@ const (
 //
 // TODO(smallinksy): Ideally this limits should be managed by Sales Center.
 // todo (michellescripts) add this to sales center
-func cloudLimits(resp *cloudapi.GetBillingInformationResponse) uint64 {
-	f := modules.GetModules().Features()
+func cloudLimits(resp *cloudapi.GetBillingInformationResponse, f modules.Features) uint64 {
 	switch {
 	case resp.Trial:
 		return trialProductLimit
@@ -324,8 +328,8 @@ func cloudLimits(resp *cloudapi.GetBillingInformationResponse) uint64 {
 	}
 }
 
-func getDefaultLimit() uint64 {
-	if modules.GetModules().Features().Cloud {
+func getDefaultLimit(m modules.Modules) uint64 {
+	if m.Features().Cloud {
 		return trialProductLimit
 	}
 	return enterpriseProductLimit

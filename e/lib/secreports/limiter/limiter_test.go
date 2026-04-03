@@ -12,6 +12,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -42,6 +43,7 @@ func TestLimiter(t *testing.T) {
 		TotalLimit:         totalLimit,
 		PreAllocationValue: preAllocationValue,
 		RefillAfter:        defaultRefillAfter,
+		Modules:            modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 

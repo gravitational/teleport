@@ -683,6 +683,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Logger:     logger,
 		Clock:      p.authServer.AuthServer.GetClock(),
 		TotalLimit: p.AccessMonitoring.DataLimit,
+		Modules:    modules.GetModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -710,6 +711,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Semaphore:            p.authServer.AuthServer,
 		Storage:              storage,
 		ExternalAuditStorage: externalAuditStorage,
+		Modules:              modules.GetModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
