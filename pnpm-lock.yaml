@@ -211,9 +211,6 @@ importers:
       react-select-event:
         specifier: ^5.5.1
         version: 5.5.1
-      rolldown:
-        specifier: ^1.0.0-rc.9
-        version: 1.0.0-rc.9
       storybook:
         specifier: ^10.3.3
         version: 10.3.3(@testing-library/dom@10.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

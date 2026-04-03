@@ -64,6 +64,16 @@ const (
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 
+	uiAccessListStartEvent            = "tp.ui.access_list.start"
+	uiAccessListCompleteEvent         = "tp.ui.access_list.complete"
+	uiAccessListDefineAccessEvent     = "tp.ui.access_list.define.access"
+	uiAccessListDefineIdentitiesEvent = "tp.ui.access_list.define.identities"
+	uiAccessListDefineBasicInfoEvent  = "tp.ui.access_list.define.basicinfo"
+	uiAccessListDefineMembersEvent    = "tp.ui.access_list.define.members"
+	uiAccessListDefineOwnersEvent     = "tp.ui.access_list.define.owners"
+	uiAccessListIntegrateEvent        = "tp.ui.access_list.integrate"
+	uiAccessListCustomEvent           = "tp.ui.access_list.custom"
+
 	uiIntegrationEnrollStartEvent         = "tp.ui.integrationEnroll.start"
 	uiIntegrationEnrollCompleteEvent      = "tp.ui.integrationEnroll.complete"
 	uiIntegrationEnrollStepEvent          = "tp.ui.integrationEnroll.step"
@@ -103,6 +113,15 @@ var eventsWithDataRequired = []string{
 	uiIntegrationEnrollFieldCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
 	uiAccessGraphCrownJewelDiffViewEvent,
+	uiAccessListCompleteEvent,
+	uiAccessListDefineAccessEvent,
+	uiAccessListDefineBasicInfoEvent,
+	uiAccessListDefineIdentitiesEvent,
+	uiAccessListDefineMembersEvent,
+	uiAccessListDefineOwnersEvent,
+	uiAccessListIntegrateEvent,
+	uiAccessListStartEvent,
+	uiAccessListCustomEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -428,6 +447,28 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				Link: eventData.Link,
 			},
 		}}, nil
+
+	case uiAccessListCompleteEvent,
+		uiAccessListDefineAccessEvent,
+		uiAccessListDefineBasicInfoEvent,
+		uiAccessListDefineIdentitiesEvent,
+		uiAccessListDefineMembersEvent,
+		uiAccessListDefineOwnersEvent,
+		uiAccessListIntegrateEvent,
+		uiAccessListStartEvent,
+		uiAccessListCustomEvent:
+
+		var accessListEvent AccessListEventData
+		if err := json.Unmarshal([]byte(*req.EventData), &accessListEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		event, err := accessListEvent.ToUsageEvent(req.Event)
+		if err != nil {
+			return nil, trace.BadParameter("failed to convert eventData: %v", err)
+		}
+		return event, nil
+
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
 		uiDiscoverIntegrationAWSOIDCConnectEvent,

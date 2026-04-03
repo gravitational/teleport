@@ -66,6 +66,10 @@ type WatcherConfig struct {
 	Origin string
 	// PreFetchHookFn is called before starting a new fetch cycle.
 	PreFetchHookFn func()
+	// ProcessResourcesDiscoveredHookFn is called for each discovered resources during a fetch cycle.
+	ProcessResourcesDiscoveredHookFn func(types.ResourcesWithLabels)
+	// PostFetchHookFn is called after completing a fetch cycle.
+	PostFetchHookFn func()
 }
 
 // CheckAndSetDefaults validates the config.
@@ -88,6 +92,12 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Origin == "" {
 		return trace.BadParameter("origin is not set")
 	}
+	if c.PreFetchHookFn == nil {
+		c.PreFetchHookFn = func() {}
+	}
+	if c.PostFetchHookFn == nil {
+		c.PostFetchHookFn = func() {}
+	}
 	return nil
 }
 
@@ -107,10 +117,21 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	resourcesC := make(chan types.ResourcesWithLabels)
+
+	if config.ProcessResourcesDiscoveredHookFn == nil {
+		config.ProcessResourcesDiscoveredHookFn = func(resources types.ResourcesWithLabels) {
+			select {
+			case resourcesC <- resources:
+			case <-ctx.Done():
+			}
+		}
+	}
+
 	return &Watcher{
 		cfg:        config,
 		ctx:        ctx,
-		resourcesC: make(chan types.ResourcesWithLabels),
+		resourcesC: resourcesC,
 	}, nil
 }
 
@@ -144,9 +165,8 @@ func (w *Watcher) Start() {
 
 // fetchAndSend fetches resources from all fetchers and sends them to the channel.
 func (w *Watcher) fetchAndSend() {
-	if w.cfg.PreFetchHookFn != nil {
-		w.cfg.PreFetchHookFn()
-	}
+	w.cfg.PreFetchHookFn()
+	defer w.cfg.PostFetchHookFn()
 
 	var (
 		newFetcherResources = make(types.ResourcesWithLabels, 0, 50)
@@ -227,10 +247,7 @@ func (w *Watcher) fetchAndSend() {
 	// error is discarded because we must run all fetchers until the end.
 	_ = group.Wait()
 
-	select {
-	case w.resourcesC <- newFetcherResources:
-	case <-w.ctx.Done():
-	}
+	w.cfg.ProcessResourcesDiscoveredHookFn(newFetcherResources)
 }
 
 // Resources returns a channel that receives fetched cloud resources.
