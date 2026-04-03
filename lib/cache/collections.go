@@ -157,7 +157,7 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment, types.KindValidatedMFAChallenge:
 		return true
 	default:
 		return false

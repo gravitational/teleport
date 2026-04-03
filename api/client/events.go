@@ -28,6 +28,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -183,6 +184,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
 		out.Resource = &proto.Event_WorkloadCluster{
 			WorkloadCluster: r.UnwrapT(),
+		}
+	case validatedMFAChallengeUnwrapper:
+		out.Resource = &proto.Event_ValidatedMFAChallenge{
+			ValidatedMFAChallenge: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -699,6 +704,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWorkloadCluster(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetValidatedMFAChallenge(); r != nil {
+		out.Resource = types.LegacyMetadataToResource(r)
+		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
 	}
@@ -716,4 +724,9 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	default:
 		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
+}
+
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
+type validatedMFAChallengeUnwrapper interface {
+	UnwrapT() *mfav1.ValidatedMFAChallenge
 }

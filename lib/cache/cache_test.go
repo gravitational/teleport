@@ -1983,6 +1983,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
+		types.KindValidatedMFAChallenge:             &types.ResourceHeader{Kind: types.KindValidatedMFAChallenge},
 	}
 
 	for name, cfg := range cases {

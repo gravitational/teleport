@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -208,6 +209,83 @@ func TestWatchers(t *testing.T) {
 				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
 				require.NotNil(t, principalState.Spec)
 				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
+			},
+		},
+		{
+			name: "validated MFA challenge PUT",
+			kind: types.KindValidatedMFAChallenge,
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
+				svc, err := NewMFAService(bk)
+				require.NoError(subtestT, err)
+
+				_, err = svc.CreateValidatedMFAChallenge(
+					subtestCtx,
+					"leaf.example.com",
+					&mfav1.ValidatedMFAChallenge{
+						Kind:    types.KindValidatedMFAChallenge,
+						Version: types.V1,
+						Metadata: &types.Metadata{
+							Name: "test-challenge",
+						},
+						Spec: &mfav1.ValidatedMFAChallengeSpec{
+							Payload: &mfav1.SessionIdentifyingPayload{
+								Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
+							},
+							SourceCluster: "root.example.com",
+							TargetCluster: "leaf.example.com",
+							Username:      "alice",
+						},
+					},
+				)
+				require.NoError(subtestT, err)
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				event := fetchEvent(subtestT, watcher, fetchTimeout)
+				require.Equal(subtestT, types.OpPut, event.Type)
+
+				chal, err := types.ConvertResource[*watchedValidatedMFAChallengeResource](event.Resource)
+				require.NoError(subtestT, err)
+				require.Equal(subtestT, "test-challenge", chal.GetName())
+				require.Equal(subtestT, "leaf.example.com", chal.GetTargetCluster())
+			},
+		},
+		{
+			name: "validated MFA challenge DELETE",
+			kind: types.KindValidatedMFAChallenge,
+			init: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
+				svc, err := NewMFAService(bk)
+				require.NoError(subtestT, err)
+
+				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", &mfav1.ValidatedMFAChallenge{
+					Kind:    types.KindValidatedMFAChallenge,
+					Version: types.V1,
+					Metadata: &types.Metadata{
+						Name: "test-challenge",
+					},
+					Spec: &mfav1.ValidatedMFAChallengeSpec{
+						Payload: &mfav1.SessionIdentifyingPayload{
+							Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
+						},
+						SourceCluster: "root.example.com",
+						TargetCluster: "leaf.example.com",
+						Username:      "alice",
+					},
+				})
+				require.NoError(subtestT, err)
+			},
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
+				err := bk.Delete(subtestCtx, backend.NewKey(types.KindValidatedMFAChallenge, "leaf.example.com", "test-challenge"))
+				require.NoError(subtestT, err)
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				event := fetchEvent(subtestT, watcher, fetchTimeout)
+				require.Equal(subtestT, types.OpDelete, event.Type)
+
+				chal, err := types.ConvertResource[*watchedValidatedMFAChallengeResource](event.Resource)
+				require.NoError(subtestT, err)
+				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
+				require.Equal(subtestT, "test-challenge", chal.GetName())
+				require.Equal(subtestT, "leaf.example.com", chal.GetTargetCluster())
 			},
 		},
 	}
