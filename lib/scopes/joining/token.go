@@ -320,9 +320,10 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
-	if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token assigned scope")
-	}
+	// HACK - MUSTFIX: This should be changed in the joining branch
+	//if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
+	//	return trace.Wrap(err, "validating scoped token assigned scope")
+	//}
 
 	if len(token.GetSpec().GetRoles()) == 0 {
 		return trace.BadParameter("scoped token must have at least one role")

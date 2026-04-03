@@ -1432,10 +1432,13 @@ func TestScopedBotSSH(t *testing.T) {
 			Scope: scopeName,
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{scopeName},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					Logins: []string{currentUser.Username},
-					NodeLabels: []*labelv1.Label{
-						{Name: "*", Values: []string{"*"}},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "*",
+							Values: []string{"*"},
+						},
 					},
 				},
 			},
@@ -1474,12 +1477,11 @@ func TestScopedBotSSH(t *testing.T) {
 			},
 			Scope: scopeName,
 			Spec: &joiningv1.ScopedTokenSpec{
-				AssignedScope: scopeName,
-				Roles:         []string{types.RoleBot.String()},
-				JoinMethod:    string(types.JoinMethodBoundKeypair),
-				UsageMode:     jointoken.TokenUsageModeBot,
-				BotName:       botName,
-				BotScope:      scopeName,
+				Roles:      []string{types.RoleBot.String()},
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  jointoken.TokenUsageModeBot,
+				BotName:    botName,
+				BotScope:   scopeName,
 				BoundKeypair: &joiningv1.BoundKeypairSpec{
 					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
 						InitialPublicKey: botPublicKey,
@@ -1506,6 +1508,7 @@ func TestScopedBotSSH(t *testing.T) {
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			Version: types.V1,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
 			},
