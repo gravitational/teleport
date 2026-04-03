@@ -102,6 +102,34 @@ message ScopedRoleSSH {
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
   // (or global default) applies.
   string client_idle_timeout = 3;
+
+  // PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions.
+  // If not set, X11 forwarding is not permitted.
+  optional bool permit_x11_forwarding = 4;
+
+  // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
+  // over an SSH session. It defaults to allowing the user to download and upload files by default.
+  optional SSHFileCopy ssh_file_copy = 5;
+
+  // ForwardAgent is SSH agent forwarding.
+  optional bool forward_agent = 6;
+
+  // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+  optional SSHPortForwarding ssh_port_forwarding = 7;
+
+  // CreateHostUser configures the creation of host users.
+  optional CreateHostUser create_host_user = 8;
+
+  // MaxSessions defines the maximum number of
+  // concurrent sessions per connection.
+  optional int64 max_sessions = 9;
+}
+
+// SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
+// over an SSH session. It defaults to true unless explicitly set to false.
+message SSHFileCopy {
+  // Allow for remote file operations via SCP or SFTP.
+  optional bool enabled = 1;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -135,4 +163,40 @@ message ScopedRule {
   repeated string resources = 1;
   // Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
   repeated string verbs = 2;
+}
+
+// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+message SSHPortForwarding {
+  // Allow local port forwarding
+  optional bool local = 1;
+  // Allow remote port forwarding
+  optional bool remote = 2;
+}
+
+// CreateHostUser configures what types of host user creation are allowed by a role.
+message CreateHostUser {
+  // CreateHostUserMode specifies how the host user should be created.
+  optional CreateHostUserMode create_host_user_mode = 1;
+  // HostSudoers is a list of entries to include in a users sudoer file
+  repeated string host_sudoers = 2;
+
+  // HostGroups is a list of host groups to add the user to.
+  repeated string host_groups = 3;
+
+  // HostShell is the shell to set for the user.
+  optional string host_shell = 4;
+}
+
+// CreateHostUserMode determines whether host user creation should be
+// disabled or if host users should be cleaned up or kept after
+// sessions end.
+enum CreateHostUserMode {
+  CREATE_HOST_USER_MODE_UNSPECIFIED = 0;
+  // CREATE_HOST_USER_MODE_OFF disables host user creation.
+  CREATE_HOST_USER_MODE_OFF = 1;
+  // CREATE_HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
+  CREATE_HOST_USER_MODE_KEEP = 2;
+  // CREATE_HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
+  // users at session end.
+  CREATE_HOST_USER_MODE_INSECURE_DROP = 3;
 }

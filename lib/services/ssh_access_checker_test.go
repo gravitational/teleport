@@ -188,3 +188,7 @@ func TestSSHAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestSSHAccessCheckerX11Forwarding(t *testing.T) {
+
+}
