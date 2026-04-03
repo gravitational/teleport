@@ -59,15 +59,16 @@ const (
 	cliMFATypeSSO = "SSO"
 	// cliMFATypeBrowserMFA is the CLI display name for Browser MFA.
 	cliMFATypeBrowserMFA = "BROWSER"
-
-	totpDeviceType     = "TOTP"
-	webauthnDeviceType = "WEBAUTHN"
-	touchIDDeviceType  = "TOUCHID"
 )
 
 var (
-	totpDeviceTypes = []mfa.MFADeviceType{totpDeviceType}
-	webDeviceTypes  = initWebDevs()
+	// totpDeviceTypes are device types available when the second factor option
+	// is set to [constants.SecondFactorOff].
+	totpDeviceTypes = []mfa.MFADeviceType{mfa.TOTPDeviceType}
+
+	// webDeviceTypes are device types available when the second factor option is
+	// set to [constants.SecondFactorWebauthn].
+	webDeviceTypes = initWebDevs()
 
 	// DefaultDeviceTypes lists the supported device types for `tsh mfa add`.
 	DefaultDeviceTypes = append(totpDeviceTypes, webDeviceTypes...)
@@ -591,7 +592,7 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	}
 
 	// Attempt to diagnose clamshell failures.
-	if !slices.Contains(DefaultDeviceTypes, touchIDDeviceType) {
+	if !slices.Contains(DefaultDeviceTypes, mfa.TouchIDDeviceType) {
 		diag, err := touchid.Diag()
 		if err == nil && diag.IsClamshellFailure() {
 			slog.WarnContext(ctx, "Touch ID support disabled, is your MacBook lid closed?")
@@ -608,9 +609,9 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 		}
 	}
 	devTypePB := map[mfa.MFADeviceType]proto.DeviceType{
-		totpDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
-		webauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		touchIDDeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		mfa.TOTPDeviceType:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		mfa.WebauthnDeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		mfa.TouchIDDeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 	}[config.DeviceType]
 	// Sanity check.
 	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
@@ -630,7 +631,7 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	}
 
 	switch config.DeviceType {
-	case webauthnDeviceType:
+	case mfa.WebauthnDeviceType:
 		// Ask the user?
 		if config.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED && wancli.IsFIDO2Available() {
 			answer, err := prompt.PickOne(ctx, c.stdout(), c.stdin(), "Allow passwordless logins", []string{"YES", "NO"})
@@ -643,7 +644,7 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 				config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_MFA
 			}
 		}
-	case touchIDDeviceType:
+	case mfa.TouchIDDeviceType:
 		// Touch ID is always a resident key/passwordless
 		config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 	}
@@ -733,7 +734,7 @@ func (c *CLIPrompt) promptRegisterChallenge(
 		}
 		cc := wantypes.CredentialCreationFromProto(rc.GetWebauthn())
 
-		if devType == touchIDDeviceType {
+		if devType == mfa.TouchIDDeviceType {
 			return c.promptTouchIDRegisterChallenge(origin, cc)
 		}
 
@@ -778,7 +779,7 @@ func (c *CLIPrompt) promptTOTPRegisterChallenge(ctx context.Context, chal *proto
 	// Try to show a QR code in the system image viewer.
 	// This is not supported on all platforms.
 	var showingQRCode bool
-	closeQR, err := showOTPQRCode(otpKey)
+	closeQR, err := showOTPQRCode(ctx, otpKey)
 	if err != nil {
 		slog.DebugContext(ctx, "Failed to show QR code", "error", err)
 	} else {
@@ -867,7 +868,7 @@ func (c *CLIPrompt) promptTouchIDRegisterChallenge(origin string, cc *wantypes.C
 	}, reg, nil
 }
 
-func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
+func showOTPQRCode(ctx context.Context, k *otp.Key) (cleanup func(), retErr error) {
 	var imageViewer string
 	// imageViewerArgs is used to send additional arguments to exec command.
 	var imageViewerArgs []string
@@ -907,7 +908,6 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	if err := imageFile.Close(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	ctx := context.TODO()
 	slog.DebugContext(ctx, "Wrote OTP QR code to file", "file", imageFile.Name())
 
 	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)

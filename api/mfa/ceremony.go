@@ -35,19 +35,23 @@ type Ceremony struct {
 	// CreateRegisterChallenge creates a device registration challenge. If set to
 	// nil, the ceremony is unable to register MFA devices.
 	CreateRegisterChallenge CreateRegisterChallengeFunc
+	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
+	PromptConstructor PromptConstructor
+	// MFACeremonyConstructor is an optional MFA ceremony constructor. If provided,
+	// the MFA ceremony will also attempt to retrieve an MFA challenge.
+	MFACeremonyConstructor MFACeremonyConstructor
 	// AddMFADevice adds a device to Teleport backend after it has been
 	// registered on the client side. If set to nil, the ceremony is unable to
 	// register MFA devices.
 	AddMFADevice AddMFADeviceFunc
 	// Ping fetches a [webclient.PingResponse] from the server.
 	Ping PingFunc
-	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
-	PromptConstructor PromptConstructor
-	// MFACeremonyConstructor is an optional MFA ceremony constructor. If provided,
-	// the MFA ceremony will also attempt to retrieve an MFA challenge.
-	MFACeremonyConstructor MFACeremonyConstructor
-
-	// isRegistering is set to indicate that the ceremony is currently registering an MFA device and therefore
+	// isRegistering is set to indicate that the ceremony is currently
+	// registering an MFA device. In such case, another registration should not
+	// be attempted. This prevents infinite recursion where adding a new device
+	// results in an MFA ceremony that is naturally resolved without human
+	// intervention (no MFA on file), but then, since there's no MFA, another
+	// attempt to register an MFA would be conducted, and so on.
 	isRegistering bool
 }
 
@@ -64,8 +68,19 @@ type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
-type CreateRegisterChallengeFunc func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
-type AddMFADeviceFunc func(ctx context.Context, req *proto.MFARegisterResponse, config RegistrationCeremonyConfig) error
+
+// CreateRegisterChallengeFunc is a function that creates an MFA device
+// registration challenge.
+type CreateRegisterChallengeFunc func(
+	ctx context.Context, req *proto.CreateRegisterChallengeRequest,
+) (*proto.MFARegisterChallenge, error)
+
+// AddMFADeviceFunc is a function that adds an MFA device to Teleport backend.
+type AddMFADeviceFunc func(
+	ctx context.Context, req *proto.MFARegisterResponse, config RegistrationCeremonyConfig,
+) error
+
+// PingFunc is a function that
 type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
 
 // Run the MFA ceremony.
