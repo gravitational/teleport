@@ -123,7 +123,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow|[][object](#speckubernetesallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
 |oidc|[object](#speckubernetesoidc)|The configuration specific to the `oidc` type.|
 |static_jwks|[object](#speckubernetesstatic_jwks)|The configuration specific to the `static_jwks` type.|
-|type|string|Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.|
+|type|string|Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`|
 
 ### spec.kubernetes.allow items
 
