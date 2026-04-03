@@ -219,7 +219,7 @@ spec:
                   type:
                     description: 'Controls which behavior should be used for validating
                       the Kubernetes Service Account token. Supported values: - `in_cluster`
-                      - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.'
+                      - `static_jwks` - `oidc`'
                     type: string
                 type: object
               oracle:
