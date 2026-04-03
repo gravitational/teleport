@@ -153,6 +153,14 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// When nil, a default checker is created in NewAutoDiscoverNodeInstaller.
 	readyzChecker *readyzChecker
 
+	// diagnosticsOverride, when set, replaces gatherServiceDiagnostics.
+	// Used for testing.
+	diagnosticsOverride func(ctx context.Context, serviceName string) string
+
+	// journalOverride, when set, replaces captureJournal.
+	// Used for testing.
+	journalOverride func(ctx context.Context, serviceName string) (string, error)
+
 	// clock overrides the time source used by join-health polling.
 	// Used for testing.
 	clock clockwork.Clock
@@ -423,8 +431,19 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 
 	var parts []string
 	parts = append(parts, fmt.Sprintf("node did not become ready (join cluster) within %s", a.readyzPollTimeout))
-	parts = append(parts, a.gatherServiceDiagnostics(ctx, serviceName))
-	journalOutput, captureErr := a.captureJournal(ctx, serviceName)
+	if a.diagnosticsOverride != nil {
+		parts = append(parts, a.diagnosticsOverride(ctx, serviceName))
+	} else {
+		parts = append(parts, a.gatherServiceDiagnostics(ctx, serviceName))
+	}
+
+	var journalOutput string
+	var captureErr error
+	if a.journalOverride != nil {
+		journalOutput, captureErr = a.journalOverride(ctx, serviceName)
+	} else {
+		journalOutput, captureErr = a.captureJournal(ctx, serviceName)
+	}
 	if captureErr != nil {
 		return trace.Wrap(captureErr)
 	}

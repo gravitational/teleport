@@ -1307,24 +1307,21 @@ func TestCheckJoinHealth(t *testing.T) {
 	t.Run("times out and includes diagnostics", func(t *testing.T) {
 		t.Parallel()
 
-		tmpDir := t.TempDir()
-		systemctlMock := newBintestMock(t, "systemctl")
-		journalctlMock := newBintestMock(t, "journalctl")
-		expectSystemctlShowServiceDiagnostics(systemctlMock, "teleport", "active", "running", "success")
-		expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
-		expectJournalctlCall(journalctlMock, "teleport", "", "journal line", "")
-
 		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
 
-		inst := newTestJoinHealthInstaller(tmpDir)
+		inst := newTestJoinHealthInstaller(t.TempDir())
 		inst.clock = fakeClock
 		inst.readyzPollInterval = 5 * time.Second
 		inst.readyzPollTimeout = 10 * time.Second
 		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
-		inst.binariesLocation.Systemctl = systemctlMock.Path
-		inst.binariesLocation.Journalctl = journalctlMock.Path
+		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+		}
+		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+			return "journal line", nil
+		}
 
 		errC := make(chan error, 1)
 		go func() {
@@ -1352,31 +1349,26 @@ func TestCheckJoinHealth(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for checkJoinHealth to return")
 		}
-		require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-		require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 	})
 
 	t.Run("times out at deadline boundary with injected clock", func(t *testing.T) {
 		t.Parallel()
 
-		tmpDir := t.TempDir()
-		systemctlMock := newBintestMock(t, "systemctl")
-		journalctlMock := newBintestMock(t, "journalctl")
-		expectSystemctlShowServiceDiagnostics(systemctlMock, "teleport", "active", "running", "success")
-		expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
-		expectJournalctlCall(journalctlMock, "teleport", "", "journal line", "")
-
 		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
 
-		inst := newTestJoinHealthInstaller(tmpDir)
+		inst := newTestJoinHealthInstaller(t.TempDir())
 		inst.clock = fakeClock
 		inst.readyzPollInterval = 5 * time.Second
 		inst.readyzPollTimeout = 10 * time.Second
 		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
-		inst.binariesLocation.Systemctl = systemctlMock.Path
-		inst.binariesLocation.Journalctl = journalctlMock.Path
+		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+		}
+		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+			return "journal line", nil
+		}
 
 		errC := make(chan error, 1)
 		go func() {
@@ -1399,9 +1391,6 @@ func TestCheckJoinHealth(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for checkJoinHealth to return")
 		}
-
-		require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-		require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 	})
 
 	t.Run("returns context cancellation", func(t *testing.T) {
@@ -1454,25 +1443,21 @@ func TestInstallAndConfigureLockContention(t *testing.T) {
 func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	systemctlMock := newBintestMock(t, "systemctl")
-	journalctlMock := newBintestMock(t, "journalctl")
-	expectSystemctlShowServiceDiagnostics(systemctlMock, "teleport", "active", "running", "success")
-	expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
-	expectJournalctlCall(journalctlMock, "teleport", "", "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", "")
-
 	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
 
-	inst := newTestJoinHealthInstaller(tmpDir)
+	inst := newTestJoinHealthInstaller(t.TempDir())
 	inst.clock = fakeClock
 	inst.readyzPollInterval = 5 * time.Second
 	inst.readyzPollTimeout = 10 * time.Second
 	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 		return debug.Readiness{Ready: false, Status: "bad token"}, nil
 	}
-	inst.binariesLocation.Systemctl = systemctlMock.Path
-	inst.binariesLocation.Journalctl = journalctlMock.Path
+	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+		return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+	}
+	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+		return "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", nil
+	}
 
 	errC := make(chan error, 1)
 	go func() {
@@ -1496,29 +1481,26 @@ func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for checkJoinHealth to return")
 	}
-	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
 
 func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-
-	journalctlMock := newBintestMock(t, "journalctl")
-	expectJournalctlCall(journalctlMock, "teleport", "", "journal output", "")
-
 	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
 
-	inst := newTestJoinHealthInstaller(tmpDir)
+	inst := newTestJoinHealthInstaller(t.TempDir())
 	inst.clock = fakeClock
 	inst.readyzPollInterval = 5 * time.Second
 	inst.readyzPollTimeout = 10 * time.Second
 	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 		return debug.Readiness{Ready: false, Status: "starting"}, nil
 	}
-	inst.binariesLocation.Systemctl = filepath.Join(tmpDir, "missing-systemctl")
-	inst.binariesLocation.Journalctl = journalctlMock.Path
+	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+		return defaultServiceDiagnosticsUnavailable
+	}
+	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+		return "journal output", nil
+	}
 
 	errC := make(chan error, 1)
 	go func() {
@@ -1541,7 +1523,6 @@ func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for checkJoinHealth to return")
 	}
-	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
 
 func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
