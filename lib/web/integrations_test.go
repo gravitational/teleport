@@ -673,6 +673,76 @@ func TestCollectIntegrationStats(t *testing.T) {
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
+
+	t.Run("collects Azure discovery configs", func(t *testing.T) {
+		mockInt := newMockAzureOIDCIntegration(t, integrationName)
+
+		syncTime := time.Now()
+		azureConfig := &discoveryconfig.DiscoveryConfig{
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration: integrationName,
+				Types:       []string{types.AzureMatcherVM},
+				Regions:     []string{"eastus", "westus"},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+				IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+					integrationName: {
+						IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+							AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{
+								Found:    5,
+								Enrolled: 3,
+								Failed:   1,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		var userTasksList []*usertasksv1.UserTask
+		for range 10 {
+			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverAzureVM}})
+		}
+
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
+		}
+
+		req := collectIntegrationStatsRequest{
+			logger:                logger,
+			integration:           mockInt,
+			discoveryConfigLister: clt,
+			databaseGetter:        clt,
+			awsOIDCClient:         deployedDatabaseServicesClient,
+			userTasksClient:       &mockUserTasksLister{userTasks: userTasksList},
+		}
+
+		gotSummary, err := collectIntegrationStats(ctx, req)
+		require.NoError(t, err)
+
+		expectedSummary := &ui.IntegrationWithSummary{
+			Integration: &ui.Integration{
+				Name:    integrationName,
+				SubKind: "azure-oidc",
+				AzureOIDC: &ui.IntegrationAzureOIDCSpec{
+					TenantID: "00000000-0000-0000-0000-000000000000",
+					ClientID: "11111111-1111-1111-1111-111111111111",
+				},
+			},
+			UnresolvedUserTasks: 10,
+			UserTasks:           ui.MakeUserTasks(userTasksList),
+			AzureVms: ui.ResourceTypeSummary{
+				RulesCount:                 2,
+				ResourcesFound:             5,
+				ResourcesEnrollmentSuccess: 3,
+				ResourcesEnrollmentFailed:  1,
+				DiscoverLastSync:           &syncTime,
+				UnresolvedUserTasks:        10,
+			},
+		}
+		require.Equal(t, expectedSummary, gotSummary)
+	})
 }
 
 func TestCollectAutoDiscoveryRules(t *testing.T) {
@@ -957,6 +1027,41 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 			}
 		}
 		require.Equal(t, totalRules, rulesCounter)
+	})
+
+	t.Run("collects Azure VM rules with subscriptions and resource groups", func(t *testing.T) {
+		syncTime := time.Now()
+		azureConfig := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration:    integrationName,
+				Types:          []string{types.AzureMatcherVM},
+				Regions:        []string{"eastus", "westus"},
+				Subscriptions:  []string{"sub-1", "sub-2"},
+				ResourceGroups: []string{"rg-1"},
+				ResourceTags:   types.Labels{"env": []string{"prod"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
+		require.NoError(t, err)
+
+		require.Len(t, got.Rules, 2)
+		for _, rule := range got.Rules {
+			require.Equal(t, types.AzureMatcherVM, rule.ResourceType)
+			require.ElementsMatch(t, []string{"sub-1", "sub-2"}, rule.Subscriptions)
+			require.ElementsMatch(t, []string{"rg-1"}, rule.ResourceGroups)
+			require.Equal(t, []libui.Label{{Name: "env", Value: "prod"}}, rule.LabelMatcher)
+			require.Equal(t, &syncTime, rule.LastSync)
+		}
 	})
 }
 
@@ -1298,6 +1403,19 @@ func newMockGitHubIntegration(t *testing.T, name string) types.Integration {
 	ig, err := types.NewIntegrationGitHub(
 		types.Metadata{Name: name},
 		&types.GitHubIntegrationSpecV1{Organization: "test"},
+	)
+	require.NoError(t, err)
+	return ig
+}
+
+func newMockAzureOIDCIntegration(t *testing.T, name string) types.Integration {
+	t.Helper()
+	ig, err := types.NewIntegrationAzureOIDC(
+		types.Metadata{Name: name},
+		&types.AzureOIDCIntegrationSpecV1{
+			TenantID: "00000000-0000-0000-0000-000000000000",
+			ClientID: "11111111-1111-1111-1111-111111111111",
+		},
 	)
 	require.NoError(t, err)
 	return ig
