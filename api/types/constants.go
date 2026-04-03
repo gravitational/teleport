@@ -1155,6 +1155,11 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 
+	// BotScopeLabel is a label used to identify the scope in which a Bot
+	// exists. It is stored on the user resource to allow the Bot to be hydrated
+	// from a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
+
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster
