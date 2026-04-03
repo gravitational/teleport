@@ -41,6 +41,9 @@ jobs:
               - 'build.assets/Dockerfile*'
               - 'Makefile'
               - '.golangci.yml'
+              - '.golangci-nostructfieldassign.yml'
+              - '.custom-gcl.yml'
+              - 'build.assets/tools/linters/nostructfieldassign/**'
             has_rust:
               - '.github/workflows/lint.yaml'
               - '**.rs'
@@ -184,6 +187,16 @@ jobs:
           verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
+          skip-cache: true
+
+      - name: golangci-lint (teleport-custom)
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --build-tags bpf,libfido2,piv --config ./.golangci-custom-plugins.yml
           skip-cache: true
 
       - name: Run (non-action) linters
