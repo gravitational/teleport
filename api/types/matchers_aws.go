@@ -195,6 +195,16 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
 
+	if slices.Contains(m.Types, AWSMatcherEC2) {
+		if err := m.checkAndSetDefaultsEC2(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (m *AWSMatcher) checkAndSetDefaultsEC2() error {
 	if m.Params == nil {
 		m.Params = &InstallerParams{
 			InstallTeleport: true,
@@ -267,6 +277,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 			m.SSM.DocumentName = AWSInstallerDocument
 		}
 	}
+
 	return nil
 }
 
