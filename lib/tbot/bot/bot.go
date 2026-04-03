@@ -65,7 +65,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	if b.checkStarted(); err != nil {
+	if err := b.checkStarted(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -118,7 +118,7 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/OneShot")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	if b.checkStarted(); err != nil {
+	if err := b.checkStarted(); err != nil {
 		return trace.Wrap(err)
 	}
 
