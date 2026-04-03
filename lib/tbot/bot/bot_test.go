@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bot_test
+package bot
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
 
 func TestBot_RejectsDoubleStart(t *testing.T) {
-	b, err := bot.New(bot.Config{
+	b, err := New(Config{
 		Connection: connection.Config{
 			Address:            "localhost:3025",
 			AddressKind:        connection.AddressKindProxy,
@@ -38,7 +36,7 @@ func TestBot_RejectsDoubleStart(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_ = b.OneShot(ctx)
 
