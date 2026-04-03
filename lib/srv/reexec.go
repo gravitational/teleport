@@ -858,6 +858,7 @@ func RunNetworking() (code int, err error) {
 	go func() {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
+		cancel()
 	}()
 
 	for {
