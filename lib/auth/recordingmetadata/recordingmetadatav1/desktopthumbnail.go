@@ -44,6 +44,9 @@ const (
 
 type desktopThumbnailGenerator struct {
 	rdpstate *rdpstate.RDPState
+	// disabled is set when the RDP decoder is not available (e.g. nop builds without desktop_access_rdp). Once set, all
+	// subsequent events are skipped so that metadata processing degrades to a no-op instead of failing.
+	disabled bool
 }
 
 func newDesktopThumbnailGenerator() *desktopThumbnailGenerator {
@@ -62,10 +65,25 @@ func (d *desktopThumbnailGenerator) handleEvent(evt apievents.AuditEvent) error 
 }
 
 func (d *desktopThumbnailGenerator) handleDesktopRecording(evt *apievents.DesktopRecording) error {
-	return d.rdpstate.HandleMessage(evt)
+	if d.disabled {
+		return nil
+	}
+
+	err := d.rdpstate.HandleMessage(evt)
+	if trace.IsNotImplemented(err) {
+		d.disabled = true
+
+		return nil
+	}
+
+	return err
 }
 
 func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThumbnail, error) {
+	if d.disabled {
+		return nil, nil
+	}
+
 	img := d.rdpstate.Image()
 	if img == nil {
 		return nil, trace.BadParameter("rdp state has no image")
