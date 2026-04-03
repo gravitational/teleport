@@ -722,7 +722,7 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	conn ssh.ConnMetadata,
 	key ssh.PublicKey,
 	perms *ssh.Permissions,
-	signatureAlgorithm string,
+	_ string,
 ) (*ssh.Permissions, error) {
 	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
 	// entry to be unset, so grant access.
@@ -737,13 +737,9 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	}
 
 	// If no preconditions are set, allow the connection to proceed without additional checks.
-	if len(permit.GetPreconditions()) == 0 {
+	preconds := permit.GetPreconditions()
+	if len(preconds) == 0 {
 		return perms, nil
-	}
-
-	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
-	if err := ensureSupportedPreconditions(permit.GetPreconditions()); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	cert, ok := key.(*ssh.Certificate)
@@ -751,21 +747,72 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
-	ident, err := sshca.DecodeIdentity(cert)
+	id, err := sshca.DecodeIdentity(cert)
 	if err != nil {
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
 	}
 
+	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions. Assume
+	// that it is required until we can verify that it is not.
+	requiresKeyboardInteractive := true
+
+	for _, precond := range preconds {
+		switch precond.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+			if requiresKeyboardInteractive, err = requiresInBandMFA(id, conn); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+		default:
+			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
+			return nil, trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	// If we have determined that keyboard-interactive authentication is not required to satisfy any outstanding
+	// preconditions, allow the connection to proceed. Otherwise, proceed to the keyboard-interactive callback to
+	// evaluate the remaining preconditions.
+	if !requiresKeyboardInteractive {
+		return perms, nil
+	}
+
+	return h.KeyboardInteractiveAuth(
+		context.Background(),
+		preconds,
+		id,
+		perms,
+	)
+}
+
+func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) {
+	var (
+		isHardwareMFAVerified = id.PrivateKeyPolicy.MFAVerified()
+		forceInBandMFA        = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
+	)
+
+	// If the certificate indicates that hardware MFA was used, we can trust that MFA was completed and allow the
+	// connection to proceed without performing in-band MFA checks, even if the client doesn't support in-band MFA.
+	if isHardwareMFAVerified {
+		if forceInBandMFA {
+			return false, trace.AccessDenied(
+				"This connection requires in-band MFA, but the certificate indicates that a hardware key was used. " +
+					"Hardware key verification is not compatible with in-band MFA. " +
+					"Please update the Teleport configuration to remove the requirement for in-band MFA, " +
+					"or disable the hardware key requirement if you want to use in-band MFA for this resource.",
+			)
+		}
+
+		return false, nil
+	}
+
 	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
 	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
-		return nil, trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
 	var (
-		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
-		isModernClient      = inBandMFASupported
-		isLegacyClient      = !isModernClient
-		isRegularSSHCert    = ident.MFAVerified == "" && !ident.PrivateKeyPolicy.MFAVerified()
+		isLegacyClient      = !inBandMFASupported
+		isRegularSSHCert    = id.MFAVerified == ""
 		isPerSessionMFACert = !isRegularSSHCert
 	)
 
@@ -773,41 +820,25 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 	// legacy clients is no longer supported.
 	if isLegacyClient {
 		if forceInBandMFA {
-			// In-band MFA is required and is a legacy client that doesn't support in-band MFA, deny.
-			return nil, trace.AccessDenied(
-				"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
+			// In-band MFA is required and the client doesn't support in-band MFA, deny.
+			return false, trace.AccessDenied(
+				"This connection requires in-band MFA, but your SSH client does not support it. " +
+					"Please update your Teleport SSH client to the latest version to connect.",
 			)
 		}
 
 		if isPerSessionMFACert {
-			return perms, nil
+			// In-band MFA is optional, and the client is using a legacy per-session MFA certificate, allow
+			// during the RFD 234 transition period.
+			return false, nil
 		}
 
 		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
-		return nil, services.ErrSessionMFARequired
+		return false, services.ErrSessionMFARequired
 	}
 
-	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(
-		context.Background(),
-		permit.GetPreconditions(),
-		ident,
-		perms,
-	)
-}
-
-func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
-	for _, precond := range preconds {
-		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			// OK
-
-		default:
-			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
-		}
-	}
-
-	return nil
+	// Client must proceed with in-band MFA checks to satisfy the precondition.
+	return true, nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
