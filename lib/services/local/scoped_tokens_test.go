@@ -913,3 +913,52 @@ func TestScopedTokenUpsert(t *testing.T) {
 		require.Contains(t, []string{"user-0", "user-1", "user-2", "user-3"}, label)
 	})
 }
+
+func TestScopedTokenCreate(t *testing.T) {
+	t.Parallel()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	cmpOpts := []gocmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+
+	t.Run("create a new scoped token", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+
+		created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       created.GetToken().GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, gocmp.Diff(created.GetToken(), fetched.GetToken(), cmpOpts...))
+	})
+
+	t.Run("create a token with no secret", func(t *testing.T) {
+		t.Parallel()
+		token := newToken()
+		token.Status.Secret = ""
+		created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name:       created.GetToken().GetMetadata().GetName(),
+			WithSecret: true,
+		})
+		require.NoError(t, err)
+
+		opts := append(slices.Clone(cmpOpts), protocmp.IgnoreFields(&joiningv1.ScopedTokenStatus{}, "secret"))
+		assert.Empty(t, gocmp.Diff(created.GetToken(), fetched.GetToken(), opts...))
+		// token should be assigned a random secret
+		assert.NotEmpty(t, created.GetToken().GetStatus().GetSecret())
+	})
+}
