@@ -783,6 +783,8 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
+		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
+		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
 		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.Is(err, installer.ErrJoinFailure) {
 			writeInstallJoinFailureError(os.Stderr, err)
 			os.Exit(int(installstatus.JoinFailure))
@@ -897,35 +899,10 @@ Examples:
 }
 
 // writeInstallJoinFailureError writes a user-facing join-failure error message to w.
+// The error typically contains the readyz poll timeout, systemd service
+// diagnostics, and recent journal output from the Teleport service.
 func writeInstallJoinFailureError(w io.Writer, err error) {
-	var traceErr *trace.TraceErr
-	if errors.As(err, &traceErr) && len(traceErr.Messages) > 0 {
-		messages := slices.DeleteFunc(slices.Clone(traceErr.Messages), func(m string) bool {
-			return len(traceErr.Messages) > 1 && strings.TrimSpace(m) == installer.ErrJoinFailure.Error()
-		})
-		msg := stripStandaloneJoinFailureLines(strings.Join(messages, "\n"))
-		fmt.Fprintf(w, "ERROR: %s\n", utils.AllowWhitespace(msg))
-		return
-	}
-
 	fmt.Fprintf(w, "ERROR: %s\n", err.Error())
-}
-
-func stripStandaloneJoinFailureLines(msg string) string {
-	lines := strings.Split(msg, "\n")
-	filtered := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if strings.TrimSpace(line) == installer.ErrJoinFailure.Error() {
-			continue
-		}
-		filtered = append(filtered, line)
-	}
-
-	if len(filtered) == 0 {
-		return msg
-	}
-
-	return strings.Trim(strings.Join(filtered, "\n"), "\n")
 }
 
 // OnStart is the handler for "start" CLI command
