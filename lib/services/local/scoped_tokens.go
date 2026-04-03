@@ -518,7 +518,6 @@ func (p *staticScopedTokenParser) parse(event backend.Event) (types.Resource, er
 
 // maybeSetTokenSecret sets a random secret if not provided.
 func maybeSetTokenSecret(token *joiningv1.ScopedToken) error {
-
 	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
 		if token.Status == nil {
 			token.Status = &joiningv1.ScopedTokenStatus{}

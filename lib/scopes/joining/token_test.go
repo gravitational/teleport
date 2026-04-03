@@ -381,8 +381,23 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}
 			},
-			expectedStrongErr: "unrecognized join type \"unknown\"",
-			expectedWeakErr:   "unrecognized join type \"unknown\"",
+			expectedStrongErr: "unrecognized type \"unknown\"",
+			expectedWeakErr:   "unrecognized type \"unknown\"",
+		},
+		{
+			name: "kubernetes token with no join type",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount: "test:test",
+						},
+					},
+				}
+			},
+			expectedStrongErr: "type must be specified",
+			expectedWeakErr:   "type must be specified",
 		},
 		{
 			name: "kubernetes static_jwks token without configuration",
@@ -465,8 +480,8 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}
 			},
-			expectedStrongErr: "oidc.issuer issuer must be set when type is \"oidc\"",
-			expectedWeakErr:   "oidc.issuer issuer must be set when type is \"oidc\"",
+			expectedStrongErr: "oidc.issuer must be set when type is \"oidc\"",
+			expectedWeakErr:   "oidc.issuer must be set when type is \"oidc\"",
 		},
 		{
 			name: "kubernetes oidc token with static_jwks configuration",
