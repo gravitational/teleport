@@ -1031,7 +1031,6 @@ type Kubernetes struct {
 	// - `in_cluster`
 	// - `static_jwks`
 	// - `oidc`
-	// If unset, this defaults to `in_cluster`.
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// The configuration specific to the `static_jwks` type.
 	StaticJwks *Kubernetes_StaticJWKSConfig `protobuf:"bytes,3,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
@@ -1560,7 +1559,7 @@ func (x *Kubernetes_StaticJWKSConfig) GetJwks() string {
 // The configuration specific to the `oidc` type.
 type Kubernetes_OIDCConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+	// The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration`
 	// endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
 	// For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
 	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
