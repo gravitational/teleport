@@ -24,6 +24,7 @@ import (
 	"iter"
 	"log/slog"
 	"maps"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,6 +37,19 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
+)
+
+type repairEvent int
+
+const (
+	repairExpiredMembersEvent repairEvent = iota
+	repairMissedMembersEvent
+
+	// A century is close enough to forever for scheduling the repair
+	// indefinitely in the future when it's not needed.
+	century                     time.Duration = 100 * 365 * 24 * time.Hour
+	expiredMembersRepairBackoff               = 30 * time.Second
+	missedMembersRepairBackoff                = 30 * time.Second
 )
 
 // AccessListReader provides the upstream source of access list and member resources.
@@ -72,6 +86,12 @@ func listAccessListMembers(aclReader AccessListReader, listName string) func(con
 // The materializer is not safe for concurrent use, it is meant to be driven
 // from a single event loop, pushing events into [materializer.ProcessEvent].
 //
+// If the materializer is expected to be long-lived, callers should run
+// [materializer.RepairEventLoop] in a goroutine after [materializer.Init]
+// succeeds.
+// Then, in the main event loop, events from [materializer.RepairEvents]
+// should be received and pushed into [materializer.ProcessRepairEvent].
+//
 // Notably, the materializer never reads the actual scoped roles it is
 // generating assignments for. It does not attempt to validate that scoped role
 // exist or that the assigned scope is allowed by the scoped role definition.
@@ -95,6 +115,12 @@ type materializer struct {
 	materializedAssignments map[materializedAssignmentKey]ancestorRelation
 
 	logger *slog.Logger
+
+	repairTimeMu                 sync.Mutex
+	repairEventC                 chan repairEvent
+	wakeRepairLoop               chan struct{}
+	nextExpiredMembersRepairTime time.Time
+	nextRepairMissedMembersTime  time.Time
 }
 
 type materializedAssignmentKey struct {
@@ -111,11 +137,16 @@ func (k materializedAssignmentKey) assignmentName() string {
 }
 
 func newMaterializer(aclReader AccessListReader) *materializer {
+	now := time.Now()
 	return &materializer{
-		aclReader:               aclReader,
-		ancestorCache:           newAncestorCache(),
-		materializedAssignments: make(map[materializedAssignmentKey]ancestorRelation),
-		logger:                  slog.With(teleport.ComponentKey, "sra_materializer"),
+		aclReader:                    aclReader,
+		ancestorCache:                newAncestorCache(),
+		materializedAssignments:      make(map[materializedAssignmentKey]ancestorRelation),
+		logger:                       slog.With(teleport.ComponentKey, "sra_materializer"),
+		repairEventC:                 make(chan repairEvent),
+		wakeRepairLoop:               make(chan struct{}, 1),
+		nextExpiredMembersRepairTime: now.Add(century),
+		nextRepairMissedMembersTime:  now.Add(century),
 	}
 }
 
@@ -127,6 +158,11 @@ func (m *materializer) Init(ctx context.Context, state state) error {
 	// relationships and future changes. The ancestor cache should include even
 	// expired or invalid membership edges for defensive handling of delete
 	// events.
+	//
+	// Also track the earliest member expiration that's in the future, so we
+	// can react to member expiration.
+	now := time.Now()
+	nextExpiry := now.Add(century)
 	for member, err := range clientutils.Resources(ctx, m.aclReader.ListAllAccessListMembers) {
 		if err != nil {
 			return trace.Wrap(err, "reading access list members")
@@ -134,8 +170,11 @@ func (m *materializer) Init(ctx context.Context, state state) error {
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
 			m.ancestorCache.addMembership(member.Spec.AccessList, member.GetName())
 		}
-		// TODO(nic): queue handler for member resource expiry.
+		if member.Spec.Expires.After(now) && member.Spec.Expires.Before(nextExpiry) {
+			nextExpiry = member.Spec.Expires
+		}
 	}
+	m.reportFutureMemberExpiry(ctx, nextExpiry)
 	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
 		if err != nil {
 			return trace.Wrap(err, "reading access lists")
@@ -218,7 +257,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 		m.handleUserMemberDeleteOrExpired(ctx, state, listName, userName)
 		return
 	}
-	// TODO(nic): queue handler for member resource expiry.
+	m.reportFutureMemberExpiry(ctx, member.Spec.Expires)
 
 	list, err := m.aclReader.GetAccessList(ctx, listName)
 	if err != nil {
@@ -226,7 +265,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 			"error", err,
 			"list", listName,
 			"user", userName)
-		// TODO(nic): schedule a refresh to recover.
+		m.scheduleMissedMembersRepair(ctx)
 		return
 	}
 
@@ -250,7 +289,9 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 		m.logger.InfoContext(ctx, "Error while validating access list ancestors, some scoped role assignments may not be materialized",
 			"error", validationError)
 	}
-	// TODO(nic): schedule a refresh to recover if len(validationErrors) > 0
+	if len(validationErrors) > 0 {
+		m.scheduleMissedMembersRepair(ctx)
+	}
 
 	// As a member of this list, the user shares the list's relationship with
 	// all of its ancestors, make sure assignments are materialized.
@@ -285,7 +326,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		m.handleListMemberExpired(ctx, state, parentListName)
 		return
 	}
-	// TODO(nic): queue handler for member resource expiry.
+	m.reportFutureMemberExpiry(ctx, member.Spec.Expires)
 
 	// Every user that is a nested member of memberList may have just become a
 	// member of parentList and all lists it is a nested member of. They also
@@ -296,7 +337,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 			"error", err,
 			"list", parentListName,
 			"member_list", memberListName)
-		// TODO(nic): schedule a refresh to recover.
+		m.scheduleMissedMembersRepair(ctx)
 		return
 	}
 	memberList, err := m.aclReader.GetAccessList(ctx, memberListName)
@@ -305,7 +346,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 			"error", err,
 			"list", memberListName,
 			"parent_list", parentListName)
-		// TODO(nic): schedule a refresh to recover.
+		m.scheduleMissedMembersRepair(ctx)
 		return
 	}
 
@@ -324,14 +365,16 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		m.logger.InfoContext(ctx, "Error while validating access list ancestors, some scoped role assignments may not be materialized",
 			"error", validationError)
 	}
-	// TODO(nic): schedule a refresh to recover if len(validationErrors) > 0
+	if len(validationErrors) > 0 {
+		m.scheduleMissedMembersRepair(ctx)
+	}
 
 	for member, err := range m.walkUserMembers(ctx, memberList) {
 		if err != nil {
 			m.logger.WarnContext(ctx, "Error while walking members of access list, some scoped role assignments may not be materialized",
 				"error", err,
 				"list", memberListName)
-			// TODO(nic): schedule a refresh to recover.
+			m.scheduleMissedMembersRepair(ctx)
 			// walkUserMembers may yield errors from walking members of any
 			// member lists, but it may not be done, so continue the loop.
 			continue
@@ -384,7 +427,7 @@ func (m *materializer) handleListMemberDelete(ctx context.Context, state state, 
 // handleListMemberExpired handles the event where an access list membership
 // has been deleted or has expired. Any nested members of the member list may
 // no longer be valid members or owners of the parent list or any of its
-// ancestors. At risk of being overly pessimisted, we re-check every
+// ancestors. At risk of being overly pessimistic, we re-check every
 // materialized assignment for the parent list and all of its ancestors.
 func (m *materializer) handleListMemberExpired(ctx context.Context, state state, parentListName string) {
 	// We must iterate all ancestors without relying on paging through
@@ -409,7 +452,7 @@ func (m *materializer) handleListMemberExpired(ctx context.Context, state state,
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
 			m.deleteMaterializedAssignment(ctx, state, key)
-			// TODO(nic): schedule a refresh to recover.
+			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
 }
@@ -438,7 +481,7 @@ func (m *materializer) handleUserMemberDeleteOrExpired(ctx context.Context, stat
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
 			m.deleteMaterializedAssignment(ctx, state, key)
-			// TODO(nic): schedule a refresh to recover.
+			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
 }
@@ -481,7 +524,7 @@ func (m *materializer) handleAccessListPut(ctx context.Context, state state, lis
 				m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 					"error", err)
 				m.deleteMaterializedAssignment(ctx, state, key)
-				// TODO(nic): schedule a refresh to recover.
+				m.scheduleMissedMembersRepair(ctx)
 			}
 		} else {
 			// If the list doesn't grant any scoped roles, we can just delete
@@ -505,7 +548,7 @@ func (m *materializer) handleAccessListPut(ctx context.Context, state state, lis
 					m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 						"error", err)
 					m.deleteMaterializedAssignment(ctx, state, key)
-					// TODO(nic): schedule a refresh to recover.
+					m.scheduleMissedMembersRepair(ctx)
 				}
 			}
 		}
@@ -532,7 +575,9 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 		m.logger.InfoContext(ctx, "Error while validating access list ancestors, some scoped role assignments may not be materialized",
 			"error", validationError)
 	}
-	// TODO(nic): schedule a refresh to recover if len(validationErrors) > 0
+	if len(validationErrors) > 0 {
+		m.scheduleMissedMembersRepair(ctx)
+	}
 
 	hasMemberGrants := hasMemberGrants(list)
 	if !hasMemberGrants && len(ancestors) == 0 {
@@ -549,7 +594,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 			m.logger.InfoContext(ctx, "Error while walking members of access list, some scoped role assignments may not be materialized",
 				"error", err,
 				"list", list.GetName())
-			// TODO(nic): schedule a refresh to recover.
+			m.scheduleMissedMembersRepair(ctx)
 			// walkUserMembers may yield errors from walking members of any
 			// member lists, but it may not be done, so continue the loop.
 			continue
@@ -616,7 +661,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 		if err != nil {
 			m.logger.InfoContext(ctx, "Failed to get owner list, some scoped role assignments may not be materialized for owners",
 				"error", err)
-			// TODO(nic): schedule a refresh to recover.
+			m.scheduleMissedMembersRepair(ctx)
 			continue
 
 		}
@@ -628,7 +673,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 				m.logger.WarnContext(ctx, "Error while walking members of access list, some scoped role assignments may not be materialized",
 					"error", err,
 					"list", list.GetName())
-				// TODO(nic): schedule a refresh to recover.
+				m.scheduleMissedMembersRepair(ctx)
 				// walkUserMembersRecursive may yield errors from walking members of any
 				// member lists, but it may not be done, so continue the loop.
 				continue
@@ -1251,6 +1296,302 @@ func (m *materializer) collectAncestors(ctx context.Context, startListName strin
 		}
 	}
 	return filteredAncestors, validationErrors
+}
+
+// RepairEventLoop should be called in a goroutine after materializer init
+// if the materializer is expected to be long-lived. It runs continuously until
+// ctx is done. It will send an event on [materializer.RepairEvents] at the
+// time of each scheduled repair event.
+func (m *materializer) RepairEventLoop(ctx context.Context) {
+	for {
+		nextEvent, nextEventTime := m.nextRepairEvent()
+
+		// If the next scheduled repair event is in the future, wait until
+		// that time or we get woken up because the time has been moved
+		// earlier.
+		waitFor := time.Until(nextEventTime)
+		if waitFor > 0 {
+			select {
+			case <-time.After(waitFor):
+			case <-ctx.Done():
+				return
+			case <-m.wakeRepairLoop:
+				continue
+			}
+		}
+
+		// We have a repair event scheduled for now, send it on repairEventC.
+		// Reset the repair time before sending it in case it gets set again
+		// while handling the repair event.
+		m.resetRepairTime(nextEvent)
+		select {
+		case m.repairEventC <- nextEvent:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// RepairEvents returns a channel from which events should be received and
+// passed to [materializer.ProcessRepairEvent]. This facilitates
+// single-threaded processing of cache events and repair events.
+func (m *materializer) RepairEvents() <-chan repairEvent {
+	return m.repairEventC
+}
+
+// ProcessRepairEvent should be called with repair events read from
+// [materializer.RepairEvents]. It must not be called concurrently with
+// [materializer.ProcessEvent].
+func (m *materializer) ProcessRepairEvent(ctx context.Context, state state, event repairEvent) {
+	switch event {
+	case repairExpiredMembersEvent:
+		m.repairExpiredMembers(ctx, state)
+	case repairMissedMembersEvent:
+		m.repairMissedMembers(ctx, state)
+	}
+}
+
+func (m *materializer) scheduleRepair(ctx context.Context, event repairEvent, t time.Time) {
+	m.repairTimeMu.Lock()
+	defer m.repairTimeMu.Unlock()
+
+	switch event {
+	case repairExpiredMembersEvent:
+		if t.Before(m.nextExpiredMembersRepairTime) {
+			m.nextExpiredMembersRepairTime = t
+			m.logger.DebugContext(ctx, "Scheduled next expired membership repair", "repair_time", t)
+			select {
+			case m.wakeRepairLoop <- struct{}{}:
+			default:
+			}
+		}
+	case repairMissedMembersEvent:
+		if t.Before(m.nextRepairMissedMembersTime) {
+			m.nextRepairMissedMembersTime = t
+			m.logger.DebugContext(ctx, "Scheduled next missed membership repair", "repair_time", t)
+			select {
+			case m.wakeRepairLoop <- struct{}{}:
+			default:
+			}
+		}
+	}
+}
+
+func (m *materializer) resetRepairTime(event repairEvent) {
+	m.repairTimeMu.Lock()
+	defer m.repairTimeMu.Unlock()
+	switch event {
+	case repairExpiredMembersEvent:
+		m.nextExpiredMembersRepairTime = time.Now().Add(century)
+	case repairMissedMembersEvent:
+		m.nextRepairMissedMembersTime = time.Now().Add(century)
+	}
+}
+
+// reportFutureMemberExpiry schedules repairExpiredMembers for the expiry time,
+// if one is not already scheduled for earlier.
+func (m *materializer) reportFutureMemberExpiry(ctx context.Context, expires time.Time) {
+	if expires.IsZero() {
+		return
+	}
+	m.scheduleRepair(ctx, repairExpiredMembersEvent, expires)
+}
+
+// scheduleMissedMembersRepair schedules repairMissedMembers for some time in
+// the future.
+func (m *materializer) scheduleMissedMembersRepair(ctx context.Context) {
+	m.scheduleRepair(ctx, repairMissedMembersEvent, time.Now().Add(missedMembersRepairBackoff))
+}
+
+func (m *materializer) nextRepairEvent() (repairEvent, time.Time) {
+	m.repairTimeMu.Lock()
+	defer m.repairTimeMu.Unlock()
+	if m.nextRepairMissedMembersTime.Before(m.nextExpiredMembersRepairTime) {
+		return repairMissedMembersEvent, m.nextRepairMissedMembersTime
+	}
+	return repairExpiredMembersEvent, m.nextExpiredMembersRepairTime
+}
+
+// repairExpiredMembers processes all expired member resources to make sure
+// that any invalid materialized assignments are cleared.
+func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
+	m.logger.InfoContext(ctx, "Running expired membership repair")
+
+	expiredMembersOf, nextExpiry := m.collectExpiredMembers(ctx)
+	m.reportFutureMemberExpiry(ctx, nextExpiry)
+
+	for key := range m.affectedAssignmentsForExpiredMembers(expiredMembersOf) {
+		if err := m.recheckAssignment(ctx, state, key); err != nil {
+			// Must pessimistically assume any assignment is invalid if we
+			// encountered an error trying to validate it.
+			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
+				"error", err)
+			m.deleteMaterializedAssignment(ctx, state, key)
+			m.scheduleMissedMembersRepair(ctx)
+		}
+	}
+}
+
+// collectExpiredMembers collects all expired access list members by parent
+// list, and returns the earliest seen future expiry.
+func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMembersOf map[string]expiredMembers, nextExpiry time.Time) {
+	// Use a consistent time for "now" so that this will report all members
+	// expired before this time, and schedule another repair for any members
+	// expiring after this time.
+	now := time.Now()
+
+	// Keep track of the nearest seen member expiry time that's in the future.
+	nextExpiry = now.Add(century)
+
+	expiredMembersOf = make(map[string]expiredMembers)
+
+	// Iterate all access list members to find any that are expired.
+	for member, err := range clientutils.Resources(ctx, m.aclReader.ListAllAccessListMembers) {
+		if err != nil {
+			// Failed to iterate all access list member resources, we may have
+			// missed an expired member or one that will be expiring soon.
+			m.logger.WarnContext(ctx, "Failed to iterate access list members, some stale scoped role assignments may remain despite expired access list membership",
+				"error", err)
+			nextRepairAt := time.Now().Add(expiredMembersRepairBackoff)
+			if nextRepairAt.Before(nextExpiry) {
+				nextExpiry = nextRepairAt
+			}
+			continue
+		}
+
+		if !member.IsExpired(now) {
+			if !member.Spec.Expires.IsZero() && member.Spec.Expires.Before(nextExpiry) {
+				nextExpiry = member.Spec.Expires
+			}
+			continue
+		}
+
+		m.logger.DebugContext(ctx, "Found expired member resource",
+			"list", member.Spec.AccessList,
+			"member", member.GetName(),
+			"membership_kind", member.Spec.MembershipKind,
+			"expired", member.Spec.Expires)
+
+		// Collect the expired membership.
+		knownExpiredMembers := expiredMembersOf[member.Spec.AccessList]
+		knownExpiredMembers.insert(member)
+		expiredMembersOf[member.Spec.AccessList] = knownExpiredMembers
+	}
+
+	return expiredMembersOf, nextExpiry
+}
+
+// affectedAssignmentsForExpiredMembers returns an iterator of all current
+// materialized assignments that may be affected by an expired membership.
+func (m *materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map[string]expiredMembers) iter.Seq[materializedAssignmentKey] {
+	assignmentFilters := make(map[string]assignmentFilter)
+	for parentListName, knownExpiredMembers := range expiredMembersOf {
+		currFilter := assignmentFilters[parentListName]
+		currFilter.merge(assignmentFilter{
+			// If this list has an expired list member, assignments for any
+			// user in this list may be affected.
+			anyUser: knownExpiredMembers.hasExpiredListMember,
+			// If this list has expired user members, assignments for those
+			// users in this list may be affected.
+			users: knownExpiredMembers.users,
+		})
+		assignmentFilters[parentListName] = currFilter
+
+		// Assignments for any ancestor list may be affected. Collect all
+		// ancestor lists without validation to avoid missing any due to
+		// read/paging errors.
+		ancestors := m.collectAncestorListsWithoutValidation(parentListName)
+		for ancestorListName := range ancestors {
+			currFilter := assignmentFilters[ancestorListName]
+			currFilter.merge(assignmentFilter{
+				// If the original list has an expired list member, assignments
+				// for any user in this ancestor list may be affected.
+				anyUser: knownExpiredMembers.hasExpiredListMember,
+				// If the original list has expired user members, assignments
+				// for those users in this ancestor list may be affected.
+				users: knownExpiredMembers.users,
+			})
+			assignmentFilters[ancestorListName] = currFilter
+		}
+	}
+
+	return func(yield func(materializedAssignmentKey) bool) {
+		for key := range m.materializedAssignments {
+			if !assignmentFilters[key.list].match(key.user) {
+				continue
+			}
+			if !yield(key) {
+				return
+			}
+		}
+	}
+}
+
+type expiredMembers struct {
+	hasExpiredListMember bool
+	users                set.Set[string]
+}
+
+func (m *expiredMembers) insert(member *accesslist.AccessListMember) {
+	m.hasExpiredListMember = m.hasExpiredListMember || member.Spec.MembershipKind == accesslist.MembershipKindList
+	if m.hasExpiredListMember {
+		// users set is unneeded if there is an expired list member.
+		m.users = nil
+		return
+	}
+	if member.IsUser() {
+		if m.users == nil {
+			m.users = set.NewWithCapacity[string](1)
+		}
+		m.users.Add(member.GetName())
+	}
+}
+
+type assignmentFilter struct {
+	anyUser bool
+	users   set.Set[string]
+}
+
+func (f assignmentFilter) match(user string) bool {
+	if f.anyUser {
+		return true
+	}
+	return f.users.Contains(user)
+}
+
+func (f *assignmentFilter) merge(other assignmentFilter) {
+	f.anyUser = f.anyUser || other.anyUser
+	if f.anyUser {
+		// users set is unneeded if matching any user.
+		f.users = nil
+		return
+	}
+	if other.users.Len() == 0 {
+		return
+	}
+	if f.users == nil {
+		f.users = set.NewWithCapacity[string](other.users.Len())
+	}
+	f.users.Union(other.users)
+}
+
+// repairMissedMembers additively materializes assignments for all members and
+// owners in all lists.
+func (m *materializer) repairMissedMembers(ctx context.Context, state state) {
+	m.logger.InfoContext(ctx, "Running missed membership repair")
+
+	// Iterate all access lists to additively materialize assignments for all
+	// their members and owners.
+	for list, err := range clientutils.Resources(ctx, m.aclReader.ListAccessLists) {
+		if err != nil {
+			m.logger.InfoContext(ctx, "Missed membership repair failed to read all access lists, scheduling another repair",
+				"error", err)
+			m.scheduleMissedMembersRepair(ctx)
+			return
+		}
+		m.initAccessListMembers(ctx, state, list)
+		m.initAccessListOwners(ctx, state, list)
+	}
 }
 
 func hasMemberGrants(list *accesslist.AccessList) bool {

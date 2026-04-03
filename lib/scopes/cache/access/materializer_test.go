@@ -17,8 +17,10 @@
 package access
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -59,8 +61,13 @@ type materializerTestcase struct {
 }
 
 type materializerTestcaseStep struct {
-	mutateState         func(t *testing.T, aclService *local.AccessListService)
+	mutateState         func(t *testing.T, state *materializerTestcaseState)
 	expectedAssignments []*scopedaccessv1.ScopedRoleAssignment
+}
+
+type materializerTestcaseState struct {
+	aclService         *local.AccessListService
+	breakableACLReader *breakableAccessListReader
 }
 
 func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
@@ -97,16 +104,25 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	defer aclCache.Close()
 	<-aclCache.FirstInit()
 
+	breakableACLReader := &breakableAccessListReader{
+		AccessListReader: aclCache,
+	}
+
 	// Create the scoped access cache.
 	cache, err := NewCache(CacheConfig{
 		Events:           events,
 		Reader:           scopedAccessService,
 		AccessListEvents: aclCache,
-		AccessListReader: aclCache,
+		AccessListReader: breakableACLReader,
 	})
 	require.NoError(t, err)
 	defer cache.Close()
 	<-cache.Init()
+
+	state := &materializerTestcaseState{
+		aclService:         aclService,
+		breakableACLReader: breakableACLReader,
+	}
 
 	assertMaterializedAssignments := func(t *testing.T, expectedAssignments []*scopedaccessv1.ScopedRoleAssignment) {
 		t.Helper()
@@ -138,11 +154,10 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	// Run through each step and assert the final assignments.
 	for i, step := range tc.steps {
 		t.Logf("Running step %d", i)
-		step.mutateState(t, aclService)
+		step.mutateState(t, state)
 		synctest.Wait()
 		assertMaterializedAssignments(t, step.expectedAssignments)
 	}
-
 }
 
 func TestMaterializerSimpleChain(t *testing.T) {
@@ -348,8 +363,8 @@ func TestMaterializerUserMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 				}}),
 			},
 			steps: []materializerTestcaseStep{{
-				mutateState: func(t *testing.T, aclService *local.AccessListService) {
-					_, err := aclService.UpsertAccessListMember(t.Context(),
+				mutateState: func(t *testing.T, state *materializerTestcaseState) {
+					_, err := state.aclService.UpsertAccessListMember(t.Context(),
 						newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser))
 					require.NoError(t, err)
 				},
@@ -409,8 +424,8 @@ func TestMaterializerListMemberPutPreservesExistingOwnerGrant(t *testing.T) {
 				}}),
 			},
 			steps: []materializerTestcaseStep{{
-				mutateState: func(t *testing.T, aclService *local.AccessListService) {
-					_, err := aclService.UpsertAccessListMember(t.Context(),
+				mutateState: func(t *testing.T, state *materializerTestcaseState) {
+					_, err := state.aclService.UpsertAccessListMember(t.Context(),
 						newAccessListMember(t, "parent", "child", accesslist.MembershipKindList))
 					require.NoError(t, err)
 				},
@@ -471,10 +486,10 @@ func TestMaterializerAccessListPutPreservesExistingOwnerGrant(t *testing.T) {
 				}}),
 			},
 			steps: []materializerTestcaseStep{{
-				mutateState: func(t *testing.T, aclService *local.AccessListService) {
+				mutateState: func(t *testing.T, state *materializerTestcaseState) {
 					// remove the membership requirements so that tester
 					// becomes a legitimate member of child and granted lists.
-					_, err := aclService.UpsertAccessList(t.Context(), newAccessList(t, "child"))
+					_, err := state.aclService.UpsertAccessList(t.Context(), newAccessList(t, "child"))
 					require.NoError(t, err)
 				},
 				expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
@@ -528,15 +543,15 @@ func TestMaterializerOwnerRequirements(t *testing.T) {
 				}}),
 			},
 			steps: []materializerTestcaseStep{{
-				mutateState: func(t *testing.T, aclService *local.AccessListService) {
+				mutateState: func(t *testing.T, state *materializerTestcaseState) {
 					// Add a nested list as a member of the owners list.
-					_, err := aclService.UpsertAccessList(t.Context(), newAccessList(t, "nested"))
+					_, err := state.aclService.UpsertAccessList(t.Context(), newAccessList(t, "nested"))
 					require.NoError(t, err)
-					_, err = aclService.UpsertAccessListMember(t.Context(),
+					_, err = state.aclService.UpsertAccessListMember(t.Context(),
 						newAccessListMember(t, "owners", "nested", accesslist.MembershipKindList))
 					require.NoError(t, err)
 					// Add a user as a member of the nested list.
-					_, err = aclService.UpsertAccessListMember(t.Context(),
+					_, err = state.aclService.UpsertAccessListMember(t.Context(),
 						newAccessListMember(t, "nested", "nested_tester", accesslist.MembershipKindUser))
 					require.NoError(t, err)
 				},
@@ -654,8 +669,8 @@ func TestMaterializerAccessListPutWithMembershipRequirements(t *testing.T) {
 				// Add membership requires to the middle list, the materialized
 				// assignment for the top list should be deleted as the
 				// membership path is broken.
-				mutateState: func(t *testing.T, aclService *local.AccessListService) {
-					_, err := aclService.UpsertAccessList(t.Context(), newAccessList(t, "middle", withMembershipRequires()))
+				mutateState: func(t *testing.T, state *materializerTestcaseState) {
+					_, err := state.aclService.UpsertAccessList(t.Context(), newAccessList(t, "middle", withMembershipRequires()))
 					require.NoError(t, err)
 				},
 				expectedAssignments: nil,
@@ -697,12 +712,12 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 			steps: []materializerTestcaseStep{
 				{
 					// Update the member resource in place to change the membership kind from list to user.
-					mutateState: func(t *testing.T, aclService *local.AccessListService) {
-						member, err := aclService.GetAccessListMember(t.Context(), "parent", "child")
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						member, err := state.aclService.GetAccessListMember(t.Context(), "parent", "child")
 						require.NoError(t, err)
 
 						member.Spec.MembershipKind = accesslist.MembershipKindUser
-						updatedMember, err := aclService.UpdateAccessListMember(t.Context(), member)
+						updatedMember, err := state.aclService.UpdateAccessListMember(t.Context(), member)
 						require.NoError(t, err)
 						require.Equal(t, accesslist.MembershipKindUser, updatedMember.Spec.MembershipKind)
 					},
@@ -721,12 +736,12 @@ func TestMaterializerAccessListMemberKindUpdateInvalidatesPriorKind(t *testing.T
 					// Update the member resource in place again to change it
 					// back to a list, and the original assignment should be
 					// restored.
-					mutateState: func(t *testing.T, aclService *local.AccessListService) {
-						member, err := aclService.GetAccessListMember(t.Context(), "parent", "child")
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						member, err := state.aclService.GetAccessListMember(t.Context(), "parent", "child")
 						require.NoError(t, err)
 
 						member.Spec.MembershipKind = accesslist.MembershipKindList
-						updatedMember, err := aclService.UpdateAccessListMember(t.Context(), member)
+						updatedMember, err := state.aclService.UpdateAccessListMember(t.Context(), member)
 						require.NoError(t, err)
 						require.Equal(t, accesslist.MembershipKindList, updatedMember.Spec.MembershipKind)
 					},
@@ -799,9 +814,9 @@ func TestMaterializerDiamond(t *testing.T) {
 				{
 					// Add membership requires to the left list, the assignment
 					// should stay via the right list.
-					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
 						// Upsert the access list to remove the membership requires.
-						_, err := aclService.UpsertAccessList(t.Context(), newAccessList(t, "left", withMembershipRequires()))
+						_, err := state.aclService.UpsertAccessList(t.Context(), newAccessList(t, "left", withMembershipRequires()))
 						require.NoError(t, err)
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
@@ -814,8 +829,8 @@ func TestMaterializerDiamond(t *testing.T) {
 				{
 					// Delete the membership path on the right, the assignment
 					// should be deleted as there is no more path.
-					mutateState: func(t *testing.T, aclService *local.AccessListService) {
-						err := aclService.DeleteAccessListMember(t.Context(), "top", "right")
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						err := state.aclService.DeleteAccessListMember(t.Context(), "top", "right")
 						require.NoError(t, err)
 					},
 					expectedAssignments: nil,
@@ -823,9 +838,277 @@ func TestMaterializerDiamond(t *testing.T) {
 				{
 					// Remove membership requires from the left list, the assignment
 					// should come back.
-					mutateState: func(t *testing.T, aclService *local.AccessListService) {
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
 						// Upsert the access list to remove the membership requires.
-						_, err := aclService.UpsertAccessList(t.Context(), newAccessList(t, "left"))
+						_, err := state.aclService.UpsertAccessList(t.Context(), newAccessList(t, "left"))
+						require.NoError(t, err)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+							Role:  "toprole",
+							Scope: "/aa",
+						}}),
+					},
+				},
+			},
+		})
+	})
+}
+
+func TestMaterializerCascadingMemberExpiries(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+
+		testStart := time.Now()
+
+		runMaterializerTestcase(t, materializerTestcase{
+			collection: accesslists.Collection{
+				AccessListsByName: map[string]*accesslist.AccessList{
+					"testlist": newAccessList(t, "testlist", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/test",
+						Role:  "testrole",
+					}})),
+				},
+				MembersByAccessList: map[string][]*accesslist.AccessListMember{
+					"testlist": {
+						newAccessListMember(t, "testlist", "alice", accesslist.MembershipKindUser, withExpires(testStart.Add(time.Minute))),
+						newAccessListMember(t, "testlist", "bob", accesslist.MembershipKindUser, withExpires(testStart.Add(2*time.Minute))),
+						newAccessListMember(t, "testlist", "charlie", accesslist.MembershipKindUser, withExpires(testStart.Add(3*time.Minute))),
+					},
+				},
+			},
+			// Initially all users are valid members of testlist.
+			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+				expectedScopedRoleAssignment("alice", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+				expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+				expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+					Role:  "testrole",
+					Scope: "/test",
+				}}),
+			},
+			steps: []materializerTestcaseStep{
+				{
+					// Sleep until alice's membership expires.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("bob", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+					},
+				},
+				{
+					// Sleep until bob's membership expires.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("charlie", "testlist", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test",
+						}}),
+					},
+				},
+				{
+					// Sleep until charlie's membership expires.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
+				},
+			},
+		})
+	})
+}
+
+func TestMaterializerRepairFailedReads(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		runMaterializerTestcase(t, materializerTestcase{
+			collection: accesslists.Collection{
+				AccessListsByName: map[string]*accesslist.AccessList{
+					"parent": newAccessList(t, "parent", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/test/parent",
+						Role:  "testrole",
+					}})),
+					"child": newAccessList(t, "child", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/test/child",
+						Role:  "testrole",
+					}})),
+				},
+				MembersByAccessList: map[string][]*accesslist.AccessListMember{
+					"parent": {},
+					"child":  {},
+				},
+			},
+			// Initially there are no members and therefore no assignments.
+			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
+			steps: []materializerTestcaseStep{
+				{
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						// Add tester as a user member of the child list, but
+						// with the access list reader broken, the assignment
+						// cannot be validated and should not be materialized.
+						state.breakableACLReader.Break()
+						state.aclService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "child", "tester", accesslist.MembershipKindUser))
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
+				},
+				{
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						// Fix the access list reader and the assignment should be materialized.
+						synctest.Wait()
+						state.breakableACLReader.Fix()
+						time.Sleep(missedMembersRepairBackoff)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test/child",
+						}}),
+					},
+				},
+				{
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						// Break the access list reader again and add the child
+						// list as a member of parent list.
+						state.breakableACLReader.Break()
+						state.aclService.UpsertAccessListMember(t.Context(), newAccessListMember(t, "parent", "child", accesslist.MembershipKindList))
+					},
+					// The access list service will update the child list with
+					// a Status.MemberOf reference. While handling the access
+					// list put event, the materializer will revalidate all
+					// materialized assignments for members of the child list.
+					// Because the reader is broken, it fails to validate the
+					// existing assignment and deletes it.
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{},
+				},
+				{
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						// Fix the access list reader again and both
+						// assignments should be materialized.
+						synctest.Wait()
+						state.breakableACLReader.Fix()
+						time.Sleep(missedMembersRepairBackoff)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "child", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test/child",
+						}}),
+						expectedScopedRoleAssignment("tester", "parent", []*scopedaccessv1.Assignment{{
+							Role:  "testrole",
+							Scope: "/test/parent",
+						}}),
+					},
+				},
+			},
+		})
+	})
+}
+
+func TestMaterializerDiamondExpiry(t *testing.T) {
+	// The initial condition will look like this, we'll then break the
+	// membership path through left, then break the membership path through
+	// right, then restore the membership path through left.
+	//
+	//       top
+	//       / \
+	//      /   \
+	//     /     \
+	//   left   right
+	//     \     /
+	//      \   /
+	//       \ /
+	//      bottom
+	//        |
+	//        v
+	//      tester
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+
+		testStart := time.Now()
+		leftExpires := testStart.Add(time.Minute)
+		rightExpires := testStart.Add(3 * time.Hour)
+
+		runMaterializerTestcase(t, materializerTestcase{
+			collection: accesslists.Collection{
+				AccessListsByName: map[string]*accesslist.AccessList{
+					"top": newAccessList(t, "top", withMemberGrants([]accesslist.ScopedRoleGrant{{
+						Scope: "/aa",
+						Role:  "toprole",
+					}})),
+					"left":   newAccessList(t, "left"),
+					"right":  newAccessList(t, "right"),
+					"bottom": newAccessList(t, "bottom"),
+				},
+				MembersByAccessList: map[string][]*accesslist.AccessListMember{
+					"top": {
+						newAccessListMember(t, "top", "left", accesslist.MembershipKindList, withExpires(leftExpires)),
+						newAccessListMember(t, "top", "right", accesslist.MembershipKindList, withExpires(rightExpires)),
+					},
+					"left": {
+						newAccessListMember(t, "left", "bottom", accesslist.MembershipKindList),
+					},
+					"right": {
+						newAccessListMember(t, "right", "bottom", accesslist.MembershipKindList),
+					},
+					"bottom": {
+						newAccessListMember(t, "bottom", "tester", accesslist.MembershipKindUser),
+					},
+				},
+			},
+			// Initially the user is a valid member of the top list by 2 paths.
+			expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+				expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+					Role:  "toprole",
+					Scope: "/aa",
+				}}),
+			},
+			steps: []materializerTestcaseStep{
+				{
+					// Sleep until the left membership path expires, the
+					// assignment should stay via the right list.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						synctest.Wait()
+						time.Sleep(time.Minute)
+					},
+					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
+						expectedScopedRoleAssignment("tester", "top", []*scopedaccessv1.Assignment{{
+							Role:  "toprole",
+							Scope: "/aa",
+						}}),
+					},
+				},
+				{
+					// Sleep until the right membership path expires, the
+					// assignment should be deleted as there is no more path.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						synctest.Wait()
+						time.Sleep(3 * time.Hour)
+					},
+					expectedAssignments: nil,
+				},
+				{
+					// Upsert the left membership with a future expiry, the assignment should come back.
+					mutateState: func(t *testing.T, state *materializerTestcaseState) {
+						member := newAccessListMember(t, "top", "left", accesslist.MembershipKindList, withExpires(time.Now().Add(time.Minute)))
+						_, err := state.aclService.UpsertAccessListMember(t.Context(), member)
 						require.NoError(t, err)
 					},
 					expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
@@ -1085,6 +1368,12 @@ func newAccessList(t require.TestingT, name string, opts ...aclOption) *accessli
 
 type memberOption func(*accesslist.AccessListMember)
 
+func withExpires(expires time.Time) memberOption {
+	return func(member *accesslist.AccessListMember) {
+		member.Spec.Expires = expires
+	}
+}
+
 func newAccessListMember(t require.TestingT, parent, member, membershipKind string, opts ...memberOption) *accesslist.AccessListMember {
 	memberResource, err := accesslist.NewAccessListMember(header.Metadata{
 		Name: member,
@@ -1120,4 +1409,57 @@ func expectedScopedRoleAssignment(userName, listName string, assignments []*scop
 			Assignments: assignments,
 		},
 	}
+}
+
+type breakableAccessListReader struct {
+	AccessListReader
+
+	broken atomic.Bool
+}
+
+func (b *breakableAccessListReader) Break() {
+	b.broken.Store(true)
+}
+
+func (b *breakableAccessListReader) Fix() {
+	b.broken.Store(false)
+}
+
+func (b *breakableAccessListReader) err() error {
+	return fmt.Errorf("access list reader is broken")
+}
+
+func (b *breakableAccessListReader) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+	if b.broken.Load() {
+		return nil, "", b.err()
+	}
+	return b.AccessListReader.ListAccessLists(ctx, pageSize, pageToken)
+}
+
+func (b *breakableAccessListReader) GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
+	if b.broken.Load() {
+		return nil, b.err()
+	}
+	return b.AccessListReader.GetAccessList(ctx, accessListName)
+}
+
+func (b *breakableAccessListReader) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	if b.broken.Load() {
+		return nil, "", b.err()
+	}
+	return b.AccessListReader.ListAllAccessListMembers(ctx, pageSize, pageToken)
+}
+
+func (b *breakableAccessListReader) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	if b.broken.Load() {
+		return nil, "", b.err()
+	}
+	return b.AccessListReader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
+}
+
+func (b *breakableAccessListReader) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	if b.broken.Load() {
+		return nil, b.err()
+	}
+	return b.AccessListReader.GetAccessListMember(ctx, accessList, memberName)
 }
