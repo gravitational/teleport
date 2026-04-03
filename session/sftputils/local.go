@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package sftp
+package sftputils
 
 import (
 	"io/fs"
@@ -27,9 +27,12 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// localFS provides API for accessing the files on
+// LocalFS provides API for accessing the files on
 // the local file system
-type localFS struct{}
+type LocalFS struct{}
+
+//go:fix inline
+type localFS = LocalFS
 
 func (l localFS) Type() string {
 	return "local"
