@@ -1364,7 +1364,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.ErrorContains(
 			t,
 			err,
-			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport client to the latest version to connect.",
+			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport SSH client to the latest version to connect.",
 		)
 		require.Nil(t, outPerms)
 	})
