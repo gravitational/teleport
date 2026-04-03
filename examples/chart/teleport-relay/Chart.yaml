@@ -1,4 +1,4 @@
-.version: &version "19.0.0-prealpha.2"
+.version: &version "19.0.0-dev.electron-41-1-1"
 
 name: teleport-relay
 apiVersion: v2
