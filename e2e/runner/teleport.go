@@ -147,6 +147,7 @@ func (t *teleportInstance) stop() {
 }
 
 type TeleportConfig struct {
+	ClusterName    string
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int

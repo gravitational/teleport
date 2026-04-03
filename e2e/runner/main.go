@@ -17,6 +17,7 @@
  */
 
 //go:generate go run ./cmd/gen-ts-fixtures
+//go:generate go run ./cmd/gen-recording-events
 
 package main
 
@@ -36,6 +37,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
+	"github.com/gravitational/teleport/e2e/runner/teleport"
 )
 
 var logLevel = new(slog.LevelVar)
@@ -287,6 +289,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		for _, inst := range allInstances {
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
 			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
+				ClusterName:    teleport.ClusterName,
 				DataDir:        inst.dataDir,
 				AuthServerPort: inst.authPort,
 				ProxyPort:      inst.proxyPort,
@@ -323,6 +326,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				}
 				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
 					return fmt.Errorf("Teleport for %s failed to become ready: %w", inst.browser, err)
+				}
+				if err := seedRecordings(config.e2eDir, inst.dataDir); err != nil {
+					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 				}
 				return nil
 			})
