@@ -309,8 +309,8 @@ type CLIConf struct {
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
 	BenchExportPath string
-	// BenchMaxSessions is the maximum number of sessions to open
-	BenchMaxSessions int
+	// BenchJobs is the maximum number of work items in flight when running a benchmark. <=0 means no limit.
+	BenchJobs int
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -1305,6 +1305,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory.").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance.").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values.").Default("1.0").Float64Var(&cf.BenchValueScale)
+	bench.Flag("jobs", "Maximum number of concurrent operations.").Short('j').IntVar(&cf.BenchJobs)
 
 	benchSSH := bench.Command("ssh", "Run SSH benchmark tests.").Hidden()
 	benchSSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
@@ -1323,7 +1324,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests.").Hidden()
 	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	benchWebSessions.Arg("command", "Command to execute on a remote host.").Required().StringsVar(&cf.RemoteCommand)
-	benchWebSessions.Flag("max", "The maximum number of sessions to open. If not specified a single session per node will be opened.").IntVar(&cf.BenchMaxSessions)
+	benchWebSessions.Flag("max", "DEPRECATED: use --jobs instead.").Action(func(_ *kingpin.ParseContext) error {
+		// TODO(okraport): delete in v20
+		logger.WarnContext(ctx, "--max is deprecated; use --jobs instead")
+		return nil
+	}).IntVar(&cf.BenchJobs)
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests.").Hidden()
@@ -1761,7 +1766,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			&cf,
 			&benchmark.WebSessionBenchmark{
 				Command:  cf.RemoteCommand,
-				Max:      cf.BenchMaxSessions,
 				Duration: cf.BenchDuration,
 			},
 		)
@@ -4614,6 +4618,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	cnf := benchmark.Config{
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
+		Jobs:          cf.BenchJobs,
 	}
 
 	result, err := cnf.Benchmark(cf.Context, tc, suite)

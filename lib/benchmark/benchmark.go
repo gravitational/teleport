@@ -68,6 +68,9 @@ type Config struct {
 	MinimumWindow time.Duration
 	// MinimumMeasurments is the min amount of requests
 	MinimumMeasurements int
+	// Jobs is the maximum number of work items in flight when running a benchmark.
+	// By default this is the number of active inflight work items that are allowed, with 0 meaning unlimited.
+	Jobs int
 }
 
 // Result is a result of the benchmark
@@ -202,6 +205,10 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 	defer cancel()
 
 	resultC := make(chan benchMeasure)
+	var limiter chan struct{}
+	if c.Jobs > 0 {
+		limiter = make(chan struct{}, c.Jobs)
+	}
 
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -220,7 +227,23 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 					ResponseStart: t,
 				}
 
-				wg.Go(func() { work(ctx, measure, resultC, workload) })
+				if limiter != nil {
+					select {
+					case limiter <- struct{}{}:
+					default:
+						// Maintain the rate but skip when throttled.
+						continue
+					}
+				}
+
+				wg.Go(func() {
+					defer func() {
+						if limiter != nil {
+							<-limiter
+						}
+					}()
+					work(ctx, measure, resultC, workload)
+				})
 			case <-ctx.Done():
 				return
 			}
