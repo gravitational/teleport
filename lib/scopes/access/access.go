@@ -396,6 +396,25 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
 	}
 
+	// Assigning to Bot is mutually exclusive with assigning to User. When
+	// assigning to Bot, we also want to ensure Bot's scope is specified.
+	botSet := assignment.GetSpec().GetBotName() != ""
+	botScope := assignment.GetSpec().GetBotScope()
+	if botSet && assignment.GetSpec().GetUser() != "" {
+		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
+	}
+	if botSet && botScope == "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
+	}
+	if !botSet && botScope != "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
+	}
+	if botSet {
+		if err := scopes.StrongValidate(botScope); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		}
+	}
+
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
 		if subAssignment.GetRole() == "" {
 			return trace.BadParameter("scoped role assignment %q is missing role in sub-assignment %d", assignment.GetMetadata().GetName(), i)
@@ -411,6 +430,26 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, subAssignment.GetScope(), assignment.GetScope())
+		}
+
+		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
+		// assignments. Bot's can only be assigned privileges in scopes
+		// equivalent or descendent to their scope.
+		if botSet {
+			// TODO(strideynet): For Forrest, is it appropriate to use:
+			// > scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope)??
+			// or is another helper more appropriate? or new helper needed?
+			assignmentScope := subAssignment.GetScope()
+			rel := scopes.Compare(botScope, assignmentScope)
+			if rel != scopes.Equivalent && rel != scopes.Descendant {
+				return trace.BadParameter(
+					"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+					assignment.GetMetadata().GetName(),
+					i,
+					subAssignment.GetScope(),
+					assignment.GetSpec().GetBotScope(),
+				)
+			}
 		}
 	}
 
@@ -442,8 +481,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
 	}
 
 	return nil
