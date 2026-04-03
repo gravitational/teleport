@@ -32,9 +32,9 @@ import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuid
 import { useValidation } from 'shared/components/Validation';
 
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
+import { CopyTerraformButton } from 'teleport/components/Terraform/CopyTerraformButton';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
-import { CopyTerraformButton } from './common';
 import LiveTextEditor from './LiveTextEditor';
 
 export const PANEL_WIDTH = 500;
