@@ -276,6 +276,51 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"kubernetes": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"allow": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"service_account": {
+								Description: "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
+							Optional:    true,
+						},
+						"oidc": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"insecure_allow_http_issuer": {
+									Description: "If set, disables the requirement that the issuer must use HTTPS.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"issuer": {
+									Description: "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "The configuration specific to the `oidc` type.",
+							Optional:    true,
+						},
+						"static_jwks": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"jwks": {
+								Description: "The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							}}),
+							Description: "The configuration specific to the `static_jwks` type.",
+							Optional:    true,
+						},
+						"type": {
+							Description: "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "The Kubernetes-specific configuration used with the \"kubernetes\" join method.",
+					Optional:    true,
+				},
 				"oracle": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -1391,6 +1436,174 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																}
 															}
 															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["kubernetes"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.Kubernetes = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.Kubernetes = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes{}
+									obj := obj.Kubernetes
+									{
+										a, ok := tf.Attrs["allow"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.allow"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Allow = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes_Rule, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes_Rule
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes_Rule{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["service_account"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ServiceAccount = t
+																		}
+																	}
+																}
+															}
+															obj.Allow[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["type"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.type"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Type = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["static_jwks"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.static_jwks"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.StaticJwks = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.StaticJwks = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes_StaticJWKSConfig{}
+													obj := obj.StaticJwks
+													{
+														a, ok := tf.Attrs["jwks"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Jwks = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["oidc"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.oidc"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Oidc = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Oidc = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Kubernetes_OIDCConfig{}
+													obj := obj.Oidc
+													{
+														a, ok := tf.Attrs["issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.oidc.issuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Issuer = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.InsecureAllowHttpIssuer = t
+															}
 														}
 													}
 												}
@@ -3155,6 +3368,270 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 								}
 								v.Unknown = false
 								tf.Attrs["oracle"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["kubernetes"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["kubernetes"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Kubernetes == nil {
+									v.Null = true
+								} else {
+									obj := obj.Kubernetes
+									tf := &v
+									{
+										a, ok := tf.AttrTypes["allow"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.allow"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+												}
+												if obj.Allow != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.Allow) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+													}
+													for k, a := range obj.Allow {
+														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["service_account"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account"})
+																} else {
+																	v, ok := tf.Attrs["service_account"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ServiceAccount) == ""
+																	}
+																	v.Value = string(obj.ServiceAccount)
+																	v.Unknown = false
+																	tf.Attrs["service_account"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Allow) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["allow"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["type"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.type"})
+										} else {
+											v, ok := tf.Attrs["type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.type", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Type) == ""
+											}
+											v.Value = string(obj.Type)
+											v.Unknown = false
+											tf.Attrs["type"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["static_jwks"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.static_jwks"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["static_jwks"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.StaticJwks == nil {
+													v.Null = true
+												} else {
+													obj := obj.StaticJwks
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["jwks"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks"})
+														} else {
+															v, ok := tf.Attrs["jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.static_jwks.jwks", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.static_jwks.jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Jwks) == ""
+															}
+															v.Value = string(obj.Jwks)
+															v.Unknown = false
+															tf.Attrs["jwks"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["static_jwks"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["oidc"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.oidc"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["oidc"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Oidc == nil {
+													v.Null = true
+												} else {
+													obj := obj.Oidc
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.oidc.issuer"})
+														} else {
+															v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.oidc.issuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Issuer) == ""
+															}
+															v.Value = string(obj.Issuer)
+															v.Unknown = false
+															tf.Attrs["issuer"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["insecure_allow_http_issuer"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer"})
+														} else {
+															v, ok := tf.Attrs["insecure_allow_http_issuer"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.oidc.insecure_allow_http_issuer", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.InsecureAllowHttpIssuer) == false
+															}
+															v.Value = bool(obj.InsecureAllowHttpIssuer)
+															v.Unknown = false
+															tf.Attrs["insecure_allow_http_issuer"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["oidc"] = v
+											}
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["kubernetes"] = v
 							}
 						}
 					}
