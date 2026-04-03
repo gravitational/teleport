@@ -43,8 +43,8 @@ func TestHandleMessage_InvalidData(t *testing.T) {
 		name string
 		evt  *events.DesktopRecording
 	}{
-		{"invalid TDPB", tdpbEvent([]byte{0xFF, 0xFF, 0xFF})},
-		{"truncated legacy", legacyEvent([]byte{0x02})},
+		{"invalid TDPB", rdpstatetest.TDPBEvent([]byte{0xFF, 0xFF, 0xFF})},
+		{"truncated legacy", rdpstatetest.LegacyEvent([]byte{0x02})},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Error(t, New().HandleMessage(tt.evt))
@@ -91,26 +91,33 @@ func TestUnknownMessage_Ignored(t *testing.T) {
 	data, err := (&tdpb.SyncKeys{}).Encode()
 	require.NoError(t, err)
 
-	require.NoError(t, s.HandleMessage(tdpbEvent(data)))
+	require.NoError(t, s.HandleMessage(rdpstatetest.TDPBEvent(data)))
 	require.Nil(t, s.decoder)
 }
 
 func encodeTDPBServerHello(t *testing.T, width, height uint32) *events.DesktopRecording {
-	return rdpstatetest.EncodeTDPBServerHello(t, width, height)
+	t.Helper()
+
+	evt, err := rdpstatetest.EncodeTDPBServerHello(width, height)
+	require.NoError(t, err)
+
+	return evt
 }
 
 func encodeTDPBFastPathPDU(t *testing.T, pdu []byte) *events.DesktopRecording {
-	return rdpstatetest.EncodeTDPBFastPathPDU(t, pdu)
+	t.Helper()
+
+	evt, err := rdpstatetest.EncodeTDPBFastPathPDU(pdu)
+	require.NoError(t, err)
+
+	return evt
 }
 
 func legacyConnectionActivated(t *testing.T, width, height uint16) *events.DesktopRecording {
-	return rdpstatetest.LegacyConnectionActivated(t, width, height)
-}
+	t.Helper()
 
-func tdpbEvent(data []byte) *events.DesktopRecording {
-	return rdpstatetest.TDPBEvent(data)
-}
+	evt, err := rdpstatetest.LegacyConnectionActivated(width, height)
+	require.NoError(t, err)
 
-func legacyEvent(data []byte) *events.DesktopRecording {
-	return rdpstatetest.LegacyEvent(data)
+	return evt
 }

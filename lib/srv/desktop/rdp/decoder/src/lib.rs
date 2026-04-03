@@ -25,8 +25,8 @@ use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::{
-	fast_path::{Processor, ProcessorBuilder},
-	image::DecodedImage,
+    fast_path::{Processor, ProcessorBuilder},
+    image::DecodedImage,
 };
 
 #[derive(Default)]
