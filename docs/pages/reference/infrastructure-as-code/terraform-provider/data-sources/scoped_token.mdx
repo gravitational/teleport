@@ -147,7 +147,7 @@ Optional:
 - `allow` (Attributes List) A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token. (see [below for nested schema](#nested-schema-for-speckubernetesallow))
 - `oidc` (Attributes) The configuration specific to the `oidc` type. (see [below for nested schema](#nested-schema-for-speckubernetesoidc))
 - `static_jwks` (Attributes) The configuration specific to the `static_jwks` type. (see [below for nested schema](#nested-schema-for-speckubernetesstatic_jwks))
-- `type` (String) Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.
+- `type` (String) Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`
 
 ### Nested Schema for `spec.kubernetes.allow`
 
@@ -161,7 +161,7 @@ Optional:
 Optional:
 
 - `insecure_allow_http_issuer` (Boolean) If set, disables the requirement that the issuer must use HTTPS.
-- `issuer` (String) The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+- `issuer` (String) The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
 
 
 ### Nested Schema for `spec.kubernetes.static_jwks`

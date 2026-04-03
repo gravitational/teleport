@@ -295,7 +295,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"issuer": {
-									Description: "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
+									Description: "The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -313,7 +313,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 							Optional:    true,
 						},
 						"type": {
-							Description: "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.",
+							Description: "Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
