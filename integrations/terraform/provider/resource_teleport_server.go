@@ -124,9 +124,9 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		tries = tries + 1
 		serverI, err = r.p.Client.GetNode(ctx, defaults.Namespace, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(ctx.Err()), "node"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(ctx.Err()), "node"))
 				return
 			case <-retry.After():
 			}
@@ -276,7 +276,7 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(ctx.Err()), "node"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Wrap(ctx.Err()), "node"))
 			return
 		case <-retry.After():
 		}
@@ -292,6 +292,8 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Server", trace.Errorf("Can not convert %T to ServerV2", serverI), "node"))
 		return
 	}
+	server = serverResource
+
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

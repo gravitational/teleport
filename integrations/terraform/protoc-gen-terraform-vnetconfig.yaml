@@ -32,16 +32,16 @@ injected_fields:
 # These fields will be excluded
 exclude_fields:
   # Metadata (we id resources by name on our side)
-  - 'VnetConfig.id'
-  - 'VnetConfig.Metadata.Name'
+  - 'VnetConfig.metadata.name'
+  # Revision must be excluded to avoid a permanent drift in state.
+  - 'VnetConfig.metadata.revision'
 
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
-  - 'VnetConfig.Metadata.Namespace'
-  - 'VnetConfig.Metadata.Revision'
-  - "VnetConfig.Kind"
-  - "VnetConfig.Version"
+  - 'VnetConfig.metadata.namespace'
+  - 'VnetConfig.kind'
+  - 'VnetConfig.version'
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the

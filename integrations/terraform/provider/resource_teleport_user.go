@@ -122,9 +122,9 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		tries = tries + 1
 		userI, err = r.p.Client.GetUser(ctx, id, false)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Errorf("Can not convert %T to UserV2", userI), "user"))
 		return
 	}
+	user = userResource
+
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

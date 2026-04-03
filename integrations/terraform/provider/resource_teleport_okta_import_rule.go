@@ -122,9 +122,9 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		tries = tries + 1
 		oktaImportRuleI, err = r.p.Client.OktaClient().GetOktaImportRule(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(ctx.Err()), "okta_import_rule"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(ctx.Err()), "okta_import_rule"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(ctx.Err()), "okta_import_rule"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Wrap(ctx.Err()), "okta_import_rule"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OktaImportRule", trace.Errorf("Can not convert %T to OktaImportRuleV1", oktaImportRuleI), "okta_import_rule"))
 		return
 	}
+	oktaImportRule = oktaImportRuleResource
+
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

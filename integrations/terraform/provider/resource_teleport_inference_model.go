@@ -117,9 +117,9 @@ func (r resourceTeleportInferenceModel) Create(ctx context.Context, req tfsdk.Cr
 		tries = tries + 1
 		inferenceModelI, err = r.p.Client.SummarizerClient().GetInferenceModel(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceModel", trace.Wrap(ctx.Err()), "inference_model"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceModel", trace.Wrap(ctx.Err()), "inference_model"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportInferenceModel) Update(ctx context.Context, req tfsdk.Up
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceModel", trace.Wrap(ctx.Err()), "inference_model"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceModel", trace.Wrap(ctx.Err()), "inference_model"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportInferenceModel) Update(ctx context.Context, req tfsdk.Up
 
 	inferenceModelResource = inferenceModelI
 	
+	inferenceModel = inferenceModelResource
+
 	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

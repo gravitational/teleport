@@ -61,20 +61,23 @@ exclude_fields:
   - "InferenceModel.spec.openai.temperature"
   - "InferenceModel.spec.bedrock.temperature"
 
+  # Revision must be excluded to avoid a permanent drift in state.
+  - "InferenceModel.metadata.revision"
+  - "InferenceSecret.metadata.revision"
+  - "InferencePolicy.metadata.revision"
+
+
 # These fields will be marked as Computed: true
 computed_fields:
   - "InferenceModel.kind"
   - "InferenceModel.metadata.expires"
   - "InferenceModel.metadata.namespace"
-  - "InferenceModel.metadata.revision"
   - "InferenceSecret.kind"
   - "InferenceSecret.metadata.expires"
   - "InferenceSecret.metadata.namespace"
-  - "InferenceSecret.metadata.revision"
   - "InferencePolicy.kind"
   - "InferencePolicy.metadata.expires"
   - "InferencePolicy.metadata.namespace"
-  - "InferencePolicy.metadata.revision"
 
 # These fields will be marked as Required: true
 required_fields:

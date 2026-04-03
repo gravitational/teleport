@@ -90,13 +90,6 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Description: "Metadata contains the resource metadata.",
 			Required:    true,
@@ -530,23 +523,6 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 							diags.Append(attrReadMissingDiag{"ScopedToken.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ScopedToken.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ScopedToken.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -1844,28 +1820,6 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 						} else {
 							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ScopedToken.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ScopedToken.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ScopedToken.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}

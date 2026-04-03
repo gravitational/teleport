@@ -122,9 +122,9 @@ func (r resourceTeleportInstaller) Create(ctx context.Context, req tfsdk.CreateR
 		tries = tries + 1
 		installerI, err = r.p.Client.GetInstaller(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Wrap(ctx.Err()), "installer"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Wrap(ctx.Err()), "installer"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Wrap(ctx.Err()), "installer"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Wrap(ctx.Err()), "installer"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Errorf("Can not convert %T to InstallerV1", installerI), "installer"))
 		return
 	}
+	installer = installerResource
+
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

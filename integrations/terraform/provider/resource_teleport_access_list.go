@@ -123,9 +123,9 @@ func (r resourceTeleportAccessList) Create(ctx context.Context, req tfsdk.Create
 		tries = tries + 1
 		accessListI, err = r.p.Client.AccessListClient().GetAccessList(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(ctx.Err()), "access_list"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(ctx.Err()), "access_list"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(ctx.Err()), "access_list"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Wrap(ctx.Err()), "access_list"))
 			return
 		case <-retry.After():
 		}
@@ -286,6 +286,8 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 
 	accessListResource = accessListI
 	
+	accessList = convert.ToProto(accessListResource)
+
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

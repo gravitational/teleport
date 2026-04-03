@@ -35,13 +35,14 @@ exclude_fields:
   - 'DiscoveryConfig.header.metadata.id'
   # Read only field
   - 'DiscoveryConfig.status'
+  # Revision must be excluded to avoid a permanent drift in state.
+  - 'DiscoveryConfig.header.metadata.revision'
 
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
   - 'DiscoveryConfig.header.metadata.expires'
   - 'DiscoveryConfig.header.metadata.namespace'
-  - 'DiscoveryConfig.header.metadata.revision'
   - 'DiscoveryConfig.header.kind'
   - 'DiscoveryConfig.header.sub_kind'
   - 'DiscoveryConfig.spec.azure.Params'

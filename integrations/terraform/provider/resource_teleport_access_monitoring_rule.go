@@ -117,9 +117,9 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 		tries = tries + 1
 		accessMonitoringRuleI, err = r.p.Client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(ctx.Err()), "access_monitoring_rule"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(ctx.Err()), "access_monitoring_rule"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(ctx.Err()), "access_monitoring_rule"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(ctx.Err()), "access_monitoring_rule"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 
 	accessMonitoringRuleResource = accessMonitoringRuleI
 	
+	accessMonitoringRule = accessMonitoringRuleResource
+
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -122,9 +122,9 @@ func (r resourceTeleportOIDCConnector) Create(ctx context.Context, req tfsdk.Cre
 		tries = tries + 1
 		oidcConnectorI, err = r.p.Client.GetOIDCConnector(ctx, id, true)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(ctx.Err()), "oidc"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(ctx.Err()), "oidc"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(ctx.Err()), "oidc"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Wrap(ctx.Err()), "oidc"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading OIDCConnector", trace.Errorf("Can not convert %T to OIDCConnectorV3", oidcConnectorI), "oidc"))
 		return
 	}
+	oidcConnector = oidcConnectorResource
+
 	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

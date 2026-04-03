@@ -20,8 +20,8 @@ package provider
 import (
 	"context"
 {{- if .RandomMetadataName }}
-    "crypto/rand"
-    "encoding/hex"
+	"crypto/rand"
+	"encoding/hex"
 {{- end }}
 	"fmt"
 {{- if .StatePoll }}
@@ -35,8 +35,8 @@ import (
 {{- end }}
 	{{.ProtoPackage}} "{{.ProtoPackagePath}}"
 	{{ if .ConvertPackagePath -}}
-    convert "{{.ConvertPackagePath}}"
-    {{- end}}
+	convert "{{.ConvertPackagePath}}"
+	{{- end}}
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -197,9 +197,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		tries = tries + 1
 		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}id{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
 				return
 			case <-retry.After():
 			}
@@ -464,7 +464,7 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(ctx.Err()), "{{.Kind}}"))
 			return
 		case <-retry.After():
 		}
@@ -484,6 +484,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
+
+	{{- if .ConvertPackagePath}}
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+	{{- else }}
+	{{.VarName}} = {{.VarName}}Resource
+	{{- end }}
+
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

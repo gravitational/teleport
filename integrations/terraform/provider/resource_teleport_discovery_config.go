@@ -120,9 +120,9 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req tfsdk.C
 		tries = tries + 1
 		discoveryConfigI, err = r.p.Client.DiscoveryConfigClient().GetDiscoveryConfig(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
 				return
 			case <-retry.After():
 			}
@@ -267,7 +267,7 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
 			return
 		case <-retry.After():
 		}
@@ -280,6 +280,8 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 
 	discoveryConfigResource = discoveryConfigI
 	
+	discoveryConfig = convert.ToProto(discoveryConfigResource)
+
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

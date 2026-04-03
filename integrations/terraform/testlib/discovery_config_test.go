@@ -124,7 +124,6 @@ func (s *TerraformSuiteOSS) TestImportDiscoveryConfig() {
 					require.Equal(t, existing.Metadata.Name, state[0].Attributes["header.metadata.name"])
 					require.Equal(t, existing.Metadata.Description, state[0].Attributes["header.metadata.description"])
 					require.Equal(t, "test", state[0].Attributes["header.metadata.labels.purpose"])
-					require.Equal(t, existing.Metadata.Revision, state[0].Attributes["header.metadata.revision"])
 					require.Equal(t, "test_group", state[0].Attributes["spec.discovery_group"])
 
 					return nil

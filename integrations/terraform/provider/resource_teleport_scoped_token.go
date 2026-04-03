@@ -117,9 +117,9 @@ func (r resourceTeleportScopedToken) Create(ctx context.Context, req tfsdk.Creat
 		tries = tries + 1
 		scopedTokenI, err = r.p.Client.GetScopedToken(ctx, id, true)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(ctx.Err()), "scoped_token"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(ctx.Err()), "scoped_token"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(ctx.Err()), "scoped_token"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(ctx.Err()), "scoped_token"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 
 	scopedTokenResource = scopedTokenI
 	
+	scopedToken = scopedTokenResource
+
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

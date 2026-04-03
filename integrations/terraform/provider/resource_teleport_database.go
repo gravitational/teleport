@@ -122,9 +122,9 @@ func (r resourceTeleportDatabase) Create(ctx context.Context, req tfsdk.CreateRe
 		tries = tries + 1
 		databaseI, err = r.p.Client.GetDatabase(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Wrap(ctx.Err()), "db"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Wrap(ctx.Err()), "db"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Wrap(ctx.Err()), "db"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Wrap(ctx.Err()), "db"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Errorf("Can not convert %T to DatabaseV3", databaseI), "db"))
 		return
 	}
+	database = databaseResource
+
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

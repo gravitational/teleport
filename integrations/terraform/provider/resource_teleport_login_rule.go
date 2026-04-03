@@ -115,9 +115,9 @@ func (r resourceTeleportLoginRule) Create(ctx context.Context, req tfsdk.CreateR
 		tries = tries + 1
 		loginRuleI, err = r.p.Client.GetLoginRule(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading LoginRule", trace.Wrap(ctx.Err()), "login_rule"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading LoginRule", trace.Wrap(ctx.Err()), "login_rule"))
 				return
 			case <-retry.After():
 			}
@@ -257,7 +257,7 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading LoginRule", trace.Wrap(ctx.Err()), "login_rule"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading LoginRule", trace.Wrap(ctx.Err()), "login_rule"))
 			return
 		case <-retry.After():
 		}
@@ -270,6 +270,8 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 
 	loginRuleResource = loginRuleI
 	
+	loginRule = loginRuleResource
+
 	diags = schemav1.CopyLoginRuleToTerraform(ctx, loginRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

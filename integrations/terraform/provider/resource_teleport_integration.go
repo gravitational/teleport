@@ -122,9 +122,9 @@ func (r resourceTeleportIntegration) Create(ctx context.Context, req tfsdk.Creat
 		tries = tries + 1
 		integrationI, err = r.p.Client.GetIntegration(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Wrap(ctx.Err()), "integration"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Wrap(ctx.Err()), "integration"))
 				return
 			case <-retry.After():
 			}
@@ -273,7 +273,7 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.Updat
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Wrap(ctx.Err()), "integration"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Wrap(ctx.Err()), "integration"))
 			return
 		case <-retry.After():
 		}
@@ -289,6 +289,8 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.Updat
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Errorf("Can not convert %T to IntegrationV1", integrationI), "integration"))
 		return
 	}
+	integration = integrationResource
+
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

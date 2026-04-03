@@ -50,17 +50,19 @@ exclude_fields:
     # Read only field
     - "Member.spec.ineligible_status"
 
+    # Revision must be excluded to avoid a permanent drift in state.
+    - "AccessList.header.metadata.revision"
+    - "Member.header.metadata.revision"
+
 # These fields will be marked as Computed: true
 computed_fields:
     - "AccessList.header.kind"
     - "AccessList.header.metadata.expires"
     - "AccessList.header.metadata.namespace"
-    - "AccessList.header.metadata.revision"
     - "AccessList.spec.audit.next_audit_date"
     - "Member.header.kind"
     - "Member.header.metadata.expires"
     - "Member.header.metadata.namespace"
-    - "Member.header.metadata.revision"
     - "Member.spec.name"
     - "Member.spec.joined"
     - "Member.spec.added_by"

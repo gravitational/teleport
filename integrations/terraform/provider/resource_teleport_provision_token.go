@@ -19,8 +19,8 @@ package provider
 
 import (
 	"context"
-    "crypto/rand"
-    "encoding/hex"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -133,9 +133,9 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		tries = tries + 1
 		provisionTokenI, err = r.p.Client.GetToken(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(ctx.Err()), "token"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(ctx.Err()), "token"))
 				return
 			case <-retry.After():
 			}
@@ -284,7 +284,7 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(ctx.Err()), "token"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(ctx.Err()), "token"))
 			return
 		case <-retry.After():
 		}
@@ -300,6 +300,8 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Errorf("Can not convert %T to ProvisionTokenV2", provisionTokenI), "token"))
 		return
 	}
+	provisionToken = provisionTokenResource
+
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

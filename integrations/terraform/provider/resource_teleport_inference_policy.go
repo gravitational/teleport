@@ -117,9 +117,9 @@ func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req tfsdk.C
 		tries = tries + 1
 		inferencePolicyI, err = r.p.Client.SummarizerClient().GetInferencePolicy(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
+			select {
 			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferencePolicy", trace.Wrap(ctx.Err()), "inference_policy"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferencePolicy", trace.Wrap(ctx.Err()), "inference_policy"))
 				return
 			case <-retry.After():
 			}
@@ -260,7 +260,7 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.U
 
 		select {
 		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferencePolicy", trace.Wrap(ctx.Err()), "inference_policy"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferencePolicy", trace.Wrap(ctx.Err()), "inference_policy"))
 			return
 		case <-retry.After():
 		}
@@ -273,6 +273,8 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.U
 
 	inferencePolicyResource = inferencePolicyI
 	
+	inferencePolicy = inferencePolicyResource
+
 	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
