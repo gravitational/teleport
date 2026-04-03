@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+
+ARG TELEPORT_VERSION_MAJOR
+FROM ghcr.io/gravitational/teleport-buildbox-node:teleport${TELEPORT_VERSION_MAJOR}-arm64 AS webassets
+
+COPY . .
+
+RUN /usr/bin/make ensure-webassets
+
