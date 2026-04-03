@@ -214,8 +214,6 @@ func (c *conn) close() {
 		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
 	}
 
-	c.wg.Wait()
-
 	if err := c.lostCounter.Close(); err != nil {
 		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
 	}
