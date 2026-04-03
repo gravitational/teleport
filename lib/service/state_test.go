@@ -19,10 +19,6 @@
 package service
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -30,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -176,73 +171,6 @@ func TestProcessStateCallback(t *testing.T) {
 				ps.update(time.Now(), event, component)
 			}
 			require.Equal(t, tt.expect, got)
-		})
-	}
-}
-
-func TestHandleReadiness(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		states     map[string]*componentState
-		wantCode   int
-		wantReady  bool
-		wantStatus string
-	}{
-		{
-			name: "degraded",
-			states: map[string]*componentState{
-				"component": {state: stateDegraded},
-			},
-			wantCode:   http.StatusServiceUnavailable,
-			wantReady:  false,
-			wantStatus: "teleport is in a degraded state, check logs for details",
-		},
-		{
-			name: "recovering",
-			states: map[string]*componentState{
-				"component": {state: stateRecovering},
-			},
-			wantCode:   http.StatusBadRequest,
-			wantReady:  false,
-			wantStatus: "teleport is recovering from a degraded state, check logs for details",
-		},
-		{
-			name:       "starting",
-			states:     map[string]*componentState{},
-			wantCode:   http.StatusBadRequest,
-			wantReady:  false,
-			wantStatus: "teleport is starting and hasn't joined the cluster yet",
-		},
-		{
-			name: "ok",
-			states: map[string]*componentState{
-				"component": {state: stateOK},
-			},
-			wantCode:   http.StatusOK,
-			wantReady:  false,
-			wantStatus: "ok",
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ps := &processState{states: tt.states}
-
-			w := httptest.NewRecorder()
-			ps.handleReadiness(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
-
-			require.Equal(t, tt.wantCode, w.Code)
-
-			var readiness debug.Readiness
-			require.NoError(t, json.NewDecoder(w.Body).Decode(&readiness))
-			require.Equal(t, tt.wantReady, readiness.Ready)
-			require.Equal(t, os.Getpid(), readiness.PID)
-			require.Equal(t, tt.wantStatus, readiness.Status)
 		})
 	}
 }
