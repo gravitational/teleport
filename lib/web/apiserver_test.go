@@ -8272,7 +8272,8 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
+func waitForOutput(r ReaderWithDeadline, substr string) error {
+	const timeout = 10 * time.Second
 	timeoutCh := time.After(timeout)
 
 	var prev string
@@ -8317,10 +8318,6 @@ type ReadWriterWithDeadline interface {
 	io.Writer
 	SetReadDeadline(time.Time) error
 	SetWriteDeadline(time.Time) error
-}
-
-func waitForOutput(r ReaderWithDeadline, substr string) error {
-	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -10774,12 +10771,22 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	// Advance the clock far enough in the future to make the moderator stale
 	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	// components, it's not practical to use BlockUntil here, so we advance the
+	// clock in a loop to ensure it is caught by the stale presence goroutine.
+	go func() {
 		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 500*time.Millisecond)
+		for {
+			select {
+			case <-time.After(100 * time.Millisecond):
+				s.clock.Advance(3 * time.Minute)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	require.NoError(t, waitForOutput(moderatorTerm, "wait: remote command exited without exit status or exit signal"))
+	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"))
 }
 
 type proxyClientMock struct {
