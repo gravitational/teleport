@@ -104,3 +104,95 @@ func TestParseDatabaseFQDN(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateDBUserForProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		dbUser   string
+		dbName   string
+		protocol string
+		wantErr  bool
+	}{
+		{
+			name:     "postgres without user — valid",
+			protocol: "postgres",
+			dbName:   "my-postgres",
+			dbUser:   "",
+			wantErr:  false,
+		},
+		{
+			name:     "postgres with user — rejected",
+			protocol: "postgres",
+			dbName:   "my-postgres",
+			dbUser:   "alice",
+			wantErr:  true,
+		},
+		{
+			name:     "mysql without user — valid",
+			protocol: "mysql",
+			dbName:   "my-mysql",
+			dbUser:   "",
+			wantErr:  false,
+		},
+		{
+			name:     "mysql with user — rejected",
+			protocol: "mysql",
+			dbName:   "my-mysql",
+			dbUser:   "alice",
+			wantErr:  true,
+		},
+		{
+			name:     "cockroachdb without user — valid",
+			protocol: "cockroachdb",
+			dbName:   "my-crdb",
+			dbUser:   "",
+			wantErr:  false,
+		},
+		{
+			name:     "sqlserver without user — valid",
+			protocol: "sqlserver",
+			dbName:   "my-sqlserver",
+			dbUser:   "",
+			wantErr:  false,
+		},
+		{
+			name:     "mongodb with user — valid",
+			protocol: "mongodb",
+			dbName:   "my-mongo",
+			dbUser:   "admin",
+			wantErr:  false,
+		},
+		{
+			name:     "mongodb without user — rejected",
+			protocol: "mongodb",
+			dbName:   "my-mongo",
+			dbUser:   "",
+			wantErr:  true,
+		},
+		{
+			name:     "clickhouse with user — valid",
+			protocol: "clickhouse",
+			dbName:   "my-clickhouse",
+			dbUser:   "default",
+			wantErr:  false,
+		},
+		{
+			name:     "clickhouse without user — rejected",
+			protocol: "clickhouse",
+			dbName:   "my-clickhouse",
+			dbUser:   "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateDBUserForProtocol(tt.dbUser, tt.dbName, tt.protocol)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

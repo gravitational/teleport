@@ -552,21 +552,21 @@ func rootProxyHostFromProfile(profileName string) string {
 // validateDBUserForProtocol checks that the db-user parsed from the FQDN is
 // appropriate for the database protocol
 func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
-	if shouldGetDBUsernameFromWireProtocol(protocol) {
+	if dbProtocolExtractsUsernameFromWire(protocol) {
 		if dbUser != "" {
-			return trace.BadParameter("database does not support username in domain name")
+			return trace.BadParameter("database protocol %q does not support username in domain name, specify the user in the client connection string instead", protocol)
 		}
 		return nil
 	}
 	if dbUser == "" {
-		return trace.BadParameter("database requires username in domain name ")
+		return trace.BadParameter("database protocol %q requires username in domain name", protocol)
 	}
 	return nil
 }
 
-// shouldGetDBUsernameFromWireProtocol returns true for database protocols where the
-// db_service extracts the database username from the wire protocol
-func shouldGetDBUsernameFromWireProtocol(protocol string) bool {
+// dbProtocolExtractsUsernameFromWire returns true for database protocols where
+// the db_service extracts the database username from the wire protocol
+func dbProtocolExtractsUsernameFromWire(protocol string) bool {
 	switch protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB,
 		defaults.ProtocolMySQL, defaults.ProtocolSQLServer:
