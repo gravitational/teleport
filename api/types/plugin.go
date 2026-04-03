@@ -368,6 +368,14 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
 		}
 
+		// backfill full sync interval
+		if settings.EntraId.SyncSettings.SyncIntervals == nil {
+			settings.EntraId.SyncSettings.SyncIntervals = &PluginEntraIDSyncIntervals{
+				Delta: 0, // 0 disables the delta sync because delta sync is opt-in.
+				Full:  time.Minute * 5,
+			}
+		}
+
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
