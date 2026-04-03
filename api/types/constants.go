@@ -905,6 +905,12 @@ const (
 	// to identify Azure VMs by resource group during auto-discovery.
 	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
+	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
+	// the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityRegionLabel = TeleportNamespace + "/azure-managed-identity-region"
+	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
+	// group for the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
