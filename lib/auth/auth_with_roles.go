@@ -1670,7 +1670,7 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 			return nil, trace.AccessDenied(
 				"kind %q not one of the kinds supported for scoped identities (%s)",
 				kind,
-				strings.Join(slices.Collect(maps.Keys(supportedScopedResourceKinds)), ", "),
+				strings.Join(slices.Sorted(maps.Keys(supportedScopedResourceKinds)), ", "),
 			)
 		}
 		kindSet[kind] = struct{}{}
@@ -1735,6 +1735,8 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 				return checker.SSH().CanAccessSSHServer(res)
 			case *types.KubernetesServerV3:
 				return checker.Kube().CanAccessServer(res)
+			case *types.KubernetesClusterV3:
+				return checker.Kube().CanAccessCluster(res)
 			default:
 				return trace.BadParameter("generic resource could not be cast to a supported scoped type")
 			}
@@ -1843,7 +1845,7 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	a.authServer.logger.DebugContext(ctx, "Retrieved servers",
 		"node_count", len(nodes),
 		"filtered_node_count", len(filteredNodes),
-		"user", a.scopedContext.User.GetName(),
+		"user", a.getUser().GetName(),
 		"elapsed_fetch", elapsedFetch,
 		"elapsed_filter", elapsedFilter,
 		"elapsed_total", elapsedFetch+elapsedFilter,
@@ -3695,18 +3697,6 @@ func (a *ServerWithRoles) generateScopedUserCerts(ctx context.Context, req proto
 		}
 	}
 
-	// Do not allow SSO users to be impersonated.
-	if req.Username != a.scopedContext.User.GetName() && user.GetUserType() == types.UserTypeSSO {
-		a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for externally managed user",
-			"user", a.scopedContext.User.GetName(),
-			"external_user", req.Username,
-		)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	if req.Username != a.scopedContext.User.GetName() {
-		return nil, trace.AccessDenied("access denied: impersonation is not allowed")
-	}
 	sessionExpires := identity.Expires
 	if sessionExpires.IsZero() {
 		a.authServer.logger.WarnContext(ctx, "Denied cert issuance for identity with no expiry",
@@ -3718,7 +3708,7 @@ func (a *ServerWithRoles) generateScopedUserCerts(ctx context.Context, req proto
 		return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
 	}
 
-	if identity.Renewable || isRoleImpersonation(req) {
+	if identity.Renewable {
 		// Bot self-renewal or role impersonation can request certs with an
 		// expiry up to the global maximum allowed value.
 		if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
@@ -6686,8 +6676,7 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster 
 
 // GetKubernetesServers returns all registered kubernetes servers.
 func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
+	if err := a.authorizeAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
