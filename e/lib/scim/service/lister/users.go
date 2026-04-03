@@ -35,7 +35,6 @@ func (l *UserLister) ListResources(ctx context.Context, req *scimpb.ListSCIMReso
 		startIndex      = int(req.GetPage().GetStartIndex())
 		count           = int(req.GetPage().GetCount())
 		currentIndex    = 0
-		totalMatched    = 0
 		scimUserResults []*scimpb.Resource
 	)
 
@@ -61,7 +60,6 @@ func (l *UserLister) ListResources(ctx context.Context, req *scimpb.ListSCIMReso
 			}
 			scimUserResults = append(scimUserResults, resource)
 		}
-		totalMatched++
 		return nil
 	})
 	if err != nil {
@@ -69,9 +67,9 @@ func (l *UserLister) ListResources(ctx context.Context, req *scimpb.ListSCIMReso
 	}
 
 	return &scimpb.ResourceList{
-		TotalResults: int32(totalMatched),
+		TotalResults: int32(currentIndex),
 		StartIndex:   int32(startIndex),
-		ItemsPerPage: int32(count),
+		ItemsPerPage: int32(len(scimUserResults)),
 		Resources:    scimUserResults,
 	}, nil
 }

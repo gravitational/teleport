@@ -490,6 +490,153 @@ func newTeleportUser(t *testing.T, userName string, connRef types.ConnectorRef) 
 	return user
 }
 
+// TestPagination verifies that the SCIM ListGroups and ListUsers
+// endpoints return a totalResults value that reflects the total number of
+// matching resources, independent of the requested page size and start index.
+//
+// RFC https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.4
+func TestPagination(t *testing.T) {
+	t.Parallel()
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	scimToken := createGenericSCIMPlugin(t, sut)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	t.Run("Groups", func(t *testing.T) {
+		// Create 5 SCIM-typed access lists that will appear as SCIM groups.
+		for i := range 5 {
+			common.CreateAccessList(t, sut,
+				common.WithName(fmt.Sprintf("group-%03d", i+1)),
+				common.WithTitle(fmt.Sprintf("Group %03d", i+1)),
+				common.WithAccessListType(accesslist.SCIM),
+				common.WithOwners("alice-admin"),
+			)
+		}
+
+		ctx := t.Context()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// Verify all 5 groups are visible.
+			allGroups, err := scimClient.ListGroups(ctx)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), allGroups.TotalResults)
+			require.Len(t, allGroups.Groups, 5)
+		}, time.Minute, time.Millisecond*30)
+
+		t.Run("first page", func(t *testing.T) {
+			resp, err := scimClient.ListGroups(t.Context(),
+				scimsdk.WithStartIndex(1),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Groups, 2)
+			require.Equal(t, int32(2), resp.ItemsPerPage)
+			require.Equal(t, int32(1), resp.StartIndex)
+		})
+
+		t.Run("second page", func(t *testing.T) {
+			resp, err := scimClient.ListGroups(t.Context(),
+				scimsdk.WithStartIndex(3),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Groups, 2)
+			require.Equal(t, int32(2), resp.ItemsPerPage)
+			require.Equal(t, int32(3), resp.StartIndex)
+		})
+
+		t.Run("last page with partial results", func(t *testing.T) {
+			resp, err := scimClient.ListGroups(t.Context(),
+				scimsdk.WithStartIndex(5),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Groups, 1)
+			require.Equal(t, int32(1), resp.ItemsPerPage)
+		})
+
+		t.Run("past the end", func(t *testing.T) {
+			resp, err := scimClient.ListGroups(t.Context(),
+				scimsdk.WithStartIndex(6),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Empty(t, resp.Groups)
+			require.Equal(t, int32(0), resp.ItemsPerPage)
+		})
+	})
+
+	t.Run("Users", func(t *testing.T) {
+		for i := range 5 {
+			_, err := scimClient.CreateUser(t.Context(), newSCIMUser(fmt.Sprintf("user-%03d", i+1)))
+			require.NoError(t, err)
+		}
+
+		ctx := t.Context()
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// Verify all 5 users are visible.
+			allUsers, err := scimClient.ListUsers(ctx)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), allUsers.TotalResults)
+			require.Len(t, allUsers.Users, 5)
+
+		}, time.Minute, time.Millisecond*30)
+
+		t.Run("first page", func(t *testing.T) {
+			resp, err := scimClient.ListUsers(t.Context(),
+				scimsdk.WithStartIndex(1),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Users, 2)
+			require.Equal(t, int32(2), resp.ItemsPerPage)
+			require.Equal(t, int32(1), resp.StartIndex)
+		})
+
+		t.Run("second page", func(t *testing.T) {
+			resp, err := scimClient.ListUsers(t.Context(),
+				scimsdk.WithStartIndex(3),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Users, 2)
+			require.Equal(t, int32(2), resp.ItemsPerPage)
+			require.Equal(t, int32(3), resp.StartIndex)
+		})
+
+		t.Run("last page with partial results", func(t *testing.T) {
+			resp, err := scimClient.ListUsers(t.Context(),
+				scimsdk.WithStartIndex(5),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Len(t, resp.Users, 1)
+			require.Equal(t, int32(1), resp.ItemsPerPage)
+		})
+
+		t.Run("past the end", func(t *testing.T) {
+			resp, err := scimClient.ListUsers(t.Context(),
+				scimsdk.WithStartIndex(6),
+				scimsdk.WithCount(2),
+			)
+			require.NoError(t, err)
+			require.Equal(t, int32(5), resp.TotalResults)
+			require.Empty(t, resp.Users)
+			require.Equal(t, int32(0), resp.ItemsPerPage)
+		})
+	})
+}
+
 func newSCIMUser(username string) *scimsdk.User {
 	return &scimsdk.User{
 		ExternalID: username,

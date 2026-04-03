@@ -37,7 +37,6 @@ func (l *GroupLister) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 		startIndex       = int(req.GetPage().GetStartIndex())
 		count            = int(req.GetPage().GetCount())
 		currentIndex     = 0
-		totalMatched     = 0
 		scimGroupResults []*scimpb.Resource
 	)
 
@@ -70,12 +69,11 @@ func (l *GroupLister) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 			}
 			scimGroupResults = append(scimGroupResults, resource)
 		}
-		totalMatched++
 	}
 	return &scimpb.ResourceList{
-		TotalResults: int32(totalMatched),
+		TotalResults: int32(currentIndex),
 		StartIndex:   int32(startIndex),
-		ItemsPerPage: int32(count),
+		ItemsPerPage: int32(len(scimGroupResults)),
 		Resources:    scimGroupResults,
 	}, nil
 }
