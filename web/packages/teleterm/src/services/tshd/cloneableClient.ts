@@ -334,10 +334,10 @@ function cloneResponses<O extends object>(
     onMessage: (...args) => original.onMessage(...args),
     onComplete: (...args) => original.onComplete(...args),
     onError: errorCallback =>
-      original.onError(e => errorCallback(cloneError(e) as Error)),
+      original.onError(e => errorCallback(cloneError(e))),
     onNext: callback =>
       original.onNext((message, error, complete) =>
-        callback(message, cloneError(error) as Error, complete)
+        callback(message, error && cloneError(error), complete)
       ),
   };
 }
