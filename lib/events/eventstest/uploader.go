@@ -356,7 +356,7 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 }
 
 // StreamSessionRecording streams a session tarball and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID, _ string) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
