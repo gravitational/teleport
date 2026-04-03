@@ -2489,7 +2489,7 @@ func TestTerminalRouting(t *testing.T) {
 			// for is not present in the command itself
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, tt.output))
+			waitForOutput(t, term, tt.output)
 		})
 	}
 }
@@ -2580,7 +2580,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			// Test we can write.
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, "teleport"))
+			waitForOutput(t, term, "teleport")
 		})
 	}
 }
@@ -2803,8 +2803,7 @@ func TestWebAgentForward(t *testing.T) {
 	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
 
-	err = waitForOutput(term, "/")
-	require.NoError(t, err)
+	waitForOutput(t, term, "/")
 }
 
 func TestActiveSessions(t *testing.T) {
@@ -8272,7 +8271,9 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutput(r io.Reader, substr string) error {
+func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {
+	t.Helper()
+
 	const timeout = 10 * time.Second
 	timeoutCh := time.After(timeout)
 
@@ -8307,9 +8308,9 @@ func waitForOutput(r io.Reader, substr string) error {
 
 	select {
 	case <-timeoutCh:
-		return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
+		t.Fatalf(fmt.Sprintf("timeout waiting on terminal for output: %v", substr), msgAndArgs...)
 	case err := <-errC:
-		return trace.Wrap(err)
+		require.NoError(t, err, msgAndArgs...)
 	}
 }
 
@@ -9183,7 +9184,7 @@ func validateTerminal(t *testing.T, term io.ReadWriter) {
 	// for is not present in the command itself
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(term, "teleport"))
+	waitForOutput(t, term, "teleport")
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -10579,7 +10580,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -10591,21 +10592,21 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output on peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
+	waitForOutput(t, moderatorTerm, "Stopping session...", "waiting for moderator to terminate session")
+	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -10696,7 +10697,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to start session")
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -10727,20 +10728,20 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for range 3 {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
@@ -10778,8 +10779,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		}
 	}()
 
-	require.NoError(t, waitForOutput(moderatorTerm, "wait: remote command exited without exit status or exit signal"))
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"))
+	waitForOutput(t, moderatorTerm, "wait: remote command exited without exit status or exit signal")
+	waitForOutput(t, peerTerm, "Process exited with status 255")
 }
 
 type proxyClientMock struct {
