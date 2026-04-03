@@ -19,7 +19,9 @@ app_service:
     # "config": application resources defined in the "apps" array below
     resources:
       - labels:
-          "*": "*"
+          # limit discovered apps to those with the 
+          # environment:production label
+          "environment": "production" 
 
     apps:
     - name: "kubernetes-dashboard"
