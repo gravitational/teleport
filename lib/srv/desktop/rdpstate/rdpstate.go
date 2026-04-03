@@ -154,7 +154,7 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 
 	if s.decoder == nil {
 		d, err := decoder.New(w, h) //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
-		if err != nil {
+		if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 			return trace.Wrap(err, "creating RDP decoder")
 		}
 
