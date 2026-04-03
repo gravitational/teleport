@@ -41,6 +41,9 @@ import (
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/identity")
 
 // GeneratorConfig contains the configuration options for a Generator.
+//
+// TODO(strideynet): There's some general tidy-up work to be done here with how
+// we handle CAs to make it more uniform and clearly sourced
 type GeneratorConfig struct {
 	// Client that will be used to request identity certificates.
 	Client *apiclient.Client
@@ -398,12 +401,7 @@ func (g *Generator) GenerateScoped(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(strideynet): This code around rebuilding the CAs for the identity
-	// file is a little gnarly and in need of simplification. GetClusterCACert
-	// seems inferior to calling the standard CA fetch (which could also be
-	// more effectively cached).
-	//
-	// Seemingly, we only need the host ca here?
+	// Fetch CAs for new identity
 	localCA, err := g.client.GetClusterCACert(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -426,10 +424,8 @@ func (g *Generator) GenerateScoped(
 		PrivateKeyBytes: privateKeyPEM,
 		PublicKeyBytes:  req.SshPublicKey,
 	}, &proto.Certs{
-		SSH: res.Certs.Ssh,
-		TLS: res.Certs.Tls,
-		// Why do we fetch the host CA from API but copy the SSH host CA from
-		// local identity?
+		SSH:        res.Certs.Ssh,
+		TLS:        res.Certs.Tls,
 		TLSCACerts: tlsHostCAs,
 		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
 	})

@@ -313,6 +313,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			name: "minimal config",
 			in: BotConfig{
 				Version:    V2,
+				Scoped:     true,
 				AuthServer: "example.teleport.sh:443",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             time.Minute,

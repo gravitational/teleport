@@ -99,7 +99,7 @@ type BotConfig struct {
 
 	// Scoped indicates whether `tbot` should run in scoped mode. This must
 	// be set to true when `tbot` is authenticating as a scoped Bot.
-	Scoped bool `yaml:"scoped"`
+	Scoped bool `yaml:"scoped,omitempty"`
 
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:

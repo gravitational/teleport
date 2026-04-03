@@ -120,8 +120,6 @@ func (s *OutputService) OneShot(ctx context.Context) error {
 	return f(ctx)
 }
 
-// TODO: Find a way to indicate clearly if service supports scoped mode.
-// Perhaps bifurcate interface and check if implements optional interface.
 func (s *OutputService) Run(ctx context.Context) error {
 	f := s.generate
 	if s.scoped {
