@@ -17,7 +17,7 @@
  */
 
 import Logger from 'teleterm/logger';
-import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import { isRpcErrorReloginResolvable } from 'teleterm/services/tshd/cloneableClient';
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
@@ -94,7 +94,7 @@ export async function retryWithRelogin<T>(
 }
 
 export function isRetryable(error: unknown): boolean {
-  return isTshdRpcError(error) && error.isResolvableWithRelogin;
+  return isRpcErrorReloginResolvable(error);
 }
 
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to
