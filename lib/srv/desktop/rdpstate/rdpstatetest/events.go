@@ -21,10 +21,6 @@
 package rdpstatetest
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
@@ -43,38 +39,38 @@ func LegacyEvent(data []byte) *apievents.DesktopRecording {
 
 // EncodeTDPBServerHello creates a DesktopRecording event containing a TDPB ServerHello message with the given screen
 // dimensions.
-func EncodeTDPBServerHello(t *testing.T, width, height uint32) *apievents.DesktopRecording {
-	t.Helper()
-
+func EncodeTDPBServerHello(width, height uint32) (*apievents.DesktopRecording, error) {
 	data, err := (&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			ScreenWidth:  width,
 			ScreenHeight: height,
 		},
 	}).Encode()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	return TDPBEvent(data)
+	return TDPBEvent(data), nil
 }
 
 // EncodeTDPBFastPathPDU creates a DesktopRecording event containing a TDPB FastPathPDU message wrapping the given raw
 // PDU bytes.
-func EncodeTDPBFastPathPDU(t *testing.T, pdu []byte) *apievents.DesktopRecording {
-	t.Helper()
-
+func EncodeTDPBFastPathPDU(pdu []byte) (*apievents.DesktopRecording, error) {
 	data, err := (&tdpb.FastPathPDU{Pdu: pdu}).Encode()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	return TDPBEvent(data)
+	return TDPBEvent(data), nil
 }
 
 // LegacyConnectionActivated creates a DesktopRecording event containing a legacy ConnectionActivated message with the
 // given screen dimensions.
-func LegacyConnectionActivated(t *testing.T, width, height uint16) *apievents.DesktopRecording {
-	t.Helper()
-
+func LegacyConnectionActivated(width, height uint16) (*apievents.DesktopRecording, error) {
 	data, err := legacy.ConnectionActivated{ScreenWidth: width, ScreenHeight: height}.Encode()
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
-	return LegacyEvent(data)
+	return LegacyEvent(data), nil
 }

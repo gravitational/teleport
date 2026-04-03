@@ -273,5 +273,5 @@ func sendLegacyPDU(t *testing.T, s *RDPState, pdu []byte) {
 
 	data, err := legacy.RDPFastPathPDU(pdu).Encode()
 	require.NoError(t, err)
-	require.NoError(t, s.HandleMessage(legacyEvent(data)))
+	require.NoError(t, s.HandleMessage(rdpstatetest.LegacyEvent(data)))
 }
