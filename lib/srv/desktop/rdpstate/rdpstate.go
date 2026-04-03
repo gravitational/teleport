@@ -20,17 +20,29 @@ package rdpstate
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
+	"io"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+)
+
+const (
+	// Legacy TDP message types relevant for recording replay.
+	legacyTypeConnectionActivated = 31
+	legacyTypeRDPFastPathPDU      = 29
+
+	// tdpbHeaderLength is the size of the TDPB message length prefix.
+	tdpbHeaderLength = 4
+
+	// maxMessageLength is the maximum allowed TDPB message body size (16 MiB - 1).
+	maxMessageLength = (1 << 24) - 1
 )
 
 // RDPState reconstructs the screen state of a desktop session by processing a sequence of DesktopRecording events.
@@ -92,42 +104,79 @@ func (s *RDPState) Release() {
 	}
 }
 
+type connectionActivated struct {
+	IOChannelID, UserChannelID, ScreenWidth, ScreenHeight uint16
+}
+
 func (s *RDPState) processTDPMessage(data []byte) error {
-	msg, err := legacy.Decode(bytes.NewReader(data))
-	if err != nil {
-		return trace.Wrap(err, "decoding legacy TDP message")
+	if len(data) == 0 {
+		return trace.BadParameter("empty legacy TDP message")
 	}
 
-	msgs, err := tdpb.TranslateToModern(msg)
-	if err != nil {
-		return trace.Wrap(err, "translating legacy TDP message")
-	}
+	msgType := data[0]
+	r := bytes.NewReader(data[1:])
 
-	for _, m := range msgs {
-		if err := s.handleMessage(m); err != nil {
-			return trace.Wrap(err)
+	switch msgType {
+	case legacyTypeConnectionActivated:
+		var ca connectionActivated
+		if err := binary.Read(r, binary.BigEndian, &ca); err != nil {
+			return trace.Wrap(err, "decoding legacy ConnectionActivated")
 		}
+
+		return s.handleServerHello(&tdpbv1.ServerHello{
+			ActivationSpec: &tdpbv1.ConnectionActivated{
+				IoChannelId:   uint32(ca.IOChannelID),
+				UserChannelId: uint32(ca.UserChannelID),
+				ScreenWidth:   uint32(ca.ScreenWidth),
+				ScreenHeight:  uint32(ca.ScreenHeight),
+			},
+		})
+
+	case legacyTypeRDPFastPathPDU:
+		var dataLen uint32
+		if err := binary.Read(r, binary.BigEndian, &dataLen); err != nil {
+			return trace.Wrap(err, "reading legacy RDPFastPathPDU length")
+		}
+
+		pdu := make([]byte, dataLen)
+		if _, err := io.ReadFull(r, pdu); err != nil {
+			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
+		}
+
+		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
 	}
 
 	return nil
 }
 
 func (s *RDPState) processTDPBMessage(data []byte) error {
-	msg, err := tdpb.DecodePermissive(bytes.NewReader(data))
-	if err != nil {
-		return trace.Wrap(err, "decoding TDPB message")
+	r := bytes.NewReader(data)
+
+	header := make([]byte, tdpbHeaderLength)
+	if _, err := io.ReadFull(r, header); err != nil {
+		return trace.Wrap(err, "reading TDPB header")
 	}
 
-	return s.handleMessage(msg)
-}
+	msgLen := binary.BigEndian.Uint32(header)
+	if msgLen >= maxMessageLength {
+		return trace.BadParameter("TDPB message length %d exceeds maximum %d", msgLen, maxMessageLength)
+	}
 
-func (s *RDPState) handleMessage(msg tdp.Message) error {
-	switch m := msg.(type) {
-	case *tdpb.ServerHello:
-		return s.handleServerHello((*tdpbv1.ServerHello)(m))
+	msg := make([]byte, msgLen)
+	if _, err := io.ReadFull(r, msg); err != nil {
+		return trace.Wrap(err, "reading TDPB body")
+	}
 
-	case *tdpb.FastPathPDU:
-		return s.handleFastPathPDU((*tdpbv1.FastPathPDU)(m))
+	env := &tdpbv1.Envelope{}
+	if err := proto.Unmarshal(msg, env); err != nil {
+		return trace.Wrap(err, "unmarshalling TDPB envelope")
+	}
+
+	switch m := env.Payload.(type) {
+	case *tdpbv1.Envelope_ServerHello:
+		return s.handleServerHello(m.ServerHello)
+	case *tdpbv1.Envelope_FastPathPdu:
+		return s.handleFastPathPDU(m.FastPathPdu)
 	}
 
 	return nil
@@ -154,7 +203,7 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 
 	if s.decoder == nil {
 		d, err := decoder.New(w, h) //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
-		if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		if err != nil {             //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 			return trace.Wrap(err, "creating RDP decoder")
 		}
 

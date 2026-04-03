@@ -21,13 +21,13 @@
 package rdpstate
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate/rdpstatetest"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
 func TestServerHello_CreatesDecoder(t *testing.T) {
@@ -271,7 +271,10 @@ func sendPDU(t *testing.T, s *RDPState, pdu []byte) {
 func sendLegacyPDU(t *testing.T, s *RDPState, pdu []byte) {
 	t.Helper()
 
-	data, err := legacy.RDPFastPathPDU(pdu).Encode()
-	require.NoError(t, err)
+	// Encode as legacy RDPFastPathPDU: type byte (29) + uint32 length + data.
+	data := make([]byte, 1+4+len(pdu))
+	data[0] = 29 // TypeRDPFastPathPDU
+	binary.BigEndian.PutUint32(data[1:5], uint32(len(pdu)))
+	copy(data[5:], pdu)
 	require.NoError(t, s.HandleMessage(rdpstatetest.LegacyEvent(data)))
 }
