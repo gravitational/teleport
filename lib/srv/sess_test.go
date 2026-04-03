@@ -105,7 +105,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		name           string
 		expectedResult bool
 		expectedError  string
-		req            *FileTransferRequest
+		req            *fileTransferRequestWithApprovers
 		reqID          string
 		location       string
 	}{
@@ -121,9 +121,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: false,
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "michael",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: FileTransferRequest{
+					ID:        "123",
+					Requester: "michael",
+				},
 				approvers: make(map[string]*party),
 			},
 		},
@@ -133,11 +135,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/badlocation",
+				},
 				approvers: make(map[string]*party),
-				Location:  "~/badlocation",
 			},
 		},
 		{
@@ -146,11 +150,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/Downloads",
+				},
 				approvers: approvers,
-				Location:  "~/Downloads",
 			},
 		},
 	}
