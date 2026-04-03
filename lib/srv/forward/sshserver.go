@@ -578,8 +578,9 @@ func (s *Server) Serve() {
 		config    = &ssh.ServerConfig{}
 	)
 
-	// Configure callback for user certificate authentication.
-	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
+	// Configure callbacks for user certificate authentication.
+	config.PublicKeyCallback = s.authHandlers.PublicKeyCallback
+	config.VerifiedPublicKeyCallback = s.authHandlers.VerifiedPublicKeyCallback
 
 	// Set host certificate the in-memory server will present to clients.
 	config.AddHostKey(s.hostCertificate)

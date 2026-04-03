@@ -268,7 +268,8 @@ func (s *ForwardServer) Serve() {
 		sshutils.NewChanHandlerFunc(s.onChannel),
 		sshutils.StaticHostSigners(s.cfg.HostCertificate),
 		sshutils.AuthMethods{
-			PublicKey: s.userKeyAuth,
+			PublicKey:         s.userKeyAuth,
+			VerifiedPublicKey: s.auth.VerifiedPublicKeyCallback,
 		},
 		sshutils.SetFIPS(s.cfg.FIPS),
 		sshutils.SetCiphers(s.cfg.Ciphers),
@@ -320,9 +321,9 @@ func (s *ForwardServer) userKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*
 		conn = sshutils.NewSSHConnMetadataWithUser(conn, ident.Principals[0])
 	}
 
-	// Use auth.UserKeyAuth to verify user cert is signed by UserCA and to evaluate
+	// Use auth.PublicKeyCallback to verify user cert is signed by UserCA and to evaluate
 	// RBAC permissions.
-	permissions, err := s.auth.UserKeyAuth(conn, key)
+	permissions, err := s.auth.PublicKeyCallback(conn, key)
 	if err != nil {
 		userKeyAuthFailureCounter.Inc()
 		return nil, trace.Wrap(err)
