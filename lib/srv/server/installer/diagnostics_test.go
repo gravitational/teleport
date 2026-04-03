@@ -61,14 +61,6 @@ func expectSystemctlShowInvocationID(systemctlMock *bintest.Mock, serviceName, i
 	})
 }
 
-func expectSystemctlShowServiceDiagnostics(systemctlMock *bintest.Mock, serviceName, activeState, subState, result string) {
-	call := systemctlMock.Expect("show", serviceName, "--property", "ActiveState", "--property", "SubState", "--property", "Result")
-	call.AndCallFunc(func(c *bintest.Call) {
-		fmt.Fprintf(c.Stdout, "ActiveState=%s\nSubState=%s\nResult=%s\n", activeState, subState, result)
-		c.Exit(0)
-	})
-}
-
 func expectJournalctlCall(journalctlMock *bintest.Mock, serviceName, invocationID, stdoutOutput, stderrOutput string) {
 	args := buildJournalctlArgs(serviceName, invocationID)
 	callArgs := make([]any, 0, len(args))
