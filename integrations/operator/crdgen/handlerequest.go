@@ -167,22 +167,22 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
-		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns)}},
+		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns), legacyWithoutVersionInKindOverride()}},
 		// Role V5 is using the RoleV6 message
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5), legacyWithoutVersionInKindOverride()}},
 		// For backward compatibility in v15, it actually creates v5 roles though.
-		{name: "RoleV6"},
+		{name: "RoleV6", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		// Role V6 and V7 have their own Kubernetes kind
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		{name: "RoleV6"},
 		// Role V7 and V8 is using the RoleV6 message
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8), withVersionInKindOverride()}},
-		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
-		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3), withVersionInKindOverride()}},
-		{name: "SAMLConnectorV2"},
-		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
-		{name: "OIDCConnectorV3"},
-		{name: "GithubConnectorV3"},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7)}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8)}},
+		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "SAMLConnectorV2", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
+		{name: "OIDCConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "GithubConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{
 			name: "LoginRule",
 			opts: []resourceSchemaOption{
@@ -191,20 +191,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				// The LoginRule proto does not have a "spec" field, so force
 				// the CRD spec to include these fields from the root.
 				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
-		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns)}},
-		{name: "OktaImportRuleV1"},
+		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns), legacyWithoutVersionInKindOverride()}},
+		{name: "OktaImportRuleV1", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{
 			name: "AccessList",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
 		{
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
-				withVersionInKindOverride(),
 				withNameOverride("OpenSSHServer"),
 				withAdditionalColumns(serverColumns),
 			},
@@ -212,25 +213,22 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
-				withVersionInKindOverride(),
 				withNameOverride("OpenSSHEICEServer"),
 				withAdditionalColumns(serverColumns),
 			},
 		},
-		{name: "TrustedClusterV2", opts: []resourceSchemaOption{withVersionInKindOverride()}},
-		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
+		{name: "TrustedClusterV2"},
+		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
 		{
 			name: "WorkloadIdentity",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withVersionInKindOverride(),
 			},
 		},
 		{
 			name: "AutoUpdateConfig",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withVersionInKindOverride(),
 				withNameOverride("AutoupdateConfig"),
 			},
 		},
@@ -238,7 +236,6 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "AutoUpdateVersion",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withVersionInKindOverride(),
 				withNameOverride("AutoupdateVersion"),
 			},
 		},
@@ -246,32 +243,33 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "InferenceModel",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
 		{
 			name: "InferencePolicy",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
 		{
 			name: "InferenceSecret",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
 		{
 			name: "AccessMonitoringRule",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withVersionInKindOverride(),
 			},
 		},
 		{
 			name: "ScopedToken",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withVersionInKindOverride(),
 				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
