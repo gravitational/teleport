@@ -1324,7 +1324,7 @@ func TestAgentForward(t *testing.T) {
 	// return EOF. See the following for more details:
 	// https://github.com/golang/go/issues/38115
 	err = se.Close()
-	if err != nil && err.Error() != "EOF" {
+	if err != nil && !errors.Is(err, io.EOF) {
 		require.NoError(t, err)
 	}
 
