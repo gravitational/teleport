@@ -20,7 +20,6 @@ package installer
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -280,7 +279,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 						binariesLocation:     binariesLocation,
 						aptPublicKeyEndpoint: mockRepoKeys.URL,
 						readyzPollInterval:   time.Millisecond,
-						readyzCheck:          readyzAlwaysReady,
+						readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 					}
 
 					teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -382,7 +381,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
 			readyzPollInterval:     time.Millisecond,
-			readyzCheck:            readyzAlwaysReady,
+			readyzChecker:          &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -454,7 +453,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
 			readyzPollInterval:     time.Millisecond,
-			readyzCheck:            readyzAlwaysReady,
+			readyzChecker:          &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -541,7 +540,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -614,7 +613,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -650,7 +649,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -719,7 +718,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -784,7 +783,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -851,7 +850,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
 			readyzPollInterval:   time.Millisecond,
-			readyzCheck:          readyzAlwaysReady,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -1251,7 +1250,7 @@ func TestCheckJoinHealth(t *testing.T) {
 
 		inst := newTestJoinHealthInstaller(t.TempDir())
 		calls := 0
-		inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			calls++
 			return debug.Readiness{Ready: true, Status: "ok"}, nil
 		}
@@ -1263,12 +1262,15 @@ func TestCheckJoinHealth(t *testing.T) {
 	t.Run("retries until ready", func(t *testing.T) {
 		t.Parallel()
 
+		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
 		inst := newTestJoinHealthInstaller(t.TempDir())
-		inst.readyzPollInterval = time.Millisecond
-		inst.readyzPollTimeout = 200 * time.Millisecond
+		inst.clock = fakeClock
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 30 * time.Second
 
 		calls := 0
-		inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			calls++
 			if calls < 3 {
 				return debug.Readiness{Ready: false, Status: "starting"}, nil
@@ -1276,7 +1278,29 @@ func TestCheckJoinHealth(t *testing.T) {
 			return debug.Readiness{Ready: true, Status: "ok"}, nil
 		}
 
-		require.NoError(t, inst.checkJoinHealth(context.Background()))
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(context.Background())
+		}()
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Call 1 is immediate (not ready). Timer created → advance to trigger call 2.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Call 2 (not ready). Timer reset → advance to trigger call 3.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Call 3 returns ready → function returns nil.
+		select {
+		case err := <-errC:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for checkJoinHealth to return")
+		}
 		require.Equal(t, 3, calls)
 	})
 
@@ -1290,21 +1314,44 @@ func TestCheckJoinHealth(t *testing.T) {
 		expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
 		expectJournalctlCall(journalctlMock, "teleport", "", "journal line", "")
 
+		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
 		inst := newTestJoinHealthInstaller(tmpDir)
-		inst.readyzPollInterval = time.Millisecond
-		inst.readyzPollTimeout = 10 * time.Millisecond
-		inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+		inst.clock = fakeClock
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
 		inst.binariesLocation.Systemctl = systemctlMock.Path
 		inst.binariesLocation.Journalctl = journalctlMock.Path
 
-		err := inst.checkJoinHealth(context.Background())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "join failure")
-		require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10ms")
-		require.Contains(t, err.Error(), `systemd service state: ActiveState="active", SubState="running", Result="success"`)
-		require.Contains(t, err.Error(), "Journal output:\njournal line")
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(context.Background())
+		}()
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Immediate check (not ready). Timer created → advance.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Second check (not ready). Timer reset → advance past deadline.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		select {
+		case err := <-errC:
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "agent failed to join the cluster")
+			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
+			require.Contains(t, err.Error(), `systemd service state: ActiveState="active", SubState="running", Result="success"`)
+			require.Contains(t, err.Error(), "Journal output:\njournal line")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for checkJoinHealth to return")
+		}
 		require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
 		require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 	})
@@ -1325,7 +1372,7 @@ func TestCheckJoinHealth(t *testing.T) {
 		inst.clock = fakeClock
 		inst.readyzPollInterval = 5 * time.Second
 		inst.readyzPollTimeout = 10 * time.Second
-		inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
 		inst.binariesLocation.Systemctl = systemctlMock.Path
@@ -1336,7 +1383,7 @@ func TestCheckJoinHealth(t *testing.T) {
 			errC <- inst.checkJoinHealth(context.Background())
 		}()
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
@@ -1349,7 +1396,7 @@ func TestCheckJoinHealth(t *testing.T) {
 		case err := <-errC:
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
-		case <-time.After(time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for checkJoinHealth to return")
 		}
 
@@ -1363,7 +1410,7 @@ func TestCheckJoinHealth(t *testing.T) {
 		inst := newTestJoinHealthInstaller(t.TempDir())
 		inst.readyzPollInterval = 20 * time.Millisecond
 		inst.readyzPollTimeout = time.Second
-		inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 			return debug.Readiness{Ready: false, Status: "starting"}, nil
 		}
 
@@ -1373,7 +1420,7 @@ func TestCheckJoinHealth(t *testing.T) {
 		err := inst.checkJoinHealth(ctx)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.Canceled)
-		require.NotContains(t, err.Error(), "join failure")
+		require.NotContains(t, err.Error(), "agent failed to join the cluster")
 	})
 }
 
@@ -1401,10 +1448,10 @@ func TestInstallAndConfigureLockContention(t *testing.T) {
 	err = inst.installAndConfigure(context.Background())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
-	require.Contains(t, err.Error(), "Could not get lock")
+	require.Contains(t, err.Error(), "could not acquire lock file")
 }
 
-func TestCheckJoinHealthTimeoutIncludesTokenHintFromJournal(t *testing.T) {
+func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -1415,19 +1462,40 @@ func TestCheckJoinHealthTimeoutIncludesTokenHintFromJournal(t *testing.T) {
 	expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
 	expectJournalctlCall(journalctlMock, "teleport", "", "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", "")
 
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
 	inst := newTestJoinHealthInstaller(tmpDir)
-	inst.readyzPollInterval = 10 * time.Millisecond
-	inst.readyzPollTimeout = 15 * time.Millisecond
-	inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 10 * time.Second
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 		return debug.Readiness{Ready: false, Status: "bad token"}, nil
 	}
 	inst.binariesLocation.Systemctl = systemctlMock.Path
 	inst.binariesLocation.Journalctl = journalctlMock.Path
 
-	err := inst.checkJoinHealth(context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "join failure: token is expired or not found;")
-	require.Contains(t, err.Error(), "node did not become ready (join cluster) within 15ms")
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	select {
+	case err := <-errC:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
+		require.Contains(t, err.Error(), "token is expired or not found")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
+	}
 	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
 	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
@@ -1440,49 +1508,55 @@ func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
 	journalctlMock := newBintestMock(t, "journalctl")
 	expectJournalctlCall(journalctlMock, "teleport", "", "journal output", "")
 
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
 	inst := newTestJoinHealthInstaller(tmpDir)
-	inst.readyzPollInterval = time.Millisecond
-	inst.readyzPollTimeout = 10 * time.Millisecond
-	inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 10 * time.Second
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 		return debug.Readiness{Ready: false, Status: "starting"}, nil
 	}
 	inst.binariesLocation.Systemctl = filepath.Join(tmpDir, "missing-systemctl")
 	inst.binariesLocation.Journalctl = journalctlMock.Path
 
-	err := inst.checkJoinHealth(context.Background())
-	require.Error(t, err)
-	require.Contains(t, err.Error(), defaultServiceDiagnosticsUnavailable)
-	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
-}
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
 
-func TestCheckReadyzReturnsContextCancellation(t *testing.T) {
-	t.Parallel()
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	inst := newTestJoinHealthInstaller(t.TempDir())
-	inst.readyzCheck = func(ctx context.Context) (debug.Readiness, error) {
-		<-ctx.Done()
-		return debug.Readiness{}, &net.OpError{Op: "dial", Net: "unix", Err: ctx.Err()}
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	select {
+	case err := <-errC:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), defaultServiceDiagnosticsUnavailable)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	ready, err := inst.checkReadyz(ctx)
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
-	require.False(t, ready)
+	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
 
 func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
 	t.Parallel()
 
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
 	tmpDir := t.TempDir()
 	inst := newTestJoinHealthInstaller(tmpDir)
-	inst.readyzPollInterval = time.Millisecond
-	inst.readyzPollTimeout = 100 * time.Millisecond
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 30 * time.Second
 
 	checkCalls := 0
-	inst.readyzCheck = func(_ context.Context) (debug.Readiness, error) {
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
 		checkCalls++
 		if checkCalls == 1 {
 			return debug.Readiness{}, &net.OpError{Op: "dial", Net: "unix", Err: os.ErrNotExist}
@@ -1490,24 +1564,26 @@ func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
 		return debug.Readiness{Ready: true, Status: "ok"}, nil
 	}
 
-	err := inst.checkJoinHealth(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 2, checkCalls)
-}
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
 
-func TestCheckReadyzTimeoutReturnsNotReady(t *testing.T) {
-	t.Parallel()
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	inst := newTestJoinHealthInstaller(t.TempDir())
-	inst.readyzCheckTimeout = 10 * time.Millisecond
-	inst.readyzCheck = func(ctx context.Context) (debug.Readiness, error) {
-		<-ctx.Done()
-		return debug.Readiness{}, ctx.Err()
+	// Call 1 is immediate (connection error, retries). Timer created → advance.
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	// Call 2 returns ready.
+	select {
+	case err := <-errC:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
 	}
-
-	ready, err := inst.checkReadyz(context.Background())
-	require.NoError(t, err)
-	require.False(t, ready)
+	require.Equal(t, 2, checkCalls)
 }
 
 // newTestJoinHealthInstaller returns an AutoDiscoverNodeInstaller configured
@@ -1519,206 +1595,9 @@ func newTestJoinHealthInstaller(tmpDir string) *AutoDiscoverNodeInstaller {
 			readyzPollInterval: time.Millisecond,
 			readyzPollTimeout:  100 * time.Millisecond,
 			fsRootPrefix:       tmpDir,
+			readyzChecker:      &readyzChecker{logger: slog.Default(), dataDir: tmpDir},
 		},
 	}
-}
-
-func newBintestMock(t *testing.T, name string) *bintest.Mock {
-	t.Helper()
-
-	mock, err := bintest.NewMock(name)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, mock.Close())
-	})
-
-	return mock
-}
-
-func expectSystemctlShowInvocationID(systemctlMock *bintest.Mock, serviceName, invocationID, stderr string) {
-	call := systemctlMock.Expect("show", serviceName, "--property", "InvocationID", "--value")
-	if invocationID == "" && stderr == "" {
-		return
-	}
-
-	call.AndCallFunc(func(c *bintest.Call) {
-		if stderr != "" {
-			fmt.Fprintln(c.Stderr, stderr)
-		}
-		if invocationID != "" {
-			fmt.Fprintln(c.Stdout, invocationID)
-		}
-		c.Exit(0)
-	})
-}
-
-func expectSystemctlShowServiceDiagnostics(systemctlMock *bintest.Mock, serviceName, activeState, subState, result string) {
-	call := systemctlMock.Expect("show", serviceName, "--property", "ActiveState", "--property", "SubState", "--property", "Result")
-	call.AndCallFunc(func(c *bintest.Call) {
-		fmt.Fprintf(c.Stdout, "ActiveState=%s\nSubState=%s\nResult=%s\n", activeState, subState, result)
-		c.Exit(0)
-	})
-}
-
-func expectJournalctlCall(journalctlMock *bintest.Mock, serviceName, invocationID, stdoutOutput, stderrOutput string) {
-	args := buildJournalctlArgs(serviceName, invocationID)
-	callArgs := make([]interface{}, 0, len(args))
-	for _, arg := range args {
-		callArgs = append(callArgs, arg)
-	}
-	call := journalctlMock.Expect(callArgs...)
-	if stdoutOutput == "" && stderrOutput == "" {
-		return
-	}
-
-	call.AndCallFunc(func(c *bintest.Call) {
-		if stdoutOutput != "" {
-			fmt.Fprintln(c.Stdout, stdoutOutput)
-		}
-		if stderrOutput != "" {
-			fmt.Fprintln(c.Stderr, stderrOutput)
-		}
-		c.Exit(0)
-	})
-}
-
-func TestAppendJournal(t *testing.T) {
-	ctx := context.Background()
-	originalErr := trace.Errorf("service teleport is not active (state: inactive)")
-
-	tests := []struct {
-		name            string
-		journalOutput   string
-		wantContains    string
-		wantNotContains string
-		wantOriginal    bool
-	}{
-		{
-			name:          "empty journal returns original error",
-			journalOutput: "",
-			wantOriginal:  true,
-		},
-		{
-			name:          "non-teleport lines are kept",
-			journalOutput: "systemd[1]: teleport.service: Main process exited, code=exited",
-			wantContains:  "Journal output:\nsystemd[1]: teleport.service: Main process exited",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			systemctlMock := newBintestMock(t, "systemctl")
-			journalctlMock := newBintestMock(t, "journalctl")
-			expectSystemctlShowInvocationID(systemctlMock, "teleport", "n/a", "")
-			expectJournalctlCall(journalctlMock, "teleport", "", tt.journalOutput, "")
-
-			installer := &AutoDiscoverNodeInstaller{
-				AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
-					Logger: slog.Default(),
-					binariesLocation: packagemanager.BinariesLocation{
-						Systemctl:  systemctlMock.Path,
-						Journalctl: journalctlMock.Path,
-					},
-				},
-			}
-
-			got := installer.appendJournal(ctx, "teleport", originalErr)
-
-			if tt.wantOriginal {
-				require.Equal(t, originalErr.Error(), got.Error(),
-					"expected original error to be returned unchanged")
-				require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-				require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
-				return
-			}
-			if tt.wantContains != "" {
-				require.Contains(t, got.Error(), tt.wantContains)
-			}
-			if tt.wantNotContains != "" {
-				require.NotContains(t, got.Error(), tt.wantNotContains)
-			}
-			// The original error message must always be present.
-			require.Contains(t, got.Error(), originalErr.Error())
-			require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-			require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
-		})
-	}
-}
-
-func TestCaptureJournalFiltersByInvocationID(t *testing.T) {
-	t.Parallel()
-
-	invocationID := "0123456789abcdef0123456789abcdef"
-	systemctlMock := newBintestMock(t, "systemctl")
-	journalctlMock := newBintestMock(t, "journalctl")
-	expectSystemctlShowInvocationID(systemctlMock, "teleport", invocationID, "systemctl warning")
-	expectJournalctlCall(journalctlMock, "teleport", invocationID, "--unit teleport --no-pager --lines 50 _SYSTEMD_INVOCATION_ID="+invocationID, "")
-
-	installer := &AutoDiscoverNodeInstaller{
-		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
-			Logger: slog.Default(),
-			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  systemctlMock.Path,
-				Journalctl: journalctlMock.Path,
-			},
-		},
-	}
-
-	got, err := installer.captureJournal(context.Background(), "teleport")
-	require.NoError(t, err)
-	require.Contains(t, got, "_SYSTEMD_INVOCATION_ID="+invocationID)
-	require.Contains(t, got, "--unit teleport")
-	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
-}
-
-func TestCaptureJournalFallsBackWithoutInvocationID(t *testing.T) {
-	t.Parallel()
-
-	systemctlMock := newBintestMock(t, "systemctl")
-	journalctlMock := newBintestMock(t, "journalctl")
-	expectSystemctlShowInvocationID(systemctlMock, "teleport", "active", "")
-	expectJournalctlCall(journalctlMock, "teleport", "", "--unit teleport --no-pager --lines 50", "")
-
-	installer := &AutoDiscoverNodeInstaller{
-		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
-			Logger: slog.Default(),
-			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  systemctlMock.Path,
-				Journalctl: journalctlMock.Path,
-			},
-		},
-	}
-
-	got, err := installer.captureJournal(context.Background(), "teleport")
-	require.NoError(t, err)
-	require.NotContains(t, got, "_SYSTEMD_INVOCATION_ID=")
-	require.Contains(t, got, "--unit teleport")
-	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
-	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
-}
-
-func TestCaptureJournalPropagatesContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	mockDir := t.TempDir()
-	installer := &AutoDiscoverNodeInstaller{
-		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
-			Logger: slog.Default(),
-			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  filepath.Join(mockDir, "missing-systemctl"),
-				Journalctl: filepath.Join(mockDir, "missing-journalctl"),
-			},
-		},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	got, err := installer.captureJournal(ctx, "teleport")
-	require.Empty(t, got)
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRedactFlagArgsForTeleportNodeConfigure(t *testing.T) {
