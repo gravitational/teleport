@@ -92,18 +92,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		func() {
-			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-			defer cancel()
-
-			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-			switch {
-			case trace.IsNotImplemented(err):
-				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-			case err != nil:
-				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-			}
-		}()
+		if err := s.discoveryConfigStatusUpdater().update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 

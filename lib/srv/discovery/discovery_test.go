@@ -4092,17 +4092,34 @@ type fakeAccessPoint struct {
 	app                 types.Application
 	upsertedServerInfos chan types.ServerInfo
 	reports             map[string][]discoveryconfig.Status
+	discoveryConfigs    map[string]*discoveryconfig.DiscoveryConfig
+
+	lease types.SemaphoreLease
+	mtx   sync.Mutex
 }
 
 func (f *fakeAccessPoint) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	f.reports[name] = append(f.reports[name], status)
-	return nil, nil
+
+	if _, ok := f.discoveryConfigs[name]; !ok {
+		f.discoveryConfigs[name] = &discoveryconfig.DiscoveryConfig{}
+	}
+	f.discoveryConfigs[name].Status = status
+	return f.discoveryConfigs[name], nil
+}
+
+func (m *fakeAccessPoint) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	if config, ok := m.discoveryConfigs[name]; ok {
+		return config, nil
+	}
+	return nil, trace.NotFound("not found")
 }
 
 func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
 		reports:             make(map[string][]discoveryconfig.Status),
+		discoveryConfigs:    make(map[string]*discoveryconfig.DiscoveryConfig),
 	}
 }
 
@@ -4173,6 +4190,18 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return f.DiscoveryAccessPoint.NewWatcher(ctx, watch)
 	}
 	return newFakeWatcher(), nil
+}
+
+func (m *fakeAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	if !m.mtx.TryLock() {
+		return nil, trace.LimitExceeded("semaphore is already locked")
+	}
+	return &m.lease, nil
+}
+
+func (m *fakeAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	m.mtx.Unlock()
+	return nil
 }
 
 type fakeWatcher struct{}
