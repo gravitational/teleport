@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -139,12 +140,66 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return rw.Status(), nil
 	}
 
-	// Filtering is needed - buffer the response in memory.
-	// Creates a memory response writer that collects the response status, headers
-	// and payload into memory.
+	// Filtering is needed. Pipe the upstream response through so we can
+	// inspect headers and choose the filter path without buffering the body.
+	pipeReader, pipeWriter := io.Pipe()
+	hc := newHeaderCapturer(pipeWriter)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sess.forwarder.ServeHTTP(hc, req)
+		pipeWriter.Close()
+	}()
+	defer func() {
+		pipeReader.Close()
+		<-done
+	}()
+
+	// Wait for upstream to send headers.
+	select {
+	case <-hc.wroteHeader:
+	case <-done:
+		return http.StatusBadGateway, trace.ConnectionProblem(nil, "upstream closed without response")
+	}
+
+	status := hc.status
+	contentType := responsewriters.GetContentTypeHeader(hc.headers)
+	contentEncoding := hc.headers.Get("Content-Encoding")
+
+	// For successful list responses with a streaming filter implementation,
+	// filter directly to the client without buffering the entire response.
+	if status == http.StatusOK {
+		matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
+		sf := newStreamFilter(contentType, matcher)
+		if sf != nil {
+			src, dst, compErr := wrapContentEncoding(pipeReader, w, contentEncoding)
+			if compErr != nil {
+				// Kubernetes API servers only use gzip today.
+				// If a new encoding appears, add support in wrapContentEncoding.
+				f.log.WarnContext(ctx, "Unexpected Content-Encoding, falling back to buffered filter", "content_encoding", contentEncoding)
+			} else {
+				maps.Copy(w.Header(), hc.headers)
+				w.Header().Del("Content-Length")
+				w.WriteHeader(status)
+
+				// Note: if the stream filter fails mid-write, the client receives a truncated
+				// response with a 200 status (already sent above). There is no way to
+				// signal an error to the client at this point. This is inherent to streaming.
+				filterErr := sf.filter(src, dst)
+				dst.Close()
+				src.Close()
+				return status, trace.Wrap(filterErr)
+			}
+		}
+	}
+
+	// Buffered fallback for non-200, unsupported content type, or unsupported encoding.
 	memBuffer := responsewriters.NewMemoryResponseWriter()
-	// Forward the request to the target cluster.
-	sess.forwarder.ServeHTTP(memBuffer, req)
+	maps.Copy(memBuffer.Header(), hc.headers)
+	memBuffer.WriteHeader(status)
+	if _, copyErr := io.Copy(memBuffer.Buffer(), pipeReader); copyErr != nil {
+		return status, trace.Wrap(copyErr)
+	}
 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
