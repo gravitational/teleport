@@ -8276,32 +8276,40 @@ func waitForOutput(r io.Reader, substr string) error {
 	const timeout = 10 * time.Second
 	timeoutCh := time.After(timeout)
 
-	var prev string
-	out := make([]byte, int64(len(substr)*3))
-	for {
-		select {
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
-		default:
-		}
+	errC := make(chan error, 1)
+	go func() {
+		var prev string
+		out := make([]byte, int64(len(substr)*3))
+		for {
+			n, err := r.Read(out)
+			outStr := removeSpace(string(out[:n]))
 
-		n, err := r.Read(out)
-		outStr := removeSpace(string(out[:n]))
+			slog.DebugContext(context.Background(), "waitForOutput read", "output", outStr, "expected", substr)
 
-		// Check for [substr] before checking the error,
-		// as it's valid for n > 0 even when there is an error.
-		// The [substr] is checked against the current and previous
-		// output to account for scenarios where the [substr] is split
-		// across two reads. While we try to prevent this by reading
-		// twice the length of [substr] there are no guarantees the
-		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev+outStr, substr) {
-			return nil
+			// Check for [substr] before checking the error,
+			// as it's valid for n > 0 even when there is an error.
+			// The [substr] is checked against the current and previous
+			// output to account for scenarios where the [substr] is split
+			// across two reads. While we try to prevent this by reading
+			// twice the length of [substr] there are no guarantees the
+			// whole thing will arrive in a single read.
+			if n > 0 && strings.Contains(prev+outStr, substr) {
+				errC <- nil
+				return
+			}
+			if err != nil {
+				errC <- err
+				return
+			}
+			prev = outStr
 		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		prev = outStr
+	}()
+
+	select {
+	case <-timeoutCh:
+		return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
+	case err := <-errC:
+		return trace.Wrap(err)
 	}
 }
 

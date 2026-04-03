@@ -208,9 +208,6 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 		Handlers: cfg.handlers,
 	})
 
-	// Set a conservative read deadline globally so that tests do not block and timeout
-	// on read issues without introducing test flakes.
-	t.SetReadDeadline(time.Now().Add(time.Minute))
 	return t, nil
 }
 
