@@ -129,6 +129,9 @@ type SAMLConnector interface {
 	SetIncludeSubject(bool)
 	// IsEqual determines if two connectors are equivalent to one another.
 	IsEqual(SAMLConnector) bool
+	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	IsEntraIDGroupsProviderDisabled() bool
+	GetEntraIDCredentials() *EntraIDCredentials
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -490,6 +493,18 @@ func (r *SAMLConnectorV2) GetIncludeSubject() bool {
 
 func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
 	r.Spec.IncludeSubject = includeSubject
+}
+
+func (r *SAMLConnectorV2) GetEntraIDCredentials() *EntraIDCredentials {
+	return r.Spec.EntraIdCredentials
+}
+
+func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
+	return r.Spec.EntraIdGroupsProvider
+}
+
+func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
+	return r.Spec.EntraIdGroupsProvider.Disabled
 }
 
 const (

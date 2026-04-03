@@ -5720,6 +5720,18 @@ message SAMLConnectorSpecV2 {
   // authentication request. Defaults to false.
   // Note: Some IdPs will reject requests that contain a Subject.
   bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
+  EntraIDGroupsProvider entra_id_groups_provider = 22;
+  EntraIDCredentials entra_id_credentials = 23;
+}
+
+message EntraIDCredentials {
+  string tenant_id = 1;
+  OAuthCredentials oauth = 2;
+}
+
+message OAuthCredentials {
+  string client_id = 1;
+  string client_secret = 2;
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
