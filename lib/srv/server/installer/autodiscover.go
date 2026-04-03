@@ -53,19 +53,18 @@ import (
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
-	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
 const (
+	// JoinFailureTimeout is the maximum amount of time the installer waits for a
+	// node to become ready before returning the join-failure exit code.
+	JoinFailureTimeout = 5 * time.Minute
+
 	// defaultReadyzPollInterval is how often to poll the Teleport readyz endpoint
 	// while waiting for the agent to join the cluster.
 	defaultReadyzPollInterval = 5 * time.Second
-
-	// defaultReadyzPollTimeout is the total amount of time to wait for the
-	// Teleport readyz endpoint to report ready.
-	defaultReadyzPollTimeout = installstatus.JoinFailureTimeout
 
 	// defaultInstallLockGracePeriod is additional time beyond readyz polling to
 	// wait for the install lock before returning a lock contention error.
@@ -143,8 +142,7 @@ type AutoDiscoverNodeInstallerConfig struct {
 	readyzPollInterval time.Duration
 
 	// readyzPollTimeout is the total amount of time to poll the Teleport readyz
-	// endpoint before returning a join-failure error. Defaults to
-	// defaultReadyzPollTimeout (5m).
+	// endpoint before returning a join-failure error. Defaults to JoinFailureTimeout.
 	readyzPollTimeout time.Duration
 
 	// installLockWaitTimeoutOverride, when set, overrides the default install lock
@@ -211,7 +209,7 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	}
 
 	if c.readyzPollTimeout == 0 {
-		c.readyzPollTimeout = defaultReadyzPollTimeout
+		c.readyzPollTimeout = JoinFailureTimeout
 	}
 
 	if len(c.imdsProviders) == 0 {

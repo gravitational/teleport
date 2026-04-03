@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
@@ -59,7 +60,7 @@ const (
 
 	// waitTimeout is how long we wait for AWS to report a terminal command state
 	// for the installer result.
-	waitTimeout = installstatus.JoinFailureTimeout + waitTimeoutPad
+	waitTimeout = installer.JoinFailureTimeout + waitTimeoutPad
 
 	// maxSSMRunOutputChars limits stdout/stderr size while preserving the most recent diagnostics.
 	// 24_000 matches the documented per-field cap for SSMRun stdout/stderr in the event schema,
@@ -607,6 +608,9 @@ func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, 
 		eventCode = libevents.SSMRunFailCode
 		if stepResult.Status == ssmtypes.CommandInvocationStatusFailed {
 			status = installstatus.ExitCode(exitCode).String()
+			if installstatus.ExitCode(exitCode) == installstatus.JoinFailure {
+				status = fmt.Sprintf("%s (timeout: %v)", status, installer.JoinFailureTimeout)
+			}
 		}
 		if exitCode == 0 {
 			exitCode = -1

@@ -509,7 +509,7 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:      "account-id",
 					Region:         "eu-central-1",
 					ExitCode:       150,
-					Status:         installstatus.JoinFailure.String(),
+					Status:         "Teleport was installed successfully but the agent did not become ready within the configured timeout. Check standard error output for join diagnostics. (timeout: 5m0s)",
 					StandardOutput: "",
 					StandardError:  "ERROR: join failure: token is expired or not found; node did not become ready (join cluster) within 5m0s",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",

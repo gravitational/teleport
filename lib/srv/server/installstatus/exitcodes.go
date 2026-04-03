@@ -20,7 +20,6 @@ package installstatus
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gravitational/teleport/api/types/usertasks"
 )
@@ -39,10 +38,6 @@ const (
 	// Post-install exit codes (Go binary, 150–199).
 	JoinFailure ExitCode = 150
 )
-
-// JoinFailureTimeout is the maximum amount of time the installer waits for a
-// node to become ready before returning the join-failure exit code.
-const JoinFailureTimeout = 5 * time.Minute
 
 // InstallerMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
 // This value might change over time as Teleport's binary size changes, but currently sits at around 990MB: 210MB for the tarball, and around 780MB for the extracted files.
@@ -74,7 +69,7 @@ func (c ExitCode) String() string {
 			"Ensure this host can access your cluster and its certificate is trusted."
 	case JoinFailure:
 		return "Teleport was installed successfully but the agent " +
-			fmt.Sprintf("did not become ready within %v. ", JoinFailureTimeout) +
+			"did not become ready within the configured timeout. " +
 			"Check standard error output for join diagnostics."
 	default:
 		return fmt.Sprintf(
