@@ -146,7 +146,10 @@ func (o *UnstableConfig) SetOrUpdateFacade(id *identity.Identity) {
 }
 
 // CheckAndSetDefaults checks and sets default values for the configuration.
-func (o *UnstableConfig) CheckAndSetDefaults() error {
+func (o *UnstableConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", ServiceType)
+	}
 	return nil
 }
 

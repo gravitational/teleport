@@ -100,7 +100,7 @@ func MultiplexerServiceBuilder(
 	clientMetrics *grpcprom.ClientMetrics,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &MultiplexerService{

@@ -75,6 +75,9 @@ type Config struct {
 
 	// ClientMetrics will be used to record the bot's API client metrics.
 	ClientMetrics *prometheus.ClientMetrics
+
+	// Scoped indicates whether the bot is running in scoped mode.
+	Scoped bool
 }
 
 // CheckAndSetDefaults validates the configuration and sets any default values.

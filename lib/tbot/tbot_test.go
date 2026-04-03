@@ -35,35 +35,50 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/sshca"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -1367,4 +1382,327 @@ func TestBotJoiningURI(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, "test", tlsIdent.BotName)
+}
+
+// TestScopedBotSSH tests that a scoped bot can produce an identity output
+// with scope pins, and that the identity can be used to SSH to a scoped node.
+func TestScopedBotSSH(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_MWI", "yes")
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	currentUser, err := user.Current()
+	require.NoError(t, err)
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-ssh-access"
+		botName        = "scoped-ssh-bot"
+		nodeHostname   = "scoped-node"
+	)
+
+	// Start the main Teleport process (auth + proxy, no SSH).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role that grants SSH access.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: scopedRoleName,
+			},
+			Scope: scopeName,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scopeName},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{currentUser.Username},
+					Labels: []*labelv1.Label{
+						{
+							Name:   "*",
+							Values: []string{"*"},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create scoped bot (no roles, only scope).
+	_, err = rootClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Scope: scopeName,
+			Spec:  &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	// Generate a keypair for the bot's bound keypair join.
+	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
+
+	// Write the private key to a temp file for tbot's static key config.
+	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
+
+	// Create a scoped token with bound keypair join method for the bot.
+	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "bot-token",
+			},
+			Scope: scopeName,
+			Spec: &joiningv1.ScopedTokenSpec{
+				Roles:      []string{types.RoleBot.String()},
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  jointoken.TokenUsageModeBot,
+				BotName:    botName,
+				BotScope:   scopeName,
+				BoundKeypair: &joiningv1.BoundKeypairSpec{
+					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+						InitialPublicKey: botPublicKey,
+					},
+					Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+						Limit: 10,
+						Mode:  "insecure",
+					},
+				},
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Usage: &joiningv1.UsageStatus{
+					Status: &joiningv1.UsageStatus_BoundKeypair{
+						BoundKeypair: &joiningv1.BoundKeypairStatus{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create scoped role assignment linking the bot to the scoped role.
+	_, err = scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			SubKind: scopedaccess.SubKindDynamic,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scopeName,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  botName,
+				BotScope: scopeName,
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRoleName, Scope: scopeName},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a scoped join token for the SSH node so it registers with the
+	// correct scope.
+	nodeTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "node-token",
+			},
+			Scope: scopeName,
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: scopeName,
+				Roles:         []string{types.RoleNode.String()},
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Start a second Teleport process as an SSH-only node, joining with the
+	// scoped token so the node gets scope "/test-scope".
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.Hostname = nodeHostname
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.SetToken(nodeTokenResp.Token.Metadata.Name)
+	nodeCfg.SetTokenSecret(nodeTokenResp.Token.Status.Secret)
+	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	nodeCfg.SSH.DisableCreateHostUser = true
+	nodeCfg.CachePolicy.Enabled = false
+	nodeCfg.InstanceMetadataClient = nil
+	nodeCfg.DebugService.Enabled = false
+	nodeCfg.Logger = log
+
+	nodeProcess, err := service.NewTeleport(nodeCfg)
+	require.NoError(t, err)
+	require.NoError(t, nodeProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, nodeProcess.Close())
+		require.NoError(t, nodeProcess.Wait())
+	})
+
+	// Wait for the SSH node to be ready.
+	_, err = nodeProcess.WaitForEvent(ctx, service.NodeSSHReady)
+	require.NoError(t, err)
+
+	// Wait for the scoped SSH node to be visible in the reverse tunnel.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := process.GetReverseTunnelServer()
+		require.NoError(t, err)
+		cluster, err := rts.Cluster(ctx, clusterName)
+		require.NoError(t, err)
+		nw, err := cluster.NodeWatcher()
+		require.NoError(t, err)
+		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+			return r.GetHostname() == nodeHostname
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and run tbot with an identity output.
+	identityOutput := &identitysvc.OutputConfig{
+		Destination: &destination.Memory{},
+	}
+	botConfig := defaultBotConfig(
+		t, process, &onboarding.Config{
+			TokenValue: botTokenResp.Token.Metadata.Name,
+			JoinMethod: types.JoinMethodBoundKeypair,
+			BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+				StaticPrivateKeyPath: botKeyPath,
+			},
+		}, config.ServiceConfigs{
+			identityOutput,
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	t.Run("identity certificates have scope pins", func(t *testing.T) {
+		expectedPin := &scopesv1.Pin{
+			Scope: scopeName,
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopeName: {scopeName: {scopedRoleName}},
+			}),
+		}
+
+		// Check TLS certificate.
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
+		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, tlsIdent.Groups, "scoped identity should not have groups/roles")
+
+		// Check SSH certificate.
+		certBytes, err := identityOutput.GetDestination().Read(ctx, identity.SSHCertKey)
+		require.NoError(t, err)
+		sshCert, err := sshutils.ParseCertificate(certBytes)
+		require.NoError(t, err)
+		sshIdent, err := sshca.DecodeIdentity(sshCert)
+		require.NoError(t, err)
+		require.NotNil(t, sshIdent.ScopePin, "SSH identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, sshIdent.Roles, "scoped SSH identity should not have roles")
+	})
+
+	t.Run("ssh connection succeeds", func(t *testing.T) {
+		ctx := t.Context()
+		dest := identityOutput.GetDestination()
+
+		// Read individual artifacts from the destination.
+		keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		sshCertBytes, err := dest.Read(ctx, identity.SSHCertKey)
+		require.NoError(t, err)
+		tlsCertBytes, err := dest.Read(ctx, identity.TLSCertKey)
+		require.NoError(t, err)
+
+		privKey, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+
+		// Get host CA for trusted cert verification.
+		hostCA, err := rootClient.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName,
+		}, false)
+		require.NoError(t, err)
+
+		proxyHost, err := utils.Host(process.Config.Proxy.WebAddr.String())
+		require.NoError(t, err)
+
+		// Parse the TLS cert to extract the username.
+		x509Cert, err := tlsca.ParseCertificatePEM(tlsCertBytes)
+		require.NoError(t, err)
+		tlsIdent, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+		require.NoError(t, err)
+
+		// Build a KeyRing from the identity output.
+		keyRing := libclient.NewKeyRing(privKey, privKey)
+		keyRing.Cert = sshCertBytes
+		keyRing.TLSCert = tlsCertBytes
+		keyRing.KeyRingIndex = libclient.KeyRingIndex{
+			ProxyHost:   proxyHost,
+			ClusterName: clusterName,
+			Username:    tlsIdent.Username,
+		}
+
+		// Create a TeleportClient configured with the scoped bot identity.
+		var stdout bytes.Buffer
+		tc, err := libclient.NewClient(&libclient.Config{
+			Username:           tlsIdent.Username,
+			Host:               nodeHostname,
+			HostLogin:          currentUser.Username,
+			WebProxyAddr:       process.Config.Proxy.WebAddr.String(),
+			SSHProxyAddr:       process.Config.Proxy.SSHAddr.String(),
+			SiteName:           clusterName,
+			InsecureSkipVerify: true,
+			NonInteractive:     true,
+			ClientStore:        libclient.NewFSClientStore(t.TempDir()),
+			Stdout:             &stdout,
+			Stderr:             io.Discard,
+			Stdin:              &bytes.Buffer{},
+			Tracer:             tracing.NoopProvider().Tracer("test"),
+			AddKeysToAgent:     libclient.AddKeysToAgentNo,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, tc.AddKeyRing(keyRing))
+		require.NoError(t, tc.AddTrustedCA(ctx, hostCA))
+
+		require.NoError(t, tc.SSH(ctx, []string{"echo hello"}))
+		require.Equal(t, "hello\n", stdout.String())
+	})
 }

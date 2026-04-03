@@ -73,6 +73,16 @@ func TestProxyServiceConfig_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "parsing listen",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *ProxyServiceConfig {
+				return &ProxyServiceConfig{
+					Listen: "tcp://0.0.0.0:3621",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }
