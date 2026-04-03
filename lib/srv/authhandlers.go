@@ -785,23 +785,9 @@ func (h *AuthHandlers) VerifiedPublicKeyCallback(
 }
 
 func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) {
-	var (
-		isHardwareMFAVerified = id.PrivateKeyPolicy.MFAVerified()
-		forceInBandMFA        = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
-	)
-
 	// If the certificate indicates that hardware MFA was used, we can trust that MFA was completed and allow the
 	// connection to proceed without performing in-band MFA checks, even if the client doesn't support in-band MFA.
-	if isHardwareMFAVerified {
-		if forceInBandMFA {
-			return false, trace.AccessDenied(
-				"This connection requires in-band MFA, but the certificate indicates that a hardware key was used. " +
-					"Hardware key verification is not compatible with in-band MFA. " +
-					"Please update the Teleport configuration to remove the requirement for in-band MFA, " +
-					"or disable the hardware key requirement if you want to use in-band MFA for this resource.",
-			)
-		}
-
+	if id.PrivateKeyPolicy.MFAVerified() {
 		return false, nil
 	}
 
@@ -811,6 +797,7 @@ func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) 
 	}
 
 	var (
+		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
 		isLegacyClient      = !inBandMFASupported
 		isRegularSSHCert    = id.MFAVerified == ""
 		isPerSessionMFACert = !isRegularSSHCert

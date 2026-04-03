@@ -1333,6 +1333,23 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.Same(t, inPerms, outPerms)
 	})
 
+	t.Run("permit with MFA required preconditions and forced in-band MFA allows hardware-key MFA cert", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+
+	})
+
 	t.Run("permit with MFA required preconditions and invalid Teleport client version fails", func(t *testing.T) {
 		ah := &AuthHandlers{}
 
@@ -1365,26 +1382,6 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			t,
 			err,
 			"This connection requires in-band MFA, but your SSH client does not support it. Please update your Teleport SSH client to the latest version to connect.",
-		)
-		require.Nil(t, outPerms)
-	})
-
-	t.Run("permit with MFA required preconditions and forced in-band MFA denies hardware-key MFA cert", func(t *testing.T) {
-		t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
-
-		ah := &AuthHandlers{}
-
-		inPerms := &ssh.Permissions{
-			Extensions: map[string]string{
-				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
-			},
-		}
-
-		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, hardwareKeyMFACert, inPerms, "")
-		require.ErrorContains(
-			t,
-			err,
-			"This connection requires in-band MFA, but the certificate indicates that a hardware key was used.",
 		)
 		require.Nil(t, outPerms)
 	})
