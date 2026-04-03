@@ -1,0 +1,16 @@
+version: '2'
+linters:
+  default: none
+  enable:
+    - nostructfieldassign
+  settings:
+    custom:
+      nostructfieldassign:
+        type: module
+        description: Forbids direct assignment to configured struct fields.
+        original-url: github.com/gravitational/teleport/build.assets/tools/linters/nostructfieldassign
+        settings:
+          fields:
+            - pkg: github.com/aws/aws-sdk-go-v2/aws
+              type: Config
+              field: Region
