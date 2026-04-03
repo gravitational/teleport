@@ -81,7 +81,7 @@ func (l *UserLister) forEachUser(ctx context.Context, fn func(user types.User) e
 		PageSize: 100,
 	}
 	for {
-		resp, err := l.UsersService.ListUsers(ctx, &req)
+		resp, err := l.ListUsers(ctx, &req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

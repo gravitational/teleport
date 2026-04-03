@@ -20,14 +20,14 @@ import (
 // PatchResource patches an existing SCIM group resource using SCIM PATCH operations as per RFC 7644 Section 3.5.2.
 func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
 	resourceID := req.GetTarget().GetResourceId()
-	acl, err := g.AccessListGetter.GetAccessList(ctx, resourceID)
+	acl, err := g.Backend.GetAccessList(ctx, resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if !accessListPredicate(acl) {
 		return nil, trace.NotFound("access list %q not found", resourceID)
 	}
-	members, err := libaccesslist.GetMembersFor(ctx, resourceID, g.AccessListsService)
+	members, err := libaccesslist.GetMembersFor(ctx, resourceID, g.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,7 +58,7 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 	// to avoid lost updates due to concurrent modifications.
 	// In current state the PATCH operation relies on distributes lock to avoid concurrent modifications via SCIM API,
 	// But the access list could be modified via other means (e.g. via CLI or UI).
-	newACL, newMembers, err := g.AccessListsService.UpdateAccessListAndOverwriteMembers(ctx, acl, updatedMembers)
+	newACL, newMembers, err := g.UpdateAccessListAndOverwriteMembers(ctx, acl, updatedMembers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,7 +69,7 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 func (h *userHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
 	userID := req.GetTarget().GetResourceId()
 
-	existingUser, err := h.UsersService.GetUser(ctx, userID, false /* with secrets*/)
+	existingUser, err := h.GetUser(ctx, userID, false /* with secrets*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,7 +109,7 @@ func (h *userHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 		updatedSCIMUser.SetRevision(existingUser.GetRevision())
 	}
 	// Use CAS operation to avoid lost updates due to concurrent modifications.
-	updatedUser, err := h.UsersService.UpdateUser(ctx, updatedSCIMUser)
+	updatedUser, err := h.UpdateUser(ctx, updatedSCIMUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

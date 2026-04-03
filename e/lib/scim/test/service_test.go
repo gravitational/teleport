@@ -254,7 +254,7 @@ func (p pluginMock) GetPlugin(ctx context.Context, name string, withSecrets bool
 }
 
 type userMock struct {
-	scimcommon.UsersService
+	scimcommon.Users
 	users []*types.UserV2
 }
 
@@ -265,7 +265,7 @@ func (u *userMock) ListUsers(ctx context.Context, req *userspb.ListUsersRequest)
 }
 
 type credMock struct {
-	scimcommon.CredentialsService
+	scimcommon.Credentials
 	creds []types.PluginStaticCredentials
 }
 
@@ -357,21 +357,27 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	require.NoError(t, err)
 
 	sut, err := service.NewService(&scimcommon.Config{
-		Authorizer:          &authMock{},
-		Logger:              logtest.NewLogger(),
-		UsersService:        &userMock{users: users},
-		RolesService:        &mockRoleService{},
-		PluginsService:      &pluginMock{plugin: plugin},
-		CredentialsService:  &credMock{creds: pluginCreds},
-		AccessListsService:  &mockAccessListService{},
-		CertAuthorityGetter: &mockCertAuthority{},
-		JWTSignerGetter:     &mockJwtSigner{},
-		LocksService:        &mockLocksService{},
-		IdentityService:     &mockIdentityService{},
-		Clock:               clock,
-		AssignmentService:   &mockAssignmentsService{},
-		ClusterName:         "test-cluster",
-		Semaphore:           local.NewPresenceService(bk),
+		Authorizer: &authMock{},
+		Logger:     logtest.NewLogger(),
+		AccessPoint: &serviceTestServices{
+			Users:           &userMock{users: users},
+			Roles:           &mockRoleService{},
+			Identity:        &mockIdentityService{},
+			Plugins:         &pluginMock{plugin: plugin},
+			Credentials:     &credMock{creds: pluginCreds},
+			JWTSigner:       &mockJwtSigner{},
+			AccessLists:     &mockAccessListService{},
+			Locks:           &mockLocksService{},
+			AuthorityGetter: &mockAuthorityGetter{},
+			Semaphores:      local.NewPresenceService(bk),
+		},
+		Backend: &testBackend{
+			AccessLists: &mockAccessListService{},
+			Assignments: &mockAssignmentsService{},
+			Locks:       &mockLocksService{},
+		},
+		Clock:       clock,
+		ClusterName: "test-cluster",
 	})
 	require.NoError(t, err)
 

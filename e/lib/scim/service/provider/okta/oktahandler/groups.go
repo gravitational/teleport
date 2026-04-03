@@ -72,7 +72,7 @@ func (h *GroupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCI
 		return nil, trace.Wrap(err, "validating member list")
 	}
 
-	finalACL, finalMembers, err := h.AccessListsService.UpsertAccessListWithMembers(ctx, acl, newMembers)
+	finalACL, finalMembers, err := h.UpsertAccessListWithMembers(ctx, acl, newMembers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,7 +140,7 @@ func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCI
 
 	// Exclude Okta members who were assigned via an ongoing Access Request.
 	// These temporary assignments should not be treated as long-term membership.
-	f := oktacommon.OngoingAssignmentsMembershipFilter{AssignmentsService: h.AssignmentService}
+	f := oktacommon.OngoingAssignmentsMembershipFilter{AssignmentsService: h.Backend}
 
 	if err = f.Filter(ctx, oktaMemberMap, oldMembersMap); err != nil {
 		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")
@@ -152,7 +152,7 @@ func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCI
 		}
 	}
 
-	finalACL, finalMembers, err := h.AccessListsService.UpsertAccessListWithMembers(ctx, oldACL, filteredMembers)
+	finalACL, finalMembers, err := h.UpsertAccessListWithMembers(ctx, oldACL, filteredMembers)
 	if err != nil {
 		return nil, trace.Wrap(err, "upserting access list")
 	}
@@ -177,7 +177,7 @@ func (h *GroupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCI
 	}
 
 	logger.DebugContext(ctx, "Deleting AccessList")
-	if err := h.AccessListsService.DeleteAccessList(ctx, id); err != nil {
+	if err := h.DeleteAccessList(ctx, id); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -194,7 +194,7 @@ func (h *GroupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCI
 	for _, roleName := range roles {
 		// make a best-effort attempt to delete the associated roles. Okta sync
 		// will clean up any leftovers on its next synchronization pass
-		if err := h.RolesService.DeleteRole(ctx, roleName); err != nil {
+		if err := h.DeleteRole(ctx, roleName); err != nil {
 			logger.ErrorContext(ctx, "Access List Role deletion failed",
 				"role_name", roleName,
 				"error", err,
@@ -241,7 +241,7 @@ func (h *GroupHandler) createNewAccessList(ctx context.Context, acl *accesslist.
 	acl.Spec.Grants.Roles = []string{accessRole.GetName()}
 
 	h.Logger.DebugContext(ctx, "Upserting access list", "access_list", acl.GetName())
-	upsertedACL, err := h.AccessListsService.UpsertAccessList(ctx, acl)
+	upsertedACL, err := h.UpsertAccessList(ctx, acl)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating accesslist")
 	}
@@ -283,12 +283,12 @@ func (h *GroupHandler) createACLRoles(ctx context.Context, acl *accesslist.Acces
 	reviewerRole.SetStaticLabels(labelsCpy)
 
 	h.Logger.DebugContext(ctx, "Creating access role", "role", accessRole.GetName())
-	if _, err := h.RolesService.CreateRole(ctx, accessRole); err != nil {
+	if _, err := h.CreateRole(ctx, accessRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating access role %q", accessRole.GetName())
 	}
 
 	h.Logger.DebugContext(ctx, "Creating reviewer role", "role", reviewerRole.GetName())
-	if _, err := h.RolesService.CreateRole(ctx, reviewerRole); err != nil {
+	if _, err := h.CreateRole(ctx, reviewerRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating reviewer role %q", reviewerRole.GetName())
 	}
 
@@ -304,7 +304,7 @@ func (h *GroupHandler) validateMemberList(ctx context.Context, acl *accesslist.A
 
 		memberLogger.DebugContext(ctx, "Processing Group Member")
 
-		user, err := h.UsersService.GetUser(ctx, m.Spec.Name, false)
+		user, err := h.GetUser(ctx, m.Spec.Name, false)
 		if err != nil {
 			memberLogger.ErrorContext(ctx, "Failed fetching user", "error", err)
 			continue
@@ -369,7 +369,7 @@ func (h *GroupHandler) findAccessListByDisplayName(ctx context.Context, displayN
 	var err error
 
 	for {
-		page, nextToken, err = h.AccessListsService.ListAccessLists(ctx, 0, nextToken)
+		page, nextToken, err = h.Backend.ListAccessLists(ctx, 0, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err, "enumerating access lists")
 		}
@@ -428,7 +428,7 @@ func (h *GroupHandler) loadAccessListWithMembers(ctx context.Context, id string)
 }
 
 func (h *GroupHandler) loadAccessList(ctx context.Context, id string) (*accesslist.AccessList, error) {
-	acl, err := h.AccessListGetter.GetAccessList(ctx, id)
+	acl, err := h.Backend.GetAccessList(ctx, id)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading access list")
 	}
@@ -455,7 +455,7 @@ func (h *GroupHandler) loadAccessListMembersRecurse(ctx context.Context, accessL
 
 	for {
 		var page []*accesslist.AccessListMember
-		page, nextPage, err = h.AccessListGetter.ListAccessListMembers(ctx, accessListName, 0, nextPage)
+		page, nextPage, err = h.Backend.ListAccessListMembers(ctx, accessListName, 0, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err, "enumerating access list members")
 		}
@@ -463,7 +463,7 @@ func (h *GroupHandler) loadAccessListMembersRecurse(ctx context.Context, accessL
 		for _, member := range page {
 			// recursively fetch members if the member is of type list
 			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				nestedList, err := h.AccessListGetter.GetAccessList(ctx, member.GetName())
+				nestedList, err := h.Backend.GetAccessList(ctx, member.GetName())
 				if err != nil {
 					return nil, trace.Wrap(err, "loading nested list")
 				}

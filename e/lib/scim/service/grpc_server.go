@@ -30,7 +30,7 @@ func NewService(cfg *common.Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	distributeLock, err := common.NewDistributedLocker(cfg.Semaphore, common.WithClock(cfg.Clock))
+	distributeLock, err := common.NewDistributedLocker(cfg.AccessPoint, common.WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -429,25 +429,15 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	err = p.registerSCIMService(ctx, gRPCServer, &common.Config{
-		IdentityService:     p.authServer.AuthServer,
-		Authorizer:          p.authServer.Authorizer,
-		UsersService:        p.authServer.AuthServer,
-		RolesService:        p.authServer.AuthServer,
-		PluginsService:      p.plugins,
-		CredentialsService:  p.pluginCreds,
-		LocksService:        p.authServer.AuthServer.Services,
-		AccessListsService:  p.authServer.AuthServer.AccessListsInternal,
-		AccessListGetter:    p.authServer.AuthServer.AccessListsInternal,
-		CertAuthorityGetter: p.authServer.AuthServer,
-		JWTSignerGetter:     p.authServer.AuthServer.GetKeyStore(),
-		Logger:              logger,
-		AssignmentService:   p.authServer.AuthServer.Services.Okta,
+		Authorizer:  p.authServer.Authorizer,
+		AccessPoint: p.scimAccessPoint(),
+		Backend:     p.authServer.AuthServer.Services,
+		Logger:      logger,
 		HTTPClient: &http.Client{
 			Transport: p.HTTPTransport,
 		},
 		ClusterName: clusterName.GetClusterName(),
 		Clock:       p.authServer.AuthServer.GetClock(),
-		Semaphore:   p.authServer.AuthServer,
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")
@@ -529,6 +519,34 @@ func (c *AWSOIDCClient) GenerateAWSOIDCToken(ctx context.Context, integration st
 		return "", trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// scimAccessPoint composes several distinct implementations into
+// a single [common.AccessPoint] interface value.
+func (p *Plugin) scimAccessPoint() common.AccessPoint {
+	return &struct {
+		common.Users
+		common.Roles
+		common.Identity
+		common.Plugins
+		common.Credentials
+		common.JWTSigner
+		types.Semaphores
+		common.AccessLists
+		services.AuthorityGetter
+		common.Locks
+	}{
+		Users:           p.authServer.AuthServer,
+		Roles:           p.authServer.AuthServer,
+		Identity:        p.authServer.AuthServer,
+		Plugins:         p.plugins,
+		Credentials:     p.pluginCreds,
+		JWTSigner:       p.authServer.AuthServer.GetKeyStore(),
+		Semaphores:      p.authServer.AuthServer,
+		AccessLists:     p.authServer.AuthServer,
+		AuthorityGetter: p.authServer.AuthServer,
+		Locks:           p.authServer.AuthServer,
+	}
 }
 
 func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.ServiceRegistrar, cfg *common.Config) error {

@@ -24,7 +24,7 @@ func (s *Service) authorize(ctx context.Context, target *pb.RequestTarget) (type
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := s.PluginsService.GetPlugin(ctx, target.GetPluginId(), true)
+	plugin, err := s.GetPlugin(ctx, target.GetPluginId(), true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -37,7 +37,7 @@ func (s *Service) authorize(ctx context.Context, target *pb.RequestTarget) (type
 }
 
 func (s *Service) authorizeSCIMRequest(ctx context.Context, target *pb.RequestTarget, plugin types.Plugin) error {
-	creds, err := oktaplugin.GetStaticCredentials(ctx, s.CredentialsService, plugin.GetCredentials().GetStaticCredentialsRef())
+	creds, err := oktaplugin.GetStaticCredentials(ctx, s.AccessPoint, plugin.GetCredentials().GetStaticCredentialsRef())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,7 +135,7 @@ func (s *Service) authorizeOAuthCredentials(ctx context.Context, target *pb.Requ
 		return trace.AccessDenied("plugin %q does not have static credentials defined", plugin.GetName())
 	}
 
-	ca, err := s.Config.IdentityService.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.Config.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.OIDCIdPCA,
 		DomainName: s.Config.ClusterName,
 	}, false)

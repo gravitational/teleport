@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta/oktahandler"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // getResultAs extracts a value from a testify mock argument collection and
@@ -41,7 +42,7 @@ type mockUserService struct {
 	mock.Mock
 }
 
-var _ common.UsersService = (*mockUserService)(nil)
+var _ common.Users = (*mockUserService)(nil)
 
 func (m *mockUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	result := m.Called(ctx, req)
@@ -87,7 +88,7 @@ type mockLocksService struct {
 	mock.Mock
 }
 
-var _ common.LocksService = (*mockLocksService)(nil)
+var _ common.Locks = (*mockLocksService)(nil)
 
 func (m *mockLocksService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	result := m.Called(ctx, inForceOnly, targets)
@@ -108,7 +109,7 @@ type mockPluginsService struct {
 	mock.Mock
 }
 
-var _ common.PluginsService = (*mockPluginsService)(nil)
+var _ common.Plugins = (*mockPluginsService)(nil)
 
 func (m *mockPluginsService) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	result := m.Called(ctx, name, withSecrets)
@@ -308,14 +309,6 @@ type mockIdentityService struct {
 	mock.Mock
 }
 
-func (m *mockIdentityService) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	result := m.Called(ctx, id, loadSigningKeys)
-	if fn, ok := result.Get(0).(func(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)); ok {
-		return fn(ctx, id, loadSigningKeys)
-	}
-	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
-}
-
 func (m *mockIdentityService) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
 	result := m.Called(ctx, id, withSecrets)
 	if fn, ok := result.Get(0).(func(context.Context, string, bool) (types.SAMLConnector, error)); ok {
@@ -324,15 +317,7 @@ func (m *mockIdentityService) GetSAMLConnector(ctx context.Context, id string, w
 	return getResultAs[types.SAMLConnector](result, 0), result.Error(1)
 }
 
-type mockCertAuthority struct {
-	mock.Mock
-}
-
-func (m *mockCertAuthority) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	result := m.Called(ctx, id, loadKeys)
-	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
-}
-func (m *mockCertAuthority) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+func (m *mockIdentityService) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	result := m.Called(ctx)
 	return getResultAs[types.ClusterName](result, 0), result.Error(1)
 }
@@ -344,6 +329,53 @@ type mockJwtSigner struct {
 func (m *mockJwtSigner) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
 	result := m.Called(ctx, ca)
 	return getResultAs[crypto.Signer](result, 0), result.Error(1)
+}
+
+type mockAuthorityGetter struct {
+	mock.Mock
+}
+
+func (m *mockAuthorityGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	result := m.Called(ctx, id, loadSigningKeys)
+	if fn, ok := result.Get(0).(func(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)); ok {
+		return fn(ctx, id, loadSigningKeys)
+	}
+	return getResultAs[types.CertAuthority](result, 0), result.Error(1)
+}
+
+func (m *mockAuthorityGetter) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	result := m.Called(ctx, caType, loadKeys)
+	return getResultAs[[]types.CertAuthority](result, 0), result.Error(1)
+}
+
+// testServices composes individual mock services into a single common.AccessPoint.
+type testServices struct {
+	*mockUserService
+	*mockRoleService
+	*mockIdentityService
+	*mockPluginsService
+	*mockCredentialsService
+	*mockJwtSigner
+	*mockAuthorityGetter
+	*mockAccessListService
+	*mockLocksService
+	types.Semaphores
+}
+
+// serviceTestServices composes service interfaces into a single common.AccessPoint.
+// Unlike testServices, it embeds the interfaces so different concrete types can
+// be used (e.g. userMock instead of mockUserService).
+type serviceTestServices struct {
+	common.Users
+	common.Roles
+	common.Identity
+	common.Plugins
+	common.Credentials
+	common.JWTSigner
+	common.AccessLists
+	common.Locks
+	services.AuthorityGetter
+	types.Semaphores
 }
 
 type mockAssignmentsService struct {

@@ -42,7 +42,7 @@ func (h *UserHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 		return nil, trace.Wrap(err, "converting Teleport user")
 	}
 
-	createdUser, err := h.UsersService.CreateUser(ctx, newUser)
+	createdUser, err := h.CreateUser(ctx, newUser)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Teleport user")
 	}
@@ -60,7 +60,7 @@ func (h *UserHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 
 // UpdateResource handles the update of an existing SCIM resource.
 func (h *UserHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
-	user, err := h.UsersService.GetUser(ctx, req.GetResource().GetId(), false)
+	user, err := h.GetUser(ctx, req.GetResource().GetId(), false)
 	if err != nil {
 		return nil, trace.NotFound("%s", req.GetResource().GetId())
 	}
@@ -74,7 +74,7 @@ func (h *UserHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.Wrap(err)
 	}
 	if needsUpdate {
-		updatedUser, err = h.UsersService.UpdateUser(ctx, updatedUser)
+		updatedUser, err = h.UpdateUser(ctx, updatedUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -90,7 +90,7 @@ func (h *UserHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 
 // GetResource handles an individual resource query from the server
 func (h *UserHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
-	user, err := h.UsersService.GetUser(ctx, req.GetTarget().GetResourceId(), false)
+	user, err := h.GetUser(ctx, req.GetTarget().GetResourceId(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

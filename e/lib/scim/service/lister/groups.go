@@ -41,7 +41,7 @@ func (l *GroupLister) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 	)
 
 	// Iterate over all access lists in Teleport and filter SCIM-compatible ones
-	for acl, err := range clientutils.Resources(ctx, l.AccessListsService.ListAccessLists) {
+	for acl, err := range clientutils.Resources(ctx, l.ListAccessLists) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

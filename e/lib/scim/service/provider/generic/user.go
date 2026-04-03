@@ -63,7 +63,7 @@ func (h *userHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 }
 
 func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.User) (types.User, error) {
-	user, err := h.UsersService.CreateUser(ctx, scimUser)
+	user, err := h.CreateUser(ctx, scimUser)
 	switch {
 	case err == nil:
 		return user, nil
@@ -71,7 +71,7 @@ func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.Use
 		// In some cases, a user may already exist in the backend due to having logged in via an SSO connector.
 		// We want to upgrade ephemeral users to be managed via SCIM if they match the SCIM SSO connector.
 		// This approach ensures that the CreateUser operation does not fail and disrupt the provisioning flow.
-		currentUser, err := h.UsersService.GetUser(ctx, scimUser.GetName(), false)
+		currentUser, err := h.GetUser(ctx, scimUser.GetName(), false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -87,7 +87,7 @@ func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.Use
 		}
 
 		scimUser.SetRevision(currentUser.GetRevision())
-		user, err = h.UsersService.UpdateUser(ctx, scimUser)
+		user, err = h.UpdateUser(ctx, scimUser)
 		if err != nil {
 			if trace.IsNotFound(err) || trace.IsCompareFailed(err) {
 				// It's possible that after the GetUser call, the user was deleted manually or expired due to TTL (ephemeral user).
@@ -119,7 +119,7 @@ func (h *userHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 			return hasSCIMOrigin(user)
 		},
 		UserToResource: func(user types.User) (*scimpb.Resource, error) {
-			groups, err := h.getAccessListsForUser(ctx, user.GetName())
+			groups, err := h.getAccessListsForUserFromCache(ctx, user.GetName())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -137,7 +137,7 @@ func (h *userHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 func (h *userHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
 	userID := req.GetTarget().GetResourceId()
 
-	teleportUser, err := h.UsersService.GetUser(ctx, userID, false)
+	teleportUser, err := h.GetUser(ctx, userID, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +146,10 @@ func (h *userHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 		return nil, trace.AccessDenied("user %q is not SCIM managed", userID)
 	}
 
-	groupNames, err := h.getAccessListsForUser(ctx, teleportUser.GetName())
+	// NOTE that groupsNames are obtained from cache.
+	// This is acceptable since group membership is eventually where the "groups" user attribute is
+	// don't need to be strongly consistent like user.revision.
+	groupNames, err := h.getAccessListsForUserFromCache(ctx, teleportUser.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -162,7 +165,7 @@ func (h *userHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 func (h *userHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
 	userID := req.GetTarget().GetResourceId()
 
-	existingUser, err := h.UsersService.GetUser(ctx, userID, false /* with secrets*/)
+	existingUser, err := h.GetUser(ctx, userID, false /* with secrets*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,7 +192,7 @@ func (h *userHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		updatedSCIMUser.SetRevision(existingUser.GetRevision())
 	}
 
-	updatedUser, err := h.UsersService.UpdateUser(ctx, updatedSCIMUser)
+	updatedUser, err := h.UpdateUser(ctx, updatedSCIMUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,7 +204,7 @@ func (h *userHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 func (h *userHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) error {
 	userID := req.GetTarget().GetResourceId()
 
-	teleportUser, err := h.UsersService.GetUser(ctx, userID, false)
+	teleportUser, err := h.GetUser(ctx, userID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,18 +213,18 @@ func (h *userHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIM
 		return trace.NotFound("user %q is not SCIM managed", userID)
 	}
 
-	return trace.Wrap(h.UsersService.DeleteUser(ctx, teleportUser.GetName()))
+	return trace.Wrap(h.DeleteUser(ctx, teleportUser.GetName()))
 }
 
-// getAccessListsForUser returns all access list names a given user is a member of.
-func (h *userHandler) getAccessListsForUser(ctx context.Context, userID string) ([]string, error) {
+// getAccessListsForUserFromCache returns all access list names a given user is a member of.
+func (h *userHandler) getAccessListsForUserFromCache(ctx context.Context, userID string) ([]string, error) {
 	var groups []string
 
-	for acl, err := range clientutils.Resources(ctx, h.AccessListsService.ListAccessLists) {
+	for acl, err := range clientutils.Resources(ctx, h.ListAccessLists) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		_, err := h.AccessListsService.GetAccessListMember(ctx, acl.GetName(), userID)
+		_, err := h.GetAccessListMember(ctx, acl.GetName(), userID)
 		if trace.IsNotFound(err) {
 			continue
 		}

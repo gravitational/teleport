@@ -223,7 +223,7 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 		groupsList = append(groupsList, v.Profile.Name)
 	}
 	connectorID := s.syncSettings().SsoConnectorId
-	connector, err := s.IdentityService.GetSAMLConnector(ctx, connectorID, false)
+	connector, err := s.GetSAMLConnector(ctx, connectorID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (s *oktaShim) OnCreatedUser(ctx context.Context, createdUser types.User, re
 	log := s.Logger.With("user", createdUser.GetName())
 	log.InfoContext(ctx, "Ensuring newly-created user has no SCIM locks")
 
-	if err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.LocksService); err != nil {
+	if err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.Backend); err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
 		// it should be logged
 		log.ErrorContext(ctx, "Failed unlocking user", "error", err)
@@ -272,7 +272,7 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 			// TODO(kopiczko): consider removing the okta.UnlockUser call below. Locks
 			// with okta.LockReasonDeactivated reason are created only by the SCIM
 			// service. OnCreatedUser should remove the lock during users's creation.
-			if err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.LocksService); err != nil {
+			if err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.Backend); err != nil {
 				return nil, false, trace.Wrap(err, "removing Okta user locks")
 			}
 		} else {
@@ -282,13 +282,13 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 				Message:  "User deactivated by Okta",
 				OrgURL:   s.oktaOrgURL(),
 				Clock:    s.Clock,
-				LocksSvc: s.LocksService,
+				LocksSvc: s.AccessPoint,
 				Logger:   s.Logger,
 			})
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			if err := s.UsersService.DeleteUser(ctx, teleportUser.GetName()); err != nil {
+			if err := s.DeleteUser(ctx, teleportUser.GetName()); err != nil {
 				if !trace.IsNotFound(err) {
 					return nil, false, trace.Wrap(err)
 				}
@@ -480,7 +480,7 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 // oktaClient creates an Okta client or returns NotFound if the credentials for the Okta client are
 // not present.
 func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
-	staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.CredentialsService, s.plugin.Credentials.GetStaticCredentialsRef())
+	staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.AccessPoint, s.plugin.Credentials.GetStaticCredentialsRef())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,8 +493,8 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 	case selectedOktaCreds.OauthClientId != "":
 		oktaAuthProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: selectedOktaCreds.OauthClientId,
-			AuthService:   s.CertAuthorityGetter,
-			CAKeyStore:    s.JWTSignerGetter,
+			AuthService:   s.AccessPoint,
+			CAKeyStore:    s.AccessPoint,
 			Clock:         s.Clock,
 		})
 	case selectedOktaCreds.ApiToken != "":

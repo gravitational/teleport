@@ -35,7 +35,6 @@ type testFixture struct {
 	users           mockUserService
 	roles           mockRoleService
 	accesslists     mockAccessListService
-	certAuthority   mockCertAuthority
 	jwtSigner       mockJwtSigner
 	locks           mockLocksService
 	plugins         mockPluginsService
@@ -44,6 +43,7 @@ type testFixture struct {
 	clock           clocki.FakeClock
 	userCtx         context.Context
 	identityService mockIdentityService
+	authorityGetter mockAuthorityGetter
 	assignments     mockAssignmentsService
 }
 
@@ -57,6 +57,14 @@ func (tf *testFixture) AssertExpectations(t *testing.T) {
 	tf.shim.AssertExpectations(t)
 	tf.identityService.AssertExpectations(t)
 	tf.assignments.AssertExpectations(t)
+}
+
+// testBackend is a composite struct that satisfies the common.Backend
+// interface by embedding both AccessLists and Assignments implementations.
+type testBackend struct {
+	common.AccessLists
+	common.Assignments
+	common.Locks
 }
 
 func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
@@ -85,20 +93,26 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 	require.NoError(t, err)
 
 	scimSvc, err := service.NewService(&common.Config{
-		Authorizer:          builtinRoleAuthorizer{},
-		UsersService:        &fix.users,
-		AccessListsService:  &fix.accesslists,
-		CertAuthorityGetter: &fix.certAuthority,
-		JWTSignerGetter:     &fix.jwtSigner,
-		LocksService:        &fix.locks,
-		PluginsService:      &fix.plugins,
-		RolesService:        &fix.roles,
-		CredentialsService:  &fix.creds,
-		Clock:               fix.clock,
-		IdentityService:     &fix.identityService,
-		AssignmentService:   &fix.assignments,
-		ClusterName:         "test-cluster",
-		Semaphore:           local.NewPresenceService(bk),
+		Authorizer: builtinRoleAuthorizer{},
+		AccessPoint: &testServices{
+			mockUserService:        &fix.users,
+			mockRoleService:        &fix.roles,
+			mockIdentityService:    &fix.identityService,
+			mockPluginsService:     &fix.plugins,
+			mockCredentialsService: &fix.creds,
+			mockJwtSigner:          &fix.jwtSigner,
+			mockAuthorityGetter:    &fix.authorityGetter,
+			mockAccessListService:  &fix.accesslists,
+			mockLocksService:       &fix.locks,
+			Semaphores:             local.NewPresenceService(bk),
+		},
+		Backend: &testBackend{
+			AccessLists: &fix.accesslists,
+			Assignments: &fix.assignments,
+			Locks:       &fix.locks,
+		},
+		Clock:       fix.clock,
+		ClusterName: "test-cluster",
 	})
 	require.NoError(t, err, "creating test harness")
 

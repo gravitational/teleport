@@ -11,6 +11,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 )
 
@@ -23,9 +24,11 @@ func TestUserLister_ListResources_Basic(t *testing.T) {
 		mockUser(t, "carol"),
 	}
 
+	svc := &fakeUserService{users: users}
 	lister := &UserLister{
 		Config: common.Config{
-			UsersService: &fakeUserService{users: users},
+			AccessPoint: svc,
+			Backend:     svc,
 		},
 		Predicate: func(ctx context.Context, u types.User) bool {
 			return true // include all
@@ -59,9 +62,11 @@ func TestUserLister_ListResources_Predicate(t *testing.T) {
 		mockUser(t, "bob"),
 	}
 
+	svc := &fakeUserService{users: users}
 	lister := &UserLister{
 		Config: common.Config{
-			UsersService: &fakeUserService{users: users},
+			AccessPoint: svc,
+			Backend:     svc,
 		},
 		Predicate: func(ctx context.Context, u types.User) bool {
 			return u.GetName() == "bob"
@@ -91,9 +96,11 @@ func TestUserLister_ListResources_FilterMatch(t *testing.T) {
 
 	users := []*types.UserV2{mockUser(t, "admin")}
 
+	svc := &fakeUserService{users: users}
 	lister := &UserLister{
 		Config: common.Config{
-			UsersService: &fakeUserService{users: users},
+			AccessPoint: svc,
+			Backend:     svc,
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
@@ -117,9 +124,11 @@ func TestUserLister_ListResources_FilterNoMatch(t *testing.T) {
 
 	users := []*types.UserV2{mockUser(t, "dev")}
 
+	svc := &fakeUserService{users: users}
 	lister := &UserLister{
 		Config: common.Config{
-			UsersService: &fakeUserService{users: users},
+			AccessPoint: svc,
+			Backend:     svc,
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
@@ -141,9 +150,11 @@ func TestUserLister_ListResources_FilterNoMatch(t *testing.T) {
 func TestUserLister_ListResources_EmptyUsers(t *testing.T) {
 	ctx := context.Background()
 
+	svc := &fakeUserService{users: []*types.UserV2{}}
 	lister := &UserLister{
 		Config: common.Config{
-			UsersService: &fakeUserService{users: []*types.UserV2{}},
+			AccessPoint: svc,
+			Backend:     svc,
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
@@ -169,10 +180,30 @@ func mockUser(t *testing.T, name string) *types.UserV2 {
 	return u.(*types.UserV2)
 }
 
-// fakeUserService implements a minimal UsersService for testing.
+// fakeUserService implements minimal AccessPoint for testing.
 type fakeUserService struct {
-	common.UsersService
+	common.AccessPoint
 	users []*types.UserV2
+}
+
+func (s *fakeUserService) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
+	return nil, "", nil
+}
+
+func (s *fakeUserService) GetAccessListMember(context.Context, string, string) (*accesslist.AccessListMember, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (s *fakeUserService) ListAccessListMembers(context.Context, string, int, string) ([]*accesslist.AccessListMember, string, error) {
+	return nil, "", nil
+}
+
+func (s *fakeUserService) GetAccessList(context.Context, string) (*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (s *fakeUserService) ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error) {
+	return nil, "", nil
 }
 
 func (s *fakeUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {

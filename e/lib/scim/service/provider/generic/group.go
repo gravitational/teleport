@@ -46,7 +46,7 @@ func (g groupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 }
 
 func (g groupHandler) findAccessListByTitle(ctx context.Context, title string) (*accesslist.AccessList, error) {
-	for list, err := range clientutils.Resources(ctx, g.AccessListsService.ListAccessLists) {
+	for list, err := range clientutils.Resources(ctx, g.Backend.ListAccessLists) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -73,7 +73,7 @@ func (g groupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 		Config:    g.Config,
 		Predicate: func(list *accesslist.AccessList) bool { return accessListPredicate(list) },
 		AccessListToResource: func(list *accesslist.AccessList) (*scimpb.Resource, error) {
-			members, err := libaccesslist.GetMembersFor(ctx, list.GetName(), g.AccessListsService)
+			members, err := libaccesslist.GetMembersFor(ctx, list.GetName(), g.AccessPoint)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -88,7 +88,7 @@ func (g groupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 func (g groupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
 	resourceID := req.GetTarget().GetResourceId()
 
-	acl, err := g.AccessListGetter.GetAccessList(ctx, resourceID)
+	acl, err := g.Backend.GetAccessList(ctx, resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching ACL for provisioning")
 	}
@@ -97,7 +97,7 @@ func (g groupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 		return nil, trace.NotFound("access list %q not found", resourceID)
 	}
 
-	members, err := libaccesslist.GetMembersFor(ctx, resourceID, g.AccessListsService)
+	members, err := libaccesslist.GetMembersFor(ctx, resourceID, g.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,7 +109,7 @@ func (g groupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 func (g groupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
 	resourceID := req.GetTarget().GetResourceId()
 
-	acl, err := g.AccessListGetter.GetAccessList(ctx, resourceID)
+	acl, err := g.Backend.GetAccessList(ctx, resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching ACL for provisioning")
 	}
@@ -133,7 +133,7 @@ func (g groupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		acl.SetRevision(updatedACL.GetRevision())
 	}
 
-	newACL, newMembers, err := g.AccessListsService.UpdateAccessListAndOverwriteMembers(ctx, acl, members)
+	newACL, newMembers, err := g.UpdateAccessListAndOverwriteMembers(ctx, acl, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,7 +145,7 @@ func (g groupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 func (g groupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) error {
 	resourceID := req.GetTarget().GetResourceId()
 
-	acl, err := g.AccessListGetter.GetAccessList(ctx, resourceID)
+	acl, err := g.Backend.GetAccessList(ctx, resourceID)
 	if err != nil {
 		return trace.Wrap(err, "fetching ACL for provisioning")
 	}
@@ -156,7 +156,7 @@ func (g groupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIM
 
 	// SCIM group deletion is not directly supported.
 	// This clears members while retaining the ACL.
-	if _, _, err := g.AccessListsService.UpsertAccessListWithMembers(ctx, acl, nil); err != nil {
+	if _, _, err := g.UpsertAccessListWithMembers(ctx, acl, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
