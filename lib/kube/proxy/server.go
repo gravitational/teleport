@@ -298,6 +298,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		},
 		reconcileCh: make(chan struct{}),
 		log:         log,
+		scope:       cfg.Scope,
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	server.closeContext, server.closeFunc = context.WithCancel(cfg.Context)
@@ -543,10 +544,10 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 			RelayIds:   relayIDs,
 		},
 	)
-	srv.Scope = t.scope
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.Scope = t.scope
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Get the kube cluster health and send it to the auth server.
@@ -649,7 +650,6 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 	}
 
 	t.setServiceLabels(clusterWithoutCreds)
-
 	return clusterWithoutCreds, nil
 }
 
