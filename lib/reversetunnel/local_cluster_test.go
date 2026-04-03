@@ -80,7 +80,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: time.Second,
-		proxyWatcher:     watcher,
+		discoPub:         newDiscoPub(ctx, watcher),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -147,11 +147,26 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 func TestLocalClusterOverlap(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	clt := &mockLocalClusterClient{}
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Logger:    logtest.NewLogger(),
+			Clock:     clock,
+			Client:    clt,
+		},
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
 
 	srv := &server{
 		Config:          Config{Clock: clockwork.NewFakeClock()},
 		ctx:             context.Background(),
 		localAuthClient: &mockLocalClusterClient{},
+		discoPub:        newDiscoPub(ctx, watcher),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -275,7 +290,7 @@ func TestProxyResync(t *testing.T) {
 		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: 24 * time.Hour,
-		proxyWatcher:     watcher,
+		discoPub:         newDiscoPub(ctx, watcher),
 	}
 	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
