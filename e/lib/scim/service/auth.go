@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 func (s *Service) authorize(ctx context.Context, target *pb.RequestTarget) (types.Plugin, error) {
@@ -112,7 +111,7 @@ func extractBearerToken(authHeader string) (string, error) {
 // authorizeGRPCRequest checks that the service that is forwarding SCIM request via gRPC
 // has Teleport Proxy role and a correct entitlement license is enabled for this cluster.
 func (s *Service) authorizeGRPCRequest(ctx context.Context) error {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
+	if !s.Config.Modules.Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
 		return trace.NotImplemented("SCIM support requires Identity Governance license")
 	}
 

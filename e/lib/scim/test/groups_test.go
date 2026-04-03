@@ -19,6 +19,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -28,8 +31,7 @@ const (
 )
 
 func TestGroupList(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	testAccessLists := mkTestAccessLists(t, 50, 3)
 
 	testCases := []struct {
@@ -101,7 +103,16 @@ func TestGroupList(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			uut, fix := newTestService(t)
+			uut, fix := newTestServiceWith(t, &testFixture{
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			rigFixtureForGroupTest(fix)
 
 			// Configure the access lists service to return our collection of
@@ -129,11 +140,19 @@ func TestGroupList(t *testing.T) {
 }
 
 func TestGroupListHandlesPagedAccessLists(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
-	uut, fix := newTestService(t)
+	uut, fix := newTestServiceWith(t, &testFixture{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		},
+	})
 	rigFixtureForGroupTest(fix)
 
 	// Configure the access lists service to return a collection of
@@ -171,7 +190,7 @@ func TestGroupListHandlesPagedAccessLists(t *testing.T) {
 }
 
 func TestGroupGet(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
+	t.Parallel()
 
 	testAccessLists := mkTestAccessLists(t, 10, 2)
 	clock := clockwork.NewFakeClock()
@@ -276,7 +295,17 @@ func TestGroupGet(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			uut, fix := newTestServiceWith(t, &testFixture{clock: clock})
+			uut, fix := newTestServiceWith(t, &testFixture{
+				clock: clock,
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			rigFixtureForGroupTest(fix)
 
 			fix.accesslists.
@@ -305,7 +334,7 @@ func TestGroupGet(t *testing.T) {
 }
 
 func TestGroupCreate(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 
 	users := mkTestUserList(t, 10, 1)
@@ -446,7 +475,17 @@ func TestGroupCreate(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			uut, fix := newTestServiceWith(t, &testFixture{clock: clock})
+			uut, fix := newTestServiceWith(t, &testFixture{
+				clock: clock,
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			rigFixtureForGroupTest(fix)
 
 			// Configure the AccessLists service with the AccessLists it should
@@ -533,7 +572,7 @@ func TestGroupCreate(t *testing.T) {
 }
 
 func TestGroupUpdate(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
+	t.Parallel()
 
 	clock := clockwork.NewFakeClock()
 	users := mkTestUserList(t, 10, 1)
@@ -604,7 +643,17 @@ func TestGroupUpdate(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			uut, fix := newTestServiceWith(t, &testFixture{clock: clock})
+			uut, fix := newTestServiceWith(t, &testFixture{
+				clock: clock,
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			rigFixtureForGroupTest(fix)
 
 			// Configure the shim to convert Group into an access list
@@ -685,8 +734,7 @@ func TestGroupUpdate(t *testing.T) {
 }
 
 func TestGroupDelete(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 
 	testCases := []struct {
@@ -735,7 +783,17 @@ func TestGroupDelete(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			uut, fix := newTestServiceWith(t, &testFixture{clock: clock})
+			uut, fix := newTestServiceWith(t, &testFixture{
+				clock: clock,
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			rigFixtureForGroupTest(fix)
 
 			// Configure the AccessList service to return what we want it to

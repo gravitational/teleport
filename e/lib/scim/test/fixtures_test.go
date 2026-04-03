@@ -1,6 +1,7 @@
 package test
 
 import (
+	"cmp"
 	"context"
 	"testing"
 
@@ -12,8 +13,11 @@ import (
 	"github.com/gravitational/teleport/e/lib/scim/service"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta/oktahandler"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -45,6 +49,7 @@ type testFixture struct {
 	identityService mockIdentityService
 	authorityGetter mockAuthorityGetter
 	assignments     mockAssignmentsService
+	modules         *modulestest.Modules
 }
 
 func (tf *testFixture) AssertExpectations(t *testing.T) {
@@ -113,6 +118,14 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 		},
 		Clock:       fix.clock,
 		ClusterName: "test-cluster",
+		Modules: cmp.Or(fix.modules, &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		}),
 	})
 	require.NoError(t, err, "creating test harness")
 
@@ -144,8 +157,4 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 		}
 	}
 	return scimSvc, fix
-}
-
-func newTestService(t *testing.T) (*service.Service, *testFixture) {
-	return newTestServiceWith(t, &testFixture{})
 }

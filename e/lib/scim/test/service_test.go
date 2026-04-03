@@ -27,17 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func enableOktaSCIMEntitlement(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OktaSCIM: {Enabled: true},
-			},
-		},
-	})
-}
-
 func bindTestFn[A, B any](fn func(context.Context, A) (B, error), val A) func(context.Context) error {
 	return func(ctx context.Context) error {
 		_, err := fn(ctx, val)
@@ -48,8 +37,16 @@ func bindTestFn[A, B any](fn func(context.Context, A) (B, error), val A) func(co
 // TestSCIMServiceDeniesAccessToNonProxyUser tests that a non-proxy user always
 // causes an AccessDenied error without touching any other resources.
 func TestSCIMServiceDeniesAccessToNonProxyUser(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-	uut, _ := newTestService(t)
+	uut, _ := newTestServiceWith(t, &testFixture{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		},
+	})
 
 	nonProxyCtx := authz.ContextWithUser(
 		context.Background(),
@@ -99,20 +96,20 @@ func TestSCIMServiceDeniesAccessToNonProxyUser(t *testing.T) {
 	}
 }
 
-// TestSCIMServiceFailsWithoutIGS asserts that the SCIM service will refuse to
+// TestSCIMServiceFailsWithoutEntitlement asserts that the SCIM service will refuse to
 // serve requests when IGS is disabled
 func TestSCIMServiceFailsWithoutEntitlement(t *testing.T) {
 	// Explicitly disable IGS
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OktaSCIM: {Enabled: false},
+	uut, fix := newTestServiceWith(t, &testFixture{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: false},
+				},
 			},
 		},
 	})
-
-	uut, fix := newTestService(t)
 
 	testFuncs := []struct {
 		name string
@@ -274,7 +271,6 @@ func (c *credMock) GetPluginStaticCredentialsByLabels(ctx context.Context, label
 }
 
 func TestListSCIMResourcesUserPredicate(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
 	plugin := &types.PluginV1{
 		Metadata: types.Metadata{
 			Name: testPluginName,
@@ -378,6 +374,14 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		},
 		Clock:       clock,
 		ClusterName: "test-cluster",
+		Modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 

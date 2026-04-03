@@ -438,6 +438,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		},
 		ClusterName: clusterName.GetClusterName(),
 		Clock:       p.authServer.AuthServer.GetClock(),
+		Modules:     modules.GetModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")

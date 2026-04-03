@@ -18,11 +18,13 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestUserList(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	// make a list of 50 users, where every 3rd user is one that belongs to the
 	// test plugin
 	users := mkTestUserList(t, 50, 3)
@@ -88,7 +90,16 @@ func TestUserList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given a SCIM service connected to a user database containing some
 			// users belonging to a provide, and some not...
-			uut, fix := newTestService(t)
+			uut, fix := newTestServiceWith(t, &testFixture{
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 
 			rigFixtureSetupForSCIMAuth(fix)
 			fix.shim.
@@ -126,11 +137,19 @@ func TestUserList(t *testing.T) {
 }
 
 func TestUsersListHandlesPagedUsers(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
-	uut, fix := newTestService(t)
+	uut, fix := newTestServiceWith(t, &testFixture{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		},
+	})
 	defer fix.AssertExpectations(t)
 
 	rigFixtureSetupForSCIMAuth(fix)
@@ -235,8 +254,7 @@ func resourceToTestUser(_ context.Context, res *scimpb.Resource) (types.User, er
 }
 
 func TestUserGet(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	// make a list of 50 users, where every 3rd user is one that belongs to the
 	// test plugin
 	users := mkTestUserList(t, 50, 3)
@@ -282,7 +300,16 @@ func TestUserGet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given a SCIM service connected to a user database containing some
 			// users belonging to a provide, and some not...
-			uut, fix := newTestService(t)
+			uut, fix := newTestServiceWith(t, &testFixture{
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			defer fix.AssertExpectations(t)
 
 			rigFixtureSetupForSCIMAuth(fix)
@@ -320,9 +347,8 @@ func TestUserGet(t *testing.T) {
 }
 
 func TestUserCreate(t *testing.T) {
+	t.Parallel()
 	const userRevision = "user revision number"
-
-	enableOktaSCIMEntitlement(t)
 
 	mockCreateUser := func(_ context.Context, u types.User) (types.User, error) {
 		u.SetRevision(userRevision)
@@ -379,7 +405,16 @@ func TestUserCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given a SCIM service connected to a user database containing some users
 			// belonging to a provide, and some not...
-			uut, fix := newTestService(t)
+			uut, fix := newTestServiceWith(t, &testFixture{
+				modules: &modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.OktaSCIM: {Enabled: true},
+						},
+					},
+				},
+			})
 			defer fix.AssertExpectations(t)
 
 			resource := &scimpb.Resource{
@@ -439,11 +474,19 @@ func TestUserCreate(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
-	enableOktaSCIMEntitlement(t)
-
+	t.Parallel()
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
-	uut, fix := newTestService(t)
+	uut, fix := newTestServiceWith(t, &testFixture{
+		modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OktaSCIM: {Enabled: true},
+				},
+			},
+		},
+	})
 
 	oldUser := mkTestUser(t, 7)
 

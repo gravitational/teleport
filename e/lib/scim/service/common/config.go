@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -49,6 +50,8 @@ type Config struct {
 	HTTPClient *http.Client
 	// ClusterName is the name of the cluster this service is running in.
 	ClusterName string
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -60,6 +63,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing backend")
+	}
+	if cfg.Modules == nil {
+		return trace.BadParameter("missing modules")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
