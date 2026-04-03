@@ -33,8 +33,6 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestHomeDirExpansion(t *testing.T) {
@@ -211,7 +209,7 @@ func TestHandleFilecmd(t *testing.T) {
 		root := t.TempDir()
 		dir := filepath.Join(root, "foo")
 		innerFile := filepath.Join(dir, "test.txt")
-		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
+		require.NoError(t, os.Mkdir(dir, 0o755))
 		require.NoError(t, os.WriteFile(innerFile, []byte("test"), 0o644))
 
 		assert.NoError(t, clt.RemoveDirectory(dir))
@@ -237,7 +235,7 @@ func TestHandleFilecmd(t *testing.T) {
 		root := t.TempDir()
 		outer := filepath.Join(root, "a")
 		inner := filepath.Join(outer, "b/c")
-		require.NoError(t, os.Mkdir(outer, defaults.DirectoryPermissions))
+		require.NoError(t, os.Mkdir(outer, 0o755))
 
 		assert.NoError(t, clt.Mkdir(inner))
 		assert.DirExists(t, inner)
@@ -310,7 +308,7 @@ func TestHandleFilecmd(t *testing.T) {
 	t.Run("remove directory", func(t *testing.T) {
 		root := t.TempDir()
 		dir := filepath.Join(root, "dir")
-		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
+		require.NoError(t, os.Mkdir(dir, 0o755))
 
 		assert.NoError(t, clt.Remove(dir))
 		assert.NoDirExists(t, dir)

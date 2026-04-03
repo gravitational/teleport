@@ -36,8 +36,6 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/session/sftputils"
 )
 
@@ -188,7 +186,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 		return nil, err
 	}
 
-	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), defaults.FilePermissions)
+	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), 0o644)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +257,7 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	s.events <- sftputils.Event{SFTP: event}
 }
 
-func RunSFTP() error {
+func RunSFTP(logger *slog.Logger) error {
 	chr, err := openFD(3, "chr")
 	if err != nil {
 		return trace.Wrap(err)
@@ -275,9 +273,6 @@ func RunSFTP() error {
 		return trace.Wrap(err)
 	}
 	defer auditFile.Close()
-
-	// Ensure the parent process will receive log messages from us
-	logger := slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {

@@ -56,7 +56,7 @@ type sftpSubsys struct {
 
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
-		logger:          slog.With(teleport.ComponentKey, teleport.ComponentSubsystemSFTP),
+		logger:          slog.With(teleport.ComponentKey, "subsystem:sftp"),
 		fileTransferReq: fileTransferReq,
 	}, nil
 }

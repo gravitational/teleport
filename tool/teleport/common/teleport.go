@@ -740,7 +740,7 @@ Examples:
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
 	case sftp.FullCommand():
-		err = reexecsftp.RunSFTP()
+		err = reexecsftp.RunSFTP(slog.With(teleport.ComponentKey, "sftp"))
 	case status.FullCommand():
 		err = onStatus()
 	case dump.FullCommand():
