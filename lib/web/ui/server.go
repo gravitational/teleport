@@ -285,7 +285,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
 func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.AccessInfo().Username, accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be

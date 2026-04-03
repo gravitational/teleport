@@ -920,6 +920,15 @@ supported data type.
 Refer to your identity provider's documentation for the complete list of
 available claims and attributes.
 
+#### Other template variables
+
+In addition to user traits, you can also use the following variables in role
+templates:
+
+| Variable | Description |
+| - | - |
+| `{{user.metadata.name}}` | The user's Teleport username. Useful for matching resources the user "owns" or is responsible for. |
+
 ### Access Request template functions
 
 The following variables and functions allow more fine-grained control over a

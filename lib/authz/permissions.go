@@ -349,6 +349,7 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 	}
 
 	accessInfo := &services.AccessInfo{
+		Username:                 c.User.GetName(),
 		Roles:                    newRoleNames,
 		Traits:                   c.User.GetTraits(),
 		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),

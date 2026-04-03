@@ -2777,6 +2777,42 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	// verify that user's logins are present in cert
 	logins = append(logins, teleport.SSHSessionJoinPrincipal)
 	require.Equal(t, logins, signedCert.ValidPrincipals)
+
+	t.Run("user name login template", func(t *testing.T) {
+		u, r, err := authtest.CreateUserAndRole(
+			p.a,
+			"templated-user",
+			nil,
+			nil,
+			authtest.WithRoleMutator(func(role types.Role) {
+				role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
+			}),
+		)
+		require.NoError(t, err)
+
+		user, ok := u.(*types.UserV2)
+		require.True(t, ok)
+
+		role, ok := r.(*types.RoleV6)
+		require.True(t, ok)
+
+		priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
+		require.NoError(t, err)
+
+		reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+
+		signedCert, err := sshutils.ParseCertificate(reply.Cert)
+		require.NoError(t, err)
+		require.Contains(t, signedCert.ValidPrincipals, user.GetName())
+		require.Contains(t, signedCert.ValidPrincipals, teleport.SSHSessionJoinPrincipal)
+	})
 }
 
 func TestGenerateUserCertWithLocks(t *testing.T) {
@@ -3250,6 +3286,28 @@ func TestNewWebSession(t *testing.T) {
 	require.NotEmpty(t, ws.GetTLSPriv())
 	require.NotEmpty(t, ws.GetPub())
 	require.NotEmpty(t, ws.GetTLSCert())
+
+	t.Run("expands user metadata name in logins", func(t *testing.T) {
+		user, _, err := authtest.CreateUserAndRole(p.a, "templated-web-user", nil, nil, authtest.WithRoleMutator(func(role types.Role) {
+			role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
+		}))
+		require.NoError(t, err)
+
+		req := auth.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			LoginTime:  p.a.GetClock().Now().UTC(),
+			SessionTTL: apidefaults.CertDuration,
+		}
+
+		_, checker, err := p.a.NewWebSession(ctx, req, nil /* opts */)
+		require.NoError(t, err)
+
+		logins, err := checker.CheckLoginDuration(0)
+		require.NoError(t, err)
+		require.Contains(t, logins, user.GetName())
+	})
 }
 
 func TestDeleteMFADeviceSync(t *testing.T) {

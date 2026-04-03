@@ -3920,6 +3920,23 @@ func TestApplyTraits(t *testing.T) {
 	}
 }
 
+func TestFetchRolesForUser_ExpandsUserMetadataName(t *testing.T) {
+	role := newRole(func(r *types.RoleV6) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{user.metadata.name}}"}
+	})
+
+	roleSet, err := FetchRolesForUser(mockCurrentUser{
+		roles: []string{"dev"},
+	}, mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev": role,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mockCurrentUser"}, roleSet[0].GetLogins(types.Allow))
+}
+
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
 // certificates not services.User.
 func TestExtractFrom(t *testing.T) {
@@ -4320,7 +4337,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
+				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4533,7 +4550,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -5653,7 +5670,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
+				_, err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5761,6 +5778,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 			for _, access := range test.access {
 				_, err := test.roles.checkAccess(
 					app,
+					"",
 					wrappers.Traits{},
 					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
@@ -5861,7 +5879,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -5959,7 +5977,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -7296,7 +7314,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				_, err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7403,7 +7421,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
+				_, err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7495,6 +7513,7 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 				// is testing the performance of failed RBAC checks
 				_, _ = set.checkAccess(
 					servers[i],
+					"",
 					userTraits,
 					AccessState{},
 					NewLoginMatcher(login),
@@ -7975,7 +7994,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, "alice", userTraits)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
@@ -8127,6 +8146,17 @@ func TestGetKubeResources(t *testing.T) {
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "labels expression matches username",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["owner"] == user.metadata.name`
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"owner": "alice"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
 		},
 		{
@@ -9775,6 +9805,21 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCheckAccess_WithLabelExpressionUsername(t *testing.T) {
+	t.Parallel()
+
+	role := newRole(func(r *types.RoleV6) {
+		r.Spec.Allow.NodeLabelsExpression = `labels["owner"] == user.metadata.name`
+	})
+
+	server := &types.ServerV2{Kind: types.KindNode}
+	server.SetStaticLabels(map[string]string{"owner": "alice"})
+
+	accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(role))
+	err := accessChecker.CheckAccess(server, AccessState{})
+	require.NoError(t, err)
 }
 
 func TestCheckSPIFFESVID(t *testing.T) {
