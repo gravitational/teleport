@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { Alert, Box, ButtonText, Flex, Text } from 'design';
-import { Notification, Spinner } from 'design/Icon';
+import { Alert, Box, Flex, Link as ExternalLink, Text } from 'design';
+import { ArrowSquareOut, Notification, Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
@@ -28,7 +27,7 @@ import { useValidation } from 'shared/components/Validation';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { CircleNumber, CopyTerraformButton } from '../Shared';
+import { CircleNumber, CopyTerraformButton, Divider } from '../Shared';
 
 type DeploymentMethodSectionProps = {
   terraformConfig?: string;
@@ -56,180 +55,167 @@ export function DeploymentMethodSection({
 
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
-        <CircleNumber>5</CircleNumber>
-        Deployment Method
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
+        <CircleNumber>3</CircleNumber>
+        Apply Terraform
       </Flex>
-      <Box ml={4} mb={3}>
-        <Text mb={3}>
-          Deploy the required IAM resources in your AWS account using Terraform.
-        </Text>
-        <Text fontSize={3} fontWeight="regular">
-          Terraform
-        </Text>
-        <Text>
-          Automatically provision IAM roles and policies using Infrastructure as
-          Code.
-          <br />
-          Best for: Teams managing infrastructure with Terraform.
-        </Text>
-      </Box>
 
-      <Box ml={6}>
-        <Flex flexDirection="column" mb={3} gap={2}>
-          <Text bold={true} fontSize="14px">
-            1. Add the Teleport AWS Discovery module to your Terraform
-            configuration
-          </Text>
-          <Text>
-            Copy the module on the right and paste it into your Terraform
-            configuration.
-          </Text>
-          <Box>
-            <CopyTerraformButton
-              onClick={e => {
-                const isValid = validator.validate();
-                if (!isValid) {
-                  e.preventDefault();
-                } else {
-                  handleCopy();
-                }
-              }}
-            />
-            {validator.state.validating && !validator.state.valid && (
-              <Text color="error.main" mt={2} fontSize={1}>
-                Please complete the required fields
-              </Text>
-            )}
-          </Box>
-          <Text bold={true} fontSize="14px">
-            2. Initialize and apply the configuration
-          </Text>
-          <DeploymentList>
-            <li>
-              <Text>
-                In your terminal, initialize Terraform to download the Teleport
-                discovery module.
-              </Text>
-              <TextSelectCopyMulti lines={[{ text: `terraform init` }]} />
-            </li>
-            <li>
-              <Text>Verify your changes.</Text>
-              <TextSelectCopyMulti lines={[{ text: `terraform plan` }]} />
-            </li>
-            <li>
-              <Text>
-                Apply the configuration to create the integration and configure
-                the discovery service.
-              </Text>
-              <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
-            </li>
-          </DeploymentList>
-          {showVerificationStep && (
-            <Box>
-              <Text bold={true} fontSize="14px" mb={2}>
-                3. Verify the integration
-              </Text>
-              {integrationExists ? (
-                <Alert
-                  kind="success"
-                  mb={2}
-                  primaryAction={{
-                    content: 'View Integration',
-                    linkTo: cfg.getIaCIntegrationRoute(
-                      IntegrationKind.AwsOidc,
-                      integrationName
-                    ),
-                  }}
-                >
-                  Integration Detected
-                  <Text fontWeight="regular">
-                    Amazon Web Services successfully added
-                  </Text>
-                </Alert>
-              ) : (
-                <>
-                  <Box mb={3}>
-                    {isCheckingIntegration ? (
-                      <Alert
-                        kind="info"
-                        icon={AnimatedSpinner}
-                        primaryAction={{
-                          content: 'Cancel',
-                          onClick: handleCancelCheckIntegration,
-                        }}
-                        mb={0}
-                      >
-                        <Text fontWeight="regular" color="text.slightlyMuted">
-                          Checking for integration{' '}
-                          <Text as="span" fontWeight="bold">
-                            {integrationName}
-                          </Text>
-                          ...
-                        </Text>
-                      </Alert>
-                    ) : checkIntegrationError ? (
-                      <Alert
-                        kind="danger"
-                        mb={0}
-                        primaryAction={{
-                          content: 'Check Integration',
-                          onClick: handleCheckIntegration,
-                        }}
-                      >
-                        Failed to detect integration
-                        <Text fontWeight="regular" color="text.slightlyMuted">
-                          Unable to detect the AWS integration "
-                          {integrationName}". Please check your Terraform
-                          configuration and try again.
-                        </Text>
-                      </Alert>
-                    ) : (
-                      <Alert
-                        kind="neutral"
-                        icon={Notification}
-                        mb={0}
-                        primaryAction={{
-                          content: 'Check Integration',
-                          onClick: handleCheckIntegration,
-                        }}
-                      >
-                        <Text fontWeight="regular" color="text.slightlyMuted">
-                          After applying your Terraform configuration, verify
-                          your integration was created successfully.
-                        </Text>
-                      </Alert>
-                    )}
-                  </Box>
-                  <Box
-                    pl={3}
-                    borderLeft="2px solid"
-                    borderColor="interactive.tonal.neutral.0"
-                  >
-                    <Flex gap={2} flexDirection="column">
-                      <Text bold={true} fontSize={1}>
-                        Don't want to wait?
-                      </Text>
-                      <Text>
-                        Once you've successfully applied your Terraform
-                        configuration, the integration will be available on the
-                        Integrations page.
-                      </Text>
-                      <Box css={{ position: 'relative', left: '-8px' }}>
-                        <InternalLink to={cfg.routes.integrations}>
-                          <ButtonText intent="primary" size="small">
-                            View Integrations
-                          </ButtonText>
-                        </InternalLink>
-                      </Box>
-                    </Flex>
-                  </Box>
-                </>
+      <Box ml={4}>
+        <Flex flexDirection="column" mb={3}>
+          <Box mt={1} mb={4}>
+            <Text bold={true} fontSize="14px">
+              1. Add the module generated on the right to your Terraform
+              templates.
+            </Text>
+            <Box mt={2}>
+              <CopyTerraformButton
+                onClick={e => {
+                  const isValid = validator.validate();
+                  if (!isValid) {
+                    e.preventDefault();
+                  } else {
+                    handleCopy();
+                  }
+                }}
+              />
+              {validator.state.validating && !validator.state.valid && (
+                <Text color="error.main" mt={2} fontSize={1}>
+                  Please complete the required fields
+                </Text>
               )}
             </Box>
-          )}
+          </Box>
+          <Box mb={4}>
+            <Text bold={true} fontSize="14px">
+              2. Configure AWS and Teleport providers
+            </Text>
+            <Text color="text.slightlyMuted" fontSize={1}>
+              If you need help configuring providers for your environment,
+              please reference{' '}
+              <ExternalLink
+                href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/"
+                target="_blank"
+              >
+                <Flex inline alignItems="center">
+                  Teleport Terraform provider
+                  <ArrowSquareOut size={12} ml={1} />
+                </Flex>
+              </ExternalLink>
+              {' and '}
+              <ExternalLink
+                href="https://registry.terraform.io/providers/hashicorp/aws/latest/docs"
+                target="_blank"
+              >
+                <Flex inline alignItems="center">
+                  AWS Terraform provider
+                  <ArrowSquareOut size={12} ml={1} />
+                </Flex>
+              </ExternalLink>
+            </Text>
+            <Text mt={1}>Renew the Teleport credentials for Terraform.</Text>
+            <TextSelectCopyMulti
+              lines={[
+                {
+                  comment: `tsh login --proxy=${cfg.proxyCluster}`,
+                  text: `eval "$(tctl terraform env)"`,
+                },
+              ]}
+            />
+          </Box>
+          <Box>
+            <Text bold={true} fontSize="14px" mb={2}>
+              3. Initialize and apply the configuration
+            </Text>
+            <TextSelectCopyMulti
+              lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
+            />
+          </Box>
         </Flex>
       </Box>
+
+      {showVerificationStep && (
+        <>
+          <Divider />
+          <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
+            <CircleNumber>4</CircleNumber>
+            Verify the Integration
+          </Flex>
+
+          <Box ml={4} mt={1}>
+            {integrationExists ? (
+              <Alert
+                kind="success"
+                mb={2}
+                primaryAction={{
+                  content: 'View Integration',
+                  linkTo: cfg.getIaCIntegrationRoute(
+                    IntegrationKind.AwsOidc,
+                    integrationName
+                  ),
+                }}
+              >
+                Integration Detected
+                <Text fontWeight="regular">
+                  Amazon Web Services successfully added
+                </Text>
+              </Alert>
+            ) : (
+              <Box mb={3}>
+                {isCheckingIntegration ? (
+                  <Alert
+                    kind="info"
+                    icon={AnimatedSpinner}
+                    primaryAction={{
+                      content: 'Cancel',
+                      onClick: handleCancelCheckIntegration,
+                    }}
+                    mb={0}
+                  >
+                    <Text fontWeight="regular" color="text.slightlyMuted">
+                      Checking for integration{' '}
+                      <Text as="span" fontWeight="bold">
+                        {integrationName}
+                      </Text>
+                      ...
+                    </Text>
+                  </Alert>
+                ) : checkIntegrationError ? (
+                  <Alert
+                    kind="danger"
+                    mb={0}
+                    primaryAction={{
+                      content: 'Check Integration',
+                      onClick: handleCheckIntegration,
+                    }}
+                  >
+                    Failed to detect integration
+                    <Text fontWeight="regular" color="text.slightlyMuted">
+                      Unable to detect the AWS integration "{integrationName}
+                      ". Please check your Terraform configuration and try
+                      again.
+                    </Text>
+                  </Alert>
+                ) : (
+                  <Alert
+                    kind="neutral"
+                    icon={Notification}
+                    mb={0}
+                    primaryAction={{
+                      content: 'Check Integration',
+                      onClick: handleCheckIntegration,
+                    }}
+                  >
+                    <Text fontWeight="regular" color="text.slightlyMuted">
+                      After applying your Terraform configuration, verify your
+                      integration was created successfully.
+                    </Text>
+                  </Alert>
+                )}
+              </Box>
+            )}
+          </Box>
+        </>
+      )}
     </>
   );
 }
@@ -241,7 +227,7 @@ const AnimatedSpinner = styled(Spinner)`
 const DeploymentList = styled.ul`
   padding-left: 0px;
   list-style-type: none;
-  margin-top: 0;
+  margin: 0;
 
   li > * {
     margin-bottom: ${p => p.theme.space[2]}px;

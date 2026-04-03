@@ -18,6 +18,8 @@
 
 import { Regions as AwsRegion } from 'teleport/services/integrations';
 
+export type CloudRegion = AwsRegion;
+
 export interface Region<R extends CloudRegion> {
   id: R;
   name: string;
@@ -27,7 +29,3 @@ export interface RegionGroup<R extends CloudRegion> {
   name: string;
   regions: readonly Region<R>[];
 }
-
-export type WildcardRegion = ['*'];
-
-export type CloudRegion = AwsRegion;

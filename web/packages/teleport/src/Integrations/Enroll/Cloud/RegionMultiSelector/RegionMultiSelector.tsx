@@ -27,9 +27,9 @@ import Select, { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 
-import { RegionGroup, RegionId } from './types';
+import { CloudRegion, RegionGroup } from '../Shared/types';
 
-type RegionOption = Option<RegionId, React.ReactNode>;
+type RegionOption = Option<CloudRegion, React.ReactNode>;
 type RegionOptionGroup = {
   label: string;
   options: RegionOption[];
@@ -68,19 +68,20 @@ function OptionWithCheckbox(
   );
 }
 
-function defaultRule(): Rule<RegionId[]> {
+function defaultRule(): Rule<CloudRegion[]> {
   return () => () => ({ valid: true });
 }
 
 export interface RegionMultiSelectorProps {
-  regionGroups: readonly RegionGroup[];
-  selectedRegions: RegionId[];
-  onChange(regions: RegionId[]): void;
+  regionGroups: readonly RegionGroup<CloudRegion>[];
+  selectedRegions: CloudRegion[];
+  onChange(regions: CloudRegion[]): void;
   label?: string;
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
-  rule?: Rule<RegionId[]>;
+  rule?: Rule<CloudRegion[]>;
+  allowAllRegions?: boolean;
 }
 
 export function RegionMultiSelector({
@@ -92,7 +93,10 @@ export function RegionMultiSelector({
   disabled = false,
   required = false,
   rule = defaultRule(),
+  allowAllRegions = false,
 }: RegionMultiSelectorProps) {
+  const isAllSelected = allowAllRegions && selectedRegions.length === 0;
+
   const { valid, message } = useRule(rule(selectedRegions));
 
   const groups: RegionOptionGroup[] = regionGroups.map(regionGroup => ({
@@ -112,9 +116,12 @@ export function RegionMultiSelector({
     .flatMap(group => group.options)
     .filter(option => selectedRegions.includes(option.value));
 
-  const handleChange = (options: RegionOption[]) => {
-    const regions = options ? options.map(option => option.value) : [];
-    onChange(regions);
+  const handleChange = (selected: RegionOption[]) => {
+    if (!selected || selected.length === 0) {
+      onChange([]);
+      return;
+    }
+    onChange(selected.map(o => o.value));
   };
 
   const hasError = !valid;
@@ -130,7 +137,7 @@ export function RegionMultiSelector({
           options={groups}
           value={selectedOptions}
           onChange={handleChange}
-          placeholder={placeholder}
+          placeholder={isAllSelected ? 'All regions' : placeholder}
           isDisabled={disabled}
           isSearchable={false}
           closeMenuOnSelect={false}

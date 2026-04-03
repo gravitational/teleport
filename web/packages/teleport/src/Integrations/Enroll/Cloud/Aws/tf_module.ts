@@ -19,16 +19,13 @@
 import { parse as parseVersion } from 'shared/utils/semVer';
 
 import cfg from 'teleport/config';
-import { Regions as AwsRegion } from 'teleport/services/integrations';
 
-import { WildcardRegion } from '../Shared';
-import { hcl } from '../terraform';
-import { AwsLabel, Ec2Config } from './types';
+import { hcl, TFObject } from '../terraform';
+import { AwsLabel, AwsMatcher } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;
-  regions: WildcardRegion | AwsRegion[];
-  ec2Config: Ec2Config;
+  matchers: AwsMatcher[];
   version: string;
 };
 
@@ -41,10 +38,43 @@ const isStaging = (version: string): boolean => {
   return parsed.prerelease.length > 0;
 };
 
+const buildTagMap = (tags: AwsLabel[]): Record<string, string[]> | null => {
+  const filtered = tags.filter(o => o.value && o.name);
+  if (filtered.length === 0) return null;
+
+  const tagMap: Record<string, string[]> = {};
+  filtered.forEach(tag => {
+    if (!tagMap[tag.name]) {
+      tagMap[tag.name] = [];
+    }
+    tagMap[tag.name].push(tag.value);
+  });
+
+  if (tagMap['*']?.includes('*')) return null;
+
+  return tagMap;
+};
+
+const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
+  const obj: TFObject = { types: [matcher.type] };
+
+  if (matcher.regions.length > 0) {
+    obj.regions = [...matcher.regions].sort();
+  } else if (matcher.type === 'ec2') {
+    obj.regions = ['*'];
+  }
+
+  const tags = buildTagMap(matcher.tags);
+  if (tags) {
+    obj.tags = tags;
+  }
+
+  return obj;
+};
+
 export const buildTerraformConfig = ({
   integrationName,
-  regions,
-  ec2Config,
+  matchers,
   version,
 }: AwsDiscoverTerraformModuleConfig): string => {
   const tfRegistry = isStaging(version)
@@ -53,33 +83,9 @@ export const buildTerraformConfig = ({
 
   const moduleSrc = `${tfRegistry}${TF_MODULE}`;
 
-  const matchAwsTypes = ec2Config.enabled ? ['ec2'] : null;
-
   const integrationNameOrNull = integrationName.trim() || null;
 
-  const isWildcardRegion = regions.length === 1 && regions[0] === '*';
-
-  const regionsOrNull = isWildcardRegion ? null : [...regions].sort();
-
-  const filteredMatchers = (tags: AwsLabel[]) => {
-    const filtered = tags.filter(o => o.value && o.name);
-    if (filtered.length === 0) return null;
-
-    const tagMap: Record<string, string[]> = {};
-    filtered.forEach(tag => {
-      if (!tagMap[tag.name]) {
-        tagMap[tag.name] = [];
-      }
-      tagMap[tag.name].push(tag.value);
-    });
-    return tagMap;
-  };
-
-  const matchers = ec2Config.enabled ? filteredMatchers(ec2Config.tags) : null;
-
-  const isWildcardMatcher = matchers && matchers['*']?.includes('*');
-
-  const ec2Matchers = ec2Config.enabled && !isWildcardMatcher ? matchers : null;
+  const awsMatchers = matchers.length > 0 ? matchers.map(buildTfMatcher) : null;
 
   const tfModule = hcl`# Terraform Module
 module "aws_discovery" {
@@ -92,11 +98,7 @@ module "aws_discovery" {
   teleport_discovery_group_name = "cloud-discovery-group"
   teleport_integration_name	    = ${integrationNameOrNull}
 
-  match_aws_resource_types = ${matchAwsTypes}
-
-  match_aws_regions = ${regionsOrNull}
-
-  match_aws_tags = ${ec2Matchers}
+  aws_matchers = ${awsMatchers}
 }
 `;
 

@@ -96,15 +96,14 @@ describe('EnrollAws', () => {
     );
   });
 
-  test('terraform template renders', async () => {
+  test('info guide renders by default', async () => {
     renderEnrollAws();
 
-    await waitFor(() => {
-      expect(screen.getByText(/module "aws_discovery"/)).toBeInTheDocument();
-    });
+    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
 
-    const editor = screen.getByTestId('mock-text-editor');
-    expect(editor).toHaveTextContent(/module "aws_discovery"/);
+    await waitFor(() => {
+      expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
+    });
   });
 
   test('copy terraform configuration button validates and copies to clipboard', async () => {
@@ -268,12 +267,7 @@ describe('EnrollAws', () => {
   test('panel switches between info and terraform tabs', async () => {
     renderEnrollAws();
 
-    expect(
-      screen.getByRole('radio', { name: 'Terraform Configuration' })
-    ).toBeChecked();
-
-    const infoButton = screen.getByRole('radio', { name: 'Info Guide' });
-    fireEvent.click(infoButton);
+    expect(screen.getByRole('radio', { name: 'Info Guide' })).toBeChecked();
 
     await waitFor(() => {
       expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
@@ -290,6 +284,13 @@ describe('EnrollAws', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Reference Links')).not.toBeInTheDocument();
+    });
+
+    const infoButton = screen.getByRole('radio', { name: 'Info Guide' });
+    fireEvent.click(infoButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Reference Links/i)).toBeInTheDocument();
     });
   });
 });

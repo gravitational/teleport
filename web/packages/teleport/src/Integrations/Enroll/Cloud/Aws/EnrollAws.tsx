@@ -18,7 +18,6 @@
 
 import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
-
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
@@ -27,10 +26,7 @@ import { requiredIntegrationName } from 'shared/components/Validation/rules';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { useNoMinWidth } from 'teleport/Main';
-import {
-  Regions as AwsRegion,
-  IntegrationKind,
-} from 'teleport/services/integrations';
+import { IntegrationKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent/types';
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
@@ -39,24 +35,25 @@ import {
   CircleNumber,
   Container,
   Divider,
-  WildcardRegion,
   useEnrollCloudIntegration,
 } from '../Shared';
 import {
   ContentWithSidePanel,
   InfoGuideSwitch,
-  PANEL_WIDTH,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
   useTerraformInfoGuide,
 } from '../Shared/InfoGuide';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { InfoGuideContent } from './InfoGuide';
-import { Prerequisites } from './Prerequisites';
-import { RegionsSection } from './RegionsSection';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
-import { Ec2Config } from './types';
+import {
+  ServiceConfig,
+  ServiceConfigs,
+  ServiceType,
+  serviceTypes,
+} from './types';
 
 export function EnrollAws() {
   useNoMinWidth();
@@ -74,23 +71,29 @@ export function EnrollAws() {
     cancelCheckIntegration,
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
-  const [regions, setRegions] = useState<WildcardRegion | AwsRegion[]>(['*']);
-
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
-    enabled: true,
-    tags: [],
+  const [configs, setConfigs] = useState<ServiceConfigs>({
+    ec2: { enabled: true, regions: [], tags: [] },
+    eks: { enabled: false, regions: [], tags: [] },
   });
 
-  const terraformConfig = useMemo(
-    () =>
-      buildTerraformConfig({
-        integrationName,
-        regions,
-        ec2Config,
-        version: clusterVersion,
-      }),
-    [integrationName, regions, ec2Config, clusterVersion]
-  );
+  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
+    setConfigs(prev => ({ ...prev, [type]: config }));
+  };
+
+  const terraformConfig = useMemo(() => {
+    const matchers = serviceTypes
+      .filter(t => configs[t].enabled)
+      .map(t => ({
+        type: t,
+        regions: configs[t].regions,
+        tags: configs[t].tags,
+      }));
+    return buildTerraformConfig({
+      integrationName,
+      matchers,
+      version: clusterVersion,
+    });
+  }, [integrationName, configs, clusterVersion]);
 
   const {
     isPanelOpen,
@@ -103,25 +106,21 @@ export function EnrollAws() {
     <Validation>
       {({ validator }) => (
         <Box pt={3}>
-          <ContentWithSidePanel
-            isPanelOpen={isPanelOpen}
-            panelWidth={PANEL_WIDTH}
-          >
-            <Flex justifyContent="space-between" alignItems="start" mb={1}>
+          <ContentWithSidePanel isPanelOpen={isPanelOpen}>
+            <Flex justifyContent="space-between" alignItems="center" mb={1}>
               <Header>Connect Amazon Web Services</Header>
-              <InfoGuideSwitch
-                isPanelOpen={isPanelOpen}
-                activeTab={activeInfoGuideTab}
-                onSwitch={onInfoGuideClick}
-              />
+              <Box mt={1}>
+                <InfoGuideSwitch
+                  isPanelOpen={isPanelOpen}
+                  activeTab={activeInfoGuideTab}
+                  onSwitch={onInfoGuideClick}
+                />
+              </Box>
             </Flex>
             <Subtitle1 mb={3}>
               Connect your AWS account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
-            <Container flexDirection="column" p={4} mb={4}>
-              <Prerequisites />
-            </Container>
             <Container flexDirection="column" p={4} mb={3}>
               <IntegrationSection
                 integrationName={integrationName}
@@ -129,14 +128,10 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
-              <ConfigurationScopeSection />
-              <Divider />
               <ResourcesSection
-                ec2Config={ec2Config}
-                onEc2Change={setEc2Config}
+                configs={configs}
+                onConfigChange={updateConfig}
               />
-              <Divider />
-              <RegionsSection regions={regions} onChange={setRegions} />
               <Divider />
               <DeploymentMethodSection
                 terraformConfig={terraformConfig}
@@ -174,7 +169,6 @@ export function EnrollAws() {
           </ContentWithSidePanel>
 
           <TerraformInfoGuideSidePanel
-            panelWidth={PANEL_WIDTH}
             activeTab={activeInfoGuideTab}
             onTabChange={setActiveInfoGuideTab}
             InfoGuideContent={<InfoGuideContent />}
@@ -231,31 +225,3 @@ export function IntegrationSection({
   );
 }
 
-export function ConfigurationScopeSection() {
-  return (
-    <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
-        <CircleNumber>2</CircleNumber>
-        Configuration Scope
-      </Flex>
-      <Text ml={4}>Single AWS Account</Text>
-      <Text ml={4} mb={3} color="text.slightlyMuted">
-        Discover resources from one specific AWS account. Additional accounts
-        require separate integration setup. <br />
-        Best for: Single-account environments or testing.
-      </Text>
-      <Box ml={4} borderColor="interactive.tonal.neutral.0">
-        <Box
-          pl={4}
-          borderLeft="2px solid"
-          borderColor="interactive.tonal.neutral.0"
-        >
-          <Text fontSize={2}>
-            IAM resources used for discovery in Teleport will be created using
-            the account configured for your AWS Terraform provider.
-          </Text>
-        </Box>
-      </Box>
-    </>
-  );
-}

@@ -16,14 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type BaseServiceConfig = {
-  enabled: boolean;
-  tags: AwsLabel[];
-};
-
-export type Ec2Config = BaseServiceConfig;
+import { Regions } from 'teleport/services/integrations';
 
 export type AwsLabel = {
   name: string;
   value: string;
+};
+
+export type ServiceType = 'ec2' | 'eks';
+
+export const serviceTypes: ServiceType[] = ['ec2', 'eks'];
+
+export type ServiceConfig = {
+  enabled: boolean;
+  regions: Regions[];
+  tags: AwsLabel[];
+};
+
+export type ServiceConfigs = Record<ServiceType, ServiceConfig>;
+
+export type AwsMatcher = {
+  type: ServiceType;
+  regions: Regions[];
+  tags: AwsLabel[];
 };
