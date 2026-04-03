@@ -59,7 +59,7 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,9 +93,23 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		Scope: scope,
 	}
 
-	// populate the scope pin with the user's assigned scoped roles
-	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
-		return nil, trace.Wrap(err)
+	if userState.IsBot() {
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// build the user's access info based on the scope pin and userState
@@ -167,7 +181,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -853,7 +867,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		certReq.TTL = time.Minute
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

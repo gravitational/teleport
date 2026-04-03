@@ -201,6 +201,10 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
 	// joins. It is empty for other identity types.
 	JoinToken string
@@ -413,6 +417,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
+		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
 }
@@ -642,6 +647,10 @@ var (
 	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
 	// web session ID associated with this identity, if any.
 	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
+
+	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
+	// are for a bot internal identity, rather than an output certificate.
+	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -957,6 +966,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Type:  BotInstanceASN1ExtensionOID,
 				Value: id.BotInstanceID,
 			})
+	}
+
+	if id.BotInternal {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInternalASN1ExtensionOID,
+				Value: types.True,
+			},
+		)
 	}
 
 	if id.JoinToken != "" {
@@ -1327,6 +1345,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.BotInstanceID = val
+			}
+		case attr.Type.Equal(BotInternalASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInternal = val == types.True
 			}
 		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
 			val, ok := attr.Value.(string)

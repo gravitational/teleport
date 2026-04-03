@@ -659,7 +659,7 @@ func (a *Server) generateInitialBotCerts(
 		}
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
