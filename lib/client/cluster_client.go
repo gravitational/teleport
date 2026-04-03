@@ -821,7 +821,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// this error directly instead of an empty challenge, without regressing
 	// https://github.com/gravitational/teleport/issues/36482.
 	if mfaResp.GetResponse() == nil {
-		return nil, trace.Wrap(authclient.ErrNoMFADevices)
+		return nil, trace.Wrap(&mfa.ErrNoMFADevices)
 	}
 
 	// Issue certificate.

@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -47,7 +46,7 @@ func NewTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *slo
 			}
 
 			if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil && chal.TOTP == nil {
-				return nil, trace.Wrap(authclient.ErrNoMFADevices)
+				return nil, trace.Wrap(&mfa.ErrNoMFADevices)
 			}
 
 			tdpMsg := &MFA{
