@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -1854,20 +1855,8 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-// FileTransferRequest is a request to upload or download a file from a node.
-type FileTransferRequest struct {
-	// ID is a UUID that uniquely identifies a file transfer request
-	// and is unlikely to collide with another file transfer request
-	ID string
-	// Requester is the Teleport User that requested the file transfer
-	Requester string
-	// Download is true if the request is a download, false if its an upload
-	Download bool
-	// Filename is the name of the file to upload.
-	Filename string
-	// Location of the requested download or where a file will be uploaded
-	Location string
-}
+//go:fix inline
+type FileTransferRequest = reexecsftp.FileTransferRequest
 
 type fileTransferRequestWithApprovers struct {
 	FileTransferRequest

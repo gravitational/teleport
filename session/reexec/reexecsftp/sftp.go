@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package reexecsftp
 
 import (
 	"bufio"
@@ -42,8 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv"
-	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 type compositeCh struct {
@@ -80,7 +79,7 @@ type sftpHandler struct {
 	events chan<- apievents.AuditEvent
 }
 
-func newSFTPHandler(logger *slog.Logger, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
+func newSFTPHandler(logger *slog.Logger, req *FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -264,7 +263,7 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	s.events <- event
 }
 
-func onSFTP() error {
+func RunSFTP() error {
 	chr, err := openFD(3, "chr")
 	if err != nil {
 		return trace.Wrap(err)
@@ -296,7 +295,7 @@ func onSFTP() error {
 	// Read the file transfer request for this session if one exists
 	bufferedReader := bufio.NewReader(chr)
 	var encodedReq []byte
-	var fileTransferReq *srv.FileTransferRequest
+	var fileTransferReq *FileTransferRequest
 	for {
 		b, err := bufferedReader.ReadByte()
 		if err != nil {
@@ -309,7 +308,7 @@ func onSFTP() error {
 		encodedReq = append(encodedReq, b)
 	}
 	if len(encodedReq) != 0 {
-		fileTransferReq = new(srv.FileTransferRequest)
+		fileTransferReq = new(FileTransferRequest)
 		if err := json.Unmarshal(encodedReq, fileTransferReq); err != nil {
 			return trace.Wrap(err)
 		}
