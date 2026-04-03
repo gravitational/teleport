@@ -1631,13 +1631,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var ssm *types.AWSSSM
+		if matcher.SSM.DocumentName != "" {
+			ssm = &types.AWSSSM{DocumentName: matcher.SSM.DocumentName}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
 			AssumeRole:        assumeRole,
 			Tags:              matcher.Tags,
 			Params:            installParams,
-			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			SSM:               ssm,
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
