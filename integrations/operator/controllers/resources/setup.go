@@ -47,6 +47,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportRoleV8", NewRoleV8Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
+		{"TeleportLock", NewLockReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},

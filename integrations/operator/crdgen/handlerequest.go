@@ -183,6 +183,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
+		{name: "LockV2"},
 		{
 			name: "LoginRule",
 			opts: []resourceSchemaOption{
