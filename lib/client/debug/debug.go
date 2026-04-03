@@ -33,7 +33,6 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
 // SupportedProfiles list of supported pprof profiles that can be collected.
@@ -61,7 +60,7 @@ func NewClient(dataDir string) *Client {
 	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return &Client{
 		clt: &http.Client{
-			Timeout: apidefaults.DefaultIOTimeout,
+			Timeout: 0, // No timeout is deliberate, as some debug endpoints may take a long time to respond.
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 					var d net.Dialer
