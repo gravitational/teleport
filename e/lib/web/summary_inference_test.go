@@ -15,14 +15,26 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestListInferenceResources tests listing inference models, secrets, and policies
 // with pagination support.
 func TestListInferenceResources(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+				"AccessGraph": {Enabled: true},
+			},
+		},
+	}))
 	authClient := s.newAdminAuthClient(s.ctx, t)
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
@@ -195,8 +207,17 @@ func TestListInferenceResources(t *testing.T) {
 
 // TestInferenceModelCRUD tests create, get, update, and delete operations for inference models.
 func TestInferenceModelCRUD(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+				"AccessGraph": {Enabled: true},
+			},
+		},
+	}))
 	authClient := s.newAdminAuthClient(s.ctx, t)
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
@@ -283,8 +304,17 @@ func TestInferenceModelCRUD(t *testing.T) {
 
 // TestInferenceSecretCRUD tests create, get, update, and delete operations for inference secrets.
 func TestInferenceSecretCRUD(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+				"AccessGraph": {Enabled: true},
+			},
+		},
+	}))
 	authClient := s.newAdminAuthClient(s.ctx, t)
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
@@ -362,8 +392,17 @@ func TestInferenceSecretCRUD(t *testing.T) {
 
 // TestInferencePolicyCRUD tests create, get, update, and delete operations for inference policies.
 func TestInferencePolicyCRUD(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+				"AccessGraph": {Enabled: true},
+			},
+		},
+	}))
 	authClient := s.newAdminAuthClient(s.ctx, t)
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
@@ -546,8 +585,17 @@ func createInferencePolicy(t *testing.T, ctx context.Context, authClient authcli
 }
 
 func TestTestInferenceModel(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+				"AccessGraph": {Enabled: true},
+			},
+		},
+	}))
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
 	clusterName := s.testAuthServer.ClusterName()

@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -130,7 +130,7 @@ type webSuiteOptions struct {
 	roundTripper                http.RoundTripper
 	accessGraphHTTPValidation   func(*testing.T, *http.Request)
 	uploadHandler               events.MultipartHandler
-	modules                     modules.Modules
+	modules                     *modulestest.Modules
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -169,7 +169,7 @@ func withUploadHandler(h events.MultipartHandler) webSuiteOption {
 	}
 }
 
-func withModules(m modules.Modules) webSuiteOption {
+func withModules(m *modulestest.Modules) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.modules = m
 	}
@@ -187,7 +187,10 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	}
 
 	if options.modules == nil {
-		options.modules = modules.GetModules()
+		options.modules = modulestest.OSSModules()
+	} else {
+		// TODO(tross): remove once modules injected and consumed by all components.
+		modulestest.SetTestModules(t, *options.modules)
 	}
 
 	u, err := user.Current()
@@ -260,6 +263,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			},
 			RunWhileLockedRetryInterval: options.runWhileLockedRetryInterval,
 			UploadHandler:               options.uploadHandler,
+			Modules:                     options.modules,
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},

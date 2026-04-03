@@ -17,7 +17,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-func newOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.PluginStaticCredentialsV1, error) {
+func newOktaPluginCredentials(req *oktapb.CreateIntegrationRequest, modules modules.Modules) ([]*types.PluginStaticCredentialsV1, error) {
 	var out []*types.PluginStaticCredentialsV1
 	if req.GetApiCredentials().GetOauthId() != "" {
 		out = append(out, buildOAuthCredentials(req.GetApiCredentials().GetOauthId()))
@@ -25,7 +25,7 @@ func newOktaPluginCredentials(req *oktapb.CreateIntegrationRequest) ([]*types.Pl
 	if token := req.GetApiCredentials().GetSswsBearerToken(); token != "" {
 		out = append(out, buildAPITokenCredentials(token))
 	}
-	if modules.GetModules().Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
+	if modules.Features().GetEntitlement(entitlements.OktaSCIM).Enabled {
 		if req.GetScimToken() != "" {
 			scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(req.GetScimToken()), bcrypt.DefaultCost)
 			if err != nil {

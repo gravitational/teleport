@@ -151,7 +151,7 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err, "failed to get or create SAML connector")
 	}
 
-	creds, err := newOktaPluginCredentials(req)
+	creds, err := newOktaPluginCredentials(req, s.modules)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get Okta plugin credentials")
 	}

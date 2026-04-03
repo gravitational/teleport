@@ -116,8 +116,21 @@ func TestGetAccessGraph(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			s := newWebSuite(t, withAccessGraphFeatures(test.features), withAccessGraphValidation(test.accessGraphHTTPHandlerValidation))
+			s := newWebSuite(t,
+				withAccessGraphFeatures(test.features),
+				withAccessGraphValidation(test.accessGraphHTTPHandlerValidation),
+				withModules(&modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Identity: {Enabled: true},
+							entitlements.Policy:   {Enabled: true},
+							// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+							// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+							"AccessGraph": {Enabled: true},
+						},
+					},
+				}),
+			)
 			var opts []webSuiteOpts
 			if test.grantAccessToTag {
 				opts = append(opts, withExtraRules(types.Rule{
@@ -395,9 +408,18 @@ func TestAccessGraphSettings(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			s := newWebSuite(t)
+			s := newWebSuite(t, withModules(&modulestest.Modules{
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.Identity: {Enabled: true},
+						entitlements.Policy:   {Enabled: true},
+						// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+						// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+						"AccessGraph": {Enabled: true},
+					},
+				},
+			}),
+			)
 			_, err := s.testAuthServer.Auth().UpsertAccessGraphSettings(s.ctx, &clusterconfigpb.AccessGraphSettings{
 				Kind:    types.KindAccessGraphSettings,
 				Version: types.V1,
@@ -521,8 +543,6 @@ func TestAccessGraphCertAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			clock := clockwork.NewRealClock()
 			s := newWebSuite(t,
 				withClock(clock),
@@ -698,9 +718,20 @@ func TestAccessGraphEndpoints(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			s := newWebSuite(t, withAccessGraphFeatures(features))
+			s := newWebSuite(t,
+				withAccessGraphFeatures(features),
+				withModules(&modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Identity: {Enabled: true},
+							entitlements.Policy:   {Enabled: true},
+							// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+							// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+							"AccessGraph": {Enabled: true},
+						},
+					},
+				}),
+			)
 			webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
 				Resources: []string{types.KindAccessGraph},
 				Verbs:     tt.rbacVerbs,

@@ -16,8 +16,11 @@ import (
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -43,10 +46,21 @@ func uploadSummary(t *testing.T, s *webSuite, summary *summarizerv1.Summary) {
 }
 
 func TestGetRecordingSummary(t *testing.T) {
-	t.Parallel()
-
 	ctx := t.Context()
-	s := newWebSuite(t, withUploadHandler(eventstest.NewMemoryUploader()))
+	s := newWebSuite(t,
+		withUploadHandler(eventstest.NewMemoryUploader()),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy: {Enabled: true},
+					// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
+					// ensures that /e does not break when new Access Graph entitlement is added to Teleport
+					"AccessGraph": {Enabled: true},
+				},
+			},
+		}),
+	)
 	webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
 		Resources: []string{types.KindSession},
 		Verbs:     []string{types.VerbRead},

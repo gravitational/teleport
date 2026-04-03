@@ -451,6 +451,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		AuthCache:     p.authServer.AuthServer.Cache,
 		AuthService:   p.authServer.AuthServer,
 		PluginService: pluginService,
+		Modules:       modules.GetModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

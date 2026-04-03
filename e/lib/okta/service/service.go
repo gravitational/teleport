@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,6 +51,9 @@ type ServiceConfig struct {
 
 	// Logger is the logger to use.
 	Logger *slog.Logger
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
@@ -89,6 +93,10 @@ type pluginService interface {
 func (c *ServiceConfig) CheckAndSetDefaults() error {
 	if c.Backend == nil {
 		return trace.BadParameter("backend is missing")
+	}
+
+	if c.Modules == nil {
+		return trace.BadParameter("modules is missing")
 	}
 
 	if c.Logger == nil {
@@ -163,6 +171,7 @@ type Service struct {
 
 	logger              *slog.Logger
 	authorizer          authz.Authorizer
+	modules             modules.Modules
 	oktaImportRules     services.OktaImportRules
 	oktaAssignments     services.OktaAssignments
 	jwtSigner           jwtSignerGetter
@@ -197,6 +206,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		logger:              cfg.Logger,
 		authorizer:          cfg.Authorizer,
+		modules:             cfg.Modules,
 		oktaImportRules:     cfg.OktaImportRules,
 		oktaAssignments:     cfg.OktaAssignments,
 		jwtSigner:           cfg.JWTSigner,

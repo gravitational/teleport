@@ -128,25 +128,14 @@ var _ pluginDescriptor = testOktaDescriptor{}
 var _ pluginUpdateHandler = testOktaDescriptor{}
 
 // newTestOktaPluginFixture creates a set of related
-func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack) {
-	// Enable SAML/SSO for testing
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
+func newTestOktaPluginFixture(t *testing.T, roundTripper http.RoundTripper, testModules *modulestest.Modules) (*webSuite, *authWebPack) {
 
 	// Set up a test version of the UI web handler and auth service
-	s := newWebSuite(t, append(opts, withModules(testModules))...)
+	s := newWebSuite(t, withRoundTripper(roundTripper), withModules(testModules))
 	webPack := s.newAuthWebPack(t, "foo")
 
 	// And add the Role that we will want to assign to Okta users
-	_, err := s.testAuthServer.Auth().CreateRole(context.Background(),
-		services.NewPresetRequesterRole(modules.BuildEnterprise))
+	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(testModules.TestBuildType))
 	require.NoError(t, err)
 
 	// Patch the Web Plugin's plugin descriptor map so that any request for the
@@ -228,7 +217,6 @@ func TestOktaPluginUpdate(t *testing.T) {
 			},
 		},
 	}
-	modulestest.SetTestModules(t, *testModules)
 
 	// Set up a test version of the UI web handler and auth service
 	s := newWebSuite(t, withRoundTripper(mockta), withModules(testModules))
@@ -245,13 +233,6 @@ func TestOktaPluginUpdate(t *testing.T) {
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
-
-	t.Cleanup(func() {
-		pluginsSvc.DeleteAllPlugins(s.ctx)
-		pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
-		pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
-		authSvc.DeleteSAMLConnector(s.ctx, common.OktaSSOConnectorName)
-	})
 
 	// Set entitlements
 	features := s.webPlugin.h.GetClusterFeatures()
@@ -479,47 +460,37 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 		}
 	})
 
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
-	pluginsSvc := s.authPlugin.PluginsService()
-	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
-	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
-	ctx := context.Background()
-	_, err := authSvc.UpsertRole(ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
-	require.NoError(t, err)
-	_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
-	require.NoError(t, err)
-
-	// When I invoke the installer via the web interface...
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
-
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// All of these sub-test cases re-use the same auth server over and
-			// over, so we need to ensure any resources we create are destroyed
-			// at the end of the test. Unfortunately we can't simply create a new
-			// fixture for each test case because doing the setup 100x for each
-			// case breaches the time limit on the flaky test detector.
-			t.Cleanup(func() {
-				pluginsSvc.DeleteAllPlugins(s.ctx)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
-				authSvc.DeleteSAMLConnector(s.ctx, common.OktaSSOConnectorName)
-			})
+			// Enable SAML/SSO for testing
+			testModules := &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.SAML:     {Enabled: true},
+						entitlements.OktaSCIM: {Enabled: testCase.enableOktaSCIMEntitlement},
+					},
+				},
+			}
+
+			s, webPack := newTestOktaPluginFixture(t, mockta, testModules)
+			pluginsSvc := s.authPlugin.PluginsService()
+			pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
+			authSvc := s.testAuthServer.AuthServer.AuthServer.Services
+			ctx := context.Background()
+			_, err := authSvc.UpsertRole(ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
+			require.NoError(t, err)
+			_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
+			require.NoError(t, err)
+
+			// When I invoke the installer via the web interface...
+			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 			features := s.webPlugin.h.GetClusterFeatures()
 			features.Entitlements = map[string]*proto.EntitlementInfo{
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 			s.webPlugin.h.SetClusterFeatures(features)
-
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.OktaSCIM: {Enabled: testCase.enableOktaSCIMEntitlement},
-					},
-				},
-			})
 
 			form := url.Values{
 				"type":        {"okta"},
@@ -650,7 +621,14 @@ func TestOktaPluginInstallWorksWithLegacySAMLConnector(t *testing.T) {
 		}
 	})
 
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	s, webPack := newTestOktaPluginFixture(t, mockta, &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 
 	// Given a cluster with an existing SAML connector that does not have the
 	// labels that identify the App it talks to
@@ -765,7 +743,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			return nil, err
 		}
 	})
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{
 			Name: common.OktaSSOConnectorName,
@@ -790,31 +768,10 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 		},
 	}
 	require.NoError(t, samlConnector.CheckAndSetDefaults())
-	pluginsSvc := s.authPlugin.PluginsService()
-	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
-	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
-	createdSAMLConn, err := authSvc.CreateSAMLConnector(s.ctx, samlConnector)
-	require.NoError(t, err)
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// All of these sub-test cases re-use the same auth server over and
-			// over, so we need to ensure any resources we create are destroyed
-			// at the end of the test. Unfortunately we can't simply create a new
-			// fixture for each test case because doing the setup 100x for each
-			// case breaches the time limit on the flaky test detector.
-			t.Cleanup(func() {
-				pluginsSvc.DeleteAllPlugins(s.ctx)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
-			})
-
-			features := s.webPlugin.h.GetClusterFeatures()
-			features.Entitlements = map[string]*proto.EntitlementInfo{
-				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
-			}
-			s.webPlugin.h.SetClusterFeatures(features)
-			modulestest.SetTestModules(t, modulestest.Modules{
+			s, webPack := newTestOktaPluginFixture(t, mockta, &modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -822,6 +779,18 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 					},
 				},
 			})
+
+			pluginsSvc := s.authPlugin.PluginsService()
+			pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
+			authSvc := s.testAuthServer.AuthServer.AuthServer.Services
+			createdSAMLConn, err := authSvc.CreateSAMLConnector(s.ctx, samlConnector)
+			require.NoError(t, err)
+
+			features := s.webPlugin.h.GetClusterFeatures()
+			features.Entitlements = map[string]*proto.EntitlementInfo{
+				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
+			}
+			s.webPlugin.h.SetClusterFeatures(features)
 
 			// When I invoke the installer via the web interface...
 			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
@@ -963,7 +932,6 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 			},
 		},
 	}
-	modulestest.SetTestModules(t, *testModules)
 
 	// Set up a test version of the UI web handler and auth service
 	s := newWebSuite(t, withRoundTripper(mockta), withModules(testModules))
@@ -1021,7 +989,14 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 		},
 	}
 	mockta := newRoundTripper(nil)
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	s, webPack := newTestOktaPluginFixture(t, mockta, &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	for _, testCase := range testCases {
@@ -1132,7 +1107,14 @@ func TestOktaConfigValidate(t *testing.T) {
 	}
 
 	mockta := newRoundTripper(nil)
-	s, webPack := newTestOktaPluginFixture(t, withRoundTripper(mockta))
+	s, webPack := newTestOktaPluginFixture(t, mockta, &modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 	validateEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "validate")
 
 	for _, testCase := range testCases {

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -251,6 +252,7 @@ func initSvc(t *testing.T, kind string) (context.Context, *Service) {
 		Backend:    backend,
 		Authorizer: authorizer,
 		JWTSigner:  &mockKeyStore{},
+		Modules:    modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 
