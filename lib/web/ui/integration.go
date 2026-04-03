@@ -58,6 +58,15 @@ type IntegrationAWSRASpec struct {
 	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
 }
 
+// IntegrationAzureOIDCSpec contain the specific fields for the `azure-oidc` subkind integration.
+type IntegrationAzureOIDCSpec struct {
+	// TenantID specifies the ID of Entra Tenant (Directory) of this integration.
+	TenantID string `json:"tenantId"`
+	// ClientID specifies the ID of Azure enterprise application (client)
+	// associated with this integration.
+	ClientID string `json:"clientId"`
+}
+
 // AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
 type AWSRAProfileSync struct {
 	// Enabled indicates if the Profile Sync is enabled.
@@ -126,6 +135,8 @@ type IntegrationWithSummary struct {
 	AWSRDS ResourceTypeSummary `json:"awsrds"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
 	AWSEKS ResourceTypeSummary `json:"awseks"`
+	// AzureVM contains the summary for the AzureVM resources for this integration.
+	AzureVms ResourceTypeSummary `json:"azurevm"`
 
 	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
 	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`
@@ -207,6 +218,10 @@ type IntegrationDiscoveryRule struct {
 	Region string `json:"region,omitempty"`
 	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
 	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
+	// ResourceGroups is the set of Azure resource group matchers
+	ResourceGroups []string `json:"resourceGroups,omitempty"`
+	// Subscriptions is the set of Azure subscription id matchers
+	Subscriptions []string `json:"subscriptions,omitempty"`
 	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
 	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
 	// LastSync contains the time when this rule was used.
@@ -232,6 +247,8 @@ type Integration struct {
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
 	// AWSRA contains the fields for `aws-ra` subkind integration.
 	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
+	// AzureOIDC contains the fields for `azure-oidc` subkind integration.
+	AzureOIDC *IntegrationAzureOIDCSpec `json:"azureoidc,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
 	// IsManagedByTerraform indicates if this integration was created by Terraform.
@@ -408,6 +425,16 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
+	case types.IntegrationSubKindAzureOIDC:
+		spec := ig.GetAzureOIDCIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing spec for Azure OIDC integrations")
+		}
+		ret.AzureOIDC = &IntegrationAzureOIDCSpec{
+			TenantID: spec.TenantID,
+			ClientID: spec.ClientID,
+		}
+
 	case types.IntegrationSubKindGitHub:
 		spec := ig.GetGitHubIntegrationSpec()
 		if spec == nil {
