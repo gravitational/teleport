@@ -28,9 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
-
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 )
 
 // fileWrapper is a wrapper for *os.File that implements the WriteTo() method
@@ -101,111 +98,91 @@ func ParseFlags(req *sftp.Request) int {
 	return flags
 }
 
-// ParseSFTPEvent parses an SFTP request and associated error into an SFTP
-// audit event.
-func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
-	event := &apievents.SFTP{
-		Metadata: apievents.Metadata{
-			Type: events.SFTPEvent,
-			Time: time.Now(),
-		},
+type Event struct {
+	SFTP    *SFTPEvent        `json:",omitempty"`
+	Summary *SFTPSummaryEvent `json:",omitempty"`
+}
+
+type SFTPEvent struct {
+	Time    int64
+	Method  string
+	Error   string `json:",omitempty"`
+	Path    string
+	Target  string `json:",omitempty"`
+	Flags   uint32
+	WorkDir string
+	Attrs   *SFTPAttributes `json:",omitempty"`
+}
+
+type SFTPAttributes struct {
+	Atime *uint32 `json:",omitempty"`
+	Mtime *uint32 `json:",omitempty"`
+	Perms *uint32 `json:",omitempty"`
+	Size  *uint64 `json:",omitempty"`
+	UID   *uint32 `json:",omitempty"`
+	GID   *uint32 `json:",omitempty"`
+}
+
+type SFTPSummaryEvent struct {
+	Time  int64
+	Stats []SummaryFileTransferStat `json:",omitempty"`
+}
+
+type SummaryFileTransferStat struct {
+	Path    string
+	Read    uint64
+	Written uint64
+}
+
+// ParseSFTPEvent parses an SFTP request and associated error into an SFTP audit
+// event. Changes to this function should be reflected in
+// [sshutils/sftp.SFTPEventToProto].
+func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*SFTPEvent, error) {
+	event := &SFTPEvent{
+		Time: time.Now().UnixNano(),
 	}
 
 	switch req.Method {
 	case MethodOpen, MethodGet, MethodPut:
-		if reqErr == nil {
-			event.Code = events.SFTPOpenCode
-		} else {
-			event.Code = events.SFTPOpenFailureCode
-		}
-		event.Action = apievents.SFTPAction_OPEN
 	case MethodSetStat:
-		if reqErr == nil {
-			event.Code = events.SFTPSetstatCode
-		} else {
-			event.Code = events.SFTPSetstatFailureCode
-		}
-		event.Action = apievents.SFTPAction_SETSTAT
 	case MethodList:
-		if reqErr == nil {
-			event.Code = events.SFTPReaddirCode
-		} else {
-			event.Code = events.SFTPReaddirFailureCode
-		}
-		event.Action = apievents.SFTPAction_READDIR
 	case MethodRemove:
-		if reqErr == nil {
-			event.Code = events.SFTPRemoveCode
-		} else {
-			event.Code = events.SFTPRemoveFailureCode
-		}
-		event.Action = apievents.SFTPAction_REMOVE
 	case MethodMkdir:
-		if reqErr == nil {
-			event.Code = events.SFTPMkdirCode
-		} else {
-			event.Code = events.SFTPMkdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_MKDIR
 	case MethodRmdir:
-		if reqErr == nil {
-			event.Code = events.SFTPRmdirCode
-		} else {
-			event.Code = events.SFTPRmdirFailureCode
-		}
-		event.Action = apievents.SFTPAction_RMDIR
 	case MethodRename:
-		if reqErr == nil {
-			event.Code = events.SFTPRenameCode
-		} else {
-			event.Code = events.SFTPRenameFailureCode
-		}
-		event.Action = apievents.SFTPAction_RENAME
 	case MethodSymlink:
-		if reqErr == nil {
-			event.Code = events.SFTPSymlinkCode
-		} else {
-			event.Code = events.SFTPSymlinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_SYMLINK
 	case MethodLink:
-		if reqErr == nil {
-			event.Code = events.SFTPLinkCode
-		} else {
-			event.Code = events.SFTPLinkFailureCode
-		}
-		event.Action = apievents.SFTPAction_LINK
 	default:
-		return nil, trace.BadParameter("unknown SFTP request %q", req.Method)
+		return nil, trace.BadParameter("unknown SFTP request %+q", req.Method)
 	}
 
 	event.Path = req.Filepath
-	event.TargetPath = req.Target
+	event.Target = req.Target
 	event.Flags = req.Flags
-	event.WorkingDirectory = workingDirectory
+	event.WorkDir = workingDirectory
+
 	if req.Method == MethodSetStat {
 		attrFlags := req.AttrFlags()
-		attrs := req.Attributes()
-		event.Attributes = new(apievents.SFTPAttributes)
+		attrs := *req.Attributes()
+		event.Attrs = new(SFTPAttributes)
 
 		if attrFlags.Acmodtime {
-			atime := time.Unix(int64(attrs.Atime), 0)
-			mtime := time.Unix(int64(attrs.Mtime), 0)
-			event.Attributes.AccessTime = &atime
-			event.Attributes.ModificationTime = &mtime
+			event.Attrs.Atime = &attrs.Atime
+			event.Attrs.Mtime = &attrs.Mtime
 		}
 		if attrFlags.Permissions {
 			perms := uint32(attrs.FileMode().Perm())
-			event.Attributes.Permissions = &perms
+			event.Attrs.Perms = &perms
 		}
 		if attrFlags.Size {
-			event.Attributes.FileSize = &attrs.Size
+			event.Attrs.Size = &attrs.Size
 		}
 		if attrFlags.UidGid {
-			event.Attributes.UID = &attrs.UID
-			event.Attributes.GID = &attrs.GID
+			event.Attrs.UID = &attrs.UID
+			event.Attrs.GID = &attrs.GID
 		}
 	}
+
 	if reqErr != nil {
 		// If possible, strip the filename from the error message. The
 		// path will be included in audit events already, no need to
@@ -218,6 +195,9 @@ func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*
 			event.Error = linkErr.Err.Error()
 		} else {
 			event.Error = reqErr.Error()
+		}
+		if event.Error == "" {
+			event.Error = "SFTP request failed with no error message"
 		}
 	}
 

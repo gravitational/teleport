@@ -223,11 +223,17 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
 		// Emit event without working directory.
 	}
-	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
+	sftpEvent, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {
-		h.logger.WarnContext(req.Context(), "Unknown SFTP request", "request", req.Method)
+		h.logger.WarnContext(req.Context(), "Failed to convert SFTP event into an audit log event", "request", req.Method, "error", err)
 		return
-	} else if reqErr != nil {
+	}
+	event, err := sftputils.SFTPEventToProto(sftpEvent)
+	if err != nil {
+		h.logger.WarnContext(req.Context(), "Failed to convert SFTP event into an audit log event", "request", req.Method, "error", err)
+		return
+	}
+	if reqErr != nil {
 		h.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
 	}
 	event.ServerMetadata = h.scx.GetServer().EventMetadata()

@@ -3,7 +3,6 @@ package sftp
 import (
 	"github.com/pkg/sftp"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/session/sftputils"
 )
 
@@ -16,6 +15,6 @@ func ParseFlags(req *sftp.Request) int {
 }
 
 //go:fix inline
-func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
+func ParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*sftputils.SFTPEvent, error) {
 	return sftputils.ParseSFTPEvent(req, workingDirectory, reqErr)
 }
