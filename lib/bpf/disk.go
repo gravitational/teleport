@@ -23,7 +23,6 @@ package bpf
 import (
 	"context"
 	"io"
-	"runtime"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -80,61 +79,12 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	trs := []struct {
-		name string
-		prog *ebpf.Program
-	}{
-		{
-			name: "sys_enter_openat",
-			prog: objs.TracepointSyscallsSysEnterOpenat,
-		},
-		{
-			name: "sys_exit_openat",
-			prog: objs.TracepointSyscallsSysExitOpenat,
-		},
-		{
-			name: "sys_enter_openat2",
-			prog: objs.TracepointSyscallsSysEnterOpenat2,
-		},
-		{
-			name: "sys_exit_openat2",
-			prog: objs.TracepointSyscallsSysExitOpenat2,
-		},
-	}
-
-	if runtime.GOARCH != "arm64" {
-		// creat and open are not implemented on arm64.
-		trs = append(trs, []struct {
-			name string
-			prog *ebpf.Program
-		}{
-			{
-				name: "sys_enter_creat",
-				prog: objs.TracepointSyscallsSysEnterCreat,
-			},
-			{
-				name: "sys_exit_creat",
-				prog: objs.TracepointSyscallsSysExitCreat,
-			},
-			{
-				name: "sys_enter_open",
-				prog: objs.TracepointSyscallsSysEnterOpen,
-			},
-			{
-				name: "sys_exit_open",
-				prog: objs.TracepointSyscallsSysExitOpen,
-			},
-		}...)
-	}
-
-	toClose := make([]io.Closer, 0, len(trs))
-	for _, tr := range trs {
-		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
-		if err != nil {
-			return nil, trace.Wrap(err, "linking %q tracepoint: %v", tr.name, err)
-		}
-
-		toClose = append(toClose, tp)
+	tp, err := link.AttachTracing(link.TracingOptions{
+		Program:    objs.SecurityFileOpen,
+		AttachType: ebpf.AttachTraceFEntry,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
@@ -148,7 +98,7 @@ func startOpen(bufferSize int) (*open, error) {
 	return &open{
 		objs:        objs,
 		eventBuf:    bpfEvents,
-		toClose:     toClose,
+		toClose:     []io.Closer{tp},
 		lostCounter: lostCtr,
 	}, nil
 }

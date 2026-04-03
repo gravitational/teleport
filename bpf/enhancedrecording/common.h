@@ -11,9 +11,12 @@
 // Maximum monitored sessions.
 #define MAX_MONITORED_SESSIONS 1024
 
+#define FILENAMESIZE 512
+
 // ARGSIZE specifies the max argument size read.
-#define ARGSIZE 1024
-#define MAXARGS 20
+#define _ARGSIZE 1024
+#define _MAXARGS 20
+#define ARGBUFSIZE (_ARGSIZE * _MAXARGS)
 
 // Easier to use bpf_printk taken from https://nakryiko.com/posts/bpf-tips-printk/
 
@@ -49,19 +52,13 @@ static void print_event(struct task_struct *task) {
     bpf_printk("  session ID: %lu", session_id);
 }
 
-static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv) {
+static void print_command_event(struct task_struct *task, const u8 filename[FILENAMESIZE], const u8 argv[ARGBUFSIZE]) {
     const char *arg = NULL;
-    
+
     bpf_printk("command:");
     print_event(task);
     bpf_printk("  filename:   %s", filename);
-    for (int i = 1; i < MAXARGS; i++) {
-        bpf_probe_read_user_str(&arg, MAXARGS, (void*)&argv[i]);
-        if (arg == NULL){
-            break;
-        }
-        bpf_printk("  argv[%d]:    %s", i, arg);
-    }
+    bpf_printk("  argv[0]:    %s", argv);
 }
 
 static void print_disk_event(struct task_struct *task, const char *path) {
@@ -72,7 +69,7 @@ static void print_disk_event(struct task_struct *task, const char *path) {
 #else
 #define bpf_printk(fmt, ...)
 static void print_event(struct task_struct *task) {}
-static void print_command_event(struct task_struct *task, const char *filename, const char *const *argv) {}
+static void print_command_event(struct task_struct *task, const u8 filename[FILENAMESIZE], const u8 argv[ARGBUFSIZE]) {}
 static void print_disk_event(struct task_struct *task, const char *path) {}
 #endif
 

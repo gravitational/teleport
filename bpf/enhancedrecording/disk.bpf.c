@@ -12,16 +12,9 @@
 // Size, in bytes, of the ring buffer used to report
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
-#define EVENTS_BUF_SIZE (4096*128)
-
+#define EVENTS_BUF_SIZE (4096 * 2048)
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
-struct val_t {
-    u64 pid;
-    const char *fname;
-    int flags;
-};
 
 struct data_t {
     // CgroupID is the internal cgroupv2 ID of the event.
@@ -36,7 +29,7 @@ struct data_t {
     // Command is name of the executable opening the file.
     u8 command[TASK_COMM_LEN];
     // File_path is the full path to the file being opened.
-    u8 file_path[NAME_MAX];
+    u8 file_path[PATH_MAX];
     // Flags are the flags passed to open.
     int flags;
 };
@@ -49,14 +42,12 @@ const struct data_t *unused __attribute__((unused));
 // by Teleport.
 BPF_HASH(monitored_sessionids, u32, u8, MAX_MONITORED_SESSIONS);
 
-BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
-
 // open_events ring buffer
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
 
-static int enter_open(const char *filename, int flags) {
+static int handle_open(struct file *f) {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     u32 session_id = BPF_CORE_READ(task, sessionid);
     u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
@@ -64,108 +55,29 @@ static int enter_open(const char *filename, int flags) {
         return 0;
     }
 
-    print_disk_event(task, filename);
-
-    struct val_t val = {};
-    u64 id = bpf_get_current_pid_tgid();
-
-    val.pid = id >> 32;
-    val.fname = filename;
-    val.flags = flags;
-    bpf_map_update_elem(&infotmp, &id, &val, 0);
-
-    return 0;
-}
-
-static int exit_open(int ret) {
-    struct val_t *valp;
-    u64 id = bpf_get_current_pid_tgid();
-
-    valp = bpf_map_lookup_elem(&infotmp, &id);
-    if (valp == NULL) {
-        // Missed entry.
+    struct data_t *data = bpf_ringbuf_reserve(&open_events, sizeof(*data), 0);
+    if (!data) {
+        INCR_COUNTER(lost);
+        bpf_printk("open_events ring buffer full");
         return 0;
     }
 
-    struct data_t data = {};
-    if (bpf_get_current_comm(&data.command, sizeof(data.command)) != 0) {
-        data.command[0] = '\0';
-    }
+    bpf_d_path(&f->f_path, (char *)data->file_path, sizeof(data->file_path));
+    print_disk_event(task, (char *)data->file_path);
 
-    bpf_probe_read_user(&data.file_path, sizeof(data.file_path), (void *)valp->fname);
+    bpf_get_current_comm(&data->command, sizeof(data->command));
 
-    data.pid = valp->pid;
-    data.flags = valp->flags;
-    data.return_code = ret;
-    data.cgroup = bpf_get_current_cgroup_id();
+    data->pid = bpf_get_current_pid_tgid() >> 32;
+    data->flags = BPF_CORE_READ(f, f_flags);
+    data->cgroup = bpf_get_current_cgroup_id();
+    data->audit_session_id = BPF_CORE_READ(task, sessionid);
 
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    data.audit_session_id = BPF_CORE_READ(task, sessionid);
-
-    if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
-        INCR_COUNTER(lost);
-
-    bpf_map_delete_elem(&infotmp, &id);
+    bpf_ringbuf_submit(data, 0);
 
     return 0;
 }
 
-
-SEC("tp/syscalls/sys_enter_creat")
-int tracepoint__syscalls__sys_enter_creat(struct syscall_trace_enter *tp)
-{
-    const char *filename = (const char*) tp->args[0];
-
-    return enter_open(filename, 0);
-}
-
-SEC("tp/syscalls/sys_exit_creat")
-int tracepoint__syscalls__sys_exit_creat(struct syscall_trace_exit *tp)
-{
-    return exit_open(tp->ret);
-}
-
-SEC("tp/syscalls/sys_enter_open")
-int tracepoint__syscalls__sys_enter_open(struct syscall_trace_enter *tp)
-{
-    const char *filename = (const char*) tp->args[0];
-    int flags = tp->args[1];
-
-    return enter_open(filename, flags);
-};
-
-SEC("tp/syscalls/sys_exit_open")
-int tracepoint__syscalls__sys_exit_open(struct syscall_trace_exit *tp)
-{
-    return exit_open(tp->ret);
-}
-
-SEC("tp/syscalls/sys_enter_openat")
-int tracepoint__syscalls__sys_enter_openat(struct syscall_trace_enter *tp)
-{
-    const char *filename = (const char*) tp->args[1];
-    int flags = tp->args[2];
-
-    return enter_open(filename, flags);
-};
-
-SEC("tp/syscalls/sys_exit_openat")
-int tracepoint__syscalls__sys_exit_openat(struct syscall_trace_exit *tp)
-{
-    return exit_open(tp->ret);
-}
-
-SEC("tp/syscalls/sys_enter_openat2")
-int tracepoint__syscalls__sys_enter_openat2(struct syscall_trace_enter *tp)
-{
-    const char *filename = (const char*) tp->args[1];
-    struct open_how *how = (struct open_how *) tp->args[2];
-
-    return enter_open(filename, BPF_CORE_READ(how, flags));
-};
-
-SEC("tp/syscalls/sys_exit_openat2")
-int tracepoint__syscalls__sys_exit_openat2(struct syscall_trace_exit *tp)
-{
-    return exit_open(tp->ret);
+SEC("fentry/security_file_open")
+int BPF_PROG(security_file_open, struct file *f) {
+    return handle_open(f);
 }

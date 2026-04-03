@@ -28,7 +28,6 @@ import (
 	"math"
 	"net"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -44,9 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ArgsCacheSize is the number of args events to store before dropping args
-// events.
-const ArgsCacheSize = len(commandDataT{}.Argv)
+// CommandArgsBufferSize is the size of a command event args buffer.
+const CommandArgsBufferSize = len(commandDataT{}.Args)
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
@@ -60,10 +58,6 @@ type Service struct {
 	// sessions is a map of audit session IDs that the BPF service is
 	// watching and emitting events for.
 	sessions utils.SyncMap[uint32, *SessionContext]
-
-	// argsCache holds the arguments to execve because they come a different
-	// event than the result.
-	argsCache *utils.FnCache
 
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
@@ -120,13 +114,6 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 			}
 		}
 	}()
-
-	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 24 * time.Hour,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	start := time.Now()
 	logger.DebugContext(closeContext, "Starting enhanced session recording")
@@ -346,77 +333,72 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		return
 	}
 
-	switch event.Type {
-	// Args are sent in their own event by execsnoop to save stack space. Store
-	// the args in a ttlmap, so they can be retrieved when the return event arrives.
-	case eventArg:
-		key := strconv.FormatUint(event.Pid, 10)
+	args := convertArgs(event.Args[:event.ArgsLen], event.ArgsTruncated)
 
-		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
-			return make([]string, 0), nil
-		})
-		if err != nil {
-			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCache - this is a bug!", "error", err)
-			args = []string{}
-		}
-
-		args = append(args, ConvertString(event.Argv[:]))
-
-		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
-	// The event has returned, emit the fully parsed event.
-	case eventRet:
-		// The args should have come in a previous event, find them by PID.
-		key := strconv.FormatUint(event.Pid, 10)
-
-		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
-			return nil, trace.NotFound("args missing")
-		})
-		if err != nil {
-			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
-			lostCommandEvents.Add(float64(1))
-			return
-		}
-
-		// Emit "command" event.
-		sessionCommandEvent := &apievents.SessionCommand{
-			Metadata: apievents.Metadata{
-				Type: events.SessionCommandEvent,
-				Code: events.SessionCommandCode,
-			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerVersion:   ossteleport.Version,
-				ServerID:        ctx.ServerID,
-				ServerHostname:  ctx.ServerHostname,
-				ServerNamespace: ctx.Namespace,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: ctx.SessionID,
-			},
-			UserMetadata: apievents.UserMetadata{
-				User:            ctx.User,
-				Login:           ctx.Login,
-				UserClusterName: ctx.UserOriginClusterName,
-				UserRoles:       slices.Clone(ctx.UserRoles),
-				UserTraits:      ctx.UserTraits.Clone(),
-			},
-			BPFMetadata: apievents.BPFMetadata{
-				CgroupID:       event.Cgroup,
-				AuditSessionID: event.AuditSessionId,
-				Program:        ConvertString(event.Command[:]),
-				PID:            event.Pid,
-			},
-			PPID:       event.Ppid,
-			ReturnCode: event.Retval,
-			Path:       args[0],
-			Argv:       args[1:],
-		}
-		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
-			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
-		}
-
-		// Now that the event has been processed, remove from cache.
-		s.argsCache.Remove(key)
+	// Emit "command" event.
+	sessionCommandEvent := &apievents.SessionCommand{
+		Metadata: apievents.Metadata{
+			Type: events.SessionCommandEvent,
+			Code: events.SessionCommandCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
+			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
+			ServerNamespace: ctx.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: ctx.SessionID,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:            ctx.User,
+			Login:           ctx.Login,
+			UserClusterName: ctx.UserOriginClusterName,
+			UserRoles:       slices.Clone(ctx.UserRoles),
+			UserTraits:      ctx.UserTraits.Clone(),
+		},
+		BPFMetadata: apievents.BPFMetadata{
+			CgroupID:       event.Cgroup,
+			AuditSessionID: event.AuditSessionId,
+			Program:        unix.ByteSliceToString(event.Command[:]),
+			PID:            event.Pid,
+		},
+		PPID: event.Ppid,
+		Path: unix.ByteSliceToString(event.Filename[:]),
+		Argv: args,
 	}
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
+		logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
+	}
+}
+
+// convertArgs converts a large buffer of null-terminated strings into
+// a slice of strings.
+func convertArgs(rawArgs []byte, truncated bool) []string {
+	if len(rawArgs) == 0 {
+		return nil
+	}
+
+	argc := bytes.Count(rawArgs, []byte{0x0})
+	args := make([]string, 0, argc)
+
+	parts := bytes.Split(rawArgs, []byte{0x0})
+	for _, part := range parts {
+		if len(part) == 0 {
+			continue
+		}
+		args = append(args, string(part))
+	}
+
+	if len(args) == 1 {
+		return nil
+	}
+
+	if truncated {
+		args = append(args, "...")
+	}
+
+	return args[1:]
 }
 
 // emitDiskEvent will parse and emit disk events to the Audit Log.
@@ -466,11 +448,11 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
 			AuditSessionID: event.AuditSessionId,
-			Program:        ConvertString(event.Command[:]),
+			Program:        unix.ByteSliceToString(event.Command[:]),
 			PID:            event.Pid,
 		},
 		Flags:      event.Flags,
-		Path:       ConvertString(event.FilePath[:]),
+		Path:       unix.ByteSliceToString(event.FilePath[:]),
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
@@ -526,7 +508,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
 			AuditSessionID: event.AuditSessionId,
-			Program:        ConvertString(event.Command[:]),
+			Program:        unix.ByteSliceToString(event.Command[:]),
 			PID:            uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
@@ -588,7 +570,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID:       event.Cgroup,
 			AuditSessionID: event.AuditSessionId,
-			Program:        ConvertString(event.Command[:]),
+			Program:        unix.ByteSliceToString(event.Command[:]),
 			PID:            uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
@@ -614,11 +596,6 @@ func unmarshalEvent(data []byte, v interface{}) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// ConvertString converts a NUL-terminated string to a Go string.
-func ConvertString(s []byte) string {
-	return unix.ByteSliceToString(s)
 }
 
 // SystemHasBPF returns true if the binary was build with support for BPF
