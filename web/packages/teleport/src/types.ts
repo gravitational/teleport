@@ -115,6 +115,9 @@ export enum NavTitle {
 
   Support = 'Support',
   Downloads = 'Downloads',
+
+  // Beams
+  BeamsQuickstart = 'Quickstart',
 }
 
 export interface TeleportFeatureRoute {
