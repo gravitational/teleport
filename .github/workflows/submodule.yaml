@@ -1,0 +1,32 @@
+name: Submodule Update Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  submodule-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            submodule:
+              - 'e'
+            other:
+              - '!e'
+
+      - name: Validate PR
+        run: |
+          echo "Submodule changed: ${{ steps.filter.outputs.submodule }}"
+          echo "Other changes: ${{ steps.filter.outputs.other }}"
+
+          if [[ "${{ steps.filter.outputs.submodule }}" == "true" && "${{ steps.filter.outputs.other }}" == "true" ]]; then
+            echo "ERROR: PR contains both submodule and other changes!"
+            exit 1
+          fi
