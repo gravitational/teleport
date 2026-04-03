@@ -24,7 +24,6 @@ import (
 	cryptorand "crypto/rand"
 	"fmt"
 	"io"
-	"io/fs"
 	mathrand "math/rand/v2"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +32,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -812,34 +810,4 @@ func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.File
 		// don't check access times, locally they line up but they are
 		// often different when run in CI
 	}
-}
-
-type fileInfo struct {
-	name string
-	mode fs.FileMode
-	size int64
-}
-
-func (fi fileInfo) Name() string {
-	return fi.name
-}
-
-func (fi fileInfo) Size() int64 {
-	return fi.size
-}
-
-func (fi fileInfo) Mode() fs.FileMode {
-	return fi.mode
-}
-
-func (fi fileInfo) ModTime() time.Time {
-	return time.Time{}
-}
-
-func (fi fileInfo) IsDir() bool {
-	return false
-}
-
-func (fi fileInfo) Sys() any {
-	return nil
 }
