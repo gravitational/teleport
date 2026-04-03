@@ -31,7 +31,7 @@ BUILDDIR ?= build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
-PWD ?= `pwd`
+PWD ?= $(shell pwd)
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
@@ -281,7 +281,8 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
-export
+export KUBECONFIG
+export TEST_KUBE
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
 
@@ -353,16 +354,13 @@ ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 #
 # NOTE: Works the same as `make`. Left for legacy reasons.
 .PHONY: all
-all: version
-	@echo "---> Building OSS binaries."
-	$(MAKE) $(BINARIES)
+all: version $(BINARIES)
 
 #
 # make binaries builds all binaries defined in the BINARIES environment variable
 #
 .PHONY: binaries
-binaries:
-	$(MAKE) $(BINARIES)
+binaries: $(BINARIES)
 
 # Appending new conditional settings for community build type for tools.
 ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
@@ -453,7 +451,7 @@ tctl-app:
 
 # BPF tests will not work in a docker container and so should not be
 # run in CI for now.
-.PHONEY: test-bpf
+.PHONY: test-bpf
 test-bpf:
 	mkdir -p _test
 	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
@@ -564,7 +562,7 @@ endif
 #
 # make full-ent - Builds Teleport enterprise binaries
 #
-.PHONY:full-ent
+.PHONY: full-ent
 full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
@@ -862,7 +860,7 @@ release-connect: | $(RELEASE_DIR)
 # Note: this runs in a busybox container to avoid incompatibilities between
 # linux and macos CLI tools.
 #
-.PHONY:docs-fix-whitespace
+.PHONY: docs-fix-whitespace
 docs-fix-whitespace:
 	docker run --rm -v $(PWD):/teleport busybox \
 		find /teleport/docs/ -type f -name '*.md' -exec sed -E -i 's/\s+$$//g' '{}' \;
@@ -870,13 +868,13 @@ docs-fix-whitespace:
 #
 # Test docs for trailing whitespace and broken links
 #
-.PHONY:docs-test
+.PHONY: docs-test
 docs-test: docs-test-whitespace
 
 #
 # Check for trailing whitespace in all markdown files under docs/
 #
-.PHONY:docs-test-whitespace
+.PHONY: docs-test-whitespace
 docs-test-whitespace:
 	if find docs/ -type f -name '*.md' | xargs grep -E '\s+$$'; then \
 		echo "trailing whitespace found in docs/ (see above)"; \
@@ -904,9 +902,6 @@ $(BENCHFIND): $(wildcard $(TOOLINGDIR)/cmd/benchfind/*.go)
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
-
-.PHONY: tooling
-tooling: $(DIFF_TEST)
 
 #
 # Runs all Go/shell tests, called by CI/CD.
@@ -1101,19 +1096,19 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	make -C integrations/operator test TEST_LOG_DIR=$(TEST_LOG_DIR)
+	$(MAKE) -C integrations/operator test TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport Terraform provider tests.
 #
 .PHONY: test-terraform-provider
 test-terraform-provider:
-	make -C integrations test-terraform-provider TEST_LOG_DIR=$(TEST_LOG_DIR)
+	$(MAKE) -C integrations test-terraform-provider TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Teleport MWI Terraform provider tests.
 #
 .PHONY: test-terraform-provider-mwi
 test-terraform-provider-mwi:
-	make -C integrations test-terraform-provider-mwi TEST_LOG_DIR=$(TEST_LOG_DIR)
+	$(MAKE) -C integrations test-terraform-provider-mwi TEST_LOG_DIR=$(TEST_LOG_DIR)
 #
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
@@ -1127,15 +1122,15 @@ test-kube-agent-updater:
 
 .PHONY: test-access-integrations
 test-access-integrations:
-	make -C integrations test-access
+	$(MAKE) -C integrations test-access
 
 .PHONY: test-event-handler-integrations
 test-event-handler-integrations:
-	make -C integrations test-event-handler
+	$(MAKE) -C integrations test-event-handler
 
 .PHONY: test-integrations-lib
 test-integrations-lib:
-	make -C integrations test-lib
+	$(MAKE) -C integrations test-lib
 
 #
 # Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
@@ -1535,26 +1530,13 @@ tag-publish:
 		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
-.PHONY: test-package
-test-package: remove-temp-files
-	go test -v ./$(p)
-
-.PHONY: test-grep-package
-test-grep-package: remove-temp-files
-	go test -v ./$(p) -check.f=$(e)
-
-.PHONY: cover-package
-cover-package: remove-temp-files
-	go test -v ./$(p)  -coverprofile=/tmp/coverage.out
-	go tool cover -html=/tmp/coverage.out
-
 .PHONY: profile
 profile:
 	go tool pprof http://localhost:6060/debug/pprof/profile
 
 .PHONY: sloccount
 sloccount:
-	find . -o -name "*.go" -print0 | xargs -0 wc -l
+	find . -name "*.go" -print0 | xargs -0 wc -l
 
 #
 # print-go-version outputs Go version as a semver without "go" prefix
@@ -1564,46 +1546,46 @@ print-go-version:
 	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on macOS
-.PHONY:docker
+.PHONY: docker
 docker:
-	make -C build.assets build
+	$(MAKE) -C build.assets build
 
 # Dockerized build: useful for making Linux binaries on macOS
-.PHONY:docker-binaries
+.PHONY: docker-binaries
 docker-binaries: clean
-	make -C build.assets build-binaries PIV=$(PIV)
+	$(MAKE) -C build.assets build-binaries PIV=$(PIV)
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
-.PHONY:enter
+.PHONY: enter
 enter:
-	make -C build.assets enter
+	$(MAKE) -C build.assets enter
 
 # Interactively enters a Docker container, as root (which you can build and run Teleport inside of)
-.PHONY:enter-root
+.PHONY: enter-root
 enter-root:
-	make -C build.assets enter-root
+	$(MAKE) -C build.assets enter-root
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of).
 # Similar to `enter`, but uses the centos7 container.
-.PHONY:enter/centos7
+.PHONY: enter/centos7
 enter/centos7:
-	make -C build.assets enter/centos7
+	$(MAKE) -C build.assets enter/centos7
 
-.PHONY:enter/centos7-fips
+.PHONY: enter/centos7-fips
 enter/centos7-fips:
-	make -C build.assets enter/centos7-fips
+	$(MAKE) -C build.assets enter/centos7-fips
 
-.PHONY:enter/grpcbox
+.PHONY: enter/grpcbox
 enter/grpcbox:
-	make -C build.assets enter/grpcbox
+	$(MAKE) -C build.assets enter/grpcbox
 
 .PHONY:enter/node
 enter/node:
-	make -C build.assets enter/node
+	$(MAKE) -C build.assets enter/node
 
-.PHONY:enter/arm
+.PHONY: enter/arm
 enter/arm:
-	make -C build.assets enter/arm
+	$(MAKE) -C build.assets enter/arm
 
 BUF := buf
 
@@ -1755,6 +1737,7 @@ go-generate-up-to-date: must-start-clean/host go-generate
 		exit 1; \
 	fi
 
+.PHONY: print/env
 print/env:
 	env
 
