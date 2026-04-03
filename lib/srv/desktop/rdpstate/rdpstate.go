@@ -113,7 +113,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 }
 
 func (s *RDPState) processTDPBMessage(data []byte) error {
-	msg, err := tdpb.DecodeStrict(bytes.NewReader(data))
+	msg, err := tdpb.DecodePermissive(bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err, "decoding TDPB message")
 	}
