@@ -18,7 +18,8 @@ When Single Logout (SLO) is enabled and a user logs out of Teleport:
 3. The IdP sends a LogoutResponse back to Teleport
 4. The user is logged out from all connected services
 
-This ensures that no active sessions remain after logout.
+
+This helps ensure that user sessions are terminated, although behavior may vary depending on the Identity Provider and configuration.
 
 ### Configuration Notes
 
