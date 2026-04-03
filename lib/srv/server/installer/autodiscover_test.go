@@ -22,26 +22,38 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buildkite/bintest/v3"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
+// readyzAlwaysReady is a readyzCheck override used by install-focused tests to bypass
+// join-health checks (including macOS Unix socket path-length issues from t.TempDir()).
+func readyzAlwaysReady(_ context.Context) (debug.Readiness, error) {
+	return debug.Readiness{Ready: true, Status: "ok"}, nil
+}
+
 func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.BinariesLocation, []func() error) {
-	mockedBins := []string{"systemctl",
+	mockedBins := []string{"systemctl", "journalctl",
 		"apt-get", "apt-key",
 		"rpm",
 		"yum", "yum-config-manager",
@@ -61,6 +73,7 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 
 	return mapMockBins, packagemanager.BinariesLocation{
 		Systemctl:        mapMockBins["systemctl"].Path,
+		Journalctl:       mapMockBins["journalctl"].Path,
 		AptGet:           mapMockBins["apt-get"].Path,
 		AptKey:           mapMockBins["apt-key"].Path,
 		Rpm:              mapMockBins["rpm"].Path,
@@ -127,9 +140,12 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 				autoUpgradesChannelURL: "https://proxy.example.com/v1/webapi/automaticupgrades/channel/default",
 				fsRootPrefix:           "/",
 				imdsProviders:          mockIMDSProviders,
+				readyzPollInterval:     defaultReadyzPollInterval,
+				readyzPollTimeout:      5 * time.Minute,
 				binariesLocation: packagemanager.BinariesLocation{
 					Teleport:         "/opt/teleport/example-suffix/bin/teleport",
 					Systemctl:        "systemctl",
+					Journalctl:       "journalctl",
 					AptGet:           "apt-get",
 					AptKey:           "apt-key",
 					Rpm:              "rpm",
@@ -144,6 +160,8 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 			conf := tt.initial
 			err := conf.checkAndSetDefaults()
 			require.NoError(t, err)
+			require.Equal(t, 5*time.Second, conf.readyzPollInterval)
+			require.Equal(t, 5*time.Minute, conf.readyzPollTimeout)
 			require.Equal(t, tt.expected, conf)
 		})
 	}
@@ -260,6 +278,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 						imdsProviders:        mockIMDSProviders,
 						binariesLocation:     binariesLocation,
 						aptPublicKeyEndpoint: mockRepoKeys.URL,
+						readyzPollInterval:   time.Millisecond,
+						readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 					}
 
 					teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -360,6 +380,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			readyzPollInterval:     time.Millisecond,
+			readyzChecker:          &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -430,6 +452,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			binariesLocation:       binariesLocation,
 			aptPublicKeyEndpoint:   mockRepoKeys.URL,
 			autoUpgradesChannelURL: proxyServer.URL,
+			readyzPollInterval:     time.Millisecond,
+			readyzChecker:          &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -515,6 +539,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -586,6 +612,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			},
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -620,6 +648,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -687,6 +717,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -750,6 +782,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -778,6 +812,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
 			c.Exit(0)
 		})
+
+		// Config unchanged still runs a health check to catch lingering join failures.
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -813,6 +849,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			imdsProviders:        mockIMDSProviders,
 			binariesLocation:     binariesLocation,
 			aptPublicKeyEndpoint: mockRepoKeys.URL,
+			readyzPollInterval:   time.Millisecond,
+			readyzChecker:        &readyzChecker{logger: slog.Default(), checkOverride: readyzAlwaysReady},
 		}
 
 		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
@@ -1203,3 +1241,372 @@ ID="sles"
 ANSI_COLOR="0;32"
 CPE_NAME="cpe:/o:suse:sles:12:sp3"`
 )
+
+func TestCheckJoinHealth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns success immediately when ready", func(t *testing.T) {
+		t.Parallel()
+
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		calls := 0
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			calls++
+			return debug.Readiness{Ready: true, Status: "ok"}, nil
+		}
+
+		require.NoError(t, inst.checkJoinHealth(context.Background()))
+		require.Equal(t, 1, calls)
+	})
+
+	t.Run("retries until ready", func(t *testing.T) {
+		t.Parallel()
+
+		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.clock = fakeClock
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 30 * time.Second
+
+		calls := 0
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			calls++
+			if calls < 3 {
+				return debug.Readiness{Ready: false, Status: "starting"}, nil
+			}
+			return debug.Readiness{Ready: true, Status: "ok"}, nil
+		}
+
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(context.Background())
+		}()
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Call 1 is immediate (not ready). Timer created → advance to trigger call 2.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Call 2 (not ready). Timer reset → advance to trigger call 3.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Call 3 returns ready → function returns nil.
+		select {
+		case err := <-errC:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for checkJoinHealth to return")
+		}
+		require.Equal(t, 3, calls)
+	})
+
+	t.Run("times out and includes diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.clock = fakeClock
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "starting"}, nil
+		}
+		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+		}
+		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+			return "journal line", nil
+		}
+
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(context.Background())
+		}()
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Immediate check (not ready). Timer created → advance.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		// Second check (not ready). Timer reset → advance past deadline.
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		select {
+		case err := <-errC:
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "agent failed to join the cluster")
+			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
+			require.Contains(t, err.Error(), `systemd service state: ActiveState="active", SubState="running", Result="success"`)
+			require.Contains(t, err.Error(), "Journal output:\njournal line")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for checkJoinHealth to return")
+		}
+	})
+
+	t.Run("times out at deadline boundary with injected clock", func(t *testing.T) {
+		t.Parallel()
+
+		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.clock = fakeClock
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "starting"}, nil
+		}
+		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+		}
+		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+			return "journal line", nil
+		}
+
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(context.Background())
+		}()
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+		fakeClock.Advance(5 * time.Second)
+
+		select {
+		case err := <-errC:
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for checkJoinHealth to return")
+		}
+	})
+
+	t.Run("returns context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 20 * time.Millisecond
+		inst.readyzPollTimeout = time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "starting"}, nil
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := inst.checkJoinHealth(ctx)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.Canceled)
+		require.NotContains(t, err.Error(), "agent failed to join the cluster")
+	})
+}
+
+func TestInstallAndConfigureLockContention(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	inst := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger:                         slog.Default(),
+			fsRootPrefix:                   tmpDir,
+			installLockWaitTimeoutOverride: 10 * time.Millisecond,
+		},
+	}
+
+	lockFile := inst.buildAbsoluteFilePath(exclusiveInstallFileLock)
+	require.NoError(t, os.MkdirAll(filepath.Dir(lockFile), 0o755))
+
+	unlock, err := utils.FSTryWriteLock(lockFile)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, unlock())
+	})
+
+	err = inst.installAndConfigure(context.Background())
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "could not acquire lock file")
+}
+
+func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+	inst := newTestJoinHealthInstaller(t.TempDir())
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 10 * time.Second
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+		return debug.Readiness{Ready: false, Status: "bad token"}, nil
+	}
+	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+		return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+	}
+	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+		return "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", nil
+	}
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	select {
+	case err := <-errC:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
+		require.Contains(t, err.Error(), "token is expired or not found")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
+	}
+}
+
+func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+	inst := newTestJoinHealthInstaller(t.TempDir())
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 10 * time.Second
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+		return debug.Readiness{Ready: false, Status: "starting"}, nil
+	}
+	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
+		return defaultServiceDiagnosticsUnavailable
+	}
+	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
+		return "journal output", nil
+	}
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	select {
+	case err := <-errC:
+		require.Error(t, err)
+		require.Contains(t, err.Error(), defaultServiceDiagnosticsUnavailable)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
+	}
+}
+
+func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+
+	tmpDir := t.TempDir()
+	inst := newTestJoinHealthInstaller(tmpDir)
+	inst.clock = fakeClock
+	inst.readyzPollInterval = 5 * time.Second
+	inst.readyzPollTimeout = 30 * time.Second
+
+	checkCalls := 0
+	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+		checkCalls++
+		if checkCalls == 1 {
+			return debug.Readiness{}, &net.OpError{Op: "dial", Net: "unix", Err: os.ErrNotExist}
+		}
+		return debug.Readiness{Ready: true, Status: "ok"}, nil
+	}
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- inst.checkJoinHealth(context.Background())
+	}()
+
+	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Call 1 is immediate (connection error, retries). Timer created → advance.
+	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
+	fakeClock.Advance(5 * time.Second)
+
+	// Call 2 returns ready.
+	select {
+	case err := <-errC:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for checkJoinHealth to return")
+	}
+	require.Equal(t, 2, checkCalls)
+}
+
+// newTestJoinHealthInstaller returns an AutoDiscoverNodeInstaller configured
+// for join-health tests with fast polling defaults.
+func newTestJoinHealthInstaller(tmpDir string) *AutoDiscoverNodeInstaller {
+	return &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger:             slog.Default(),
+			readyzPollInterval: time.Millisecond,
+			readyzPollTimeout:  100 * time.Millisecond,
+			fsRootPrefix:       tmpDir,
+			readyzChecker:      &readyzChecker{logger: slog.Default(), dataDir: tmpDir},
+		},
+	}
+}
+
+func TestRedactFlagArgsForTeleportNodeConfigure(t *testing.T) {
+	t.Parallel()
+
+	original := []string{
+		"node",
+		"configure",
+		"--proxy=example.teleport.sh:443",
+		"--token=my-secret-token",
+		"--labels=teleport.dev/instance-id=i-123",
+	}
+
+	redacted := utils.RedactFlagArgs(original, teleportNodeConfigureArgRedactors)
+	maskedToken := "--token=" + backend.MaskKeyName("my-secret-token")
+
+	require.Equal(t, []string{
+		"node",
+		"configure",
+		"--proxy=example.teleport.sh:443",
+		maskedToken,
+		"--labels=teleport.dev/instance-id=i-123",
+	}, redacted)
+	require.Equal(t, []string{
+		"node",
+		"configure",
+		"--proxy=example.teleport.sh:443",
+		"--token=my-secret-token",
+		"--labels=teleport.dev/instance-id=i-123",
+	}, original)
+}

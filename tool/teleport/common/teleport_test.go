@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -278,6 +279,41 @@ func TestDumpConfigFile(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
+}
+
+func TestWriteInstallJoinFailureError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("trace error with message prints user message", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{
+			Err:      errors.New("join failure"),
+			Messages: []string{"node did not become ready within 5m"},
+		})
+
+		require.Contains(t, stderr.String(), "ERROR:")
+		require.Contains(t, stderr.String(), "node did not become ready within 5m")
+	})
+
+	t.Run("plain error prints error message", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, errors.New("plain failure"))
+
+		require.Equal(t, "ERROR: plain failure\n", stderr.String())
+	})
+
+	t.Run("trace error without messages prints underlying error", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &trace.TraceErr{Err: errors.New("join failure")})
+
+		require.Equal(t, "ERROR: join failure\n", stderr.String())
+	})
 }
 
 const configData = `

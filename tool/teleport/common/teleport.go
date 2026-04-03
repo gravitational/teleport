@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -53,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -780,7 +783,12 @@ Examples:
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case installAutoDiscoverNode.FullCommand():
-		err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags)
+		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
+		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.Is(err, installer.ErrJoinFailure) {
+			writeInstallJoinFailureError(os.Stderr, err)
+			os.Exit(int(installstatus.JoinFailure))
+		}
 	case discoveryBootstrapCmd.FullCommand():
 		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(ctx, configureDiscoveryBootstrapFlags)
@@ -888,6 +896,13 @@ Examples:
 	}
 
 	return app, command, conf
+}
+
+// writeInstallJoinFailureError writes a user-facing join-failure error message to w.
+// The error typically contains the readyz poll timeout, systemd service
+// diagnostics, and recent journal output from the Teleport service.
+func writeInstallJoinFailureError(w io.Writer, err error) {
+	fmt.Fprintf(w, "ERROR: %s\n", err.Error())
 }
 
 // OnStart is the handler for "start" CLI command

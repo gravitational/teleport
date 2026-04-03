@@ -10,6 +10,7 @@ When enrolling an instance into Teleport, the installation script returns a spec
 - 102: `curl` binary is missing
 - 103: `/opt` or `/` do not have the required minimum space to install Teleport, at least 1250MB is required
 - 104: host is unable to connect to the Teleport Proxy Services's HTTPS endpoint
+- 150: Teleport was installed but the agent failed to join the cluster
 
 You can customize the installation script - as describe in the **Use a custom installation script** section above - and implement other checks with specific exit codes.
 
@@ -31,6 +32,35 @@ Example of the `ssm.run` event with an exit code:
   "stderr": "failed to run commands: exit status 102",
   "stdout": "curl is missing\n",
   "exit_code": 102
+}
+```
+
+### Interpreting exit code `150` (`join failure`)
+
+Exit code `150` means Teleport installed successfully, but join health checks did not complete.
+The `status` field is intentionally high-level; use `stderr` for root-cause details.
+
+Common `stderr` patterns:
+- `ERROR: node did not become ready (join cluster) within 5m0s` means Teleport kept polling `/readyz` for 5 minutes without a successful join.
+- `systemd service state: ActiveState="...", SubState="...", Result="..."` is a best-effort snapshot captured at timeout for troubleshooting context.
+- `join failure: token is expired or not found; ...` can appear as an additional enriched line when journal logs contain an explicit token-expiry signal.
+- `failed to run commands: exit status 150` can appear at the end when AWS SSM's run-shell wrapper reports the installer exit code.
+
+Example `ssm.run` event for exit code `150`:
+```json
+{
+  "code": "TDS00W",
+  "event": "ssm.run",
+  "instance_id": "i-0000",
+  "region": "<region>",
+  "invocation_url": "https://<region>.console.aws.amazon.com/systems-manager/run-command/<uuid>/i-0000",
+  "platform_name": "Ubuntu",
+  "platform_type": "Linux",
+  "platform_version": "24.04",
+  "status": "Teleport was installed successfully but the agent did not become ready within 5 minutes. Check standard error output for join diagnostics.",
+  "stderr": "...\nERROR: node did not become ready (join cluster) within 5m0s\n\nsystemd service state: ActiveState=\"active\", SubState=\"running\", Result=\"success\"\n\njoin failure: token is expired or not found; systemd service state: ActiveState=\"active\", SubState=\"running\", Result=\"success\"\n\tnode did not become ready (join cluster) within 5m0s\n\nJournal output:\n...\nfailed to run commands: exit status 150",
+  "stdout": "",
+  "exit_code": 150
 }
 ```
 
