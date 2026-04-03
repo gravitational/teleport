@@ -184,6 +184,13 @@ Attribute mapping can be tested using `tctl idp saml test-attribute-mapping` com
 - `--sp`: name of file containing service provider spec with attribute mapping. Required.
 - `--format`: `yaml` or `json`.  Optional. Text output by default if the flag is not provided.
 
+<Admonition type="note">
+The `test-attribute-mapping` command evaluates attributes against the static
+user object, which does not include roles granted dynamically through Access
+Lists. Roles granted through Access Lists are resolved at login time and
+will appear in the actual SAML assertion, but not in the test output.
+</Admonition>
+
 E.g.:
 Test with user name and service provider spec file:
 ```code
@@ -206,4 +213,49 @@ $ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml
 Print result in format of choice.
 ```code
 $ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml --format (json/yaml)
+```
+
+## Overwriting default attributes
+
+Teleport includes the following default attributes in every SAML assertion:
+
+| Friendly name          | Name                                | Description               |
+|------------------------|-------------------------------------|---------------------------|
+| `uid`                  | `urn:oid:0.9.2342.19200300.100.1.1` | The Teleport username     |
+| `eduPersonAffiliation` | `urn:oid:1.3.6.1.4.1.5923.1.1.1.1` | All Teleport roles        |
+
+When you define a custom attribute mapping with the same `name` as a default
+attribute, the custom mapping overwrites the default value. This is useful when
+a service provider imposes a size limit on SAML assertions. For example, AWS IAM
+Identity Center enforces a 50,000-character limit on SAML assertions, which
+users with a large number of Teleport roles can exceed.
+
+To overwrite the default `eduPersonAffiliation` attribute and include only
+a subset of roles, use the full attribute name (`urn:oid:1.3.6.1.4.1.5923.1.1.1.1`)
+in the mapping:
+
+```yaml
+kind: saml_idp_service_provider
+metadata:
+  name: example-sp
+spec:
+  entity_id: https://example.com/saml/metadata
+  acs_url: https://example.com/saml/acs
+  attribute_mapping:
+  - name: urn:oid:1.3.6.1.4.1.5923.1.1.1.1
+    value: regexp.replace(user.spec.roles, "^prefix-.*", "$0")
+    name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:uri
+```
+
+In this example, only roles matching the `prefix-` prefix are included in the
+assertion instead of all Teleport roles. Replace `prefix-` with the actual
+prefix used by your roles.
+
+To omit all roles from the SAML assertion entirely, use an empty `set()`:
+
+```yaml
+  attribute_mapping:
+  - name: urn:oid:1.3.6.1.4.1.5923.1.1.1.1
+    value: set()
+    name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:uri
 ```
