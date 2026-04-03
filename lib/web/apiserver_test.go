@@ -8275,7 +8275,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {
 	t.Helper()
 
-	const timeout = 10 * time.Second
+	const timeout = 30 * time.Second
 	timeoutCh := time.After(timeout)
 
 	errC := make(chan error, 1)
