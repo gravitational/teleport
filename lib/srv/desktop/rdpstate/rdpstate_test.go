@@ -19,14 +19,16 @@
 package rdpstate
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate/rdpstatetest"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 // These tests cover message routing, error handling, and edge cases that don't require a real RDP decoder.
@@ -44,7 +46,7 @@ func TestHandleMessage_InvalidData(t *testing.T) {
 		evt  *events.DesktopRecording
 	}{
 		{"invalid TDPB", rdpstatetest.TDPBEvent([]byte{0xFF, 0xFF, 0xFF})},
-		{"truncated legacy", rdpstatetest.LegacyEvent([]byte{0x02})},
+		{"truncated legacy", rdpstatetest.LegacyEvent([]byte{29})}, // RDPFastPathPDU type with no payload
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Error(t, New().HandleMessage(tt.evt))
@@ -88,8 +90,14 @@ func TestFastPathPDU_EmptyPDU(t *testing.T) {
 func TestUnknownMessage_Ignored(t *testing.T) {
 	s := New()
 
-	data, err := (&tdpb.SyncKeys{}).Encode()
+	// Encode a SyncKeys message (not handled by RDPState) as a TDPB envelope.
+	body, err := proto.Marshal(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_SyncKeys{SyncKeys: &tdpbv1.SyncKeys{}},
+	})
 	require.NoError(t, err)
+	data := make([]byte, 4+len(body))
+	binary.BigEndian.PutUint32(data[:4], uint32(len(body)))
+	copy(data[4:], body)
 
 	require.NoError(t, s.HandleMessage(rdpstatetest.TDPBEvent(data)))
 	require.Nil(t, s.decoder)
