@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/beevik/etree"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	saml2 "github.com/russellhaering/gosaml2"
@@ -348,7 +347,7 @@ func (sas *SAMLAuthService) getSAMLProvider(conn types.SAMLConnector, forMFA boo
 
 	providerKey := samlProviderKey{conn.GetName(), forMFA}
 	providerPack, ok := sas.samlProviders[providerKey]
-	if ok && cmp.Equal(providerPack.connector, conn) {
+	if ok && providerPack.connector.IsEqual(conn) {
 		return providerPack.provider, nil
 	}
 	delete(sas.samlProviders, providerKey)
