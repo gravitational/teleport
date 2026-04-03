@@ -15,15 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-import styled from 'styled-components';
-
 import { Flex, Stack, Text } from 'design';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 interface SharedDirectoriesProps {
   sharedDirectories: DirectoryItem[];
@@ -45,7 +42,6 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canSharedDirectories,
 }: SharedDirectoriesProps) {
-  
   return (
     <MenuIcon
       Icon={props => <FolderPlus {...props} size="large" />}
@@ -72,70 +68,95 @@ export function SharedDirectoryList({
       }
     >
       <Container>
-        <Stack gap={2} fullWidth>
+        <Stack gap={3} fullWidth>
           {/* Header/Share Button */}
-          {addDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
+          {shareDirectoryButton(sharedDirectories.length, onAddSharedDirectory)}
 
           {/* Directory list */}
-          {sharedDirectories.map(dir => (
-            <Flex justifyContent="space-between" alignItems="center">
-                <Text fontSize={3}>{dir.name}</Text>
-              <HoverTooltip
-                placement="bottom"
-                tipContent={
-                  canRemoveSharedDirectory
-                    ? 'Remove Shared Directory'
-                    : 'This version of Windows Desktop Server does not support removal of shared directories'
-                }
-              >
-                <Flex flexShrink={0}>
-                  <ButtonSecondary
-                    size="small"
-                    compact={true}
-                    onClick={() => onRemoveSharedDirectory(dir.id)}
-                    disabled={!canRemoveSharedDirectory}
-                  >
-                    <Eject size="small" disabled={!canRemoveSharedDirectory} />
-                  </ButtonSecondary>
-                </Flex>
-              </HoverTooltip>
-            </Flex>
-          ))}          
+          {sharedDirectories.map(dir =>
+            directoryEntry(
+              dir.name,
+              dir.id,
+              canRemoveSharedDirectory,
+              onRemoveSharedDirectory
+            )
+          )}
+
+          {/* If not supported, explain to the user that removal is not supported for the
+          // connect WDS version, but may be supported on new versions. */}
+          {removalSupportInformation(canRemoveSharedDirectory)}
         </Stack>
       </Container>
     </MenuIcon>
   );
 }
 
-function addDirectoryButton(directoryCount: number, onClick: () => void) {
+function directoryEntry(
+  name: string,
+  id: number,
+  isRemoveSupported: boolean,
+  onRemove: (id: number) => void
+) {
+  if (!isRemoveSupported) {
+    return <Text fontSize={3}>{name}</Text>;
+  }
+
+  return (
+    <Flex justifyContent="space-between" alignItems="center">
+      <Text fontSize={3}>{name}</Text>
+      <HoverTooltip placement="bottom" tipContent={'unshare directory'}>
+        <Flex flexShrink={0}>
+          <ButtonSecondary
+            size="small"
+            compact={true}
+            onClick={() => onRemove(id)}
+          >
+            <Eject size="small" />
+          </ButtonSecondary>
+        </Flex>
+      </HoverTooltip>
+    </Flex>
+  );
+}
+
+function removalSupportInformation(isRemoveSupported: boolean) {
+  if (!isRemoveSupported) {
+    return (
+      <Text fontSize={1} color="text.muted">
+        To disconnect all shared directories, restart your session. Upgrade to
+        the latest version of Teleport for in-line disconnection, one shared
+        directory at a time.
+      </Text>
+    );
+  }
+}
+
+function shareDirectoryButton(directoryCount: number, onClick: () => void) {
   return (
     <div>
-    <Flex justifyContent="space-between" alignItems="center">
-      {sharedDirectoryHeader(directoryCount)}
-      <ButtonPrimary
-        size="small"
-        onClick={onClick}
-        compact={true}
-        $inputAlignment={false}
-      >
-        <Plus size="small" />
-      </ButtonPrimary>
-    </Flex>
-    {directoryCount > 0 ? <hr></hr> : null}
+      <Flex justifyContent="space-between" alignItems="center">
+        {dropdownHeader(directoryCount)}
+        <ButtonPrimary
+          size="small"
+          onClick={onClick}
+          compact={true}
+          $inputAlignment={false}
+        >
+          <Plus size="small" />
+        </ButtonPrimary>
+      </Flex>
     </div>
   );
 }
 
-function sharedDirectoryHeader(directoryCount: number) {
+function dropdownHeader(directoryCount: number) {
   if (directoryCount == 0) {
-    return (
-          <Text fontSize={3}>Connect a shared directory</Text>
-      )
+    return <Text typography="h3">Connect a shared directory</Text>;
   }
   const headerText =
     directoryCount == 1 ? 'shared directory' : 'shared directories';
   return (
-    <Text typography="h2">
+    <Text typography="h3">
       {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
     </Text>
   );
