@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -304,7 +305,7 @@ func RunCommand() (code int, err error) {
 		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("reexec", c.LogConfig)
+	initLogger("reexec", nil, c.LogConfig)
 
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
@@ -646,7 +647,7 @@ func RunNetworking() (code int, err error) {
 		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("networking", c.LogConfig)
+	initLogger("networking", nil, c.LogConfig)
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
@@ -999,6 +1000,12 @@ func RunAndExit(commandType string) {
 		code, err = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code, err = runPark()
+	case reexecconstants.SFTPSubCommand:
+		initLogger("sftp", os.Stderr, ExecLogConfig{})
+		err = reexecsftp.RunSFTP(slog.Default())
+		if err != nil {
+			code = 1
+		}
 	default:
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1422,10 +1429,12 @@ func WaitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 // TODO(espadolini): pass slog records in a fixed format to the parent process
 // rather than handling the formatting here, so we can get rid of
 // internal/logutils
-func initLogger(name string, cfg ExecLogConfig) {
-	logWriter := os.NewFile(LogFile, fdName(LogFile))
+func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
 	if logWriter == nil {
-		return
+		logWriter = os.NewFile(LogFile, fdName(LogFile))
+		if logWriter == nil {
+			return
+		}
 	}
 
 	fields, err := logutils.ValidateFields(cfg.ExtraFields)
