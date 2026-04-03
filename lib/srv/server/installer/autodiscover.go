@@ -19,7 +19,6 @@
 package installer
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -27,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -46,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -73,20 +70,7 @@ const (
 	// defaultInstallLockGracePeriod is additional time beyond readyz polling to
 	// wait for the install lock before returning a lock contention error.
 	defaultInstallLockGracePeriod = 10 * time.Second
-
-	// defaultReadyzCheckTimeout is the timeout for a single readyz query.
-	defaultReadyzCheckTimeout = 5 * time.Second
-
-	// maxJournalLines is the number of recent journalctl lines to capture.
-	maxJournalLines = 50
-
-	// defaultServiceDiagnosticsUnavailable is appended when systemd state cannot
-	// be retrieved while preparing a join-failure error.
-	defaultServiceDiagnosticsUnavailable = "systemd service state: unavailable"
 )
-
-// ErrJoinFailure is returned when the Teleport agent is installed but fails to join the cluster.
-var ErrJoinFailure = errors.New("join failure")
 
 var teleportNodeConfigureArgRedactors = map[string]utils.ArgValueRedactor{
 	"--token": backend.MaskKeyName,
@@ -167,13 +151,9 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// timeout used by installAndConfigure. Used for testing.
 	installLockWaitTimeoutOverride time.Duration
 
-	// readyzCheck, when set, replaces the default debug-socket readyz call.
-	// Used for testing.
-	readyzCheck func(ctx context.Context) (debug.Readiness, error)
-
-	// readyzCheckTimeout overrides the timeout for a single readyz query.
-	// Used for testing.
-	readyzCheckTimeout time.Duration
+	// readyzChecker performs readyz checks against the Teleport debug socket.
+	// When nil, a default checker is created in NewAutoDiscoverNodeInstaller.
+	readyzChecker *readyzChecker
 
 	// clock overrides the time source used by join-health polling.
 	// Used for testing.
@@ -282,6 +262,13 @@ func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDi
 		ti.clock = clockwork.NewRealClock()
 	}
 
+	if ti.readyzChecker == nil {
+		ti.readyzChecker = &readyzChecker{
+			logger:  cfg.Logger,
+			dataDir: ti.buildTeleportDataDirPath(),
+		}
+	}
+
 	return ti, nil
 }
 
@@ -329,7 +316,7 @@ func (ani *AutoDiscoverNodeInstaller) installAndConfigure(ctx context.Context) e
 	unlockFn, err := utils.FSTryWriteLockTimeout(ctx, lockFile, ani.getInstallLockWaitTimeout())
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-			return trace.BadParameter("Could not get lock %s. Either remove it or wait for the other installer to finish.", lockFile)
+			return trace.BadParameter("could not acquire lock file %s; either remove it or wait for the other installer to finish", lockFile)
 		}
 		return trace.Wrap(err, "acquiring install lock %s", lockFile)
 	}
@@ -408,7 +395,7 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	deadline := clock.Now().Add(a.readyzPollTimeout)
 
 	for {
-		ready, err := a.checkReadyz(ctx)
+		ready, err := a.readyzChecker.check(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -430,9 +417,17 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 		}
 	}
 
-	var joinErr error = trace.Wrap(ErrJoinFailure, "node did not become ready (join cluster) within %s", a.readyzPollTimeout)
-	joinErr = appendServiceDiagnostics(joinErr, a.gatherServiceDiagnostics(ctx, serviceName))
-	return a.appendJournalWithJoinFailureHint(ctx, serviceName, joinErr)
+	var parts []string
+	parts = append(parts, fmt.Sprintf("node did not become ready (join cluster) within %s", a.readyzPollTimeout))
+	parts = append(parts, a.gatherServiceDiagnostics(ctx, serviceName))
+	journalOutput, captureErr := a.captureJournal(ctx, serviceName)
+	if captureErr != nil {
+		return trace.Wrap(captureErr)
+	}
+	if journalOutput != "" {
+		parts = append(parts, "\nJournal output:\n"+journalOutput)
+	}
+	return trace.Errorf("%s: %w", strings.Join(parts, "; "), ErrJoinFailure)
 }
 
 func (a *AutoDiscoverNodeInstaller) getClock() clockwork.Clock {
@@ -446,332 +441,12 @@ func (a *AutoDiscoverNodeInstaller) getClock() clockwork.Clock {
 	return clockwork.NewRealClock()
 }
 
-// checkReadyz queries the Teleport debug socket's readyz endpoint to determine whether the agent
-// has joined the cluster. It applies a timeout to avoid hanging on a wedged process.
-func (a *AutoDiscoverNodeInstaller) checkReadyz(ctx context.Context) (ready bool, err error) {
-	checkCtx, cancel := context.WithTimeout(ctx, a.getReadyzCheckTimeout())
-	defer cancel()
-
-	var readiness debug.Readiness
-	if a.readyzCheck != nil {
-		readiness, err = a.readyzCheck(checkCtx)
-	} else {
-		clt := debug.NewClient(a.buildTeleportDataDirPath())
-		readiness, err = clt.GetReadiness(checkCtx)
-	}
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return false, trace.Wrap(ctxErr)
-		}
-
-		// Socket genuinely absent (connection error) or endpoint doesn't exist, so keep polling.
-		if isConnectionError(err) || trace.IsNotFound(err) {
-			a.Logger.DebugContext(checkCtx, "Debug socket unavailable", "error", trace.UserMessage(err))
-			return false, nil
-		}
-
-		// Per-attempt timeout is expected when Teleport is overloaded; keep polling.
-		if errors.Is(err, context.DeadlineExceeded) {
-			a.Logger.DebugContext(checkCtx, "Readyz check timed out", "timeout", a.getReadyzCheckTimeout())
-			return false, nil
-		}
-
-		a.Logger.WarnContext(checkCtx, "Readyz check returned unexpected error", "error", trace.UserMessage(err))
-		return false, nil
-	}
-
-	if !readiness.Ready {
-		a.Logger.InfoContext(checkCtx, "Teleport agent is not ready yet", "status", readiness.Status)
-		return false, nil
-	}
-
-	a.Logger.InfoContext(checkCtx, "Teleport agent is ready and has joined the cluster")
-	return true, nil
-}
-
-// gatherServiceDiagnostics returns a one-shot best-effort systemd snapshot (ActiveState,
-// SubState, and Result) for join-failure diagnostics. It never returns an error.
-func (a *AutoDiscoverNodeInstaller) gatherServiceDiagnostics(ctx context.Context, serviceName string) string {
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Systemctl,
-		"show", serviceName,
-		"--property", "ActiveState",
-		"--property", "SubState",
-		"--property", "Result",
-	)
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	if err := cmd.Run(); err != nil {
-		a.Logger.DebugContext(ctx, "Could not gather service diagnostics", "service", serviceName, "error", err, "stderr", strings.TrimSpace(stderrBuf.String()))
-		return defaultServiceDiagnosticsUnavailable
-	}
-
-	diagnostics := map[string]string{
-		"ActiveState": "unknown",
-		"SubState":    "unknown",
-		"Result":      "unknown",
-	}
-	for _, line := range strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n") {
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		if value == "" {
-			continue
-		}
-
-		diagnostics[key] = value
-	}
-
-	return fmt.Sprintf("systemd service state: ActiveState=%q, SubState=%q, Result=%q", diagnostics["ActiveState"], diagnostics["SubState"], diagnostics["Result"])
-}
-
-func appendServiceDiagnostics(err error, diagnostics string) error {
-	if diagnostics == "" {
-		return err
-	}
-
-	return trace.Wrap(err, "%s", diagnostics)
-}
-
 func minDuration(a, b time.Duration) time.Duration {
 	if a < b {
 		return a
 	}
 
 	return b
-}
-
-func (a *AutoDiscoverNodeInstaller) getReadyzCheckTimeout() time.Duration {
-	if a.readyzCheckTimeout > 0 {
-		return a.readyzCheckTimeout
-	}
-
-	return defaultReadyzCheckTimeout
-}
-
-// isConnectionError returns true when the error indicates a socket-level connection
-// failure (e.g. file not found, connection refused), as opposed to an HTTP or
-// application-level error.
-func isConnectionError(err error) bool {
-	var opErr *net.OpError
-	return errors.As(err, &opErr)
-}
-
-// appendJournal enriches err with recent service log lines for the given systemd unit.
-// If no output is available, the original error is returned unchanged.
-func (a *AutoDiscoverNodeInstaller) appendJournal(ctx context.Context, serviceName string, err error) error {
-	journalOutput, captureErr := a.captureJournal(ctx, serviceName)
-	if captureErr != nil {
-		return trace.Wrap(captureErr)
-	}
-	return appendJournalOutput(err, journalOutput)
-}
-
-// appendJournalWithJoinFailureHint enriches join-failure errors with two modifications:
-// First, it adds a concise user-facing hint if the journal output contains token-expiry signals.
-// Second, it appends the captured journal output for diagnostics.
-func (a *AutoDiscoverNodeInstaller) appendJournalWithJoinFailureHint(ctx context.Context, serviceName string, err error) error {
-	journalOutput, captureErr := a.captureJournal(ctx, serviceName)
-	if captureErr != nil {
-		return trace.Wrap(captureErr)
-	}
-	err = appendJoinFailureHint(err, journalOutput)
-	return appendJournalOutput(err, journalOutput)
-}
-
-func appendJournalOutput(err error, journalOutput string) error {
-	if journalOutput == "" {
-		return err
-	}
-	return trace.Wrap(err, "\n\nJournal output:\n%s", journalOutput)
-}
-
-func joinFailureHintFromJournal(journalOutput string) string {
-	lower := strings.ToLower(journalOutput)
-	if strings.Contains(lower, "token is expired or not found") || strings.Contains(lower, "token expired or not found") {
-		return "token is expired or not found"
-	}
-
-	return ""
-}
-
-func appendJoinFailureHint(err error, journalOutput string) error {
-	if !errors.Is(err, ErrJoinFailure) {
-		return err
-	}
-
-	hint := joinFailureHintFromJournal(journalOutput)
-	if hint == "" {
-		return err
-	}
-
-	userMessage := trace.UserMessage(err)
-	if strings.Contains(strings.ToLower(userMessage), hint) {
-		return err
-	}
-	baseMessage := strings.TrimSpace(strings.TrimPrefix(userMessage, ErrJoinFailure.Error()+": "))
-	if baseMessage == "" {
-		baseMessage = strings.TrimSpace(userMessage)
-	}
-
-	return trace.Wrap(err, "%s: %s; %s", ErrJoinFailure.Error(), hint, baseMessage)
-}
-
-func isSystemdInvocationID(value string) bool {
-	value = strings.ReplaceAll(value, "-", "")
-	if len(value) != 32 {
-		return false
-	}
-
-	_, err := hex.DecodeString(value)
-	return err == nil
-}
-
-func buildJournalctlArgs(serviceName, invocationID string) []string {
-	args := []string{
-		"--unit", serviceName,
-		"--no-pager",
-		"--lines", fmt.Sprintf("%d", maxJournalLines),
-	}
-
-	if invocationID != "" {
-		args = append(args, "_SYSTEMD_INVOCATION_ID="+invocationID)
-	}
-
-	return args
-}
-
-func (a *AutoDiscoverNodeInstaller) getServiceInvocationID(ctx context.Context, serviceName string) (string, error) {
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Systemctl, "show", serviceName, "--property", "InvocationID", "--value")
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	err := cmd.Run()
-	stdout := strings.TrimSpace(stdoutBuf.String())
-	stderr := strings.TrimSpace(stderrBuf.String())
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", trace.Wrap(ctxErr)
-		}
-
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			a.Logger.DebugContext(ctx, "systemctl show exited non-zero while retrieving service invocation ID",
-				"service", serviceName,
-				"exit_code", exitErr.ExitCode(),
-				"stdout", stdout,
-				"stderr", stderr,
-			)
-			return "", nil
-		}
-
-		a.Logger.DebugContext(ctx, "Could not retrieve service invocation ID", "service", serviceName, "error", err, "stdout", stdout, "stderr", stderr)
-		return "", nil
-	}
-
-	invocationID := stdout
-	if invocationID == "" || strings.EqualFold(invocationID, "n/a") {
-		return "", nil
-	}
-
-	if !isSystemdInvocationID(invocationID) {
-		a.Logger.DebugContext(ctx, "Ignoring invalid service invocation ID", "service", serviceName, "invocation_id", invocationID)
-		return "", nil
-	}
-
-	return invocationID, nil
-}
-
-// captureJournal is a best-effort helper that runs journalctl to retrieve recent log
-// lines for the given systemd unit.
-// Stderr is logged internally but not returned, to keep caller-facing diagnostics
-// focused on journal contents.
-func (a *AutoDiscoverNodeInstaller) captureJournal(ctx context.Context, serviceName string) (string, error) {
-	invocationID, err := a.getServiceInvocationID(ctx, serviceName)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	args := buildJournalctlArgs(serviceName, invocationID)
-
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Journalctl, args...)
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
-	err = cmd.Run()
-	stderrOutput := strings.TrimSpace(stderrBuf.String())
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", trace.Wrap(ctxErr)
-		}
-
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			a.Logger.DebugContext(ctx, "journalctl exited non-zero", "service", serviceName, "exit_code", exitErr.ExitCode(), "stderr", stderrOutput)
-		} else {
-			a.Logger.WarnContext(ctx, "Failed to capture journal output", "service", serviceName, "error", err, "stderr", stderrOutput)
-		}
-	}
-
-	return strings.TrimSpace(stdoutBuf.String()), nil
-}
-
-// enableAndRestartTeleportService will enable and (re)start the configured Teleport service.
-// This function must be idempotent because we can call it in either one of the following scenarios:
-// - teleport was just installed and teleport.service is inactive
-// - teleport was already installed but the service is failing
-func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx context.Context) error {
-	serviceName := ani.buildTeleportSystemdUnitName()
-
-	if err := ani.runSystemctlCommand(ctx, "enable", serviceName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := ani.runSystemctlCommand(ctx, "restart", serviceName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (a *AutoDiscoverNodeInstaller) runSystemctlCommand(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Systemctl, args...)
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	err := cmd.Run()
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return trace.Wrap(ctxErr)
-		}
-
-		stdout := strings.TrimSpace(stdoutBuf.String())
-		stderr := strings.TrimSpace(stderrBuf.String())
-
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			return trace.Wrap(err,
-				"systemctl %s exited with code %d (stdout: %s, stderr: %s)",
-				strings.Join(args, " "),
-				exitErr.ExitCode(),
-				stdout,
-				stderr,
-			)
-		}
-
-		return trace.Wrap(err,
-			"failed to execute systemctl %s (stdout: %s, stderr: %s)",
-			strings.Join(args, " "),
-			stdout,
-			stderr,
-		)
-	}
-
-	return nil
 }
 
 func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client) error {
