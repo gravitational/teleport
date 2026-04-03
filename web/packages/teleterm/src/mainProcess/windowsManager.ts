@@ -113,13 +113,16 @@ export class WindowsManager {
   }
 
   createWindow(): void {
+    const usesWayland =
+      process.platform === 'linux' &&
+      app.commandLine.getSwitchValue('ozone-platform') === 'wayland';
     const activeTheme = nativeTheme.shouldUseDarkColors
       ? darkTheme
       : lightTheme;
     const windowState = this.getWindowState();
     const window = new BrowserWindow({
-      x: windowState.x,
-      y: windowState.y,
+      x: usesWayland ? undefined : windowState.x,
+      y: usesWayland ? undefined : windowState.y,
       width: windowState.width,
       height: windowState.height,
       backgroundColor: activeTheme.colors.levels.sunken,
@@ -183,10 +186,7 @@ export class WindowsManager {
     // The ready-to-show event doesn't always fire on Wayland because of an Electron bug.
     // Use the `did-finish-load` event on the web contents instead as that is similar enough.
     // https://github.com/electron/electron/issues/48859
-    if (
-      process.platform === 'linux' &&
-      app.commandLine.getSwitchValue('ozone-platform') === 'wayland'
-    ) {
+    if (usesWayland) {
       window.webContents.once('did-finish-load', () => window.show());
     } else {
       // Shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
