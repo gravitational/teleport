@@ -141,7 +141,7 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 				fsRootPrefix:           "/",
 				imdsProviders:          mockIMDSProviders,
 				readyzPollInterval:     defaultReadyzPollInterval,
-				readyzPollTimeout:      defaultReadyzPollTimeout,
+				readyzPollTimeout:      5 * time.Minute,
 				binariesLocation: packagemanager.BinariesLocation{
 					Teleport:         "/opt/teleport/example-suffix/bin/teleport",
 					Systemctl:        "systemctl",
