@@ -465,6 +465,12 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 				},
 			},
 		},
+		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
+			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: "test-list",
+			},
+		},
 		Version: types.V1,
 	}
 
