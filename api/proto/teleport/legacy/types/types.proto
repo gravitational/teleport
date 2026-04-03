@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -2763,6 +2764,20 @@ message AuthPreferenceSpecV2 {
   // StableUnixUserConfig contains the cluster-wide configuration for stable
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
+
+  reserved 23; // AllowBrowserAuthentication replaced by AllowCLIAuthViaBrowser
+  reserved "AllowBrowserAuthentication";
+
+  // AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+  // authenticating CLI sessions.
+  // When set to false, authentication flows that require a browser will be disabled.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowCLIAuthViaBrowser = 24 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_cli_auth_via_browser,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 // StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
@@ -4643,6 +4658,7 @@ message MFADevice {
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
     SSOMFADevice sso = 11;
+    BrowserMFADevice browser = 12;
   }
 }
 

@@ -632,6 +632,83 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			},
 			wantErr: "invalid local connector",
 		},
+		// AllowCLIAuthViaBrowser
+		{
+			name: "OK AllowCLIAuthViaBrowser defaults to false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				AllowCLIAuthViaBrowser: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowCLIAuthViaBrowser(), "AllowCLIAuthViaBrowser")
+			},
+		},
+		{
+			name: "OK AllowCLIAuthViaBrowser=false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowCLIAuthViaBrowser(), "AllowCLIAuthViaBrowser")
+			},
+		},
+		{
+			name: "NOK AllowCLIAuthViaBrowser=true without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
+			},
+			wantErr: "required Webauthn",
+		},
+		{
+			name:          "OK AllowCLIAuthViaBrowser defaults to true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				Webauthn:               minimalWeb,
+				AllowCLIAuthViaBrowser: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowCLIAuthViaBrowser(), "AllowCLIAuthViaBrowser")
+			},
+		},
+		{
+			name:          "OK AllowCLIAuthViaBrowser=false with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				Webauthn:               minimalWeb,
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowCLIAuthViaBrowser(), "AllowCLIAuthViaBrowser")
+			},
+		},
+		{
+			name:          "OK AllowCLIAuthViaBrowser=true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:                   constants.Local,
+				Webauthn:               minimalWeb,
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowCLIAuthViaBrowser(), "AllowCLIAuthViaBrowser")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

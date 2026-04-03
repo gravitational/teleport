@@ -498,7 +498,7 @@ func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUs
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
 	out, err := c.PostJSON(
 		ctx,
 		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
@@ -507,7 +507,7 @@ func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re SSHLoginResponse
+	var re CLILoginResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, trace.Wrap(err)
 	}

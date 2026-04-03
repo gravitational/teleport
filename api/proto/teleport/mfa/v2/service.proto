@@ -1,0 +1,49 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.mfa.v2;
+
+import "teleport/mfa/v1/challenge.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2";
+
+// MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
+// sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
+// concerns instead of further bloating the AuthService.
+service MFAService {
+  // CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
+  // it and returning it to the browser.
+  // This is called when a user has been sent to the browser to solve an MFA challenge
+  // that was triggered by tsh or tctl. When the user solves the MFA challenge, the
+  // response is sent to this RPC. CompleteBrowserMFAChallenge receives the MFA
+  // response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
+  // More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
+  rpc CompleteBrowserMFAChallenge(CompleteBrowserMFAChallengeRequest) returns (CompleteBrowserMFAChallengeResponse);
+}
+
+// CompleteBrowserMFAChallengeRequest is used to complete an MFA response
+// during a browser-based MFA authentication flow.
+message CompleteBrowserMFAChallengeRequest {
+  teleport.mfa.v1.BrowserMFAResponse browser_mfa_response = 1;
+}
+
+// CompleteBrowserMFAChallengeResponse contains the redirect URL to send
+// the user back to after successfully completing browser-based MFA authentication.
+message CompleteBrowserMFAChallengeResponse {
+  // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
+  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
+  string tsh_redirect_url = 1;
+}

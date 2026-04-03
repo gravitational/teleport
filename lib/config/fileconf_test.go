@@ -485,6 +485,66 @@ func TestAuthenticationSection(t *testing.T) {
 					LastUID:  10,
 				},
 			},
+		}, {
+			desc: "Local auth with browser authentication enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_cli_auth_via_browser": "true",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowCLIAuthViaBrowser: types.NewBoolOption(true),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type": "local",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_cli_auth_via_browser": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type: "local",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled without WebAuthn",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
+			},
+		}, {
+			desc: "Local auth with browser authentication empty string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":                       "local",
+					"allow_cli_auth_via_browser": "",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:                   "local",
+				AllowCLIAuthViaBrowser: &types.BoolOption{},
+			},
 		},
 	}
 	for _, tt := range tests {

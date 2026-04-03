@@ -438,6 +438,25 @@ func (a *Server) authenticateUserInternal(
 			return mfaData.Device, nil
 		}
 		authErr = authenticateWebauthnError
+	case req.BrowserMFA != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: req.BrowserMFA,
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
 	case req.OTP != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			// OTP cannot be validated by validateMFAAuthResponse because we need to
@@ -744,7 +763,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -854,7 +873,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		a.logger.WarnContext(ctx, "Failed to calculate client options for local login", "username", user.GetName(), "error", err)
 	}
 
-	return &authclient.SSHLoginResponse{
+	return &authclient.CLILoginResponse{
 		Username:      user.GetName(),
 		Cert:          certs.SSH,
 		TLSCert:       certs.TLS,
