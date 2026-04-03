@@ -32,6 +32,7 @@ type UploadHandler interface {
 	// case of success.
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// StreamSessionRecording streams a session recording and returns a ReadCloser for the content.
+	// If uploadID is set, the temporary recording associated with it will be streamed.
 	StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error)
 	// UploadPendingSummary uploads a pending session summary and returns a URL
 	// with uploaded file in case of success. This function can be called

@@ -170,10 +170,9 @@ func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 }
 
 // UploadSummary writes a final version of session summary and removes the
-// pending one. This function can be called only once for a given sessionID;
-// subsequent calls will return an error.
+// pending one.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	name, err := uploadFile(l.summaryPath(sessionID), reader)
+	name, err := uploadFile(l.summaryPath(sessionID), reader, withOverwrite())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -312,5 +312,5 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 }
 
 func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
-	return "", trace.NotImplemented("")
+	return "", trace.NotImplemented("GetRecordingVersion not implemented for S3")
 }
