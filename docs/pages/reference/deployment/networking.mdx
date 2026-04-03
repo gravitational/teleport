@@ -405,3 +405,84 @@ expose ports directly.
 <Admonition type="important">
 Direct Auth Service joining is only supported for Teleport Agents running the Teleport SSH Service, Kubernetes Service, and Windows Desktop Service. Using Auth Service joining to enroll applications, databases, and for other discovery-based features, is not supported.
 </Admonition>
+
+## Troubleshooting
+
+Logs emitted by `teleport` instances can include the following messages if you
+have set up your Teleport cluster network incorrectly.
+
+### Connection reset by peer
+
+If you see the message, `connection reset by peer`, it means that the component
+of your Teleport cluster that has emitted the log (e.g., a Teleport Agent)
+received a TCP packet with a control bit set to RST (reset). A TCP endpoint
+sends an RST packet over an established connection if it receives a packet that
+is unexpected given its connection state, e.g., if the other side unexpectedly
+exits mid-connection.
+
+There is a variety of reasons why an upstream server may reset the connection,
+and they may or may not have to do with the components of a Teleport cluster.
+For example, a `tsh` client can emit a `connection reset by peer` message if it
+is behind the Teleport Proxy Service, which closes a connection if it receives
+traffic from an outdated `tsh` client. It could also be that a Teleport Agent
+proxying a connection exited without closing the connection. A device between
+the Teleport component and the other side of the connection, such as a load
+balancer, may also be injecting RST packets.
+
+To investigate:
+
+1. If the connection involves two Teleport components, make sure their versions
+   abide by the Teleport [version compatibility
+   guarantees](../../upgrading/overview.mdx).
+1. Examine the logs of the remote Teleport process and check whether the process
+   was healthy at the time you saw the error.
+
+### First record does not look like a TLS handshake
+
+You may see an error similar to the following, indicating an issue with a TLS
+handshake:
+
+```
+transport: authentication handshake failed: tls: first record does not look like a TLS handshake
+```
+
+The library that Teleport uses for TLS prints this error if the server and
+client have not negotiated a TLS version and the TLS record in question is not a
+handshake. In other words, the Teleport process that printed the log was
+expecting a TLS handshake from the other side of the connection and did not
+receive one. This can happen if the other side was replying to the Teleport
+process in a different protocol.
+
+In this case, check the address of the upstream host and make sure it is one
+that is configured to use TLS, rather than (for example) HTTP or unencrypted
+TCP.
+
+### Authentication handshake failed
+
+Your `teleport` or `tbot` logs may report a certificate with a subject that does
+not match the expected domain name, a subdomain of `teleport.cluster.local`.
+The following example assumes your cluster's address is `example.teleport.sh`:
+
+```
+transport: authentication handshake failed: tls: failed to verify certificate: x509: certificate is valid for *.example.teleport.sh, example.teleport.sh, not 6578616d706c652e74656c65706f72742e7368.teleport.cluster.local
+```
+
+As explained in
+[Troubleshooting](../../zero-trust-access/management/diagnostics/troubleshooting.mdx#teleportclusterlocal),
+Teleport issues certificates with `teleport.cluster.local` as a Subject
+Alternative Name (SAN) for the Teleport Auth Service and Proxy Service. In this
+case, the certificate your Teleport component received does not include the
+intended SAN.
+
+One reason this situation could take place is that the cluster is configured to
+use [TLS
+multiplexing](../../zero-trust-access/deploy-a-cluster/tls-routing.mdx), but you
+are running the Teleport Proxy Service behind a Layer 7 load balancer that only
+returns the load balancer's main certificate instead of allowing the Teleport
+internal certificate. Your infrastructure may be interfering with TLS
+connections by altering the certificate that your Teleport instance presents.
+
+Investigate whether the certificate your client receives is signed by, for
+example, a corporate TLS proxy, or has otherwise been transformed between the
+time the Teleport Auth Service issued it and it reached your client during the
+attempted TLS handshake.
