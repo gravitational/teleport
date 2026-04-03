@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,10 @@ import (
 )
 
 func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
+	const (
+		finalized    = true
+		notFinalized = false
+	)
 	tests := []struct {
 		name                    string
 		oktaMembers             map[string]*accesslist.AccessListMember
@@ -97,6 +102,58 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			expectedOktaPresent:     false,
 			expectedTeleportPresent: false,
 		},
+		{
+			name: "cleanup assignment filters from both maps for non-finalized successful",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_SUCCESSFUL, notFinalized),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "cleanup assignment filters from both maps for non-finalized processing",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_PROCESSING, notFinalized),
+			},
+			expectedOktaPresent:     false,
+			expectedTeleportPresent: false,
+		},
+		{
+			name: "finalized cleanup assignment does not filter",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newCleanupAssignment("alice", "groupA", types.OktaAssignmentSpecV1_SUCCESSFUL, finalized),
+			},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: true,
+		},
+		{
+			name: "assignment without cleanup time does not trigger cleanup filter",
+			oktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			teleportMembers: map[string]*accesslist.AccessListMember{},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "manual-sync", types.OktaAssignmentSpecV1_SUCCESSFUL),
+			},
+			expectedOktaPresent:     true,
+			expectedTeleportPresent: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -140,6 +197,23 @@ func newAssignment(user, group, source string, status types.OktaAssignmentSpecV1
 			User:    user,
 			Status:  status,
 			Targets: []*types.OktaAssignmentTargetV1{{Id: group, Type: types.OktaAssignmentTargetV1_GROUP}},
+		},
+	}
+}
+
+func newCleanupAssignment(user, group string, status types.OktaAssignmentSpecV1_OktaAssignmentStatus, finalized bool) types.OktaAssignment {
+	return &types.OktaAssignmentV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: uuid.NewString(),
+			},
+		},
+		Spec: types.OktaAssignmentSpecV1{
+			User:        user,
+			Status:      status,
+			Finalized:   finalized,
+			CleanupTime: time.Now(),
+			Targets:     []*types.OktaAssignmentTargetV1{{Id: group, Type: types.OktaAssignmentTargetV1_GROUP}},
 		},
 	}
 }

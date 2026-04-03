@@ -21,6 +21,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
@@ -824,4 +825,90 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 			require.Empty(t, assignments)
 		}, time.Minute, time.Millisecond*30)
 	}
+}
+
+// TestCleanupAssignmentFilter tests that the cleanupAssignmentFilter prevents the access list
+// sync from re-adding a member whose Okta assignment is pending cleanup.
+//
+// Scenario:
+//  1. User is a member of an Okta group (synced as access list member)
+//  2. User is removed from the access list in Teleport (cleanup_time is set on OktaAssignment)
+//  3. The assignment processor tries to remove the user from the Okta group but fails
+//     (simulated via fakeOktaServer returning HTTP 429 on DELETE)
+//  4. Access list sync runs and sees the user still in the Okta group (stale data)
+//  5. The cleanupAssignmentFilter prevents the sync from re-adding the user
+//  6. Once the Okta API error clears, the assignment processor completes the cleanup
+func TestCleanupAssignmentFilter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(0),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	for _, user := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
+	}
+
+	memberID := fakeOkta.provisionedUsers[0].Id
+	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[0])
+	groupID := fakeOkta.provisionedGroups[0].Id
+
+	// Add user to the Okta group so the sync picks them up as an access list member.
+	fakeOkta.AddUserToGroup(groupID, memberID)
+
+	createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(&oktav1.AccessListSettings{
+		GroupFilters: []string{"group-*"},
+		AppFilters:   []string{"app-*"},
+		DefaultOwner: []string{"alice-admin"},
+	}), withEnableFullSync())
+
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	// Wait for the user to appear as access list member.
+	assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
+
+	// Block the assignment processor from removing the user from the Okta group
+	// by making the DELETE endpoint return 429 (Too Many Requests).
+	// This simulates Okta rate limiting the removal request.
+	fakeOkta.setRemoveUserFromGroupOverwrite(func(_, _ string) error {
+		return trace.LimitExceeded("rate limited")
+	})
+
+	// Remove user from the access list in Teleport. This triggers the user monitor
+	// to set cleanup_time on the OktaAssignment.
+	err := auth.AccessListsInternal.DeleteAccessListMember(ctx, groupID, memberLogin)
+	require.NoError(t, err)
+
+	// Wait for at least one more access list sync cycle. The sync will see the user
+	// still in the Okta group, but the cleanupAssignmentFilter must prevent re-addition.
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+
+	// Check if a user is still assigned to the Okta group,
+	// which means the sync did not remove them due to the pending cleanup
+	// because of the API error.
+	require.True(t, fakeOkta.UserAssignedGroup(groupID, memberID))
+
+	// Assert the user was NOT re-added as an access list member.
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+
+	// Clear the overwrite so the assignment processor can complete the cleanup.
+	fakeOkta.setRemoveUserFromGroupOverwrite(nil)
+
+	// Verify the user is eventually removed from the Okta group.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.False(t, fakeOkta.UserAssignedGroup(groupID, memberID))
+	}, time.Minute, time.Millisecond*250)
 }
