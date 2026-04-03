@@ -332,47 +332,47 @@
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-ec2/",
-      "destination": "/enroll-resources/agents/aws-ec2/",
+      "destination": "/installation/agents/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/aws-iam/",
-      "destination": "/enroll-resources/agents/aws-iam/",
+      "destination": "/installation/agents/aws-iam/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/azure/",
-      "destination": "/enroll-resources/agents/azure/",
+      "destination": "/installation/agents/azure/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/gcp/",
-      "destination": "/enroll-resources/agents/gcp/",
+      "destination": "/installation/agents/gcp/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/",
-      "destination": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/join-token/",
-      "destination": "/enroll-resources/agents/join-token/",
+      "destination": "/installation/agents/join-token/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/kubernetes/",
-      "destination": "/enroll-resources/agents/kubernetes/",
+      "destination": "/installation/agents/kubernetes/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/join-services-to-your-cluster/oracle/",
-      "destination": "/enroll-resources/agents/oracle/",
+      "destination": "/installation/agents/oracle/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/agents/introduction/",
-      "destination": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
       "permanent": true
     },
     {
@@ -1292,7 +1292,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/helm-deployments/argocd-helm/",
-      "destination": "/enroll-resources/agents/argocd-helm/",
+      "destination": "/installation/agents/argocd-helm/",
       "permanent": true
     },
     {
@@ -3092,7 +3092,7 @@
     },
     {
       "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
-      "destination": "/enroll-resources/agents/argocd-helm/",
+      "destination": "/installation/agents/argocd-helm/",
       "permanent": true
     },
     {
@@ -3342,7 +3342,7 @@
     },
     {
       "source": "/enroll-resources/application-access/guides/ha/",
-      "destination": "/enroll-resources/agents/high-availability/",
+      "destination": "/installation/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3362,7 +3362,7 @@
     },
     {
       "source": "/enroll-resources/application-access/ha/",
-      "destination": "/enroll-resources/agents/high-availability/",
+      "destination": "/installation/agents/high-availability/",
       "permanent": true
     },
     {
@@ -3512,17 +3512,117 @@
     },
     {
       "source": "/enroll-resources/application-access/configuration/ha/",
-      "destination": "/enroll-resources/agents/high-availability/",
+      "destination": "/installation/agents/high-availability/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/database-access/guides/ha/",
-      "destination": "/enroll-resources/agents/high-availability/",
+      "destination": "/installation/agents/high-availability/",
       "permanent": true
     },
     {
       "source": "/reference/infrastructure-as-code/teleport-resources/saml-idpservice-provider-v1/",
       "destination": "/reference/infrastructure-as-code/teleport-resources/saml-idp-service-provider-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/amazon-ec2/",
+      "destination": "/installation/single-machine/amazon-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/amazon-ecs/",
+      "destination": "/installation/agents/amazon-ecs/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/docker/",
+      "destination": "/installation/single-machine/docker/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/helm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/linux/",
+      "destination": "/installation/single-machine/linux/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/macos/",
+      "destination": "/installation/single-machine/macos/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/source/",
+      "destination": "/installation/single-machine/source/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/windows/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/add-service-to-agent/",
+      "destination": "/installation/agents/add-service-to-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/",
+      "destination": "/installation/agents/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/argocd-helm/",
+      "destination": "/installation/agents/argocd-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-ec2/",
+      "destination": "/installation/agents/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/aws-iam/",
+      "destination": "/installation/agents/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/azure/",
+      "destination": "/installation/agents/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/gcp/",
+      "destination": "/installation/agents/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/high-availability/",
+      "destination": "/installation/agents/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/join-token/",
+      "destination": "/installation/agents/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/kubernetes/",
+      "destination": "/installation/agents/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/agents/oracle/",
+      "destination": "/installation/agents/oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/installation/single-machine/amazon-ecs/",
+      "destination": "/installation/agents/amazon-ecs/",
       "permanent": true
     }
   ]

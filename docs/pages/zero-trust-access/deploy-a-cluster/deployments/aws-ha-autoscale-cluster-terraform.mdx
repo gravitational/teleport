@@ -182,36 +182,7 @@ cluster from scratch, so choose carefully. A good example might be something lik
 $ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Teleport (Gravitational) automatically builds and publishes Teleport Community Edition, Enterprise, and Enterprise FIPS
-AMIs when we release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
-where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
-and `<arch>` is either `x86_64` or `arm64`.
-
-FIPS 140 compatible AMIs (which deploy Teleport in FIPS mode by default) have the `-fips` suffix after `<arch>`,
-e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
-
-The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
-the example `awscli` commands below. The output is in JSON format by default.
-
-<Admonition
-  type="tip"
-  title="List Teleport AMIs"
->
-  OSS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
-  ```
-
-  Enterprise AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
-  ```
-
-  Enterprise FIPS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
-  ```
-</Admonition>
+(!docs/pages/includes/teleport-amis.mdx!)
 
 ### key_name
 
@@ -853,15 +824,15 @@ $ journalctl -u teleport-node.service
 ## Adding agents to your Teleport cluster
 
 Customers run many workloads within AWS and depending on how you work, there are many
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/single-machine/single-machine.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
-- [Install the Teleport binary on the Server](../../../installation/installation.mdx)
+- [Install the Teleport binary on the Server](../../../installation/single-machine/single-machine.mdx)
 - [Run Teleport - we recommend using systemd](../../../reference/cli/teleport.mdx#teleport-install-systemd)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/deployment/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/agents.mdx)
+  cluster](../../../installation/agents/agents.mdx)
 
 ### Getting the SSH Service join token
 
@@ -873,13 +844,13 @@ $ aws ssm get-parameter --region <Var name="us-west-2" /> --name "/teleport/${CL
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../enroll-resources/agents/join-token.mdx).
+You can also generate an SSH Service join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../../installation/agents/join-token.mdx).
 
 ### Joining agents to the cluster
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport Agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-token.mdx).
+To manually join Teleport Agents to your cluster, you will need [a join token](../../../installation/agents/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.

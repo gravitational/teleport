@@ -75,7 +75,7 @@ Additionally, Teleport takes reasonable steps to identify and remove sensitive d
 
 You can connect servers, Kubernetes clusters, databases, desktops, and
 applications using [reverse
-tunnels](enroll-resources/agents/agents.mdx).
+tunnels](installation/agents/agents.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -89,7 +89,7 @@ If you plan on connecting more than 10,000 nodes or agents, please contact your 
 ### Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise Cloud, users can generate
-[dynamic tokens](enroll-resources/agents/join-token.mdx):
+[dynamic tokens](installation/agents/join-token.mdx):
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
@@ -99,7 +99,8 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 
 ### How can I access the `tctl` admin tool?
 
-Find the appropriate download at [Installation](installation/installation.mdx).
+Find the appropriate download at
+[Installation](installation/single-machine/single-machine.mdx).
 
 After downloading the tools, first log in to your cluster using `tsh`, then use `tctl` remotely:
 
