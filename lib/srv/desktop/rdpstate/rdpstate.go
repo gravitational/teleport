@@ -138,6 +138,10 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU length")
 		}
 
+		if dataLen >= maxMessageLength {
+			return trace.BadParameter("legacy RDPFastPathPDU length %d exceeds maximum %d", dataLen, maxMessageLength)
+		}
+
 		pdu := make([]byte, dataLen)
 		if _, err := io.ReadFull(r, pdu); err != nil {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
