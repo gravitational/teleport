@@ -137,17 +137,25 @@ export function WidgetView({
       ? updateEvent.autoUpdatesStatus.options.unreachableClusters
       : [];
   const downloadBaseUrl = getDownloadHost(updateEvent);
+  const requiresUacPrompt = updateEvent.update.requiresUacPrompt;
 
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
       platform={platform}
+      requiresUacPrompt={requiresUacPrompt}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
       onMore={onMore}
       primaryButton={
-        button ? { name: button.name, onClick: button.action } : undefined
+        button
+          ? {
+              name: button.name,
+              disabled: button.disabled,
+              onClick: button.action,
+            }
+          : undefined
       }
       {...rest}
     />
@@ -159,6 +167,7 @@ function AvailableUpdate({
   downloadHost,
   onMore,
   platform,
+  requiresUacPrompt,
   primaryButton,
   unreachableClusters,
   version,
@@ -169,10 +178,12 @@ function AvailableUpdate({
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
+  requiresUacPrompt: boolean;
   onMore(): void;
   primaryButton?: {
     name: string;
-    onClick(): void;
+    disabled?: boolean;
+    onClick?(): void;
   };
 } & SpaceProps) {
   const hasUnreachableClusters = !!unreachableClusters.length;
@@ -212,7 +223,11 @@ function AvailableUpdate({
         </Flex>
         <Flex gap={2}>
           {primaryButton && (
-            <ButtonPrimary size="small" onClick={primaryButton.onClick}>
+            <ButtonPrimary
+              size="small"
+              onClick={primaryButton.onClick}
+              disabled={primaryButton.disabled}
+            >
               {primaryButton.name}
             </ButtonPrimary>
           )}
@@ -221,7 +236,7 @@ function AvailableUpdate({
           </ButtonSecondary>
         </Flex>
       </Flex>
-      {(hasUnreachableClusters || isNonTeleportServer) && (
+      {(hasUnreachableClusters || isNonTeleportServer || requiresUacPrompt) && (
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
@@ -233,6 +248,12 @@ function AvailableUpdate({
             <IconAndText
               Icon={Info}
               text={`Using ${downloadHost} as the update server.`}
+            />
+          )}
+          {requiresUacPrompt && (
+            <IconAndText
+              Icon={Info}
+              text="Update your configuration to enable UAC-free updates."
             />
           )}
         </Stack>
@@ -268,7 +289,8 @@ function makeUpdaterContent({
   description: string;
   button?: {
     name: string;
-    action(): void;
+    disabled?: boolean;
+    action?(): void;
   };
 } {
   switch (updateEvent.kind) {
@@ -277,21 +299,14 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
-      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description:
-            updateKind === 'upgrade'
-              ? 'Update available. Starting download…'
-              : 'Downloading required version…',
+          description: 'Update available. Starting download…',
         };
       }
 
       return {
-        description:
-          updateKind === 'upgrade'
-            ? 'Update available'
-            : 'Downgrade to required version',
+        description: 'Update available',
         button: {
           name: 'Download',
           action: onDownload,
@@ -303,6 +318,14 @@ function makeUpdaterContent({
         button: {
           name: 'Restart',
           action: onInstall,
+        },
+      };
+    case 'installing':
+      return {
+        description: 'Ready to install',
+        button: {
+          name: 'Restarting…',
+          disabled: true,
         },
       };
     case 'error':

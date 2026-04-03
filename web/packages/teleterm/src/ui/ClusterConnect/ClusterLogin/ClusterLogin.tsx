@@ -198,6 +198,7 @@ function ClusterLoginForm({
 const AppUpdateDetails = ({
   refCallback,
   platform,
+  currentVersion,
   downloadAppUpdate,
   checkForAppUpdates,
   cancelAppUpdateDownload,
@@ -224,6 +225,7 @@ const AppUpdateDetails = ({
         <DetailsView
           onInstall={() => quitAndInstallAppUpdate()}
           platform={platform}
+          currentVersion={currentVersion}
           changeManagingCluster={clusterUri =>
             changeAppUpdatesManagingCluster(clusterUri)
           }

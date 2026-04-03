@@ -1514,6 +1514,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	connectUpdater := app.Command("connect-updater", "Teleport Connect updater commands.").Hidden()
+	connectUpdaterServiceCommand := newConnectUpdaterServiceRunCommand(connectUpdater)
+	connectUpdaterServiceInstallCommand := newConnectUpdaterServiceInstallCommand(connectUpdater)
+	connectUpdaterServiceUninstallCommand := newConnectUpdaterServiceUninstallCommand(connectUpdater)
+	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
+
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1958,6 +1964,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallCommand.FullCommand():
+		err = connectUpdaterServiceInstallCommand.run(&cf)
+	case connectUpdaterServiceUninstallCommand.FullCommand():
+		err = connectUpdaterServiceUninstallCommand.run(&cf)
+	case connectUpdaterServiceCommand.FullCommand():
+		err = connectUpdaterServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallUpdateCommand.FullCommand():
+		err = connectUpdaterServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
