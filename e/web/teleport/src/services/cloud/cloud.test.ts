@@ -1,7 +1,5 @@
 import cfg from 'e-teleport/config';
 import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { Metric } from 'e-teleport/UsageSummary/Summary';
-import { makeGetUsageResponse } from 'e-teleport/UsageSummary/testHelpers';
 import api from 'teleport/services/api';
 
 import CloudSvc from './cloud';
@@ -15,9 +13,11 @@ describe('cloudService', () => {
   });
 
   test('fetchBillingSummaryInformation', async () => {
-    const expected: GetUsageResponse = makeGetUsageResponse({
+    const expected: GetUsageResponse = {
       aggregateCount: 1,
       usageUpdatedAt: 0,
+      alerts: [],
+      missingEntitlements: [],
       usageHistory: [
         {
           activeAccounts: 1,
@@ -30,13 +30,7 @@ describe('cloudService', () => {
             name: 'model four',
             createdAt: 1762379155000,
             description: 'the newest pricing model',
-            metric: [
-              Metric.MWI,
-              Metric.IGMAU,
-              Metric.ISTPR,
-              Metric.MAU,
-              Metric.TPR,
-            ],
+            metric: ['MWI', 'IGMAU', 'ISTPR', 'MAU', 'TPR'],
           },
           start: new Date('2024/01/02').getTime(),
           startFormatted: 'Jan 02, 2024',
@@ -54,7 +48,7 @@ describe('cloudService', () => {
           },
         },
       ],
-    });
+    };
     jest.spyOn(api, 'post').mockResolvedValue(expected);
 
     let response = await cloud.fetchBillingSummaryInformation({ tenants: [] });

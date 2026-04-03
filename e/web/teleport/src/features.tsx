@@ -39,10 +39,10 @@ import { SessionSummaries } from 'e-teleport/SessionRecordings/setup/SessionSumm
 import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
 import SupportE from 'e-teleport/Support';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
-import UsageSummary from 'e-teleport/UsageSummary';
 import { Users } from 'e-teleport/Users';
 import NewRequest from 'e-teleport/Workflow/NewRequest/NewRequest';
 import ReviewRequests from 'e-teleport/Workflow/ReviewRequests/ReviewRequests';
+import { Redirect } from 'teleport/components/Router';
 import * as OSS from 'teleport/features';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { storageService } from 'teleport/services/storageService';
@@ -60,6 +60,7 @@ import { RolesE } from './Roles/RolesE';
 // ****************************
 
 const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
+const Cloud = lazy(() => import('e-teleport/Cloud'));
 
 class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
   route = {
@@ -167,11 +168,31 @@ export class FeatureDiscoverE extends OSS.FeatureDiscover {
 //  Billing Features
 // ****************************
 
-export class FeatureUsageSummary implements TeleportFeature {
+// FeatureLegacyUsageSummary redirects the old per-cluster usage summary route
+// (/web/cluster/:clusterId/usage-summary) to the new cluster-agnostic cloud
+// route. TODO(@mcbattirola): Remove in v20.
+class FeatureLegacyUsageSummary implements TeleportFeature {
   route = {
     title: 'Usage Tracking',
     path: cfg.routes.usageSummarySummary,
-    component: UsageSummary,
+    component: () => <Redirect to={cfg.routes.cloud.usageSummary} />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return (
+      flags.billing && cfg.oss.isUsageBasedBilling && !cfg.oss.isStripeManaged
+    );
+  }
+}
+
+export class FeatureUsageSummary implements TeleportFeature {
+  route = {
+    title: 'Usage Tracking',
+    // Registered at the root so the Cloud component handles all sub-routes
+    // (/web/cloud/summary, /web/cloud/mau, /web/cloud/tpr) internally via
+    // React Router, without needing separate feature registrations.
+    path: cfg.routes.cloud.root,
+    component: Cloud,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -769,6 +790,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureLegacyUsageSummary(),
     new FeatureUsageSummary(),
     new FeatureDeviceTrustWeb(),
     new FeatureSSOConfirm(),

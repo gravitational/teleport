@@ -99,10 +99,19 @@ export const enterpriseRoutes = {
   // device trust
   deviceTrust: `/web/devices`,
 
-  // billing
-  usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
-
   sessionSummariesManagement: '/web/cluster/:clusterId/recordings/summaries',
+
+  // cloud
+  // These paths should be kept in sync with the cloudpanel's `baseUrl`, in th Cloud repo:
+  // https://github.com/gravitational/cloud/blob/master/salescenter/web/packages/cloudpanel/src/main.tsx
+  cloud: {
+    root: '/web/cloud',
+    usageSummary: '/web/cloud/summary',
+  },
+
+  // Legacy routes kept for backwards compatibility redirects.
+  // usageSummarySummary was moved to cloud.usageSummary in v19.
+  usageSummarySummary: '/web/cluster/:clusterId/usage-summary',
 };
 
 const cfg = {
@@ -288,6 +297,10 @@ const cfg = {
   },
 
   getUsageSummarySummaryRoute(clusterId: string) {
+    return generatePath(cfg.routes.cloud.usageSummary, { clusterId });
+  },
+
+  getLegacyUsageSummaryRoute(clusterId: string) {
     return generatePath(cfg.routes.usageSummarySummary, { clusterId });
   },
 
