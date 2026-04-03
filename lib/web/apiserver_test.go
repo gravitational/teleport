@@ -8311,7 +8311,7 @@ func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...inter
 	case <-timeoutCh:
 		// The read goroutine is still blocked in the case of a timeout, but it will be
 		// unblocked once the test harness is torn down and the reader closed.
-		t.Fatalf(fmt.Sprintf("timeout waiting on terminal for output: %v", substr), msgAndArgs...)
+		require.NoError(t, fmt.Errorf("timeout waiting on terminal for output: %v", substr), msgAndArgs)
 	case err := <-errC:
 		require.NoError(t, err, msgAndArgs...)
 	}
