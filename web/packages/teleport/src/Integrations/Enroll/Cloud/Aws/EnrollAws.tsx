@@ -18,8 +18,6 @@
 
 import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
-import styled from 'styled-components';
-
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
@@ -42,8 +40,6 @@ import {
 import {
   ContentWithSidePanel,
   InfoGuideSwitch,
-  PANEL_WIDTH,
-  responsivePanelWidth,
   TerraformInfoGuide,
   TerraformInfoGuideSidePanel,
   useTerraformInfoGuide,
@@ -110,7 +106,7 @@ export function EnrollAws() {
     <Validation>
       {({ validator }) => (
         <Box pt={3}>
-          <FlexibleContent isPanelOpen={isPanelOpen} panelWidth={PANEL_WIDTH}>
+          <ContentWithSidePanel isPanelOpen={isPanelOpen}>
             <Flex justifyContent="space-between" alignItems="center" mb={1}>
               <Header>Connect Amazon Web Services</Header>
               <Box mt={1}>
@@ -170,10 +166,9 @@ export function EnrollAws() {
                 Back
               </ButtonSecondary>
             </Box>
-          </FlexibleContent>
+          </ContentWithSidePanel>
 
           <TerraformInfoGuideSidePanel
-            panelWidth={PANEL_WIDTH}
             activeTab={activeInfoGuideTab}
             onTabChange={setActiveInfoGuideTab}
             InfoGuideContent={<InfoGuideContent />}
@@ -230,8 +225,3 @@ export function IntegrationSection({
   );
 }
 
-const FlexibleContent = styled(ContentWithSidePanel)`
-  && {
-    margin-right: ${p => (p.isPanelOpen ? responsivePanelWidth : '0')};
-  }
-`;

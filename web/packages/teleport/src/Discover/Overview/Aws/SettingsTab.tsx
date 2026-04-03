@@ -52,7 +52,6 @@ import {
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
-import { SETTINGS_PANEL_WIDTH } from '../SettingsTab';
 
 export function SettingsTab({
   stats,
@@ -193,7 +192,6 @@ export function SettingsTab({
           </Box>
 
           <TerraformInfoGuideSidePanel
-            panelWidth={SETTINGS_PANEL_WIDTH}
             activeTab={activeInfoGuideTab}
             onTabChange={onInfoGuideTabChange}
             InfoGuideContent={<InfoGuideContent />}
