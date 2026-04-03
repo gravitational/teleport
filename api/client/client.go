@@ -1650,6 +1650,15 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	return resp.GetSession(), nil
 }
 
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: publicKey,
+	})
+	return trace.Wrap(err)
+}
+
 // CreateSnowflakeSession creates a Snowflake web session.
 func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
