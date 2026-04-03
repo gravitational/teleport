@@ -31,6 +31,8 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	libcache "github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,10 +88,28 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
 	}
 
+	aclService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+	aclCache, err := libcache.New(libcache.Config{
+		Events: events,
+		Watches: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+		AccessLists: aclService,
+	})
+	require.NoError(t, err)
+	defer aclCache.Close()
+
 	// start the cache with the service and events.
 	cache, err := NewCache(CacheConfig{
 		Events:            events,
 		Reader:            service,
+		AccessListEvents:  aclCache,
+		AccessListReader:  aclCache,
 		TTLCacheRetention: time.Hour, // ensures state-changes are from watcher events rather than ttl cache reloads
 	})
 	require.NoError(t, err)
@@ -312,10 +332,29 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
 	}
 
+	aclService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+	aclCache, err := libcache.New(libcache.Config{
+		Events: events,
+		Watches: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+		AccessLists: aclService,
+		Unstarted:   true,
+	})
+	require.NoError(t, err)
+	defer aclCache.Close()
+
 	// start the cache with the service and never-events.
 	cache, err := NewCache(CacheConfig{
 		Events:            events,
 		Reader:            service,
+		AccessListEvents:  aclCache,
+		AccessListReader:  aclCache,
 		TTLCacheRetention: time.Millisecond * 10, // ensure we don't spend more than 1 cycle waiting
 	})
 	require.NoError(t, err)
