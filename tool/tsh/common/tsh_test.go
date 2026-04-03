@@ -2661,6 +2661,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 func TestSSHAddingMFA(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx := t.Context()
+	const subtestSSHRunTimeout = 2 * time.Minute
 
 	localUser, err := user.Current()
 	require.NoError(t, err)
@@ -2833,12 +2834,26 @@ func TestSSHAddingMFA(t *testing.T) {
 				"echo", greeting,
 			)
 
-			err := Run(ctx, args, setHomePath(tmpHomePath), func(cf *CLIConf) error {
-				cf.OverrideStdout = &stdout
-				cf.WebauthnRegister = webauthnRegister
-				cf.WebauthnLogin = webauthnLogin
-				return nil
-			})
+			errC := make(chan error, 1)
+			go func() {
+				errC <- Run(ctx, args, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+					cf.OverrideStdout = &stdout
+					cf.WebauthnRegister = webauthnRegister
+					cf.WebauthnLogin = webauthnLogin
+					return nil
+				})
+			}()
+
+			var err error
+			select {
+			case err = <-errC:
+			case <-time.After(subtestSSHRunTimeout):
+				t.Logf("timed out waiting for Run in TestSSHAddingMFA/%s after %v", tc.name, subtestSSHRunTimeout)
+				if g := pprof.Lookup("goroutine"); g != nil {
+					_ = g.WriteTo(os.Stderr, 2)
+				}
+				require.FailNow(t, "tsh ssh run timed out", "timed out waiting for Run in subtest %q after %v", tc.name, subtestSSHRunTimeout)
+			}
 
 			tc.assertFn(t, stdout.String(), err)
 		})
