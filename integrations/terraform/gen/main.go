@@ -466,6 +466,23 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
+	uiConfig = payload{
+		Name:                   "UIConfig",
+		TypeName:               "UIConfigV1",
+		VarName:                "uiConfig",
+		IfaceName:              "UIConfig",
+		GetMethod:              "GetUIConfig",
+		CreateMethod:           "SetUIConfig",
+		UpdateMethod:           "SetUIConfig",
+		DeleteMethod:           "DeleteUIConfig",
+		ID:                     `"ui_config"`,
+		Kind:                   "ui_config",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_ui_config",
+		HasCheckAndSetDefaults: true,
+		GetCanReturnNil:        true,
+	}
+
 	user = payload{
 		Name:                   "User",
 		TypeName:               "UserV2",
@@ -1047,6 +1064,8 @@ func genTFSchema() {
 	generateDataSource(trustedCluster, pluralDataSource)
 	generateResource(sessionRecording, singularResource)
 	generateDataSource(sessionRecording, singularDataSource)
+	generateResource(uiConfig, singularResource)
+	generateDataSource(uiConfig, singularDataSource)
 	generateResource(user, pluralResource)
 	generateDataSource(user, pluralDataSource)
 	generateResource(loginRule, pluralResource)

@@ -821,6 +821,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),

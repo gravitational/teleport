@@ -184,6 +184,10 @@ func (r resourceTeleportAuthPreference) Read(ctx context.Context, req tfsdk.Read
 	}
 
 	authPreferenceI, err := r.p.Client.GetAuthPreference(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AuthPreference", trace.Wrap(err), "cluster_auth_preference"))
 		return
