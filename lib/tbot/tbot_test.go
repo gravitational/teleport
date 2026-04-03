@@ -24,11 +24,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -70,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -721,6 +724,8 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
 		Destination: outputDest,
 	})
+	diagSocketPath := filepath.Join(os.TempDir(), "tbot-diag.sock")
+	botConfig.DiagSocketForUpdater = diagSocketPath
 	thirdBot := New(botConfig, log)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -741,6 +746,38 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 		return client != nil
 	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
 
+	diagClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", diagSocketPath)
+			},
+		},
+	}
+	t.Cleanup(diagClient.CloseIdleConnections)
+
+	readIdentityReadyz := func() (readyz.Status, error) {
+		resp, err := diagClient.Get("http://unix/readyz/identity")
+		if err != nil {
+			return readyz.Initializing, err
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Status readyz.Status `json:"status"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			return readyz.Initializing, err
+		}
+		return payload.Status, nil
+	}
+
+	// Check identity service status is not healthy before the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status != readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for pre-heal readyz status")
+
 	t.Log("Healing network partition")
 	proxy.setFailing(false)
 
@@ -754,6 +791,12 @@ func TestBot_IdentityRenewalFails(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for output to be written")
 	}
+
+	// Check identity service status becomes healthy after the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status == readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for identity readyz to become healthy")
 }
 
 func newWriteNotifier(dst destination.Destination) *writeNotifier {
