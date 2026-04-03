@@ -625,19 +625,41 @@ func TestGetInheritedGrants(t *testing.T) {
 	acl2 := newAccessList(t, "2", clock)
 
 	// aclroot has a trait for owners - "root-owner-trait", and a role for owners - "root-owner-role"
+	// and 2 scoped roles for owners
 	aclroot.Spec.OwnerGrants = accesslist.Grants{
 		Traits: map[string][]string{
 			"root-owner-trait": {"root-owner-value"},
 		},
 		Roles: []string{"root-owner-role"},
+		ScopedRoles: []accesslist.ScopedRoleGrant{
+			{
+				Role:  "root-scoped-role",
+				Scope: "/root/bb",
+			},
+			{
+				Role:  "root-scoped-role",
+				Scope: "/root/aa",
+			},
+		},
 	}
 
 	// acl1 has a trait for members - "1-member-trait", and a role for members - "1-member-role"
+	// and 2 scoped roles for members
 	acl1.Spec.Grants = accesslist.Grants{
 		Traits: map[string][]string{
 			"1-member-trait": {"1-member-value"},
 		},
 		Roles: []string{"1-member-role"},
+		ScopedRoles: []accesslist.ScopedRoleGrant{
+			{
+				Role:  "1-scoped-role",
+				Scope: "/1/bb",
+			},
+			{
+				Role:  "1-scoped-role",
+				Scope: "/1/aa",
+			},
+		},
 	}
 
 	// acl2 has no traits or roles
@@ -669,6 +691,24 @@ func TestGetInheritedGrants(t *testing.T) {
 			"root-owner-trait": {"root-owner-value"},
 		},
 		Roles: []string{"1-member-role", "root-owner-role"},
+		ScopedRoles: []accesslist.ScopedRoleGrant{
+			{
+				Role:  "1-scoped-role",
+				Scope: "/1/aa",
+			},
+			{
+				Role:  "1-scoped-role",
+				Scope: "/1/bb",
+			},
+			{
+				Role:  "root-scoped-role",
+				Scope: "/root/aa",
+			},
+			{
+				Role:  "root-scoped-role",
+				Scope: "/root/bb",
+			},
+		},
 	}
 
 	grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter)
