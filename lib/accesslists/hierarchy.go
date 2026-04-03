@@ -584,6 +584,14 @@ func (s *Hierarchy) expandOwnerOf(ctx context.Context, accessList *accesslist.Ac
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			// Verify that al is actually listed as a list owner in ownerList.
+			// This validates the OwnerOf relationship to guard against stale or
+			// inconsistent Status.OwnerOf references (e.g., if an owner was removed
+			// but Status.OwnerOf wasn't updated).
+			if !ownerList.HasOwnerList(al.GetName()) {
+				continue
+			}
+
 			if UserMeetsRequirements(user, ownerList.GetOwnershipRequires()) {
 				out = append(out, ownerList)
 			}
