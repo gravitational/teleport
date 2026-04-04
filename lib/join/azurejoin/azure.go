@@ -130,12 +130,6 @@ type AzureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*AccessT
 // given subscription authenticated with a given static token credential.
 type VMClientGetter func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error)
 
-// SubscriptionClient is an Azure subscriptions client.
-type SubscriptionClient interface {
-	// ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
-	ListSubscriptionIDs(ctx context.Context) ([]string, error)
-}
-
 // SubscriptionClientGetter returns an Azure subscription client.
 type SubscriptionClientGetter func(ctx context.Context, integration string) (azure.SubscriptionClient, error)
 
