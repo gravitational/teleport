@@ -627,7 +627,7 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Identity:   authServer.Auth().IdentityInternal,
 		Storage:    mfaService,
 	})
 	require.NoError(t, err)
@@ -743,7 +743,7 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Identity:   authServer.Auth().IdentityInternal,
 		Storage:    mfaService,
 	})
 	require.NoError(t, err)
@@ -852,7 +852,7 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Identity:   authServer.Auth().IdentityInternal,
 		Storage:    mfaService,
 	})
 	require.NoError(t, err)
@@ -1461,7 +1461,7 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Identity:   authServer.Auth().IdentityInternal,
 		Storage:    authServer.Auth(),
 	})
 	require.NoError(t, err)

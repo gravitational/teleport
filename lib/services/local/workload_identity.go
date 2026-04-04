@@ -141,6 +141,41 @@ func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 	return updated, trace.Wrap(err)
 }
 
+// AppendPutWorkloadIdentityActions adds conditional actions to an atomic write
+// to create or update a WorkloadIdentity.
+func (b *WorkloadIdentityService) AppendPutWorkloadIdentityActions(
+	actions []backend.ConditionalAction,
+	resource *workloadidentityv1pb.WorkloadIdentity,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateWorkloadIdentity(resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := b.service.MakeBackendItem(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
+// AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
+// write to delete a WorkloadIdentity.
+func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
+	actions []backend.ConditionalAction,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       b.service.BackendKey(name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
+}
+
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
 		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),

@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // LockGetter is a service that gets locks.
@@ -64,6 +65,27 @@ type Access interface {
 	DeleteLock(context.Context, string) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
+}
+
+// AccessInternal extends the Access interface with auth-specific internal methods.
+type AccessInternal interface {
+	Access
+
+	// AppendPutRoleActions adds conditional actions to an atomic write to create
+	// or update a role.
+	AppendPutRoleActions(
+		actions []backend.ConditionalAction,
+		role types.Role,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteRoleActions adds conditional actions to an atomic write to
+	// delete a role.
+	AppendDeleteRoleActions(
+		actions []backend.ConditionalAction,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)

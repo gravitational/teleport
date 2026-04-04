@@ -57,7 +57,7 @@ func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*
 	}
 
 	// Wrap the Identity service to allow mocking MFA devices.
-	authServer.Auth().Identity = &mockAuthServerIdentity{Identity: authServer.Auth().Identity, devices: devices}
+	authServer.Auth().IdentityInternal = &mockAuthServerIdentity{IdentityInternal: authServer.Auth().IdentityInternal, devices: devices}
 
 	return &mockAuthServer{Server: authServer}, nil
 }
@@ -90,7 +90,7 @@ func (m *mockAuthServer) VerifySSOMFASession(
 		return nil, trace.AccessDenied("invalid SSO MFA challenge request ID %q", requestID)
 	}
 
-	devices, err := m.Auth().Identity.GetMFADevices(ctx, username, false)
+	devices, err := m.Auth().IdentityInternal.GetMFADevices(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,7 +135,7 @@ func (m *mockAuthServer) CompleteBrowserMFAChallenge(
 }
 
 type mockAuthServerIdentity struct {
-	services.Identity
+	services.IdentityInternal
 
 	devices []*types.MFADevice
 }
@@ -146,7 +146,7 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 	username string,
 	withSecrets bool,
 ) ([]*types.MFADevice, error) {
-	devices, err := m.Identity.GetMFADevices(ctx, username, withSecrets)
+	devices, err := m.IdentityInternal.GetMFADevices(ctx, username, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

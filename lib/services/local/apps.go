@@ -150,16 +150,11 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 	if err := services.CheckAndSetDefaults(app); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.MarshalApp(app)
+	item, err := itemFromApp(app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.NewKey(appPrefix, app.GetName()),
-		Value:   value,
-		Expires: app.Expiry(),
-	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(ctx, *item)
 	if trace.IsAlreadyExists(err) {
 		return trace.AlreadyExists("app %q already exists", app.GetName())
 	}
@@ -168,6 +163,39 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// AppendPutAppActions adds conditional actions to an atomic write to create or
+// update an application resource.
+func (s *AppService) AppendPutAppActions(
+	actions []backend.ConditionalAction,
+	app types.Application,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.CheckAndSetDefaults(app); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := itemFromApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
+}
+
+func itemFromApp(app types.Application) (*backend.Item, error) {
+	value, err := services.MarshalApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:     backend.NewKey(appPrefix, app.GetName()),
+		Value:   value,
+		Expires: app.Expiry(),
+	}, nil
 }
 
 // UpdateApp updates an existing application resource.
@@ -207,6 +235,20 @@ func (s *AppService) DeleteApp(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// AppendDeleteAppActions adds conditional actions to an atomic write to delete
+// an application resource.
+func (s *AppService) AppendDeleteAppActions(
+	actions []backend.ConditionalAction,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(appPrefix, name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 // DeleteAllApps removes all application resources.

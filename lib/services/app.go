@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -69,6 +70,27 @@ type Applications interface {
 	DeleteApp(ctx context.Context, name string) error
 	// DeleteAllApps removes all database resources.
 	DeleteAllApps(context.Context) error
+}
+
+// ApplicationsInternal extends the Access interface with auth-specific internal methods.
+type ApplicationsInternal interface {
+	Applications
+
+	// AppendPutAppActions adds conditional actions to an atomic write to create
+	// or update an application resource.
+	AppendPutAppActions(
+		actions []backend.ConditionalAction,
+		app types.Application,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteAppActions adds conditional actions to an atomic write to
+	// delete an application resource.
+	AppendDeleteAppActions(
+		actions []backend.ConditionalAction,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // ValidateApp validates the Application resource.

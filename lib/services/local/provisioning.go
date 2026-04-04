@@ -43,26 +43,12 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
+	actions, err := s.AppendPutProvisionTokenActions(nil, p, backend.Whatever())
 	if err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 
-	if _, err := s.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       backend.NewKey(tokensPrefix, p.GetName()),
-			Condition: backend.Whatever(),
-			Action:    backend.Put(*item),
-		},
-		{
-			Key:       backend.NewKey(scopedTokenPrefix, p.GetName()),
-			Condition: backend.NotExists(),
-			// the second action is a no-op because we only need to
-			// execute a single action to create the token,
-			// but both conditions must be met
-			Action: backend.Nop(),
-		},
-	}); err != nil {
+	if _, err := s.AtomicWrite(ctx, actions); err != nil {
 		if errors.Is(err, backend.ErrConditionFailed) {
 			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
 		}
@@ -70,6 +56,48 @@ func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.Provision
 	}
 
 	return nil
+}
+
+// AppendPutProvisionTokenActions adds conditional actions to an atomic write to
+// create or update a provision token.
+func (s *ProvisioningService) AppendPutProvisionTokenActions(
+	actions []backend.ConditionalAction,
+	p types.ProvisionToken,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	item, err := itemFromProvisionToken(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions,
+		backend.ConditionalAction{
+			Key:       backend.NewKey(tokensPrefix, p.GetName()),
+			Condition: condition,
+			Action:    backend.Put(*item),
+		},
+		backend.ConditionalAction{
+			Key:       backend.NewKey(scopedTokenPrefix, p.GetName()),
+			Condition: backend.NotExists(),
+			// the second action is a no-op because we only need to
+			// execute a single action to create the token,
+			// but both conditions must be met
+			Action: backend.Nop(),
+		},
+	), nil
+}
+
+// AppendDeleteProvisionTokenActions adds conditional actions to an atomic
+// write to delete a provision token.
+func (s *ProvisioningService) AppendDeleteProvisionTokenActions(
+	actions []backend.ConditionalAction,
+	token string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(tokensPrefix, token),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 // PatchToken uses the supplied function to attempt to patch a token resource.
@@ -109,7 +137,7 @@ func (s *ProvisioningService) PatchToken(
 			return nil, trace.BadParameter("metadata.revision: cannot be patched")
 		}
 
-		item, err := s.tokenToItem(updated)
+		item, err := itemFromProvisionToken(updated)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -130,26 +158,12 @@ func (s *ProvisioningService) PatchToken(
 
 // CreateToken creates a new token for the auth server
 func (s *ProvisioningService) CreateToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
+	actions, err := s.AppendPutProvisionTokenActions(nil, p, backend.NotExists())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := s.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       backend.NewKey(tokensPrefix, p.GetName()),
-			Condition: backend.NotExists(),
-			Action:    backend.Put(*item),
-		},
-		{
-			Key:       backend.NewKey(scopedTokenPrefix, p.GetName()),
-			Condition: backend.NotExists(),
-			// the second action is a no-op because we only need to
-			// execute a single action to create the token,
-			// but both conditions must be met
-			Action: backend.Nop(),
-		},
-	}); err != nil {
+	if _, err := s.AtomicWrite(ctx, actions); err != nil {
 		if errors.Is(err, backend.ErrConditionFailed) {
 			return trace.AlreadyExists("token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
 		}
@@ -157,24 +171,6 @@ func (s *ProvisioningService) CreateToken(ctx context.Context, p types.Provision
 	}
 
 	return nil
-}
-
-func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
-	if err := services.CheckAndSetDefaults(p); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rev := p.GetRevision()
-	data, err := services.MarshalProvisionToken(p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := &backend.Item{
-		Key:      backend.NewKey(tokensPrefix, p.GetName()),
-		Value:    data,
-		Expires:  p.Expiry(),
-		Revision: rev,
-	}
-	return item, nil
 }
 
 // DeleteAllTokens deletes all provisioning tokens
