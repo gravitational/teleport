@@ -29,8 +29,8 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"

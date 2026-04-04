@@ -25,6 +25,8 @@ require (
 	k8s.io/apiextensions-apiserver v0.34.2
 )
 
+require github.com/DataDog/datadog-agent/pkg/template v0.77.2
+
 require (
 	buf.build/gen/go/bufbuild/bufplugin/protocolbuffers/go v1.36.3-20250121211742-6d880cc6cc8d.1 // indirect
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1 // indirect

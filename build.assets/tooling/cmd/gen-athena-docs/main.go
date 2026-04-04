@@ -23,9 +23,10 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"text/template"
 	"unicode"
 	"unicode/utf8"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/gen/go/eventschema"
 )

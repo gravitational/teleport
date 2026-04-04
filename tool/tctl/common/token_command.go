@@ -30,9 +30,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"

@@ -289,6 +289,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
+require github.com/DataDog/datadog-agent/pkg/template v0.77.2
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.123.0 // indirect

@@ -30,9 +30,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"text/template"
 	"unicode"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/term"

@@ -20,12 +20,12 @@ package app
 
 import (
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"slices"
 	"strings"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/html"
 

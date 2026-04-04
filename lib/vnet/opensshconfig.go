@@ -29,7 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"text/template"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"time"
 
 	renameio "github.com/google/renameio/v2/maybe" // Writes aren't guaranteed to be atomic on Windows.

@@ -22,8 +22,8 @@ import (
 	"io"
 	"os"
 	"testing"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/stretchr/testify/require"
 )
 
