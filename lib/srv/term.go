@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -60,7 +61,7 @@ type Terminal interface {
 	Run(ctx context.Context, errorWriter io.Writer) error
 
 	// Wait will block until the terminal is complete.
-	Wait() (*ExecResult, error)
+	Wait() ExecResult
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
@@ -150,6 +151,9 @@ type terminal struct {
 	// reexec and shell processes. This is necessary due to the use of custom pipes,
 	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 
 	pid int
 
@@ -238,6 +242,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 			return
 		}
 
+		t.childStderr = childErr
 		if _, err := io.WriteString(errorWriter, childErr); err != nil {
 			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}
@@ -266,27 +271,25 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 }
 
 // Wait will block until the terminal is complete.
-func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.cmd.Wait()
+func (t *terminal) Wait() ExecResult {
+	exitErr := t.cmd.Wait()
 	t.waitForOutputStreams.Wait()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
-		}
-		return nil, err
+
+	var cmd string
+	if execRequest, err := t.serverContext.GetExecRequest(); err == nil {
+		cmd = execRequest.GetCommand()
 	}
 
-	status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
+	result := ExecResult{
+		Code:    exitCode(exitErr),
+		Command: cmd,
 	}
 
-	return &ExecResult{
-		Code:    status.ExitStatus(),
-		Command: t.cmd.Path,
-	}, nil
+	if t.childStderr != "" {
+		result.Error = errors.New(strings.TrimRight(t.childStderr, "\r\n"))
+	}
+
+	return result
 }
 
 // ReadAuditSessionID reads the unique audit session ID of the process
@@ -630,32 +633,23 @@ func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 	return nil
 }
 
-func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	execRequest, err := t.ctx.GetExecRequest()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (t *remoteTerminal) Wait() ExecResult {
+	var result ExecResult
+
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil {
+		result.Command = execRequest.GetCommand()
 	}
 
-	err = t.session.Wait()
-	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			return &ExecResult{
-				Code:    exitErr.ExitStatus(),
-				Command: execRequest.GetCommand(),
-			}, err
-		}
-
-		return &ExecResult{
-			Code:    teleport.RemoteCommandFailure,
-			Command: execRequest.GetCommand(),
-		}, err
+	err := t.session.Wait()
+	var sshExitErr *ssh.ExitError
+	if errors.As(err, &sshExitErr) {
+		result.Code = sshExitErr.ExitStatus()
+	} else if err != nil {
+		result.Code = teleport.RemoteCommandFailure
+		result.Error = err
 	}
 
-	return &ExecResult{
-		Code:    teleport.RemoteCommandSuccess,
-		Command: execRequest.GetCommand(),
-	}, nil
+	return result
 }
 
 func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {
