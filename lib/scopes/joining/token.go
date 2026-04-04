@@ -320,8 +320,28 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
-	if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token assigned scope")
+	spec := token.GetSpec()
+	roles, err := types.NewTeleportRoles(spec.Roles)
+	if err != nil {
+		return trace.Wrap(err, "validating scoped token roles")
+	}
+
+	if roles.Include(types.RoleBot) {
+		if token.GetSpec().GetBotName() == "" {
+			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+		}
+
+		if token.GetSpec().GetBotScope() == "" {
+			return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+		}
+
+		if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+			return trace.Wrap(err, "validating scoped token bot_scope")
+		}
+	} else {
+		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
+			return trace.Wrap(err, "validating scoped token assigned scope")
+		}
 	}
 
 	if len(token.GetSpec().GetRoles()) == 0 {
