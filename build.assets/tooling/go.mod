@@ -4,6 +4,7 @@ go 1.25.9
 
 require (
 	buf.build/go/bufplugin v0.9.0
+	github.com/DataDog/datadog-agent/pkg/template v0.77.2
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/awalterschulze/goderive v0.5.1
