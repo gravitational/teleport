@@ -20,7 +20,6 @@ package azurejoin
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -31,7 +30,7 @@ import (
 )
 
 func TestCheckAzureRequestParamsCheckAndSetDefaults(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	nopGetSubscriptionClient := func(context.Context, string) (azure.SubscriptionClient, error) { return nil, nil }
 	tests := []struct {
 		name          string
