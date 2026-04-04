@@ -367,6 +367,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
+		Modules:                      cfg.Modules,
 		VersionStorage:               NewFakeTeleportVersion(),
 		Authority:                    authority,
 		Access:                       access,

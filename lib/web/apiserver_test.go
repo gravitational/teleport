@@ -258,9 +258,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.modules == nil {
 		cfg.modules = modulestest.OSSModules()
-	} else {
-		// TODO(tross) remove this when modules are injected into the auth server
-		modulestest.SetTestModules(t, *cfg.modules)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -284,6 +281,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
 			AuthPreferenceSpec:      cfg.authPreferenceSpec,
+			Modules:                 cfg.modules,
 		},
 	}
 
@@ -4867,7 +4865,7 @@ func TestGetAppDetails(t *testing.T) {
 }
 
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	testModules := modulestest.OSSModules()
 	env := newWebPack(t, 1, withModules(testModules))
 	handler := env.proxies[0].handler.handler
@@ -4889,20 +4887,17 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	// Add a test connector.
 	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
+		TeamsToRoles: []types.TeamRolesMapping{
 			{
 				Organization: "octocats",
 				Team:         "dummy",
-				Logins:       []string{"dummy"},
+				Roles:        []string{"dummy"},
 			},
 		},
 	})
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
-
-	// start the feature watcher so the web config gets new features
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4986,22 +4981,17 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
-	// TODO(tross): remove when auth modules can be injected
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Cloud:               true,
-			IsUsageBasedBilling: true,
-			AutomaticUpgrades:   true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DB:          {Enabled: true, Limit: 22},
-				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
-				entitlements.Desktop:     {Enabled: true, Limit: 44},
-			},
+	testModules.TestFeatures = modules.Features{
+		Cloud:               true,
+		IsUsageBasedBilling: true,
+		AutomaticUpgrades:   true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.DB:          {Enabled: true, Limit: 22},
+			entitlements.DeviceTrust: {Enabled: true, Limit: 33},
+			entitlements.Desktop:     {Enabled: true, Limit: 44},
 		},
-	})
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+	}
 
-	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
 	testVersion := "v99.0.1"
 	channels := automaticupgrades.Channels{
@@ -5026,6 +5016,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	// request and verify enabled features are eventually enabled.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		env.clock.Advance(DefaultFeatureWatchInterval * 2)
+
 		re, err := clt.Get(ctx, endpoint, nil)
 		require.NoError(t, err)
 		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
@@ -5050,17 +5042,14 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
-	// TODO(tross): remove when auth modules can be injected
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Cloud:               false,
-			IsUsageBasedBilling: false,
-		},
-	})
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+	testModules.TestFeatures = modules.Features{
+		Cloud:               false,
+		IsUsageBasedBilling: false,
+	}
 
 	// request and verify again
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		env.clock.Advance(DefaultFeatureWatchInterval * 2)
 		re, err := clt.Get(ctx, endpoint, nil)
 		require.NoError(t, err)
 
@@ -8417,9 +8406,6 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	if options.modules == nil {
 		options.modules = modulestest.OSSModules()
-	} else {
-		// TODO(tross) remove this when modules are injected into the auth server
-		modulestest.SetTestModules(t, *options.modules)
 	}
 
 	ctx := context.Background()
@@ -8433,6 +8419,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 			AuditLog:     events.NewDiscardAuditLog(),
 			CacheEnabled: options.enableAuthCache,
 			InsecureMode: options.insecureMode,
+			Modules:      options.modules,
 		},
 	})
 	require.NoError(t, err)
@@ -11575,8 +11562,7 @@ func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
 }
 
 func TestIPPinning(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
+	t.Parallel()
 	clientAddr := utils.MustParseAddr("1.2.3.4:1234")
 	hostAddr := utils.MustParseAddr("127.0.0.1:3080")
 	clientAddrMiddleware := func(next http.Handler) http.Handler {
@@ -11590,6 +11576,7 @@ func TestIPPinning(t *testing.T) {
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		middleware: clientAddrMiddleware,
+		modules:    modulestest.EnterpriseModules(),
 	})
 
 	// Create a role that enforces IP Pinning.

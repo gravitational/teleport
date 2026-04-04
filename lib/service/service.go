@@ -2429,6 +2429,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                     b,
+			Modules:                     cfg.Modules,
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,
