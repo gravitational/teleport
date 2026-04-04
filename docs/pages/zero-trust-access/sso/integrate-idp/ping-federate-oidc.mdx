@@ -51,23 +51,6 @@ creation. Store the secret in a password manager or secrets manager
 before continuing.
 </Admonition>
 
-<Checkpoint
-  title="Verify the OIDC client configuration"
-  description="Ensure PingFederate is correctly configured to redirect authentication responses to Teleport."
->
-  Here are some troubleshooting tips:
-  - Confirm the **Redirect URI** exactly matches your Teleport callback URL,
-    including protocol, domain, and path. For example:
-    `https://teleport.example.com/v1/webapi/oidc/callback`. Check for
-    trailing slash or HTTP versus HTTPS mismatches.
-  - Ensure the **Authorization Code** grant type is enabled.
-  - Confirm the **openid** scope is enabled.
-  - Verify the client status is **active** in PingFederate.
-  - Confirm the client ID and client secret you recorded match what is
-    configured in PingFederate. If needed, regenerate the secret, update
-    your connector YAML, and reapply it with `tctl create -f pingfederate-connector.yaml`.
-</Checkpoint>
-
 ## Step 2/7. Configure scopes in PingFederate
 
 Enable the following scopes for the OIDC client:
@@ -117,8 +100,8 @@ roles.
 
 ## Step 4/7. Determine the issuer URL
 
-Teleport requires the exact issuer URL published by PingFederate. Open
-the PingFederate OIDC discovery document in a browser:
+Teleport requires the issuer URL published by PingFederate; copy the string value of the issuer key exactly as it appears, 
+including or excluding trailing slashes. Open the PingFederate OIDC discovery document in a browser:
 
 ```code
 https://<pingfederate-host>/pf/.well-known/openid-configuration
@@ -127,17 +110,6 @@ https://<pingfederate-host>/pf/.well-known/openid-configuration
 Locate the `issuer` field in the response. The typical value is
 `https://<pingfederate-host>/as`. Copy this value exactly into the
 Teleport OIDC connector in a later step.
-
-<Checkpoint
-  title="Verify issuer configuration"
-  description="Ensure the issuer URL you will use in Teleport matches the PingFederate OIDC discovery document."
->
-  Here are some troubleshooting tips:
-  - Open the discovery document in a browser and locate the `issuer` value.
-  - Do not use the authorization or token endpoint as the issuer URL.
-  - Ensure there are no trailing slash differences between the discovery
-    document and your connector configuration.
-</Checkpoint>
 
 ## Step 5/7. Create Teleport roles
 
@@ -167,16 +139,6 @@ Apply the role:
 $ tctl create -f developer-role.yaml
 ```
 
-<Checkpoint
-  title="Verify the Teleport role exists"
-  description="Ensure the roles referenced by claims_to_roles exist in the cluster."
->
-  Run `tctl get roles` to list all roles. Here are some troubleshooting tips:
-  - Ensure the role name exactly matches the value you will use in the
-    `claims_to_roles` section of the OIDC connector.
-  - Role names are case-sensitive.
-</Checkpoint>
-
 ## Step 6/7. Create the OIDC connector
 
 Create a file called `pingfederate-connector.yaml` with the following
@@ -194,7 +156,7 @@ spec:
   redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
   provider: ping
   display: PingFederate SSO
-  prompt: none
+  prompt: none # required for PingFederate compatibility
   scope:
     - openid
     - email
@@ -218,10 +180,6 @@ Replace the following placeholder values:
 | `developers`                          | The PingFederate group you want to map to a Teleport role.          |
 | `developer`                           | The Teleport role to assign to members of the mapped group.         |
 
-Note that `prompt: none` is required for PingFederate compatibility.
-Without it, PingFederate may return an `OAuth2 error code=invalid_request`
-error during authentication.
-
 Apply the connector:
 
 ```code
@@ -236,7 +194,6 @@ pasting the YAML content.
   title="Verify connector configuration"
   description="Ensure the OIDC connector is valid and authentication succeeds."
 >
-  Here are some troubleshooting tips:
   - Confirm `issuer_url` matches the `issuer` value in the PingFederate
     OIDC discovery document exactly, with no trailing slash differences.
   - Verify `redirect_url` matches the redirect URI configured in the
@@ -272,7 +229,6 @@ $ tsh status
   title="Verify successful login"
   description="Confirm the user is authenticated, assigned the correct roles, and that Teleport received the expected claims."
 >
-  Here are some troubleshooting tips:
   - Ensure the username in `tsh status` output is correct.
   - Confirm the expected roles appear in the output.
   - Verify the cluster connection succeeds.
