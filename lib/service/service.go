@@ -6630,13 +6630,18 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
-	// If no applications are specified, exit early. This is due to the strange
-	// behavior in reading file configuration. If the user does not specify an
-	// "app_service" section, that is considered enabling "app_service".
+	// If no applications are specified, broadcast AppsReady so the
+	// process readiness gate is not blocked, then return. This is due
+	// to the strange behavior in reading file configuration. If the
+	// user does not specify an "app_service" section, that is
+	// considered enabling "app_service".
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		!process.Config.Apps.MCPDemoServer &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {
+		process.logger.InfoContext(process.ExitContext(),
+			"App service is enabled but has no static apps, debug app, MCP demo server, or resource matchers configured, it will not proxy anything.")
+		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
 		return
 	}
 
