@@ -532,6 +532,64 @@ func TestFnCacheEviction(t *testing.T) {
 	require.ErrorIs(t, err, ErrFnCacheClosed)
 }
 
+func TestFnCacheOnExpiryReloadReplace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:             time.Hour,
+		Context:         ctx,
+		Clock:           clock,
+		CleanupInterval: 24 * time.Hour,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate the cache.
+	val, err := FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+		return "old-value", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "old-value", val)
+
+	// Advance past TTL but do NOT call RemoveExpired. The long
+	// CleanupInterval ensures the lazy cleanup in get() does not
+	// run either. The next FnCacheGet for the same key triggers a
+	// reload, which should call OnExpiry for the old entry.
+	clock.Advance(2 * time.Hour)
+
+	val, err = FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+		return "new-value", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "new-value", val)
+
+	// Verify OnExpiry was called with the old value.
+	select {
+	case expired := <-expiredC:
+		require.Equal(t, "key1", expired.k)
+		require.Equal(t, "old-value", expired.v)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for OnExpiry callback")
+	}
+
+	// Verify no extra OnExpiry calls.
+	select {
+	case extra := <-expiredC:
+		t.Fatalf("unexpected extra OnExpiry call for key %v", extra.k)
+	default:
+	}
+}
+
 func TestFnCacheRemove(t *testing.T) {
 	t.Parallel()
 

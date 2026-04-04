@@ -61,6 +61,9 @@ type sessionChunk struct {
 	closeC chan struct{}
 	// id is the session chunk's uuid, which is used as the id of its session upload.
 	id string
+	// appName is the name of the app this session chunk belongs to,
+	// used as a Prometheus label on the active sessions gauge.
+	appName string
 	// streamCloser closes the session chunk stream.
 	streamCloser utils.WriteContextCloser
 	// audit is the session chunk audit logger.
@@ -94,6 +97,7 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
+		appName:      app.GetName(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
@@ -137,6 +141,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
+	activeSessions.WithLabelValues(sess.appName).Inc()
 	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
 	return sess, nil
 }
@@ -259,6 +264,10 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 	if !ok {
 		return
 	}
+
+	// Decrement the gauge before sess.close(), so the metric may briefly
+	// undercount while the session tears down in the background.
+	activeSessions.WithLabelValues(sess.appName).Dec()
 
 	// Closing the session stream writer may trigger a flush operation which could
 	// be time-consuming. Launch in another goroutine to prevent interfering with
