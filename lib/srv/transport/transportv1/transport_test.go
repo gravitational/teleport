@@ -41,6 +41,7 @@ import (
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
@@ -659,19 +660,21 @@ func TestService_ProxySSH(t *testing.T) {
 
 	// create a new ssh client connection over a stream conn
 	addr := &utils.NetAddr{Addr: "127.0.0.1", AddrNetwork: "tcp"}
-	sshconn, chans, reqs, err := ssh.NewClientConn(
+	client, err := apissh.NewClient(
+		t.Context(),
 		streamutils.NewConn(sshRW, addr, sshSrv.listener.Addr()),
 		addr.String(),
-		sshSrv.clientConfig())
+		sshSrv.clientConfig(),
+	)
 	require.NoError(t, err)
-
-	// create the ssh client
-	client := ssh.NewClient(sshconn, chans, reqs)
+	t.Cleanup(func() {
+		client.Close()
+	})
 
 	// send an ssh request to our server which will echo the payload
 	// back in the response.
 	msg := []byte("hello")
-	ok, response, err := client.SendRequest("echo", true, msg)
+	ok, response, err := client.SendRequest(t.Context(), "echo", true, msg)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, msg, response)
@@ -1027,9 +1030,14 @@ func generateSigner(t *testing.T, keyring agent.Agent) ssh.Signer {
 	return signer
 }
 
-func (s *sshServer) clientConfig() *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(s.cSigner)},
+func (s *sshServer) clientConfig() apissh.ClientConfig {
+	return apissh.ClientConfig{
+		User: "alice",
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{s.cSigner}, nil
+			},
+		},
 		HostKeyCallback: ssh.FixedHostKey(s.hSigner.PublicKey()),
 	}
 }

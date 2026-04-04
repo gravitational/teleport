@@ -29,9 +29,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
@@ -50,8 +50,8 @@ func (mc *mockTLSCredentials) TLSConfig() (*tls.Config, error) {
 	}}, nil
 }
 
-func (mc *mockTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
+func (mc *mockTLSCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 func (mc *mockTLSCredentials) Expiry() (time.Time, bool) {

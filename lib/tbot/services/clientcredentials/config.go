@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
@@ -101,11 +101,11 @@ func (o *UnstableConfig) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig implements the client.Credential interface and return the
 // ssh.ClientConfig from the underlying identity.Facade.
-func (o *UnstableConfig) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (o *UnstableConfig) SSHClientConfig() (ssh.ClientConfig, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.facade == nil {
-		return nil, trace.BadParameter("credentials not yet ready")
+		return ssh.ClientConfig{}, trace.BadParameter("credentials not yet ready")
 	}
 	return o.facade.SSHClientConfig()
 }

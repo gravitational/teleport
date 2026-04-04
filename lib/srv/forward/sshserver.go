@@ -43,6 +43,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -772,12 +773,11 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 			return nil, trace.Wrap(err)
 		}
 	}
-	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
-	clientConfig := &ssh.ClientConfig{
+	clientConfig := apissh.ClientConfig{
 		User: systemLogin,
-		Auth: []ssh.AuthMethod{
-			authMethod,
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: signersWithSHA1Fallback(signers),
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),
@@ -785,15 +785,15 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
 	// server as well as the client in the connection to the target node.
-	clientConfig.Ciphers = s.ciphers
-	clientConfig.KeyExchanges = s.kexAlgorithms
-	clientConfig.MACs = s.macAlgorithms
+	clientConfig.SSHConfig.Ciphers = s.ciphers
+	clientConfig.SSHConfig.KeyExchanges = s.kexAlgorithms
+	clientConfig.SSHConfig.MACs = s.macAlgorithms
 
 	// Destination address is used to validate a connection was established to
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := apissh.NewClient(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

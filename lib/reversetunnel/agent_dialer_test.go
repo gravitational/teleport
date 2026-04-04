@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -88,9 +89,14 @@ func TestAgentCertChecker(t *testing.T) {
 			require.NoError(t, err)
 
 			dialer := agentDialer{
-				client:      &fakeClient{caKey: ca.PublicKey()},
-				authMethods: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				logger:      logtest.NewLogger(),
+				client:   &fakeClient{caKey: ca.PublicKey()},
+				username: "alice",
+				publicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{signer}, nil
+					},
+				},
+				logger: logtest.NewLogger(),
 			}
 
 			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))

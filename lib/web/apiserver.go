@@ -70,6 +70,7 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -5680,11 +5681,15 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 	}
 
 	config := &client.Config{
-		Username:          sctx.GetUser(),
-		Agent:             agent,
-		NonInteractive:    true,
-		TLS:               tlsConfig,
-		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		Username:       sctx.GetUser(),
+		Agent:          agent,
+		NonInteractive: true,
+		TLS:            tlsConfig,
+		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return signers, nil
+			},
+		},
 		ProxySSHPrincipal: cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,

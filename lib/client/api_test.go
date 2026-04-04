@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -43,6 +44,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -654,8 +656,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				WebProxyAddr:      "localhost",
 				ProxySSHPrincipal: "proxy_ssh_principal_override",
 				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:       []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:            tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "proxy_ssh_principal_override",
 		}, {
@@ -665,8 +671,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "key_principal",
 		}, {
@@ -676,8 +686,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ /* no agent key principals */ },
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "host_login",
 		}, {
@@ -691,9 +705,13 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 						Username: "jumphost_user",
 					},
 				},
-				Agent:       &mockAgent{ /* no agent key principals */ },
-				AuthMethods: []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:      tracing.NoopProvider().Tracer("test"),
+				Agent: &mockAgent{ /* no agent key principals */ },
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "jumphost_user",
 		},
@@ -1189,10 +1207,14 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 func TestConnectToProxyCancelledContext(t *testing.T) {
 	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
-	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
 	cfg.TLSRoutingEnabled = true
+	cfg.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		Signers: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{&mockSigner{}}, nil
+		},
+	}
 
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -1716,4 +1738,190 @@ func TestCalculateSSHLogins(t *testing.T) {
 			})))
 		})
 	}
+}
+
+func TestGenerateClientConfig(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sshProxyAddr = "ssh.example.com:3023"
+		webProxyAddr = "web.example.com:3080"
+		proxyHost    = "proxy.example.com"
+		username     = "alice"
+		leafCluster  = "leaf-cluster"
+		selectedSite = "selected-cluster"
+	)
+
+	t.Run("loads static signers and prefers web proxy when TLS routing is enabled", func(t *testing.T) {
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr:      sshProxyAddr,
+				WebProxyAddr:      webProxyAddr,
+				SiteName:          leafCluster,
+				HostLogin:         username,
+				TLSRoutingEnabled: true,
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{
+							&mockSigner{
+								ValidPrincipals: []string{"static-principal"},
+							},
+						}, nil
+					},
+				},
+				Tracer: tracing.NoopTracer("i-have-no-purpose"),
+			},
+		}
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, webProxyAddr, cfg.proxyAddress)
+		require.Equal(t, username, cfg.User)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 1)
+	})
+
+	t.Run("uses jump host proxy and cluster specific signers", func(t *testing.T) {
+
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: sshProxyAddr,
+				WebProxyAddr: webProxyAddr,
+				SiteName:     selectedSite,
+				HostLogin:    username,
+				JumpHosts: []utils.JumpHost{
+					{
+						Username: "jump-user",
+						Addr: utils.NetAddr{
+							Addr: "jump.example.com:3022",
+						},
+					},
+				},
+				Tracer: tracing.NoopTracer("i-have-no-purpose"),
+			},
+			localAgent: newTestLocalAgent(t, proxyHost, username, selectedSite),
+		}
+
+		ca := newTestAuthority(t)
+
+		// Root keyring is for the jump host and the leaf keyring is for the target cluster.
+		rootKeyRing := ca.makeSignedKeyRing(
+			t,
+			KeyRingIndex{
+				ProxyHost:   proxyHost,
+				ClusterName: ca.trustedCerts.ClusterName,
+				Username:    username,
+			},
+			false,
+		)
+
+		leafKeyRing := rootKeyRing.Copy()
+		leafKeyRing.KeyRingIndex = KeyRingIndex{
+			ProxyHost:   proxyHost,
+			ClusterName: leafCluster,
+			Username:    username,
+		}
+
+		ca.signKeyRing(t, leafKeyRing, false)
+
+		require.NoError(t, tc.AddKeyRing(rootKeyRing))
+		require.NoError(t, tc.AddKeyRing(leafKeyRing))
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, "jump.example.com:3022", cfg.proxyAddress)
+		require.Empty(t, cfg.clusterName())
+
+		// Simulate the host key callback being called during the SSH handshake with the jump host. This should trigger
+		// the client to select the leaf cluster keyring since it matches the cluster name in the certificate
+		// extensions.
+		err = cfg.HostKeyCallback(
+			"jump.example.com",
+			&net.IPAddr{},
+			&ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						utils.CertExtensionAuthority: leafCluster,
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 1)
+	})
+
+	t.Run("loads local agent signers without jump hosts", func(t *testing.T) {
+		ca := newTestAuthority(t)
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: fmt.Sprintf("%s:3023", proxyHost),
+				SiteName:     leafCluster,
+				HostLogin:    username,
+				Tracer:       tracing.NoopTracer("i-have-no-purpose"),
+			},
+			localAgent: newTestLocalAgent(t, proxyHost, username, leafCluster),
+		}
+
+		require.NoError(
+			t,
+			tc.AddKeyRing(
+				ca.makeSignedKeyRing(
+					t,
+					KeyRingIndex{
+						ProxyHost:   proxyHost,
+						ClusterName: leafCluster,
+						Username:    username,
+					},
+					false,
+				),
+			),
+		)
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s:3023", proxyHost), cfg.proxyAddress)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 2)
+	})
+
+	t.Run("returns error when no auth methods are loaded", func(t *testing.T) {
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: sshProxyAddr,
+				SiteName:     leafCluster,
+				Tracer:       tracing.NoopTracer("i-have-no-purpose"),
+			},
+		}
+
+		_, err := tc.generateClientConfig(t.Context())
+		require.ErrorIs(t, err, trace.BadParameter("no SSH auth methods loaded, are you logged in?"))
+	})
+}
+
+func newTestLocalAgent(t *testing.T, proxyHost, username, siteName string) *LocalKeyAgent {
+	t.Helper()
+
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
+	localAgent, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: NewMemClientStore(),
+		Agent:       keyring,
+		ProxyHost:   proxyHost,
+		Username:    username,
+		Site:        siteName,
+	})
+	require.NoError(t, err)
+
+	return localAgent
 }
