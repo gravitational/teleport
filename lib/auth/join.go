@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -436,6 +437,42 @@ func (a *Server) GenerateBotCertsForJoin(
 	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
+	}
+
+	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if scoped, ok := token.(*joining.Token); ok {
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if !ok {
+			return nil, "", trace.BadParameter("a scoped token cannot be used to join an unscoped bot")
+		}
+
+		if mode := scoped.GetScoped().GetSpec().GetUsageMode(); joining.TokenUsageMode(mode) != joining.TokenUsageModeBot {
+			a.logger.WarnContext(ctx, "scoped token usage mode must be 'bot' for bot joining",
+				"usage_mode", mode,
+			)
+		}
+
+		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
+		if botScope != tokenBotScope {
+			a.logger.WarnContext(ctx, "bot scope must match token scope",
+				"token_scope", tokenBotScope,
+				"bot_scope", botScope,
+			)
+			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot_scope")
+		}
+
+		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
+			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
+		}
+	} else {
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if ok && botScope != "" {
+			return nil, "", trace.AccessDenied("scoped bots cannot join with an unscoped token")
+		}
 	}
 
 	certs, botInstanceID, err := a.generateInitialBotCerts(

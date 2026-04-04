@@ -39,6 +39,7 @@ var rolesSupportingScopes = types.SystemRoles{
 	types.RoleKube,
 	types.RoleApp,
 	types.RoleDiscovery,
+	types.RoleBot,
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -49,6 +50,9 @@ const (
 	TokenUsageModeSingle TokenUsageMode = "single_use"
 	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
 	TokenUsageModeUnlimited = "unlimited"
+	// TokenUsageModeBot denotes a token that can provision bots. Bot joining
+	// perform additional verification steps that can affect token reusability.
+	TokenUsageModeBot = "bot"
 )
 
 // validates the given Kubernetes configuration. Also implemented by
@@ -154,8 +158,74 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		}
 	case types.JoinMethodKubernetes:
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
+	case types.JoinMethodBoundKeypair:
+		// Bound keypair tokens are always valid
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
+	}
+
+	return nil
+}
+
+// validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
+// returned true).
+func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
+	spec := token.GetSpec()
+
+	if spec.GetBotName() == "" {
+		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	}
+
+	if spec.GetBotScope() == "" {
+		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	}
+
+	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+		return trace.Wrap(err, "validating scoped token bot_scope")
+	}
+
+	if spec.GetUsageMode() != TokenUsageModeBot {
+		return trace.BadParameter("usage_mode must be '%s' for a scoped bot token", TokenUsageModeBot)
+	}
+
+	if len(roles) != 1 || !roles.Include(types.RoleBot) {
+		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
+	}
+
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
+		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
+	}
+
+	if spec.AssignedScope != "" {
+		return trace.BadParameter("scoped tokens for bots cannot have an assigned_scope")
+	}
+
+	return nil
+}
+
+// validateNonBot performs checks for scoped tokens that explicitly should not
+// exist for non-bot tokens.
+func validateNonBotToken(token *joiningv1.ScopedToken) error {
+	spec := token.GetSpec()
+
+	if spec.GetBotName() != "" {
+		return trace.BadParameter("bot_name cannot be set for a non-bot token")
+	}
+
+	if spec.GetBotScope() != "" {
+		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	}
+
+	if spec.GetUsageMode() == TokenUsageModeBot {
+		return trace.BadParameter("usage_mode cannot be 'bot' for a non-bot token")
+	}
+
+	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
+		return trace.Wrap(err, "validating scoped token assigned scope")
+	}
+
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
+		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
 	return nil
@@ -193,20 +263,12 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
-	if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
-		return trace.Wrap(err, "validating scoped token assigned scope")
-	}
-
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
-		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
-	}
-
 	if err := validateJoinMethod(token); err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch TokenUsageMode(spec.GetUsageMode()) {
-	case TokenUsageModeSingle, TokenUsageModeUnlimited:
+	case TokenUsageModeSingle, TokenUsageModeUnlimited, TokenUsageModeBot:
 	default:
 		return trace.BadParameter("scoped token mode is not supported")
 	}
@@ -230,6 +292,16 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		}
 	}
 
+	if roles.Include(types.RoleBot) {
+		if err := validateBotToken(token, roles); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateNonBotToken(token); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -248,8 +320,27 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token resource scope")
 	}
 
-	if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token assigned scope")
+	spec := token.GetSpec()
+
+	// Determine if this is a bot token without potentially trying to validate
+	// other unknown roles.
+	isBotToken := slices.Contains(spec.GetRoles(), string(types.RoleBot))
+	if isBotToken {
+		if token.GetSpec().GetBotName() == "" {
+			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+		}
+
+		if token.GetSpec().GetBotScope() == "" {
+			return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+		}
+
+		if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+			return trace.Wrap(err, "validating scoped token bot_scope")
+		}
+	} else {
+		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
+			return trace.Wrap(err, "validating scoped token assigned scope")
+		}
 	}
 
 	if len(token.GetSpec().GetRoles()) == 0 {
@@ -395,7 +486,7 @@ func (t *Token) Expiry() time.Time {
 // GetBotName returns an empty string because scoped tokens do not currently
 // support configuring a bot name.
 func (t *Token) GetBotName() string {
-	return ""
+	return t.scoped.GetSpec().GetBotName()
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources
@@ -542,6 +633,65 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 		StaticJWKS: staticJWKS,
 		OIDC:       oidcConfig,
 	}
+}
+
+// GetBoundKeypair returns the bound keypair-specific configuration for this
+// token.
+func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
+	spec := t.scoped.GetSpec().GetBoundKeypair()
+
+	var mustRegisterBefore, rotateAfter *time.Time
+	if m := spec.GetOnboarding().GetMustRegisterBefore(); m != nil {
+		t := m.AsTime()
+		mustRegisterBefore = &t
+	}
+	if v := spec.GetRotateAfter(); v != nil {
+		t := v.AsTime()
+		rotateAfter = &t
+	}
+
+	return &types.ProvisionTokenSpecV2BoundKeypair{
+		Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+			RegistrationSecret: spec.GetOnboarding().GetRegistrationSecret(),
+			InitialPublicKey:   spec.GetOnboarding().GetInitialPublicKey(),
+			MustRegisterBefore: mustRegisterBefore,
+		},
+		Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+			Limit: spec.GetRecovery().GetLimit(),
+			Mode:  spec.GetRecovery().GetMode(),
+		},
+		RotateAfter: rotateAfter,
+	}
+}
+
+// GetBoundKeypairStatus returns the bound keypair-specific status for this
+// token.
+func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
+	spec := t.scoped.GetStatus().GetUsage().GetBoundKeypair()
+
+	var lastRecoveredAt, lastRotatedAt *time.Time
+	if val := spec.GetLastRecoveredAt(); val != nil {
+		v := val.AsTime()
+		lastRecoveredAt = &v
+	}
+	if val := spec.GetLastRotatedAt(); val != nil {
+		v := val.AsTime()
+		lastRotatedAt = &v
+	}
+
+	return &types.ProvisionTokenStatusV2BoundKeypair{
+		RegistrationSecret: spec.GetRegistrationSecret(),
+		BoundPublicKey:     spec.GetBoundPublicKey(),
+		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
+		RecoveryCount:      spec.GetRecoveryCount(),
+		LastRecoveredAt:    lastRecoveredAt,
+		LastRotatedAt:      lastRotatedAt,
+	}
+}
+
+// GetScoped returns the inner scoped token wrapped by this [provision.Token].
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
 }
 
 // GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
