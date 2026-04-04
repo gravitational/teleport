@@ -32,8 +32,9 @@ import (
 // provide values for the page sizes and hard coded values (like zero or a
 // specific page size) are respected when given.
 func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
-	perfBufferPageCount := defaults.PerfBufferPageCount
+	cmdBufferPageCount := defaults.CmdPerfBufferPageCount
 	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
+	netPerfBufferPageCount := defaults.NetPerfBufferPageCount
 	zeroPageCount := 0
 
 	tests := []struct {
@@ -45,9 +46,9 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 			name: "all defaults",
 			got:  &servicecfg.BPFConfig{},
 			want: &servicecfg.BPFConfig{
-				CommandBufferSize: &perfBufferPageCount,
+				CommandBufferSize: &cmdBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
+				NetworkBufferSize: &netPerfBufferPageCount,
 				CgroupPath:        defaults.CgroupPath,
 			},
 		},
@@ -56,13 +57,13 @@ func TestBPFConfig_CheckAndSetDefaults(t *testing.T) {
 			got: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
+				NetworkBufferSize: &netPerfBufferPageCount,
 				CgroupPath:        "/my/cgroup/",
 			},
 			want: &servicecfg.BPFConfig{
-				CommandBufferSize: &perfBufferPageCount,
+				CommandBufferSize: &cmdBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
-				NetworkBufferSize: &perfBufferPageCount,
+				NetworkBufferSize: &netPerfBufferPageCount,
 				CgroupPath:        "/my/cgroup/",
 			},
 		},

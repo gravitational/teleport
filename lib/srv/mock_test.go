@@ -478,3 +478,7 @@ func (f fakeBPF) Close(restarting bool) error {
 func (f fakeBPF) Enabled() bool {
 	return true
 }
+
+func (f fakeBPF) LostEvents() (uint64, uint64, uint64) {
+	return 0, 0, 0
+}

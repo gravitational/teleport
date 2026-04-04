@@ -47,15 +47,16 @@ type BPFConfig struct {
 
 // CheckAndSetDefaults checks BPF configuration.
 func (c *BPFConfig) CheckAndSetDefaults() error {
-	perfBufferPageCount := defaults.PerfBufferPageCount
+	cmdBufferPageCount := defaults.CmdPerfBufferPageCount
 	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
+	netPerfBufferPageCount := defaults.NetPerfBufferPageCount
 
 	// Set defaults for buffer sizes if they are unset or zero.
 	// A zero value was accepted before but is undesirable now as it
 	// will result in blocking event channels, so we set it to a sane
 	// default to maintain backwards compatibility.
 	if c.CommandBufferSize == nil || *c.CommandBufferSize == 0 {
-		c.CommandBufferSize = &perfBufferPageCount
+		c.CommandBufferSize = &cmdBufferPageCount
 	} else if *c.CommandBufferSize < 0 {
 		return trace.BadParameter("CommandBufferSize must not be negative")
 	}
@@ -65,7 +66,7 @@ func (c *BPFConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("DiskBufferSize must not be negative")
 	}
 	if c.NetworkBufferSize == nil || *c.NetworkBufferSize == 0 {
-		c.NetworkBufferSize = &perfBufferPageCount
+		c.NetworkBufferSize = &netPerfBufferPageCount
 	} else if *c.NetworkBufferSize < 0 {
 		return trace.BadParameter("NetworkBufferSize must not be negative")
 	}
