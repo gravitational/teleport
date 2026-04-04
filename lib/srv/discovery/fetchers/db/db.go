@@ -194,6 +194,7 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 						DiscoveryConfigName: discoveryConfigName,
 						AWSConfigProvider:   f.cfg.AWSConfigProvider,
 						awsClients:          f.cfg.AWSClients,
+						Logger:              f.cfg.Logger,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)

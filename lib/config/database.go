@@ -109,7 +109,8 @@ db_service:
   #   # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
   #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
-  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
+  #   # 'docdb' - discovers and registers Amazon DocumentDB databases.
+  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch", "docdb"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
