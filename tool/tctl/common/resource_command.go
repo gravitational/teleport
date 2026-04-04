@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -2378,7 +2379,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		)
 	case scopedaccess.KindScopedRoleAssignment:
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: rc.ref.Name,
+			Name:    rc.ref.Name,
+			SubKind: rc.ref.SubKind,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3838,8 +3840,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
 		if rc.ref.Name != "" {
+			// Default to dynamic if the user didn't specify a subkind.
+			subKind := cmp.Or(rc.ref.SubKind, scopedaccess.SubKindDynamic)
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-				Name: rc.ref.Name,
+				Name:    rc.ref.Name,
+				SubKind: subKind,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)

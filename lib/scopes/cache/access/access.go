@@ -350,7 +350,7 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 		case scopedaccess.KindScopedRole:
 			state.roles.Delete(event.Resource.GetName())
 		case scopedaccess.KindScopedRoleAssignment:
-			state.assignments.Delete(event.Resource.GetName())
+			state.assignments.Delete(event.Resource.GetName(), event.Resource.GetSubKind())
 		default:
 			return trace.BadParameter("unexpected resource kind %q in event delete event", event.Resource.GetKind())
 		}
