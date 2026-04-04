@@ -7,4 +7,24 @@
     For optimal user experience, we recommend keeping this disabled unless necessary.
 
     Refer to your SAML provider's documentation for instructions on where to obtain this URL.
+
+
+### How Single Logout Works
+
+When Single Logout (SLO) is enabled and a user logs out of Teleport:
+
+1. Teleport sends a SAML LogoutRequest to the Identity Provider (IdP)
+2. The IdP terminates the user session
+3. The IdP sends a LogoutResponse back to Teleport
+4. The user is logged out from all connected services
+
+
+This helps ensure that user sessions are terminated, although behavior may vary depending on the Identity Provider and configuration.
+
+### Configuration Notes
+
+- SLO must be supported by the Identity Provider (IdP)
+- The `spec.single_logout_url` must be correctly configured
+- Certificates must be valid for secure communication
+- Some IdPs may require additional setup for SLO
 </details>
