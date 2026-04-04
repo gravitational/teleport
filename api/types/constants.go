@@ -895,6 +895,26 @@ const (
 	// commands on the node.
 	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
+	// Azure VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// SubscriptionIDLabelVisible is the visible version of SubscriptionIDLabel.
+	SubscriptionIDLabelVisible = TeleportNamespace + "/subscription-id"
+	// VMIDLabelVisible is the visible version of VMIDLabel.
+	VMIDLabelVisible = TeleportNamespace + "/vm-id"
+	// RegionLabelVisible is the visible version of RegionLabel.
+	RegionLabelVisible = TeleportNamespace + "/region"
+	// ResourceGroupLabelVisible is the visible version of ResourceGroupLabel.
+	ResourceGroupLabelVisible = TeleportNamespace + "/resource-group"
+
+	// GCP VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// ZoneLabel is the visible version of ZoneLabelDiscovery.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is the visible version of NameLabelDiscovery.
+	NameLabel = TeleportNamespace + "/name"
+
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
 
