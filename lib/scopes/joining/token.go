@@ -321,12 +321,11 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	spec := token.GetSpec()
-	roles, err := types.NewTeleportRoles(spec.Roles)
-	if err != nil {
-		return trace.Wrap(err, "validating scoped token roles")
-	}
 
-	if roles.Include(types.RoleBot) {
+	// Determine if this is a bot token without potentially trying to validate
+	// other unknown roles.
+	isBotToken := slices.Contains(spec.GetRoles(), string(types.RoleBot))
+	if isBotToken {
 		if token.GetSpec().GetBotName() == "" {
 			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
 		}
