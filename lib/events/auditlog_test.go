@@ -181,85 +181,265 @@ func TestStreamSessionEvents(t *testing.T) {
 	t.Cleanup(func() { alog.Close() })
 
 	ctx := context.Background()
-	sid := session.NewID()
-	sessionEvents := []apievents.AuditEvent{
-		&apievents.DatabaseSessionStart{
-			Metadata: apievents.Metadata{
-				Type:  events.DatabaseSessionStartEvent,
-				Code:  events.DatabaseSessionStartCode,
-				Index: 0,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: sid.String(),
-			},
-		},
-		&apievents.DatabaseSessionEnd{
-			Metadata: apievents.Metadata{
-				Type:  events.DatabaseSessionEndEvent,
-				Code:  events.DatabaseSessionEndCode,
-				Index: 1,
-			},
-			SessionMetadata: apievents.SessionMetadata{
-				SessionID: sid.String(),
-			},
-		},
-	}
-
-	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: uploader,
-	})
-	require.NoError(t, err)
-	stream, err := streamer.CreateAuditStream(ctx, sid)
-	require.NoError(t, err)
-	for _, event := range sessionEvents {
-		require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
-	}
-	require.NoError(t, stream.Complete(ctx))
 
 	type callbackResult struct {
 		event apievents.AuditEvent
 		err   error
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		for name, withCallback := range map[string]bool{
-			"WithCallback":    true,
-			"WithoutCallback": false,
-		} {
-			t.Run(name, func(t *testing.T) {
-				streamCtx, cancel := context.WithCancel(ctx)
-				defer cancel()
+	// uploadStream records and completes a stream, returning the session ID.
+	uploadStream := func(t *testing.T, sessionEvents []apievents.AuditEvent) session.ID {
+		t.Helper()
+		sid := session.NewID()
+		streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+			Uploader: uploader,
+		})
+		require.NoError(t, err)
+		s, err := streamer.CreateAuditStream(ctx, sid)
+		require.NoError(t, err)
+		for _, event := range sessionEvents {
+			require.NoError(t, s.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+		}
+		require.NoError(t, s.Complete(ctx))
+		return sid
+	}
 
-				callbackCh := make(chan callbackResult, 1)
-				if withCallback {
-					streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
-						callbackCh <- callbackResult{ae, err}
-					})
-				}
+	// Each stream type test places a SessionJoin before the start event to
+	// verify the callback only fires on the actual start event, not on join.
+	streamTypeTests := []struct {
+		name       string
+		joinEvent  apievents.AuditEvent
+		startEvent apievents.AuditEvent
+	}{
+		{
+			name: "SSHSession",
+			joinEvent: &apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+			startEvent: &apievents.SessionStart{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionStartEvent,
+					Code:  events.SessionStartCode,
+					Index: 1,
+				},
+			},
+		},
+		{
+			name: "DatabaseSession",
+			joinEvent: &apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+			startEvent: &apievents.DatabaseSessionStart{
+				Metadata: apievents.Metadata{
+					Type:  events.DatabaseSessionStartEvent,
+					Code:  events.DatabaseSessionStartCode,
+					Index: 1,
+				},
+			},
+		},
+		{
+			name: "AppSession",
+			joinEvent: &apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+			startEvent: &apievents.AppSessionStart{
+				Metadata: apievents.Metadata{
+					Type:  events.AppSessionStartEvent,
+					Code:  events.AppSessionStartCode,
+					Index: 1,
+				},
+			},
+		},
+		{
+			name: "WindowsDesktopSession",
+			joinEvent: &apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+			startEvent: &apievents.WindowsDesktopSessionStart{
+				Metadata: apievents.Metadata{
+					Type:  events.WindowsDesktopSessionStartEvent,
+					Code:  events.DesktopSessionStartCode,
+					Index: 1,
+				},
+			},
+		},
+	}
 
-				ch, _ := alog.StreamSessionEvents(streamCtx, sid, 0)
-				for _, event := range sessionEvents {
-					select {
-					case receivedEvent := <-ch:
-						require.NotNil(t, receivedEvent)
-						require.Equal(t, event.GetCode(), receivedEvent.GetCode())
-						require.Equal(t, event.GetType(), receivedEvent.GetType())
-					case <-time.After(10 * time.Second):
-						require.Fail(t, "expected to receive session event %q but got nothing", event.GetType())
+	for _, tt := range streamTypeTests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionEvents := []apievents.AuditEvent{tt.joinEvent, tt.startEvent}
+			sid := uploadStream(t, sessionEvents)
+
+			for name, withCallback := range map[string]bool{
+				"WithCallback":    true,
+				"WithoutCallback": false,
+			} {
+				t.Run(name, func(t *testing.T) {
+					streamCtx, cancel := context.WithCancel(ctx)
+					defer cancel()
+
+					callbackCh := make(chan callbackResult, 1)
+					if withCallback {
+						streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
+							callbackCh <- callbackResult{ae, err}
+						})
 					}
-				}
 
-				if withCallback {
-					select {
-					case res := <-callbackCh:
-						require.NoError(t, res.err)
-						require.Equal(t, sessionEvents[0].GetCode(), res.event.GetCode())
-						require.Equal(t, sessionEvents[0].GetType(), res.event.GetType())
-					case <-time.After(10 * time.Second):
-						require.Fail(t, "expected to receive callback result but got nothing")
+					ch, _ := alog.StreamSessionEvents(streamCtx, sid, 0)
+					for _, event := range sessionEvents {
+						select {
+						case receivedEvent := <-ch:
+							require.NotNil(t, receivedEvent)
+							require.Equal(t, event.GetCode(), receivedEvent.GetCode())
+							require.Equal(t, event.GetType(), receivedEvent.GetType())
+						case <-time.After(10 * time.Second):
+							require.Fail(t, "expected to receive session event %q but got nothing", event.GetType())
+						}
 					}
-				}
-			})
+
+					if withCallback {
+						select {
+						case res := <-callbackCh:
+							require.NoError(t, res.err)
+							// Callback must fire with the start event, not the preceding join event.
+							require.Equal(t, tt.startEvent.GetCode(), res.event.GetCode())
+							require.Equal(t, tt.startEvent.GetType(), res.event.GetType())
+						case <-time.After(10 * time.Second):
+							require.Fail(t, "expected to receive callback result but got nothing")
+						}
+					}
+				})
+			}
+		})
+	}
+
+	// StartEventFirst: start event is the first event in the stream (no preceding join).
+	// The callback should fire with the start event and no error.
+	t.Run("StartEventFirst", func(t *testing.T) {
+		startEvent := &apievents.SessionStart{
+			Metadata: apievents.Metadata{
+				Type:  events.SessionStartEvent,
+				Code:  events.SessionStartCode,
+				Index: 0,
+			},
+		}
+		sid := uploadStream(t, []apievents.AuditEvent{startEvent})
+
+		streamCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		callbackCh := make(chan callbackResult, 1)
+		streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
+			callbackCh <- callbackResult{ae, err}
+		})
+
+		ch, _ := alog.StreamSessionEvents(streamCtx, sid, 0)
+		for range ch {
+		}
+
+		select {
+		case res := <-callbackCh:
+			require.NoError(t, res.err)
+			require.Equal(t, startEvent.GetCode(), res.event.GetCode())
+			require.Equal(t, startEvent.GetType(), res.event.GetType())
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "expected to receive callback result but got nothing")
+		}
+	})
+
+	// NoStartEvent: stream contains events but none are a recognized start type.
+	// The callback should be called with a NotFound error and a nil event.
+	t.Run("NoStartEvent", func(t *testing.T) {
+		joinOnlyEvents := []apievents.AuditEvent{
+			&apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+		}
+		sid := uploadStream(t, joinOnlyEvents)
+
+		streamCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		callbackCh := make(chan callbackResult, 1)
+		streamCtx = events.ContextWithSessionStartCallback(streamCtx, func(ae apievents.AuditEvent, err error) {
+			callbackCh <- callbackResult{ae, err}
+		})
+
+		ch, _ := alog.StreamSessionEvents(streamCtx, sid, 0)
+		// Drain all streamed events.
+		for range ch {
+		}
+
+		select {
+		case res := <-callbackCh:
+			require.Error(t, res.err)
+			require.Nil(t, res.event)
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "expected to receive callback result but got nothing")
+		}
+	})
+
+	// StartIndex: events before the start index must not be sent to the channel.
+	t.Run("StartIndex", func(t *testing.T) {
+		allEvents := []apievents.AuditEvent{
+			&apievents.SessionJoin{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionJoinEvent,
+					Code:  events.SessionJoinCode,
+					Index: 0,
+				},
+			},
+			&apievents.SessionStart{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionStartEvent,
+					Code:  events.SessionStartCode,
+					Index: 1,
+				},
+			},
+			&apievents.SessionLeave{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionLeaveEvent,
+					Code:  events.SessionLeaveCode,
+					Index: 2,
+				},
+			},
+		}
+		sid := uploadStream(t, allEvents)
+
+		const startIndex = 1
+		streamCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		ch, _ := alog.StreamSessionEvents(streamCtx, sid, startIndex)
+		var received []apievents.AuditEvent
+		for event := range ch {
+			received = append(received, event)
+		}
+
+		require.Len(t, received, 2)
+		for _, event := range received {
+			require.GreaterOrEqual(t, event.GetIndex(), int64(startIndex),
+				"received event with index %d below startIndex %d", event.GetIndex(), startIndex)
 		}
 	})
 
