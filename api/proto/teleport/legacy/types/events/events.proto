@@ -6132,6 +6132,20 @@ message SessionSummarized {
 
   // Username is the name of the user who initiated the session.
   string Username = 15 [(gogoproto.jsontag) = "username,omitempty"];
+
+  // User is a common user event metadata
+  UserMetadata User = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 17 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.
