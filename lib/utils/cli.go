@@ -137,7 +137,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
+	fmt.Fprint(os.Stderr, UserMessageFromError(err))
 	os.Exit(1)
 }
 
@@ -158,7 +158,7 @@ func GetIterations() int {
 
 // UserMessageFromError returns user-friendly error message from error.
 // The error message will be formatted for output depending on the debug
-// flag
+// flag and will always end with a new line.
 func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
@@ -186,11 +186,7 @@ func UserMessageFromError(err error) string {
 func FormatErrorWithNewline(err error) string {
 	var buf bytes.Buffer
 	formatErrorWriter(err, &buf)
-	message := buf.String()
-	if !strings.HasSuffix(message, "\n") {
-		message = message + "\n"
-	}
-	return message
+	return buf.String()
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
@@ -211,7 +207,12 @@ func formatErrorWriter(err error, w io.Writer) {
 		return
 	}
 
-	fmt.Fprintln(w, AllowWhitespace(msg))
+	msg = AllowWhitespace(msg)
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+
+	fmt.Fprint(w, msg)
 }
 
 func formatCertError(err error) string {
