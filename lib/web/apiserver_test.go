@@ -10619,7 +10619,9 @@ func TestModeratedSession(t *testing.T) {
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	waitForOutput(t, moderatorTerm, "Stopping session...", "waiting for moderator to terminate session")
+	// During forced termination, terminal output is not deterministic for the moderator client, which force
+	// closes its own connection without waiting for the session to end, so we only check peer output.
+	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
 	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
 }
 
