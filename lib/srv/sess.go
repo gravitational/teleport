@@ -419,6 +419,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
+		sess.Close()
 		return trace.Wrap(err)
 	}
 
@@ -426,12 +427,14 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	canStart, _, err := sess.checkIfStartUnderLock()
 	sess.mu.Unlock()
 	if err != nil {
+		sess.Close()
 		return trace.Wrap(err)
 	}
 
 	// canStart will be true for non-moderated sessions. If canStart is false, check to
 	// see if the request has been approved through a moderated session next.
 	if !canStart && !approved {
+		sess.Close()
 		return errCannotStartUnattendedSession
 	}
 
@@ -821,7 +824,6 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		return nil, nil, trace.BadParameter("session creation only supported in context of ssh access or proxying permit")
 	}
 
-	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
@@ -855,6 +857,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
 	}
 
+	serverSessions.Inc()
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -899,13 +902,12 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		}
 	}()
 
-	// create a new "party" (connected client) and launch/join the session.
+	// create a new "party" (connected client).
 	p := newParty(sess, types.SessionPeerMode, ch, scx)
-	sess.parties[p.id] = p
-	sess.participants[p.id] = p
 
 	var err error
 	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets, p, sessType); err != nil {
+		sess.Close()
 		if trace.IsNotImplemented(err) {
 			return nil, nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
@@ -914,6 +916,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 
 	sess.recorder, err = newRecorder(sess, scx, sessType)
 	if err != nil {
+		sess.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -976,8 +979,10 @@ func (s *session) Stop() {
 	s.haltTerminal()
 
 	// Close session tracker and mark it as terminated
-	if err := s.tracker.Close(s.serverCtx); err != nil {
-		s.logger.DebugContext(s.serverCtx, "Failed to close session tracker.", "error", err)
+	if s.tracker != nil {
+		if err := s.tracker.Close(s.serverCtx); err != nil {
+			s.logger.DebugContext(s.serverCtx, "Failed to close session tracker.", "error", err)
+		}
 	}
 }
 

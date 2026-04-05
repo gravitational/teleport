@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -338,6 +339,143 @@ func TestSession_newRecorder(t *testing.T) {
 			rec, err := newRecorder(sess, tt.sctx, sessType)
 			tt.errAssertion(t, err)
 			tt.recAssertion(t, rec)
+		})
+	}
+}
+
+func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	moderatedRole, err := types.NewRole("access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, 'auditor')",
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionModeratorMode)},
+				Count:  1,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	recordAtNodeSync := func() *types.SessionRecordingConfigV2 {
+		return &types.SessionRecordingConfigV2{
+			Kind:    types.KindSessionRecordingConfig,
+			Version: types.V2,
+			Spec: types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordAtNodeSync,
+			},
+		}
+	}
+
+	type testCase struct {
+		name         string
+		openSession  func(context.Context, *SessionRegistry, ssh.Channel, *ServerContext) error
+		sessionRoles services.RoleSet
+		configure    func(*testing.T, *mockServer, *ServerContext, *trackerService)
+		errAssertion require.ErrorAssertionFunc
+	}
+
+	cases := []testCase{
+		{
+			name: "interactive track session failure",
+			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
+				return reg.OpenSession(ctx, ch, scx)
+			},
+			sessionRoles: services.NewRoleSet(moderatedRole),
+			configure: func(t *testing.T, srv *mockServer, scx *ServerContext, trackingService *trackerService) {
+				scx.SessionRecordingConfig = recordAtNodeSync()
+				trackingService.createError = trace.ConnectionProblem(context.DeadlineExceeded, "")
+			},
+		},
+		{
+			name: "interactive recorder failure",
+			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
+				return reg.OpenSession(ctx, ch, scx)
+			},
+			configure: func(t *testing.T, srv *mockServer, scx *ServerContext, _ *trackerService) {
+				srv.datadir = ""
+				scx.SessionRecordingConfig = recordAtNodeSync()
+			},
+		},
+		{
+			name: "exec unapproved moderated session",
+			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
+				return reg.OpenExecSession(ctx, ch, scx)
+			},
+			sessionRoles: services.NewRoleSet(moderatedRole),
+			configure: func(t *testing.T, _ *mockServer, scx *ServerContext, _ *trackerService) {
+				scx.SessionRecordingConfig = recordAtNodeSync()
+			},
+			errAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, errCannotStartUnattendedSession)
+			},
+		},
+		{
+			name: "exec unapproved moderated file transfer",
+			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
+				return reg.OpenExecSession(ctx, ch, scx)
+			},
+			configure: func(t *testing.T, _ *mockServer, scx *ServerContext, _ *trackerService) {
+				scx.SetEnv(sftp.EnvModeratedSessionID, string(rsession.NewID()))
+			},
+			errAssertion: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockServer(t)
+
+			mockTrackerService := &mockSessiontrackerService{
+				trackers: make(map[string]types.SessionTracker),
+			}
+			trackingService := &trackerService{
+				SessionTrackerService: mockTrackerService,
+			}
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: trackingService,
+				clock:                 clockwork.NewFakeClock(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { reg.Close() })
+
+			// Use strict recording mode so that recorder errors aren't ignored.
+			accessPermit := &decisionpb.SSHAccessPermit{
+				SessionRecordingMode: string(constants.SessionRecordingModeStrict),
+			}
+
+			scx := newTestServerContext(t, reg.Srv, tt.sessionRoles, accessPermit)
+			t.Cleanup(func() { require.NoError(t, scx.Close()) })
+
+			tt.configure(t, srv, scx, trackingService)
+
+			channel := newMockSSHChannel()
+			t.Cleanup(func() { require.NoError(t, channel.Close()) })
+
+			countBefore := testutil.ToFloat64(serverSessions)
+
+			err = tt.openSession(t.Context(), reg, channel, scx)
+			require.Error(t, err)
+			require.Nil(t, scx.session)
+
+			if tt.errAssertion != nil {
+				tt.errAssertion(t, err)
+			}
+
+			require.Equal(t, countBefore, testutil.ToFloat64(serverSessions))
+
+			// If we created a tracker before the failure, the tracker should be updated to terminated.
+			if trackingService.CreatedCount() != 0 {
+				for _, tracker := range mockTrackerService.trackers {
+					require.Equal(t, types.SessionState_SessionStateTerminated, tracker.GetState())
+				}
+			}
 		})
 	}
 }
