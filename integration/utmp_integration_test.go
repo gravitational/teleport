@@ -86,10 +86,29 @@ func checkUserInFile(t assert.TestingT, utmp *uacc.UtmpBackend, uaccFile, userna
 	assert.Equal(t, expectPresent, inFile)
 }
 
+func isUserLoggedInWtmpdb(wtmpdbPath, username string) (bool, error) {
+	db, err := sql.Open("sqlite", wtmpdbPath)
+	if err != nil {
+		return false, err
+	}
+	defer db.Close()
+	var count int
+	if err := db.QueryRow("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL", username).Scan(&count); err != nil {
+		return false, err
+	}
+	if err := db.Close(); err != nil {
+		return false, err
+	}
+	return count != 0, nil
+}
+
 // TestRootUTMPEntryExists verifies that user accounting is done on supported systems.
 func TestRootUTMPEntryExists(t *testing.T) {
 	if !isRoot() {
 		t.Skip("This test will be skipped because tests are not being run as root.")
+	}
+	if err := uacc.WtmpdbBackendAvailable(); err != nil {
+		t.Skipf("TestRootUTMPEntryExists requires linux, cgo and libwtmpdb installed: %v", err)
 	}
 
 	user, err := user.Current()
@@ -102,8 +121,6 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	require.NoError(t, err)
 
 	utmp, err := uacc.NewUtmpBackend(s.utmpPath, s.wtmpPath, s.btmpPath)
-	require.NoError(t, err)
-	wtmpdb, err := uacc.NewWtmpdbBackend(s.wtmpdbPath)
 	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
@@ -144,7 +161,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			// Ensure than an entry was not written to btmp.
 			checkUserInFile(collect, utmp, s.btmpPath, teleportTestUser, false)
 
-			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportTestUser)
+			inWtmpdb, err := isUserLoggedInWtmpdb(s.wtmpdbPath, teleportTestUser)
 			assert.NoError(collect, err)
 			assert.True(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect utmp entry within 5 minutes")
@@ -188,7 +205,7 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			checkUserInFile(t, utmp, s.utmpPath, teleportFakeUser, false)
 			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
 
-			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
+			inWtmpdb, err := isUserLoggedInWtmpdb(s.wtmpdbPath, teleportFakeUser)
 			require.NoError(t, err)
 			require.False(t, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
@@ -310,9 +327,11 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	// Initialize wtmpdb database.
 	db, err := sql.Open("sqlite", wtmpdbPath)
 	require.NoError(t, err)
+	defer db.Close()
 	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	require.NoError(t, err)
+	require.NoError(t, db.Close())
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
