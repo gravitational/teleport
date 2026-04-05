@@ -75,6 +75,13 @@ func (l *Limiter) RegisterRequest(token string) error {
 	return l.rateLimiter.RegisterRequest(token)
 }
 
+// RegisterRequestWithCustomRate applies custom rate limiting for the given
+// token. Custom-rate and default-rate buckets are independent so they
+// do not interfere with each other.
+func (l *Limiter) RegisterRequestWithCustomRate(token string, customRates *RateSet) error {
+	return l.rateLimiter.RegisterRequestWithCustomRate(token, customRates)
+}
+
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	l.connectionLimiter.ServeHTTP(w, r)
 }

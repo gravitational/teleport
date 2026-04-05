@@ -76,16 +76,16 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if limiter.rates.Len() > 0 {
-		limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
-			// The default TTL here is not super important because we set
-			// the TTL explicitly for each entry we insert.
-			TTL:   10 * time.Second,
-			Clock: config.Clock,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Always initialize the FnCache: it is needed for default-rate
+	// RegisterRequest calls as well as RegisterRequestWithCustomRate.
+	limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
+		// The default TTL here is not super important because we set
+		// the TTL explicitly for each entry we insert.
+		TTL:   10 * time.Second,
+		Clock: config.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &limiter, nil
@@ -101,7 +101,8 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	bucketSet, ok := l.rateLimits.GetIfExists(token)
+	key := rateLimitKey{token: token, rates: l.rates}
+	bucketSet, ok := l.rateLimits.GetIfExists(key)
 	if !ok {
 		return false
 	}
@@ -127,7 +128,8 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
 	ttl := l.rates.MaxPeriod()*10 + 1
-	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
+	key := rateLimitKey{token: token, rates: l.rates}
+	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, key, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
 			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
 		},
@@ -158,6 +160,52 @@ func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
 		return trace.Wrap(err)
 	}
 	return l.RegisterRequest(token)
+}
+
+// RegisterRequestWithCustomRate increases the number of requests for the
+// provided token, applying the given custom rates instead of the default
+// rates configured at construction time. Custom-rate and default-rate
+// buckets are maintained independently so they do not interfere with
+// each other.
+func (l *RateLimiter) RegisterRequestWithCustomRate(token string, customRates *ratelimit.RateSet) error {
+	if customRates.Len() == 0 {
+		return nil
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	ttl := customRates.MaxPeriod()*10 + 1
+	key := rateLimitKey{token: token, rates: customRates}
+	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, key, ttl,
+		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
+			return ratelimit.NewTokenBucketSet(customRates, l.clock), nil
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	bucketSet.Update(customRates)
+
+	delay, err := bucketSet.Consume(1)
+	if err != nil {
+		return err
+	}
+	if delay > 0 {
+		return trace.LimitExceeded("rate limit exceeded, try again in %v", delay)
+	}
+	return nil
+}
+
+// rateLimitKey is used as FnCache key so that different rate
+// configurations for the same client token (IP) get independent
+// token bucket sets.
+type rateLimitKey struct {
+	token string
+	// rates is compared by pointer identity: the same *RateSet
+	// pointer always maps to the same bucket set.
+	rates *ratelimit.RateSet
 }
 
 // WrapHandle wraps the given HTTP handler with the rate limiter.

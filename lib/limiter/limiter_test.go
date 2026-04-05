@@ -616,3 +616,34 @@ func TestIndependentLimiters(t *testing.T) {
 	}
 	require.Error(t, defaultLimiter.RegisterRequest("127.0.0.1"))
 }
+
+// TestCustomRate verifies that custom-rate and default-rate requests from
+// the same client IP maintain independent token buckets so they do not
+// clobber each other.
+func TestCustomRate(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+
+	limiter, err := NewLimiter(Config{
+		Clock: clock,
+		Rates: []Rate{{Period: 10 * time.Millisecond, Average: 10, Burst: 20}},
+	})
+	require.NoError(t, err)
+
+	// Build a custom rate set with a different period and a low burst.
+	customRate := NewRateSet()
+	require.NoError(t, customRate.Add(time.Minute, 1, 5))
+
+	// Exhaust the custom rate (burst 5).
+	for range 5 {
+		require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+	}
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+
+	// A default-rate request for the same token must still succeed and
+	// must NOT reset the custom bucket.
+	require.NoError(t, limiter.RegisterRequest("token1"))
+
+	// The custom rate must still be exhausted after the default-rate call.
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
+}
