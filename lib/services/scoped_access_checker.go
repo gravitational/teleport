@@ -186,6 +186,12 @@ func (c *ScopedAccessChecker) SSH() *SSHAccessChecker {
 	return &SSHAccessChecker{checker: c}
 }
 
+// Kube returns a kube-specific access checker backed by this checker. All kube-specific methods
+// (users, groups, idle timeout, etc.) live on [KubeAccessChecker].
+func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
+	return &KubeAccessChecker{checker: c}
+}
+
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	if !c.isScoped() {
@@ -263,6 +269,14 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 		return c.unscopedChecker.LockingMode(defaultMode)
 	}
 	return c.scopedCompatChecker.LockingMode(defaultMode)
+}
+
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+func (c *ScopedAccessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	if !c.isScoped() {
+		return c.unscopedChecker.GetAllowedLoginsForResource(resource)
+	}
+	return c.scopedCompatChecker.GetAllowedLoginsForResource(resource)
 }
 
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This

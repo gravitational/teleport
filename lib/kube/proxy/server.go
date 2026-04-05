@@ -121,6 +121,7 @@ type TLSServerConfig struct {
 	InventoryHandle inventory.DownstreamHandle
 	// HealthCheckManager manages checking the health of Kubernetes clusters.
 	HealthCheckManager healthcheck.Manager
+	Scope              string
 }
 
 type awsClientsGetter struct{}
@@ -221,6 +222,7 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *slog.Logger
+	scope       string
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -237,6 +239,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	cfg.ForwarderConfig.log = log
+	cfg.ForwarderConfig.scope = cfg.scope
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -295,6 +298,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		},
 		reconcileCh: make(chan struct{}),
 		log:         log,
+		scope:       cfg.Scope,
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	server.closeContext, server.closeFunc = context.WithCancel(cfg.Context)
@@ -543,6 +547,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.Scope = t.scope
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Get the kube cluster health and send it to the auth server.
@@ -645,7 +650,6 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 	}
 
 	t.setServiceLabels(clusterWithoutCreds)
-
 	return clusterWithoutCreds, nil
 }
 

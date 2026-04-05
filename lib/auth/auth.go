@@ -3804,21 +3804,21 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	}
 
 	var (
-		kubeGroups, kubeUsers []string
-		dbNames, dbUsers      []string
-		roleARNs              []string
-		azureIdentities       []string
-		gcpAccounts           []string
+		dbNames, dbUsers []string
+		roleARNs         []string
+		azureIdentities  []string
+		gcpAccounts      []string
 	)
+
+	kubeGroups, kubeUsers, err := certParams.GetKubeGroupsAndUsersForTTL(ctx, sessionTTL, req.OverrideRoleTTL)
+	// NotFound errors are acceptable - this user may have no k8s access
+	// granted and that shouldn't prevent us from issuing a TLS cert.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 
 	// only unscoped identities currently support kube groups/users.
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
-		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
-		// NotFound errors are acceptable - this user may have no k8s access
-		// granted and that shouldn't prevent us from issuing a TLS cert.
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
 
 		// See which database names and users this user is allowed to use.
 		dbNames, dbUsers, err = unscoped.CheckDatabaseNamesAndUsers(sessionTTL, req.OverrideRoleTTL)

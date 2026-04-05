@@ -667,16 +667,30 @@ func resourceLabel(event types.Event) string {
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validateUserCertsRequest(auth, req); err != nil {
+
+	if err := validateUserCertsRequest(req); err != nil {
 		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			scopedAuth, err := g.scopedAuthenticate(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return scopedAuth.GenerateUserCerts(ctx, *req)
+		}
+		return nil, trace.Wrap(err)
+	}
+
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+		// Single-use certs require current user.
+		if err := auth.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := g.generateUserSingleUseCerts(ctx, auth, req)
 		return certs, trace.Wrap(err)
 	}
@@ -688,7 +702,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	return certs, nil
 }
 
-func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
+func validateUserCertsRequest(req *authpb.UserCertsRequest) error {
 	if err := validateCertUsage(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -710,11 +724,6 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		if req.MFAResponse.GetTOTP() != nil {
 			return trace.BadParameter("per-session MFA is not satisfied by OTP devices")
 		}
-	}
-
-	// Single-use certs require current user.
-	if err := actx.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil
@@ -773,8 +782,8 @@ func validateAccessGraphcertificateReq(req *authpb.UserCertsRequest) error {
 }
 
 // generateUserSingleUseCerts issues single-use user certificates.
-func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	setUserSingleUseCertsTTL(actx, req)
+func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, authCtx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+	setUserSingleUseCertsTTL(authCtx, req)
 
 	// We don't do MFA requirement validations here.
 	// Callers are supposed to use either use
@@ -787,7 +796,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 	// Generate the cert
 	singleUseCert, err := userSingleUseCertsGenerate(
 		ctx,
-		actx,
+		authCtx,
 		*req)
 	if err != nil {
 		g.logger.WarnContext(ctx, "Failed to generate single-use cert", "error", err)
@@ -2807,7 +2816,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return trace.NotImplemented("method GenerateUserSingleUseCerts is deprecated, use GenerateUserCerts instead")
 }
 
-func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
+func setUserSingleUseCertsTTL(authCtx *grpcContext, req *authpb.UserCertsRequest) {
 	if !isCertWrittenToDiskFlow(req) {
 		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
 		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
@@ -2815,7 +2824,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		return
 	}
 
-	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
+	maxExpiry := authCtx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
@@ -2890,6 +2899,10 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			// MFA is not supported for scoped identities, so return false
+			return &authpb.IsMFARequiredResponse{Required: false}, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	resp, err := actx.IsMFARequired(ctx, req)
@@ -5007,7 +5020,7 @@ func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

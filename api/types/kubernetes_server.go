@@ -232,6 +232,10 @@ func (s *KubernetesServerV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing kube server Cluster")
 	}
 
+	if s.Scope != "" {
+		s.Spec.Cluster.SetScope(s.Scope)
+	}
+
 	if err := s.Spec.Cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
