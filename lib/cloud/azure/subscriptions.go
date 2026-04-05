@@ -34,18 +34,24 @@ type ARMSubscriptions interface {
 
 var _ ARMSubscriptions = (*armsubscription.SubscriptionsClient)(nil)
 
-// SubscriptionClient wraps the Azure SubscriptionsAPI to fetch subscription IDs.
-type SubscriptionClient struct {
+// subscriptionClient wraps the Azure SubscriptionsAPI to fetch subscription IDs.
+type subscriptionClient struct {
 	api ARMSubscriptions
 }
 
+// SubscriptionClient is an Azure subscriptions client.
+type SubscriptionClient interface {
+	// ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
+	ListSubscriptionIDs(ctx context.Context) ([]string, error)
+}
+
 // NewSubscriptionClient returns a SubscriptionsClient.
-func NewSubscriptionClient(api ARMSubscriptions) *SubscriptionClient {
-	return &SubscriptionClient{api: api}
+func NewSubscriptionClient(api ARMSubscriptions) SubscriptionClient {
+	return &subscriptionClient{api: api}
 }
 
 // ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
-func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
+func (c *subscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
 	pagerOpts := &armsubscription.SubscriptionsClientListOptions{}
 	pager := c.api.NewListPager(pagerOpts)
 	subIDs := []string{}

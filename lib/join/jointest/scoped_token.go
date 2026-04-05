@@ -108,7 +108,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			}
 		}
 		scopedToken.Spec.Azure = &joiningv1.Azure{
-			Allow: allow,
+			Allow:       allow,
+			Integration: base.Integration,
 		}
 	case types.JoinMethodAzureDevops:
 		allow := make([]*joiningv1.AzureDevops_Rule, len(base.AzureDevops.Allow))

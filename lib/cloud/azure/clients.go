@@ -43,7 +43,7 @@ type Clients interface {
 	// GetPostgresClient returns Azure Postgres client for the specified subscription.
 	GetPostgresClient(ctx context.Context, subscription string) (DBServersClient, error)
 	// GetSubscriptionClient returns an Azure Subscriptions client
-	GetSubscriptionClient(ctx context.Context) (*SubscriptionClient, error)
+	GetSubscriptionClient(ctx context.Context) (SubscriptionClient, error)
 	// GetRedisClient returns an Azure Redis client for the given subscription.
 	GetRedisClient(ctx context.Context, subscription string) (RedisClient, error)
 	// GetRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
@@ -164,7 +164,7 @@ type clients struct {
 
 	mySQLClients               map[string]DBServersClient
 	postgresClients            map[string]DBServersClient
-	subscriptionsClient        *SubscriptionClient
+	subscriptionsClient        SubscriptionClient
 	redisClients               ClientMap[RedisClient]
 	redisEnterpriseClients     ClientMap[RedisEnterpriseClient]
 	kubernetesClient           map[string]AKSClient
@@ -210,7 +210,7 @@ func (c *clients) GetPostgresClient(ctx context.Context, subscription string) (D
 }
 
 // GetSubscriptionClient returns an Azure client for listing subscriptions.
-func (c *clients) GetSubscriptionClient(ctx context.Context) (*SubscriptionClient, error) {
+func (c *clients) GetSubscriptionClient(ctx context.Context) (SubscriptionClient, error) {
 	c.mtx.RLock()
 	if c.subscriptionsClient != nil {
 		defer c.mtx.RUnlock()
@@ -334,7 +334,7 @@ func (c *clients) initPostgresClient(ctx context.Context, subscription string) (
 	return client, nil
 }
 
-func (c *clients) initSubscriptionsClient(ctx context.Context) (*SubscriptionClient, error) {
+func (c *clients) initSubscriptionsClient(ctx context.Context) (SubscriptionClient, error) {
 	cred, err := c.GetCredential(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

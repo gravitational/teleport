@@ -49,6 +49,7 @@ type IntegrationsGetter interface {
 }
 
 // IntegrationsTokenGenerator defines methods to generate tokens for Integrations.
+// TODO(gavin): remove this type, it is not actually used anywhere
 type IntegrationsTokenGenerator interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)

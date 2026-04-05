@@ -1102,9 +1102,11 @@ func TestSortAzureRules(t *testing.T) {
 			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
+				{Subscription: "*"},
 				{Subscription: "100000000000"},
 			},
 			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "*"},
 				{Subscription: "100000000000"},
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
@@ -1113,11 +1115,13 @@ func TestSortAzureRules(t *testing.T) {
 		{
 			name: "already ordered",
 			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "*"},
 				{Subscription: "100000000000"},
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
 			},
 			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "*"},
 				{Subscription: "100000000000"},
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
@@ -2184,10 +2188,16 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 					Subscription: "456456456456",
 				},
 				{
+					Subscription: "*",
+				},
+				{
 					Subscription: "123123123123",
 				},
 			},
 			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "*",
+				},
 				{
 					Subscription: "123123123123",
 				},

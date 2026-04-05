@@ -30,7 +30,7 @@ type Clients struct {
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
-	AzureSubscriptionClient *azure.SubscriptionClient
+	AzureSubscriptionClient azure.SubscriptionClient
 	AzureRedis              azure.RedisClient
 	AzureRedisEnterprise    azure.RedisEnterpriseClient
 	AzureAKSClientPerSub    map[string]azure.AKSClient
@@ -75,7 +75,7 @@ func (c *Clients) GetKubernetesClient(ctx context.Context, subscription string) 
 }
 
 // GetSubscriptionClient returns an Azure SubscriptionClient
-func (c *Clients) GetSubscriptionClient(ctx context.Context) (*azure.SubscriptionClient, error) {
+func (c *Clients) GetSubscriptionClient(ctx context.Context) (azure.SubscriptionClient, error) {
 	return c.AzureSubscriptionClient, nil
 }
 

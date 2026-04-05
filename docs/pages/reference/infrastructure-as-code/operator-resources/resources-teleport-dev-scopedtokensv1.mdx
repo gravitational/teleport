@@ -65,6 +65,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allow|[][object](#specazureallow-items)|A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.|
+|integration|string|Integration name which provides credentials for validating join attempts.|
 
 ### spec.azure.allow items
 
