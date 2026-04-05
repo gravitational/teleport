@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	autoupdateagent "github.com/gravitational/teleport/lib/autoupdate/agent"
 	autoupdatetools "github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -155,6 +156,15 @@ var accessRequestModes = []string{
 // ClientInitFunc defines a function that initiates a connection to
 // the Teleport cluster using the CLI configuration.
 type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
+
+// WebauthnLoginFunc is a function that performs WebAuthn registration.
+// Mimics the signature of [wancli.Register].
+type WebauthnRegisterFunc func(
+	ctx context.Context,
+	origin string,
+	cc *wantypes.CredentialCreation,
+	prompt wancli.RegisterPrompt,
+) (*proto.MFARegisterResponse, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
@@ -620,6 +630,10 @@ type CLIConf struct {
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
 
+	// WebauthnRegister allows tests to override the Webauthn Register func.
+	// Defaults to [wancli.Register].
+	WebauthnRegister WebauthnRegisterFunc
+
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
 
@@ -686,6 +700,10 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
+
+	// addMFAIfRequired tells `tsh ssh` to offer adding an MFA device if it's
+	// required, but the user doesn't have one.
+	addMFAIfRequired bool
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -1000,6 +1018,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
+	ssh.Flag("add-mfa", "Offer registering an MFA device if required").Default("true").BoolVar(&cf.addMFAIfRequired)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4187,6 +4206,23 @@ func getAutoRoleRequest(ctx context.Context, clt *client.ClusterClient, requestR
 	return req, nil
 }
 
+// retryWithAccessRequests calls the given fn function and attempts to resolve
+// errors by creating an access request and/or adding an MFA device.
+func retryIfCouldObtainAccess(
+	cf *CLIConf,
+	tc *client.TeleportClient,
+	fn func() error,
+	onAccessRequestCreator func(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error),
+	resource string,
+) error {
+	return retryWithAddingMFA(cf, tc, func() error {
+		return retryWithAccessRequest(cf, tc, fn, onAccessRequestCreator, resource)
+	})
+}
+
+// retryWithAccessRequests calls the given fn function. If fn returns an error
+// that is [trace.IsAccessDenied], fn will be called once again after creating
+// an access request and waiting for approval.
 func retryWithAccessRequest(
 	cf *CLIConf,
 	tc *client.TeleportClient,
@@ -4226,6 +4262,38 @@ func retryWithAccessRequest(
 
 	// Retry now that request has been approved and certs updated.
 	// Clear the original exit status.
+	tc.SetExitStatus(0)
+	return trace.Wrap(fn())
+}
+
+// retryWithAddingMFA calls the given fn function. If fn returns an
+// [authclient.ErrNoMFADevice] error, fn will be called once again after giving
+// the user an opportunity to register an MFA device.
+func retryWithAddingMFA(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+	ctx := cf.Context
+	origErr := fn()
+	if !cf.addMFAIfRequired || !errors.Is(origErr, authclient.ErrNoMFADevices) {
+		return trace.Wrap(origErr)
+	}
+
+	yes, err := prompt.Confirmation(ctx, cf.Stdout(), prompt.Stdin(),
+		"\nYou have no MFA devices registered. Do you want to register a new one?",
+	)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		return trace.Wrap(origErr)
+	}
+
+	adder := mfaAdder{}
+	adder.setWebauthnRegisterFunc(cf.WebauthnRegister)
+	err = adder.addMFA(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintln(cf.Stdout())
 	tc.SetExitStatus(0)
 	return trace.Wrap(fn())
 }
@@ -4519,7 +4587,7 @@ func onSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 	}
 
 	tc.Stdin = cf.Stdin()
-	err = retryWithAccessRequest(cf, tc, func() error {
+	err = retryIfCouldObtainAccess(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
