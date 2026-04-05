@@ -32,7 +32,8 @@ type UploadHandler interface {
 	// case of success.
 	Upload(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// StreamSessionRecording streams a session recording and returns a ReadCloser for the content.
-	StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// If uploadID is set, the temporary recording associated with it will be streamed.
+	StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error)
 	// UploadPendingSummary uploads a pending session summary and returns a URL
 	// with uploaded file in case of success. This function can be called
 	// multiple times for a given sessionID to update the state. A pending
@@ -61,6 +62,15 @@ type UploadHandler interface {
 	UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 	// StreamSessionThumbnail streams a session thumbnail and returns a ReadCloser for the content.
 	StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// GetRecordingVersion gets a string representing the current version of the
+	// recording.
+	//
+	// The value of the version string should be considered opaque and
+	// only used for comparisons. If uploadID is empty, this gets the current
+	// recording version; otherwise, this gets the version of the temporary upload
+	// associated with the upload ID, If there is no recording, the version is the
+	// empty string.
+	GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error)
 }
 
 // MultipartHandler handles both multipart and standalone uploads and

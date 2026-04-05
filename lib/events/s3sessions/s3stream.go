@@ -43,7 +43,7 @@ import (
 )
 
 // CreateUpload creates a multipart upload
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	start := time.Now()
 
 	input := &s3.CreateMultipartUploadInput{
@@ -289,7 +289,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
 	sessionURL, err := url.JoinPath(teleport.SchemeS3+"://"+h.Bucket, h.Path, sessionID.String())
 	if err != nil {
 		// this should never happen, but if it does revert to legacy behavior
@@ -298,12 +298,19 @@ func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata 
 	}
 
 	return events.UploadMetadata{
-		URL:       sessionURL,
-		SessionID: sessionID,
+		URL: sessionURL,
+		StreamUpload: events.StreamUpload{
+			ID:        uploadID,
+			SessionID: sessionID,
+		},
 	}
 }
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	return nil
+}
+
+func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	return "", trace.NotImplemented("GetRecordingVersion not implemented for S3")
 }

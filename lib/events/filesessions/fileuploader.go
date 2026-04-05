@@ -117,8 +117,12 @@ func (l *Handler) Close() error {
 }
 
 // StreamSessionRecording reads a session recording from a local directory.
-func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return openFile(l.recordingPath(sessionID))
+func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+	return openFile(l.recordingPath(events.StreamUpload{
+		ID:        uploadID,
+		SessionID: sessionID,
+		Temporary: uploadID != "",
+	}))
 }
 
 // StreamSessionSummary reads a session summary from a local directory.
@@ -154,7 +158,7 @@ func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.
 
 // Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	s, err := uploadFile(l.recordingPath(sessionID), reader)
+	s, err := uploadFile(l.recordingPath(events.StreamUpload{SessionID: sessionID}), reader)
 	return s, trace.Wrap(err)
 }
 
@@ -166,10 +170,9 @@ func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 }
 
 // UploadSummary writes a final version of session summary and removes the
-// pending one. This function can be called only once for a given sessionID;
-// subsequent calls will return an error.
+// pending one.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	name, err := uploadFile(l.summaryPath(sessionID), reader)
+	name, err := uploadFile(l.summaryPath(sessionID), reader, withOverwrite())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -184,12 +187,12 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.metadataPath(sessionID), reader)
+	return uploadFile(l.metadataPath(sessionID), reader, withOverwrite())
 }
 
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return uploadFile(l.thumbnailPath(sessionID), reader)
+	return uploadFile(l.thumbnailPath(sessionID), reader, withOverwrite())
 }
 
 func openFile(path string) (io.ReadCloser, error) {
@@ -198,6 +201,31 @@ func openFile(path string) (io.ReadCloser, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	return f, nil
+}
+
+// GetRecordingVersion gets a string representing the current version of the
+// recording.
+//
+// The value of the version string should be considered opaque and
+// only used for comparisons. If uploadID is empty, this gets the current
+// recording version; otherwise, this gets the version of the temporary upload
+// associated with the upload ID, If there is no recording, the version is the
+// empty string.
+func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	path := l.recordingPath(events.StreamUpload{
+		ID:        uploadID,
+		SessionID: sessionID,
+		Temporary: uploadID != "",
+	})
+	info, err := os.Stat(path)
+	if err != nil {
+		osErr := trace.ConvertSystemError(err)
+		if trace.IsNotFound(osErr) {
+			return "", nil
+		}
+		return "", osErr
+	}
+	return info.ModTime().String(), nil
 }
 
 type fileUploadConfig struct {
@@ -233,8 +261,11 @@ func uploadFile(path string, reader io.Reader, opts ...fileUploadOption) (string
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
 }
 
-func (l *Handler) recordingPath(sessionID session.ID) string {
-	return filepath.Join(l.Directory, string(sessionID)+tarExt)
+func (l *Handler) recordingPath(upload events.StreamUpload) string {
+	if upload.Temporary {
+		return filepath.Join(l.uploadRootPath(upload), string(upload.SessionID)+tempExt)
+	}
+	return filepath.Join(l.Directory, string(upload.SessionID)+tarExt)
 }
 
 func (l *Handler) pendingSummariesPath() string {

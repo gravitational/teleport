@@ -21,6 +21,7 @@ package filesessions
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -119,20 +120,29 @@ func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
 }
 
 // CreateUpload creates a multipart upload
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
+	var options events.CreateUploadOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
 	upload := events.StreamUpload{
-		SessionID: sessionID,
-		ID:        uuid.New().String(),
+		SessionID:      sessionID,
+		ID:             uuid.New().String(),
+		Temporary:      options.Temporary,
+		ReplaceVersion: options.ReplaceVersion,
 	}
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := os.MkdirAll(h.uploadPath(upload), teleport.PrivateDirMode); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := h.writeMetadata(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -171,12 +181,33 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
+	if err := h.Config.OnBeforeComplete(ctx, upload); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// If there are no parts to complete, move to cleanup
 	if len(parts) == 0 {
 		return h.cleanupUpload(ctx, upload)
 	}
 
-	uploadPath := h.recordingPath(upload.SessionID)
+	if !upload.Temporary {
+		// Check that we're replacing the version we expect to, or creating anew.
+		version, err := h.GetRecordingVersion(ctx, upload.SessionID, "")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if upload.ReplaceVersion != version {
+			// Recording was updated out from under us, this upload must be abandoned
+			// to prevent overwrites.
+			cleanupErr := h.cleanupUpload(ctx, upload)
+			return trace.NewAggregate(trace.CompareFailed(
+				"Upload %q tried to replace version %q, but current version is %q. Create a new upload to proceed.",
+				upload.ID, upload.ReplaceVersion, version,
+			), cleanupErr)
+		}
+	}
+
+	uploadPath := h.recordingPath(upload)
 
 	// Prevent other processes from accessing this file until the write is completed
 	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -245,12 +276,12 @@ Loop:
 		return trace.Wrap(err)
 	}
 
-	err = h.Config.OnBeforeComplete(ctx, upload)
-	if err != nil {
-		return trace.Wrap(err)
+	deletePath := h.uploadRootPath(upload)
+	if upload.Temporary {
+		// Preserve the temporary recording.
+		deletePath = h.uploadPath(upload)
 	}
-
-	err = os.RemoveAll(h.uploadRootPath(upload))
+	err = os.RemoveAll(deletePath)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
 	}
@@ -258,7 +289,7 @@ Loop:
 }
 
 func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.recordingPath(upload)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -344,15 +375,6 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			}
 			return nil, trace.Wrap(err)
 		}
-		// expect just one subdirectory - session ID
-		if len(files) != 1 {
-			h.logger.WarnContext(ctx, "Skipping upload, missing subdirectory.", "upload_id", uploadID)
-			continue
-		}
-		if !files[0].IsDir() {
-			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
-			continue
-		}
 
 		info, err := dir.Info()
 		if err != nil {
@@ -360,11 +382,28 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			continue
 		}
 
-		uploads = append(uploads, events.StreamUpload{
-			SessionID: session.ID(filepath.Base(files[0].Name())),
-			ID:        uploadID,
-			Initiated: info.ModTime(),
-		})
+		upload, err := h.readMetadata(uploadID)
+		if err != nil {
+			// Look for session dir manually for backwards compatibility.
+			var sessionDir os.DirEntry
+			for _, ent := range files {
+				if ent.IsDir() {
+					sessionDir = ent
+					break
+				}
+			}
+			if sessionDir == nil {
+				h.logger.WarnContext(ctx, "Skipping upload, missing subdirectory.", "upload_id", uploadID)
+				continue
+			}
+
+			upload = events.StreamUpload{
+				SessionID: session.ID(filepath.Base(sessionDir.Name())),
+				ID:        uploadID,
+			}
+		}
+		upload.Initiated = info.ModTime()
+		uploads = append(uploads, upload)
 	}
 
 	sort.Slice(uploads, func(i, j int) bool {
@@ -375,11 +414,22 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
-	return events.UploadMetadata{
-		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
-		SessionID: s,
+func (h *Handler) GetUploadMetadata(s session.ID, uploadID string) events.UploadMetadata {
+	metadata := events.UploadMetadata{
+		URL: fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
+		StreamUpload: events.StreamUpload{
+			ID:        uploadID,
+			SessionID: s,
+		},
 	}
+	if uploadID != "" {
+		upload, err := h.readMetadata(uploadID)
+		if err == nil {
+			metadata.StreamUpload.Temporary = upload.Temporary
+			metadata.StreamUpload.ReplaceVersion = upload.ReplaceVersion
+		}
+	}
+	return metadata
 }
 
 // ReserveUploadPart reserves an upload part.
@@ -410,6 +460,30 @@ func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string 
 
 func (h *Handler) reservationPath(upload events.StreamUpload, partNumber int64) string {
 	return filepath.Join(h.uploadPath(upload), reservationFileName(partNumber))
+}
+
+func (h *Handler) uploadMetadataPath(upload events.StreamUpload) string {
+	return filepath.Join(h.uploadRootPath(upload), upload.ID+uploadMetadataExt)
+}
+
+func (h *Handler) writeMetadata(upload events.StreamUpload) error {
+	data, err := json.Marshal(upload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.ConvertSystemError(os.WriteFile(h.uploadMetadataPath(upload), data, teleport.PrivateDirMode))
+}
+
+func (h *Handler) readMetadata(uploadID string) (events.StreamUpload, error) {
+	data, err := os.ReadFile(h.uploadMetadataPath(events.StreamUpload{ID: uploadID}))
+	if err != nil {
+		return events.StreamUpload{}, trace.ConvertSystemError(err)
+	}
+	var upload events.StreamUpload
+	if err := json.Unmarshal(data, &upload); err != nil {
+		return events.StreamUpload{}, trace.Wrap(err)
+	}
+	return upload, nil
 }
 
 func partFileName(partNumber int64) string {
@@ -463,6 +537,8 @@ const (
 	partExt = ".part"
 	// tarExt is a suffix for file uploads
 	tarExt = ".tar"
+	// tempExt is a suffix for temporary file uploads
+	tempExt = ".temp" + tarExt
 	// summaryExt is a suffix for summary files
 	summaryExt = ".summary.json"
 	// metadataExt is a suffix for session metadata files
@@ -475,4 +551,6 @@ const (
 	errorExt = ".error"
 	// reservationExt is part reservation extension.
 	reservationExt = ".reservation"
+	// uploadMetadataExt is an upload metadata extension.
+	uploadMetadataExt = ".upload.json"
 )

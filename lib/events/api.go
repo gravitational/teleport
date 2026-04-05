@@ -1131,17 +1131,23 @@ type StreamPart struct {
 // StreamUpload represents stream multipart upload
 type StreamUpload struct {
 	// ID is unique upload ID
-	ID string
+	ID string `json:"id"`
 	// SessionID is a session ID of the upload
-	SessionID session.ID
+	SessionID session.ID `json:"session_id"`
 	// Initiated contains the timestamp of when the upload
 	// was initiated, not always initialized
-	Initiated time.Time
+	Initiated time.Time `json:"-"`
+	// Temporary indicates that this upload will go to a temporary recording, to
+	// be eventually merged with the real recording.
+	Temporary bool `json:"temporary,omitempty"`
+	// ReplaceVersion indicates the recording version that this upload should
+	// replace. If empty, this upload must be the first.
+	ReplaceVersion string `json:"replace_version,omitempty"`
 }
 
 // String returns user friendly representation of the upload
 func (u StreamUpload) String() string {
-	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
+	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v, temporary=%v, version=%v)", u.SessionID, u.ID, u.Initiated, u.Temporary, u.ReplaceVersion)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -1155,11 +1161,44 @@ func (u *StreamUpload) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CreateUploadOptions is a set of options for [MultipartUploader.CreateUpload].
+type CreateUploadOptions struct {
+	// Temporary indicates that the result of the upload should go to a temporary
+	// location, to be later merged with the real recording.
+	// [MultipartUploader.CompleteUpload] will not clean up the temporary recording
+	// unless no parts are passed.
+	Temporary bool
+	// ReplaceVersion indicates the version of the current recording, as returned
+	// by [MultipartUploader.GetRecordingVersion], for this upload to replace.
+	// If empty, this must be the first upload.
+	ReplaceVersion string
+}
+
+// CreateUploadOption is an option for [MultipartUploader.CreateUpload].
+type CreateUploadOption func(opts *CreateUploadOptions)
+
+// WithUploadTemporary indicates that this is a temporary upload to be eventually
+// merged with the current recording.
+func WithUploadTemporary() CreateUploadOption {
+	return func(opts *CreateUploadOptions) {
+		opts.Temporary = true
+	}
+}
+
+// WithUploadReplace allows the upload to replace the given recording version
+// upon completion.
+func WithUploadReplace(version string) CreateUploadOption {
+	return func(opts *CreateUploadOptions) {
+		opts.ReplaceVersion = version
+	}
+}
+
 // MultipartUploader handles multipart uploads and downloads for session streams
 type MultipartUploader interface {
-	// CreateUpload creates a multipart upload
-	CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error)
-	// CompleteUpload completes the upload
+	// CreateUpload creates a multipart upload.
+	CreateUpload(ctx context.Context, sessionID session.ID, opts ...CreateUploadOption) (*StreamUpload, error)
+	// CompleteUpload completes the upload. As a special case, if parts is empty
+	// the upload will be canceled.
 	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
@@ -1176,7 +1215,7 @@ type MultipartUploader interface {
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 	// GetUploadMetadata gets the upload metadata
-	GetUploadMetadata(sessionID session.ID) UploadMetadata
+	GetUploadMetadata(sessionID session.ID, uploadID string) UploadMetadata
 }
 
 // UploadMetadata contains data about the session upload
@@ -1184,13 +1223,12 @@ type UploadMetadata struct {
 	// URL is the url at which the session recording is located
 	// it is free-form and uploader-specific
 	URL string
-	// SessionID is the event session ID
-	SessionID session.ID
+	StreamUpload
 }
 
 // UploadMetadataGetter gets the metadata for session upload
 type UploadMetadataGetter interface {
-	GetUploadMetadata(sid session.ID) UploadMetadata
+	GetUploadMetadata(sid session.ID, uploadID string) UploadMetadata
 }
 
 // SessionEventPreparer will set necessary event fields for session-related

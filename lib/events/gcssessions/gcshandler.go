@@ -334,7 +334,10 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // StreamSessionRecording downloads a session recording from a GCS bucket and returns a
 // ReadCloser for the content. Returns trace.NotFound error if the recording
 // is not found.
-func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+	if uploadID != "" {
+		return nil, trace.NotImplemented("streaming temporary session recordings not supported for GCS")
+	}
 	return h.gcsRetrier(ctx, h.recordingPath(sessionID))
 }
 
@@ -410,6 +413,10 @@ func (h *Handler) gcsRetrier(ctx context.Context, objectPath string) (io.ReadClo
 		downloadLatencies.Observe(time.Since(start).Seconds())
 		return reader, nil
 	}), nil
+}
+
+func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	return "", trace.NotImplemented("GetRecordingVersion not implemented for GCS")
 }
 
 func (h *Handler) recordingPath(sessionID session.ID) string {

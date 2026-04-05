@@ -118,7 +118,7 @@ type DecryptionWrapper interface {
 
 // ProtoStreamerConfig specifies configuration for the part
 type ProtoStreamerConfig struct {
-	Uploader MultipartUploader
+	Uploader MultipartHandler
 	// MinUploadBytes submits upload when they have reached min bytes (could be more,
 	// but not less), due to the nature of gzip writer
 	MinUploadBytes int64
@@ -196,7 +196,11 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 
 // CreateAuditStream creates audit stream and upload
 func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	upload, err := s.cfg.Uploader.CreateUpload(ctx, sid)
+	return s.createAuditStream(ctx, sid)
+}
+
+func (s *ProtoStreamer) createAuditStream(ctx context.Context, sid session.ID, opts ...CreateUploadOption) (apievents.Stream, error) {
+	upload, err := s.cfg.Uploader.CreateUpload(ctx, sid, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,25 +209,59 @@ func (s *ProtoStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (
 
 // ResumeAuditStream resumes the stream that has not been completed yet
 func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	log := slog.With("session_id", sid, "upload_id", uploadID)
 	// Note, that if the session ID does not match the upload ID,
 	// the request will fail
-	upload := StreamUpload{SessionID: sid, ID: uploadID}
+	upload := s.cfg.Uploader.GetUploadMetadata(sid, uploadID).StreamUpload
 	parts, err := s.cfg.Uploader.ListParts(ctx, upload)
-	if err != nil {
+	if err == nil && len(parts) > 0 {
+		return NewProtoStream(ProtoStreamConfig{
+			Upload:                    upload,
+			BufferPool:                s.bufferPool,
+			SlicePool:                 s.slicePool,
+			Uploader:                  s.cfg.Uploader,
+			MinUploadBytes:            s.cfg.MinUploadBytes,
+			CompletedParts:            parts,
+			RetryConfig:               s.cfg.RetryConfig,
+			Encrypter:                 s.cfg.Encrypter,
+			SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+			RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		})
+	} else if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return NewProtoStream(ProtoStreamConfig{
-		Upload:                    upload,
-		BufferPool:                s.bufferPool,
-		SlicePool:                 s.slicePool,
-		Uploader:                  s.cfg.Uploader,
-		MinUploadBytes:            s.cfg.MinUploadBytes,
-		CompletedParts:            parts,
-		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
-		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
-		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
-	})
+
+	var currentRecordingExists bool
+	currentRecordingVersion, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, "")
+	if err == nil {
+		currentRecordingExists = currentRecordingVersion != ""
+	}
+	var tempRecordingExists bool
+	tempRecordingVersion, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, uploadID)
+	if err == nil {
+		tempRecordingExists = tempRecordingVersion != ""
+	}
+	if tempRecordingExists && !currentRecordingExists {
+		// Should not be possible.
+		return nil, trace.Errorf("temporary recording for upload %v exists without an existing recording to merge into, this is a bug", uploadID)
+	}
+	var createOpts []CreateUploadOption
+	if currentRecordingExists {
+		if tempRecordingExists {
+			// Both recordings exist, this stream is merging the two and overwriting
+			// the current recording.
+			log.DebugContext(ctx, "Found existing temporary recording. Creating upload to replace current recording.")
+			createOpts = append(createOpts, WithUploadReplace(currentRecordingVersion))
+		} else {
+			// Only current recording exists, we need to create the temporary recording.
+			log.DebugContext(ctx, "Found existing complete recording. Creating a new upload to merge with it.")
+			upload.Temporary = true
+			createOpts = append(createOpts, WithUploadTemporary())
+		}
+	} else {
+		log.DebugContext(ctx, "Upload missing, creating a new one.")
+	}
+	return s.createAuditStream(ctx, sid, createOpts...)
 }
 
 // ProtoStreamConfig configures proto stream
@@ -836,6 +874,9 @@ func (w *sliceWriter) completeStream() {
 		w.proto.setCompleteResult(err)
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
+		}
+		if w.proto.cfg.Upload.Temporary {
 			return
 		}
 

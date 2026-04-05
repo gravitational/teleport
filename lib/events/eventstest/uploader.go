@@ -123,7 +123,7 @@ func (m *MemoryUploader) Reset() {
 }
 
 // CreateUpload creates a multipart upload
-func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	upload := &events.StreamUpload{
@@ -356,7 +356,7 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 }
 
 // StreamSessionRecording streams a session tarball and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID, _ string) (io.ReadCloser, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -407,10 +407,13 @@ func (m *MemoryUploader) StreamSessionThumbnail(ctx context.Context, sessionID s
 }
 
 // GetUploadMetadata gets the session upload metadata
-func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata {
+func (m *MemoryUploader) GetUploadMetadata(sid session.ID, uploadID string) events.UploadMetadata {
 	return events.UploadMetadata{
-		URL:       "memory",
-		SessionID: sid,
+		URL: "memory",
+		StreamUpload: events.StreamUpload{
+			ID:        uploadID,
+			SessionID: sid,
+		},
 	}
 }
 
@@ -496,21 +499,33 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	return nil
 }
 
+func (m *MemoryUploader) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	return "", nil
+}
+
 // MockUploader is a limited implementation of [events.MultipartUploader] that
 // allows injecting errors for testing purposes. [MemoryUploader] is a more
 // complete implementation and should be preferred for testing the happy path.
 type MockUploader struct {
-	events.MultipartUploader
+	events.MultipartHandler
 
 	CreateUploadError      error
 	ReserveUploadPartError error
 
+	MockCreateUpload   func(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error)
 	MockListParts      func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error)
 	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
 	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
+
+	RecordingVersion     string
+	TempRecordingVersion string
+	ExistingUpload       events.StreamUpload
 }
 
-func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
+	if m.MockCreateUpload != nil {
+		return m.MockCreateUpload(ctx, sessionID, opts...)
+	}
 	if m.CreateUploadError != nil {
 		return nil, m.CreateUploadError
 	}
@@ -547,4 +562,20 @@ func (m *MockUploader) CompleteUpload(ctx context.Context, upload events.StreamU
 	}
 
 	return nil
+}
+
+func (m *MockUploader) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	if uploadID != "" {
+		return m.TempRecordingVersion, nil
+	}
+	return m.RecordingVersion, nil
+}
+
+func (m *MockUploader) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
+	metadata := events.UploadMetadata{
+		StreamUpload: m.ExistingUpload,
+	}
+	metadata.StreamUpload.ID = uploadID
+	metadata.StreamUpload.SessionID = sessionID
+	return metadata
 }

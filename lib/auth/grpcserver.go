@@ -444,7 +444,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 				return trace.Wrap(err)
 			}
 			if g.APIConfig.MetadataGetter != nil {
-				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID, "" /* upload ID */)
 				// TODO(zmb3): this may result in duplicate upload events, as the upload
 				// completer will emit its own session.upload
 				event := &apievents.SessionUpload{

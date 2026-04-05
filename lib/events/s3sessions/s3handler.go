@@ -447,7 +447,10 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // StreamSessionRecording downloads a session recording from an S3 bucket and returns a
 // ReadCloser for the content. Returns trace.NotFound error if the recording
 // is not found.
-func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+	if uploadID != "" {
+		return nil, trace.NotImplemented("streaming temporary session recordings not supported for S3")
+	}
 	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
 }
 
