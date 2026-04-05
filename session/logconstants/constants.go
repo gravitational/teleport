@@ -14,19 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package teleport
+package logconstants
 
-import "github.com/gravitational/teleport/session/logconstants"
-
-// static assertions that [logconstants.ComponentKey] and [logconstants.ComponentFields]
-// are equal to the respective consts defined in this package; we can't just
-// define them to be equal because the true definition belongs here and we want
-// to avoid circular module requirements
-func _() {
-	const mustBeTrue = ComponentKey == logconstants.ComponentKey
-	_ = map[bool]struct{}{false: struct{}{}, mustBeTrue: struct{}{}}
-}
-func _() {
-	const mustBeTrue = ComponentFields == logconstants.ComponentFields
-	_ = map[bool]struct{}{false: struct{}{}, mustBeTrue: struct{}{}}
-}
+// these constants are asserted to be the same as the ones in
+// github.com/gravitational/teleport, they are inlined here to avoid circular
+// module requirements
+const (
+	// ComponentKey is a field that represents a component - e.g. service or
+	// function
+	ComponentKey = "trace.component"
+	// ComponentFields is a fields component
+	ComponentFields = "trace.fields"
+)

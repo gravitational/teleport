@@ -50,10 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -68,7 +68,7 @@ const StaticToken = "test-static-token"
 func init() {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe. Used to test tsh ssh and tsh scp commands.
-	if srv.IsReexec() {
+	if reexec.IsReexec() {
 		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
