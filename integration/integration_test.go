@@ -448,29 +448,22 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Empty(t, sessions)
 
 			// create interactive session (this goroutine is this user's terminal time)
-			endC := make(chan error)
 			myTerm := NewTerminal(250)
-			go func() {
-				cl, err := teleport.NewClient(helpers.ClientConfig{
-					Login:        suite.Me.Username,
-					Cluster:      helpers.Site,
-					Host:         nodeConf.Hostname,
-					Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
-					ForwardAgent: tt.inForwardAgent,
-				})
-				if err != nil {
-					endC <- err
-					return
-				}
-				cl.Stdout = myTerm
-				cl.Stdin = myTerm
-
-				err = cl.SSH(ctx, nil)
-				endC <- err
-			}()
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:        suite.Me.Username,
+				Cluster:      helpers.Site,
+				Host:         nodeConf.Hostname,
+				Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
+				ForwardAgent: tt.inForwardAgent,
+			})
+			require.NoError(t, err)
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 
 			// wait until the session tracker exists.
-			tracker := waitForSessionToBeEstablished(t, site, 1)
+			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+			require.NoError(t, err)
+
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 			sessionID := tracker.GetSessionID()
@@ -4921,29 +4914,21 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	beforeSession := time.Now()
 
-	// create interactive session (this goroutine is this user's terminal time)
-	endCh := make(chan error, 1)
-
 	myTerm := NewTerminal(250)
-	go func() {
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: helpers.Site,
-			Host:    Host,
-			Port:    helpers.Port(t, teleport.SSH),
-		})
-		if err != nil {
-			endCh <- err
-			return
-		}
-		cl.Stdout = myTerm
-		cl.Stdin = myTerm
-		err = cl.SSH(ctx, []string{})
-		endCh <- err
-	}()
+	cl, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		Port:    helpers.Port(t, teleport.SSH),
+		Stdout:  myTerm,
+		Stdin:   myTerm,
+	})
+	require.NoError(t, err)
 
-	// wait for the user to join this session
-	tracker := waitForSessionToBeEstablished(t, site, 1)
+	// create interactive session
+	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+	require.NoError(t, err)
+
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
@@ -9424,33 +9409,23 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		require.NoError(t, lis.Close())
 	})
 
-	go func() {
-		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
-			return
-		}
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
+	handleConn := func(nConn net.Conn) {
+		defer nConn.Close()
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
+		if err != nil {
+			// If the connection does not perform an SSH handshake, then this is just
+			// a readiness probe (raw TCP Dial) from the test.
+			if utils.IsOKNetworkError(err) {
+				return
 			}
-		})
+			assert.NoError(t, err)
+			return
+		}
+		defer conn.Close()
+
 		go ssh.DiscardRequests(reqs)
 
-		var agentForwarded bool
-		var shellRequested bool
-		var execRequested bool
-		var sftpRequested bool
 		for {
 			var channelReq ssh.NewChannel
 			select {
@@ -9467,12 +9442,10 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			}
 			channel, reqs, err := channelReq.Accept()
 			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
+			defer channel.Close()
 
 			go func() {
+				var agentForwarded, shellRequested, execRequested, sftpRequested bool
 			outer:
 				for {
 					var req *ssh.Request
@@ -9521,6 +9494,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
 			}()
+		}
+	}
+
+	go func() {
+		for {
+			nConn, err := lis.Accept()
+			if utils.IsOKNetworkError(err) || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if !assert.NoError(t, err) {
+				return
+			}
+			go handleConn(nConn)
 		}
 	}()
 

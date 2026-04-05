@@ -76,6 +76,54 @@ func waitForSessionToBeEstablished(t *testing.T, clt authclient.ClientI, partici
 	return tracker
 }
 
+// startSessionAndWaitForTracker starts a session and waits for a session tracker to exist in the backend
+// Returns the tracker and a session error channel.
+func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *client.TeleportClient, participants int, cmd []string) (types.SessionTracker, <-chan error, error) {
+	t.Helper()
+	ctx := t.Context()
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- clt.SSH(ctx, cmd)
+	}()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+
+	lastTrackerErr := trace.BadParameter("session tracker not yet present")
+	for {
+		select {
+		case err := <-errC:
+			if err != nil {
+				return nil, nil, trace.Wrap(err, "encountered session error while waiting for tracker creation")
+			}
+			return nil, nil, trace.BadParameter("session exited before tracker creation")
+		case <-ticker.C:
+			trackers, err := auth.GetActiveSessionTrackers(ctx)
+			if err != nil {
+				lastTrackerErr = trace.Wrap(err, "getting session trackers")
+				continue
+			}
+			if len(trackers) != 1 {
+				lastTrackerErr = trace.BadParameter("no active sessions found")
+				continue
+			}
+			if len(trackers[0].GetParticipants()) != participants {
+				lastTrackerErr = trace.BadParameter("session tracker found with only %v/%v expected participants", len(trackers[0].GetParticipants()), participants)
+				continue
+			}
+			return trackers[0], errC, nil
+		case <-timeout.C:
+			return nil, nil, trace.Wrap(lastTrackerErr)
+		case <-ctx.Done():
+			return nil, nil, trace.Wrap(ctx.Err(), "waiting for session tracker")
+		}
+	}
+}
+
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 	invalidOSLogin := testutils.GenerateLocalUsername(t)
 
