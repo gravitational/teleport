@@ -543,6 +543,10 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 		nodeLabels[types.VMIDLabel] = instanceInfo.VMID
 		nodeLabels[types.RegionLabel] = instanceInfo.Location
 		nodeLabels[types.ResourceGroupLabel] = instanceInfo.ResourceGroupName
+		nodeLabels[types.SubscriptionIDLabelVisible] = instanceInfo.SubscriptionID
+		nodeLabels[types.VMIDLabelVisible] = instanceInfo.VMID
+		nodeLabels[types.RegionLabelVisible] = instanceInfo.Location
+		nodeLabels[types.ResourceGroupLabelVisible] = instanceInfo.ResourceGroupName
 
 	case types.InstanceMetadataTypeEC2:
 		awsIMDSClient, ok := imdsClient.(*awsimds.InstanceMetadataClient)
@@ -587,6 +591,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 		nodeLabels[types.ZoneLabelDiscovery] = zone
 		nodeLabels[types.ProjectIDLabelDiscovery] = projectID
 		nodeLabels[types.ProjectIDLabel] = projectID
+		nodeLabels[types.NameLabel] = name
+		nodeLabels[types.ZoneLabel] = zone
 
 	default:
 		return nil, trace.BadParameter("Unsupported cloud provider: %v", imdsClient.GetType())
