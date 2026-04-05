@@ -27,8 +27,8 @@ import (
 	"io"
 	"os"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 

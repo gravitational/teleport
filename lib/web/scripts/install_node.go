@@ -27,8 +27,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"

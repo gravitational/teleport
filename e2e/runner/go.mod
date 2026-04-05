@@ -3,6 +3,7 @@ module github.com/gravitational/teleport/e2e/runner
 go 1.25.8
 
 require (
+	github.com/DataDog/datadog-agent/pkg/template v0.77.2
 	github.com/docker/go-sdk/container v0.1.0-alpha013
 	github.com/google/go-github/v84 v84.0.0
 	github.com/lmittmann/tint v1.1.3

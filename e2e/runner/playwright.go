@@ -244,7 +244,6 @@ func (p *playwrightRunner) openConnectAuthenticated(ctx context.Context) error {
 	return p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "scripts", "open-connect.ts")}, env)
 }
 
-
 // startEnv builds the environment variables that Playwright tests need,
 // including START_URL, credentials, and tctl paths for invite URL generation.
 func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {

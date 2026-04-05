@@ -20,7 +20,10 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-require github.com/beevik/etree v1.6.0
+require (
+	github.com/DataDog/datadog-agent/pkg/template v0.77.2
+	github.com/beevik/etree v1.6.0
+)
 
 require (
 	cel.dev/expr v0.25.1 // indirect

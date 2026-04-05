@@ -27,7 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/trace"
 

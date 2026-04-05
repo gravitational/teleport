@@ -20,7 +20,8 @@ package scripts
 
 import (
 	_ "embed"
-	"text/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 //go:embed database/sqlserver/configure-ad.ps1

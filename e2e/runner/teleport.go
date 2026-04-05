@@ -31,8 +31,9 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 type teleportInstance struct {

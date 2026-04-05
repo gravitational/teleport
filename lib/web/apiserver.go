@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -44,6 +43,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"

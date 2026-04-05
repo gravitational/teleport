@@ -29,9 +29,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
