@@ -194,7 +194,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx, nil)
+	session, err := ns.createServerSession(ctx, sessionParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
