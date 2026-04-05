@@ -71,7 +71,7 @@ func ReadChildError(stderr io.Reader, context *ErrorContext) (string, error) {
 		for _, d := range context.DecisionContext.HostUserCreationDeniedBy {
 			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.Kind, d.Name))
 		}
-		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\r\n", strings.TrimRight(errMsg.String(), ".\r\n"), strings.Join(deniedBy, ", "))
+		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\n", strings.TrimRight(errMsg.String(), ".\n"), strings.Join(deniedBy, ", "))
 	}
 
 	unknownUserError := user.UnknownUserError(context.Login)

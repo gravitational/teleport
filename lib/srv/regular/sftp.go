@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
@@ -38,12 +39,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// number of goroutines that copy SFTP data from a SSH channel to
-// and from anonymous pipes
-const copyingGoroutines = 2
 
 type sftpSubsys struct {
 	logger *slog.Logger
@@ -51,7 +49,11 @@ type sftpSubsys struct {
 	fileTransferReq *srv.FileTransferRequest
 	sftpCmd         *exec.Cmd
 	serverCtx       *srv.ServerContext
-	errCh           chan error
+
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
 }
 
 func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
@@ -121,8 +123,34 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	s.sftpCmd.Stderr = os.Stderr
+
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stderrW.Close()
+	s.sftpCmd.Stderr = stderrW
+
+	s.waitForOutputStreams.Go(func() {
+		defer stderrR.Close()
+
+		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+			DecisionContext: s.serverCtx.Identity.AccessPermit.DecisionContext,
+			Login:           s.serverCtx.Identity.Login,
+		})
+		if err != nil {
+			s.logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := io.WriteString(ch.Stderr(), childErr); err != nil {
+			s.logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+		}
+	})
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -148,20 +176,22 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
-	// Copy the SSH channel to and from the anonymous pipes
-	s.errCh = make(chan error, copyingGoroutines)
+	// Copy the SSH channel to and from the anonymous pipes. The input copy from
+	// the SSH channel must not gate Wait(), or early child-process failures can
+	// deadlock waiting for the client to close the channel before we send the
+	// exit status.
 	go func() {
 		defer chReadPipeIn.Close()
-
-		_, err := io.Copy(chReadPipeIn, ch)
-		s.errCh <- err
+		if _, err := io.Copy(chReadPipeIn, ch); err != nil && !utils.IsOKNetworkError(err) {
+			s.logger.WarnContext(ctx, "Failure reading from SFTP subsystem", "error", err)
+		}
 	}()
-	go func() {
+	s.waitForOutputStreams.Go(func() {
 		defer chWritePipeOut.Close()
-
-		_, err := io.Copy(ch, chWritePipeOut)
-		s.errCh <- err
-	}()
+		if _, err := io.Copy(ch, chWritePipeOut); err != nil && !utils.IsOKNetworkError(err) {
+			s.logger.WarnContext(ctx, "Failure writing to SFTP subsystem", "error", err)
+		}
+	})
 
 	// Read and emit audit events from the child process
 	go func() {
@@ -216,7 +246,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				s.logger.WarnContext(ctx, "Unknown event type received from SFTP server process", "error", err, "event_type", event.GetType())
 			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event); err != nil {
 				s.logger.WarnContext(ctx, "Failed to emit SFTP event", "error", err)
 			}
 		}
@@ -228,6 +258,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 func (s *sftpSubsys) Wait() error {
 	ctx := context.Background()
 	waitErr := s.sftpCmd.Wait()
+	s.waitForOutputStreams.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
@@ -235,14 +266,5 @@ func (s *sftpSubsys) Wait() error {
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
 	})
 
-	errs := []error{waitErr}
-	for range copyingGoroutines {
-		err := <-s.errCh
-		if err != nil && !utils.IsOKNetworkError(err) {
-			s.logger.WarnContext(ctx, "Connection problem", "error", err)
-			errs = append(errs, err)
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(waitErr)
 }
