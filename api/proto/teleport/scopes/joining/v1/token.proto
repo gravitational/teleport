@@ -321,7 +321,7 @@ message Kubernetes {
   }
   // The configuration specific to the `oidc` type.
   message OIDCConfig {
-    // The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/oidc-configuration`
+    // The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration`
     // endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
     // For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
     string issuer = 1;
@@ -342,7 +342,6 @@ message Kubernetes {
   // - `in_cluster`
   // - `static_jwks`
   // - `oidc`
-  // If unset, this defaults to `in_cluster`.
   string type = 2;
   // The configuration specific to the `static_jwks` type.
   StaticJWKSConfig static_jwks = 3;
