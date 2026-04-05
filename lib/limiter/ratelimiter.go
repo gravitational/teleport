@@ -101,7 +101,7 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	key := rateLimitKey{token: token, rates: l.rates}
+	key := rateLimitKey{token: token, rates: l.rates.Key()}
 	bucketSet, ok := l.rateLimits.GetIfExists(key)
 	if !ok {
 		return false
@@ -128,7 +128,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
 	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
 	ttl := l.rates.MaxPeriod()*10 + 1
-	key := rateLimitKey{token: token, rates: l.rates}
+	key := rateLimitKey{token: token, rates: l.rates.Key()}
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, key, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
 			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
@@ -176,7 +176,7 @@ func (l *RateLimiter) RegisterRequestWithCustomRate(token string, customRates *r
 	defer l.mu.Unlock()
 
 	ttl := customRates.MaxPeriod()*10 + 1
-	key := rateLimitKey{token: token, rates: customRates}
+	key := rateLimitKey{token: token, rates: customRates.Key()}
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, key, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
 			return ratelimit.NewTokenBucketSet(customRates, l.clock), nil
@@ -203,9 +203,10 @@ func (l *RateLimiter) RegisterRequestWithCustomRate(token string, customRates *r
 // token bucket sets.
 type rateLimitKey struct {
 	token string
-	// rates is compared by pointer identity: the same *RateSet
-	// pointer always maps to the same bucket set.
-	rates *ratelimit.RateSet
+	// rates is a deterministic, content-based string representation
+	// of the rate set so that identical configurations always share
+	// the same bucket regardless of memory address.
+	rates string
 }
 
 // WrapHandle wraps the given HTTP handler with the rate limiter.

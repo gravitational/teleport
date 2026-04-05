@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -200,6 +202,29 @@ func (rs *RateSet) MaxPeriod() time.Duration {
 		result = max(result, rate.period)
 	}
 	return result
+}
+
+// Key returns a deterministic, content-based string representation of the
+// rate set that can be used as a map/cache key. Two RateSets with the same
+// rates will always produce the same key regardless of memory address.
+func (rs *RateSet) Key() string {
+	if rs == nil || len(rs.m) == 0 {
+		return ""
+	}
+
+	// Sort by period to ensure deterministic ordering.
+	periods := make([]time.Duration, 0, len(rs.m))
+	for p := range rs.m {
+		periods = append(periods, p)
+	}
+	slices.Sort(periods)
+
+	parts := make([]string, 0, len(periods))
+	for _, p := range periods {
+		r := rs.m[p]
+		parts = append(parts, fmt.Sprintf("%d/%d/%d", r.period, r.average, r.burst))
+	}
+	return strings.Join(parts, ";")
 }
 
 type limitExceededError struct {
