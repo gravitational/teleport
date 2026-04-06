@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -57,14 +58,25 @@ const (
 	// periodicFunctionInterval is the interval at which periodic stats are calculated.
 	periodicFunctionInterval = 3 * time.Minute
 
-	// proxySyncInterval is the interval at which the current proxies are synchronized to
-	// connected agents via a discovery request. It is a function of track.DefaultProxyExpiry
-	// to ensure that the proxies are always synced before the tracker expiry.
-	proxySyncInterval = track.DefaultProxyExpiry * 2 / 3
-
 	// missedHeartBeatThreshold is the number of missed heart beats needed to terminate a connection.
 	missedHeartBeatThreshold = 3
 )
+
+// proxySyncInterval is the interval at which the current proxies are synchronized to
+// connected agents via a discovery request. It is a function of track.DefaultProxyExpiry
+// to ensure that the proxies are always synced before the tracker expiry.
+//
+// With support of proxy discovery TTLs the tracker may expire proxies sooner
+// than the default proxy expiry. In this case a lower sync interval is used
+// to ensure that proxies are still always synced before expiry.
+var proxySyncInterval = func() time.Duration {
+	defaultSyncInterval := track.DefaultProxyExpiry * 2 / 3
+	calculatedSyncInteval := defaults.ProxyAnnounceTTL() * 2 / 3
+	if calculatedSyncInteval < defaultSyncInterval {
+		return calculatedSyncInteval
+	}
+	return defaultSyncInterval
+}()
 
 // withPeriodicFunctionInterval adjusts the periodic function interval
 func withPeriodicFunctionInterval(interval time.Duration) func(cluster *localCluster) {
