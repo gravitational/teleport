@@ -37,6 +37,7 @@ func TestDevicesFormat(t *testing.T) {
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
 				License: authe.ValidLicense{},
+				Modules: testModules,
 			})
 			require.NoError(t, err)
 			err = cfg.PluginRegistry.Add(authPlugin)

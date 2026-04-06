@@ -22,7 +22,7 @@ import (
 // startAuthServer starts an enterprise auth server which will be cleaned up at
 // the end of the test. It returns an admin client for the auth server.
 func startAuthServer(t *testing.T) *client.Client {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.OIDC:   {Enabled: true},
@@ -31,12 +31,14 @@ func startAuthServer(t *testing.T) *client.Client {
 			},
 			AdvancedAccessWorkflows: true,
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 		// Disable the retry interval to make tests unblock when
 		// RunWhileLocked is called.
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
+		Modules:                     testModules,
 	})
 	require.NoError(t, err)
 
@@ -46,6 +48,7 @@ func startAuthServer(t *testing.T) *client.Client {
 
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
 		License: eauth.ValidLicense{},
+		Modules: testModules,
 	})
 	require.NoError(t, err)
 

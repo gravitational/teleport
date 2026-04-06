@@ -13,6 +13,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -26,7 +27,10 @@ func TestSignX509IssuerCSR(t *testing.T) {
 		t.TempDir(),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.PluginRegistry = plugin.NewRegistry()
-			authPlugin, err := eauth.NewPlugin(eauth.Config{License: eauth.ValidLicense{}})
+			authPlugin, err := eauth.NewPlugin(eauth.Config{
+				License: eauth.ValidLicense{},
+				Modules: modulestest.OSSModules(),
+			})
 			require.NoError(t, err)
 			err = cfg.PluginRegistry.Add(authPlugin)
 			require.NoError(t, err)

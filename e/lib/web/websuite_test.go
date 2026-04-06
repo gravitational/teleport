@@ -240,6 +240,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			},
 		},
 		HTTPTransport: options.roundTripper,
+		Modules:       options.modules,
 	})
 	require.NoError(t, err)
 

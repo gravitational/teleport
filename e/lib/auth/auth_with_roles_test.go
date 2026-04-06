@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -80,6 +81,7 @@ type cloudWithRolesTestSuite struct {
 func newCloudSuite(t *testing.T) cloudWithRolesTestSuite {
 	authPlugin, err := NewPlugin(Config{
 		License: ValidLicense{},
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 

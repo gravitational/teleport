@@ -121,7 +121,7 @@ func TestNewExternalAuditStorageConfigurator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			modulestest.SetTestModules(t, tt.modules)
 
-			plugin := newPluginPack(t)
+			plugin := newPluginPack(t, &tt.modules)
 
 			if tt.backendSetupFn != nil {
 				tt.backendSetupFn(t, plugin.authServer.GetBackend())
@@ -181,7 +181,7 @@ func createEASSetup(t *testing.T, b backend.Backend) {
 	require.NoError(t, err)
 }
 
-func newPluginPack(t *testing.T) *Plugin {
+func newPluginPack(t *testing.T, m *modulestest.Modules) *Plugin {
 	t.Helper()
 	ctx := t.Context()
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -205,12 +205,16 @@ func newPluginPack(t *testing.T) *Plugin {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		HostUUID:               uuid.NewString(),
 		ClusterName:            clusterName,
+		Modules:                m,
 	}
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
 	return &Plugin{
+		Config: Config{
+			Modules: m,
+		},
 		authServer: &auth.GRPCServer{
 			APIConfig: auth.APIConfig{
 				AuthServer: a,

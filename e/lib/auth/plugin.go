@@ -110,6 +110,9 @@ type Config struct {
 	// Useful during testing to inject custom transport to plugin
 	// and test the third-party integrations.
 	HTTPTransport http.RoundTripper
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // NewPlugin creates an instance of the Enterprise Web Plugin
@@ -172,7 +175,7 @@ func (p *Plugin) GetCloudClient() cloudapi.TenantsServiceClient {
 // newExternalAuditStorageConfigurator creates an external audit storage configurator from the backend.
 // Returns a non-nil configurator that may or may not be in use (check IsUsed()).
 func (p *Plugin) newExternalAuditStorageConfigurator(ctx context.Context) (*externalauditstorage.Configurator, error) {
-	if !modules.GetModules().Features().Cloud {
+	if !p.Config.Modules.Features().Cloud {
 		return nil, nil
 	}
 	easSvc := local.NewExternalAuditStorageService(p.authServer.GetBackend())
@@ -224,7 +227,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		plugin: p,
 	})
 
-	deviceService, err := registerDeviceTrustService(p.logger, gRPCServer, p.authServer)
+	deviceService, err := registerDeviceTrustService(p.logger, gRPCServer, p.authServer, p.Config.Modules)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,7 +236,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err)
 	}
 
-	if modules.GetModules().Features().Cloud && modules.GetModules().Features().GetEntitlement(entitlements.ExternalAuditStorage).Enabled {
+	if p.Config.Modules.Features().Cloud && p.Config.Modules.Features().GetEntitlement(entitlements.ExternalAuditStorage).Enabled {
 		if err := p.registerExternalAuditStorageService(ctx); err != nil {
 			return trace.Wrap(err)
 		}
@@ -364,7 +367,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Cache:             p.authServer.AuthServer.Cache,
 			AuthServer:        p.authServer.AuthServer,
 			Backend:           p.authServer.GetBackend(),
-			Modules:           modules.GetModules(),
+			Modules:           p.Config.Modules,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -383,7 +386,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
-	if modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
+	if p.Config.Modules.Features().GetEntitlement(entitlements.Policy).Enabled {
 		p.logger.InfoContext(ctx, "Session summarizer enabled")
 
 		oidcClient := AWSOIDCClient{
@@ -407,7 +410,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Streamer:                         p.authServer.AuthServer,
 			SummaryUploader:                  p.authServer.AuthServer,
 			Clock:                            p.authServer.AuthServer.GetClock(),
-			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
+			EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
 			Encrypter:                        p.authServer.AuthServer.EncryptedIO,
 			AWSConfigCache:                   cfgCache,
 			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
@@ -427,9 +430,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
 			Emitter:                          p.authServer.Emitter,
 			AWSConfigCache:                   cfgCache,
-			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
+			EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
 			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
-			Modules:                          modules.GetModules(),
+			Modules:                          p.Config.Modules,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -439,7 +442,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
 		GetDevicesUsageFunc: deviceService.GetResourceDevicesUsage,
-		Modules:             modules.GetModules(),
+		Modules:             p.Config.Modules,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -454,7 +457,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		},
 		ClusterName: clusterName.GetClusterName(),
 		Clock:       p.authServer.AuthServer.GetClock(),
-		Modules:     modules.GetModules(),
+		Modules:     p.Config.Modules,
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")
@@ -468,7 +471,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		AuthCache:     p.authServer.AuthServer.Cache,
 		AuthService:   p.authServer.AuthServer,
 		PluginService: pluginService,
-		Modules:       modules.GetModules(),
+		Modules:       p.Config.Modules,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -635,7 +638,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		AuthPreferenceGetter:  p.authServer.AuthServer.GetReadOnlyAuthPreference,
 		DeviceAssertionServer: p.authServer.AuthServer.GetDeviceAssertionServer(),
 		UsageReporter:         p.authServer.AuthServer.UsageReporter,
-		Modules:               modules.GetModules(),
+		Modules:               p.Config.Modules,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -670,7 +673,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		disabledReasons = append(disabledReasons, "the Athena audit backend is not configured")
 	}
 
-	features := modules.GetModules().Features()
+	features := p.Config.Modules.Features()
 	if !features.GetEntitlement(entitlements.AccessMonitoring).Enabled {
 		disabledReasons = append(disabledReasons, "the subscription does not include Access Monitoring")
 	}
@@ -687,7 +690,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	}
 	logger.InfoContext(ctx, "Access Monitoring enabled")
 
-	modules.GetModules().EnableAccessMonitoring()
+	p.Config.Modules.EnableAccessMonitoring()
 
 	storage, err := local.NewSecReportsService(p.authServer.GetBackend(), p.authServer.AuthServer.GetClock())
 	if err != nil {
@@ -699,7 +702,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Logger:     logger,
 		Clock:      p.authServer.AuthServer.GetClock(),
 		TotalLimit: p.AccessMonitoring.DataLimit,
-		Modules:    modules.GetModules(),
+		Modules:    p.Config.Modules,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -727,7 +730,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Semaphore:            p.authServer.AuthServer,
 		Storage:              storage,
 		ExternalAuditStorage: externalAuditStorage,
-		Modules:              modules.GetModules(),
+		Modules:              p.Config.Modules,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -740,13 +743,13 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	return nil
 }
 
-func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *auth.GRPCServer) (*devicetrustv1.Service, error) {
+func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *auth.GRPCServer, m modules.Modules) (*devicetrustv1.Service, error) {
 	authServer := authGRPC.AuthServer
 	deviceStorage, err := dtstorage.New(dtstorage.Params{
 		Logger:       logger,
 		Backend:      authGRPC.GetBackend(),
 		UsersService: authServer.Services,
-		Modules:      modules.GetModules(),
+		Modules:      m,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -760,7 +763,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		CachedUsersService:  authServer.Cache,
 		Emitter:             authGRPC.Emitter,
 		Storage:             deviceStorage,
-		Modules:             modules.GetModules(),
+		Modules:             m,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -112,6 +112,12 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		Modules: &modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.SAML: {Enabled: true},
+				}},
+		},
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -600,12 +606,13 @@ func TestEncryptedSAML(t *testing.T) {
 // parameters for Ping backends (PingOne, PingFederate, etc) when
 // `provider: ping` is set.
 func TestPingSAMLWorkaround(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			}},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -625,7 +632,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		require.NoError(t, b.Close())
 	})
 
-	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	keygen, err := authority.NewKeygen(testModules.BuildType(), clock.Now)
 	require.NoError(t, err)
 
 	authConfig := &auth.InitConfig{
@@ -635,6 +642,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		Modules:                testModules,
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -707,12 +715,13 @@ func TestPingSAMLWorkaround(t *testing.T) {
 }
 
 func TestServer_getConnectorAndProvider(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			}},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -733,7 +742,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		require.NoError(t, b.Close())
 	})
 
-	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	keygen, err := authority.NewKeygen(testModules.BuildType(), clock.Now)
 	require.NoError(t, err)
 
 	authConfig := &auth.InitConfig{
@@ -743,6 +752,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		Modules:                testModules,
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -926,13 +936,14 @@ func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backe
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := t.Context()
 	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
@@ -942,6 +953,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		ClusterName: "me.localhost",
 		Dir:         t.TempDir(),
 		Clock:       clock,
+		Modules:     testModules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
@@ -1206,16 +1218,17 @@ func TestParseSAMLInResponseTo(t *testing.T) {
 }
 
 func TestSAMLAuthRequest(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{})
+	srv := newTestTLSServer(t, ValidLicense{}, testModules)
 
 	emptyRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -1393,15 +1406,19 @@ func TestSAMLAuthRequest(t *testing.T) {
 // Auth service on major version N should support proxies on version N and N-1,
 // which may send a single user public key or split SSH and TLS public keys.
 func TestSAMLAuthCompat(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.SAML: {Enabled: true},
 		}},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
-		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{
+			License: ValidLicense{},
+			Modules: testModules,
+		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
 		reg.Add(authPlugin)
@@ -1563,14 +1580,18 @@ func TestSAMLAuthCompat(t *testing.T) {
 }
 
 func TestIDPInitiatedReplayProtection(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.SAML: {Enabled: true},
 		}},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
-		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{
+			License: ValidLicense{},
+			Modules: testModules,
+		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
 		reg.Add(authPlugin)
@@ -1667,7 +1688,7 @@ func TestSAMLLicense(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newTestTLSServer(t, tt.license)
+			srv := newTestTLSServer(t, tt.license, modulestest.EnterpriseModules())
 			roleName := conn.GetAttributesToRoles()[0].Roles[0]
 			_, err := authtest.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
 			require.NoError(t, err)
@@ -1690,18 +1711,20 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
 
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	srv, err := testserver.NewTeleportProcess(
 		t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Clock = clock
+			cfg.Modules = testModules
 		}))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1835,15 +1858,19 @@ func newConnector(t *testing.T, name, ssoURL, issuer, cert, preferredBinding str
 }
 
 func TestSAMLPreferredBinding(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := &modulestest.Modules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.SAML: {Enabled: true},
 		}},
-	})
+	}
+	modulestest.SetTestModules(t, *testModules)
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
-		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{
+			License: ValidLicense{},
+			Modules: testModules,
+		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
 		reg.Add(authPlugin)
@@ -1910,7 +1937,7 @@ func TestSAMLPreferredBinding(t *testing.T) {
 
 func TestSAMLRequestSubjectInjection(t *testing.T) {
 	ctx := t.Context()
-	srv := newTestTLSServer(t, ValidLicense{})
+	srv := newTestTLSServer(t, ValidLicense{}, modulestest.EnterpriseModules())
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "test-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"test-user"},

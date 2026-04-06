@@ -210,6 +210,7 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, plugin
 			AccessMonitoring: cfg.Auth.AccessMonitoring,
 			AccessGraph:      cfg.AccessGraph,
 			HTTPTransport:    cfg.Testing.HTTPTransport,
+			Modules:          cfg.Modules,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

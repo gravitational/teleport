@@ -7,13 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
-func newTestTLSServer(t *testing.T, license License, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, license License, m *modulestest.Modules, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	t.Helper()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Dir:     t.TempDir(),
+		Clock:   clockwork.NewFakeClock(),
+		Modules: m,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

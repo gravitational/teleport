@@ -128,6 +128,7 @@ func setupACLSuite(t *testing.T) *authclient.Client {
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
 				License: authe.ValidLicense{},
+				Modules: testModules,
 			})
 			require.NoError(t, err)
 			require.NoError(t, cfg.PluginRegistry.Add(authPlugin))

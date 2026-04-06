@@ -234,7 +234,7 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 	s.modules.UpdateModules(newLicense, features)
 
 	s.log.InfoContext(ctx, "license updated",
-		"features", modules.GetModules().Features(),
+		"features", s.modules.Features(),
 		"not_before", newLicense.KeyPair.Cert.NotBefore,
 		"not_after", newLicense.KeyPair.Cert.NotAfter,
 	)

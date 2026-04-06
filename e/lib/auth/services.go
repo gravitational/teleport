@@ -11,7 +11,6 @@ import (
 	eservices "github.com/gravitational/teleport/e/lib/services"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -55,7 +54,7 @@ func StartServices(ctx context.Context, plugin *Plugin) (func(), error) {
 	plugin.authServer.AuthServer.SetWorkloadIdentityX509CAOverrideGetter(overrideCache)
 	go overrideCache.RunWatcher(ctx)
 
-	if modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
+	if plugin.Config.Modules.Features().GetEntitlement(entitlements.Identity).Enabled {
 		accessRequestMonitoring, err := accessrequest.NewMonitoringService(accessrequest.Config{
 			Logger: plugin.logger.With(
 				teleport.ComponentKey,
