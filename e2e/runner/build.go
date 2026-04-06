@@ -29,14 +29,37 @@ import (
 	"runtime"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 // build compiles teleport binaries and installs playwright dependencies in parallel.
 func build(ctx context.Context, config *e2eConfig) error {
+	buildTeleport := config.teleportBuildDir != "" &&
+		shouldBuild(filepath.Join(config.teleportBuildDir, "build", "teleport"), config.noBuild)
+	buildTctl := config.tctlBin == filepath.Join(config.repoRoot, "build", "tctl") &&
+		shouldBuild(config.tctlBin, config.noBuild)
+
+	nodeBuildDir := config.teleportBuildDir
+	if nodeBuildDir == "" {
+		nodeBuildDir = config.repoRoot
+	}
+
+	var buildNode bool
+	if fixtures.SSHNode.Enabled && runtime.GOOS != "linux" {
+		buildNode = shouldBuild(filepath.Join(nodeBuildDir, "build", "teleport-node"), config.noBuild)
+	}
+
+	buildConnect := fixtures.Connect.Enabled &&
+		shouldBuild(filepath.Join(config.repoRoot, "web", "packages", "teleterm", "build", "app"), config.noBuild)
+	buildConnectTsh := fixtures.Connect.Enabled &&
+		shouldBuild(config.connectTshBinPath, config.noBuild)
+
 	// Both the teleport build (through make build/teleport -> build-ui) and the Connect build need JS
 	// deps installed. Running pnpm install concurrently from multiple goroutines would cause a race,
 	// so we ensure JS deps are installed up front before starting concurrent work.
-	if !config.noBuild && (config.teleportBuildDir != "" || connect.enabled) {
+	needsJSDeps := buildTeleport || buildConnect
+	if needsJSDeps {
 		slog.Info("ensuring JS dependencies are installed")
 		if err := runMake(ctx, config.repoRoot, "ensure-js-deps"); err != nil {
 			return err
@@ -45,46 +68,42 @@ func build(ctx context.Context, config *e2eConfig) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	if !config.noBuild {
-		if config.teleportBuildDir != "" {
-			buildDir := config.teleportBuildDir
-			g.Go(func() error {
-				slog.Info("building teleport", "dir", buildDir)
+	if buildTeleport {
+		buildDir := config.teleportBuildDir
+		g.Go(func() error {
+			slog.Info("building teleport", "dir", buildDir)
 
-				return runMake(ctx, buildDir, "build/teleport")
-			})
-		} else {
-			slog.Info("teleport binary overridden, skipping build", "path", config.teleportBin)
-		}
-
-		if config.tctlBin == filepath.Join(config.repoRoot, "build", "tctl") {
-			g.Go(func() error {
-				slog.Info("building tctl")
-
-				return runMake(ctx, config.repoRoot, "build/tctl")
-			})
-		} else {
-			slog.Info("tctl binary overridden, skipping build", "path", config.tctlBin)
-		}
+			return runMake(ctx, buildDir, "build/teleport")
+		})
+	} else if config.teleportBuildDir == "" {
+		slog.Debug("teleport binary overridden, skipping build", "path", config.teleportBin)
+	} else if config.noBuild {
+		slog.Debug("skipping teleport build (--no-build)", "path", config.teleportBin)
 	}
 
-	if sshNode.enabled && !config.noBuild && runtime.GOOS != "linux" {
+	if buildTctl {
 		g.Go(func() error {
-			// Fall back to repoRoot when the teleport binary is overridden; the docker node
-			// always needs a Linux binary built from source.
-			buildDir := config.teleportBuildDir
-			if buildDir == "" {
-				buildDir = config.repoRoot
-			}
-			slog.Info("cross-compiling teleport for linux (docker node)", "dir", buildDir)
+			slog.Info("building tctl")
 
-			output := filepath.Join(buildDir, "build", "teleport-node")
+			return runMake(ctx, config.repoRoot, "build/tctl")
+		})
+	} else if config.tctlBin != filepath.Join(config.repoRoot, "build", "tctl") {
+		slog.Debug("tctl binary overridden, skipping build", "path", config.tctlBin)
+	} else if config.noBuild {
+		slog.Debug("skipping tctl build (--no-build)", "path", config.tctlBin)
+	}
+
+	if buildNode {
+		g.Go(func() error {
+			slog.Info("cross-compiling teleport for linux (docker node)", "dir", nodeBuildDir)
+
+			output := filepath.Join(nodeBuildDir, "build", "teleport-node")
 			cmd := exec.CommandContext(ctx, "go", "build",
 				"-o", output,
 				"-buildvcs=false",
 				"./tool/teleport",
 			)
-			cmd.Dir = buildDir
+			cmd.Dir = nodeBuildDir
 			env := append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
 			if os.Getenv("CC") == "" {
 				env = append(env, "CC=x86_64-unknown-linux-gnu-gcc")
@@ -119,24 +138,32 @@ func build(ctx context.Context, config *e2eConfig) error {
 		})
 	}
 
-	if connect.enabled && !config.noBuild {
-		g.Go(func() error {
-			slog.Info("building Teleport Connect")
-			if err := runInDir(ctx, config.repoRoot, "pnpm", "--filter=@gravitational/teleterm", "build"); err != nil {
-				return fmt.Errorf("pnpm --filter=@gravitational/teleterm build: %w", err)
-			}
+	if fixtures.Connect.Enabled {
+		if buildConnect {
+			g.Go(func() error {
+				slog.Info("building Teleport Connect")
+				if err := runInDir(ctx, config.repoRoot, "pnpm", "--filter=@gravitational/teleterm", "build"); err != nil {
+					return fmt.Errorf("pnpm --filter=@gravitational/teleterm build: %w", err)
+				}
 
-			return nil
-		})
+				return nil
+			})
+		} else if config.noBuild {
+			slog.Debug("skipping Teleport Connect build (--no-build)")
+		}
 
-		g.Go(func() error {
-			slog.Info("building tsh with webauthnmock tag for Teleport Connect e2e")
-			if err := runInDir(ctx, config.repoRoot, "go", "build", "-tags", "webauthnmock", "-o", config.connectTshBinPath, "./tool/tsh"); err != nil {
-				return fmt.Errorf("go build -tags webauthnmock ./tool/tsh: %w", err)
-			}
+		if buildConnectTsh {
+			g.Go(func() error {
+				slog.Info("building tsh with webauthnmock tag for Teleport Connect e2e")
+				if err := runInDir(ctx, config.repoRoot, "go", "build", "-tags", "webauthnmock", "-o", config.connectTshBinPath, "./tool/tsh"); err != nil {
+					return fmt.Errorf("go build -tags webauthnmock ./tool/tsh: %w", err)
+				}
 
-			return nil
-		})
+				return nil
+			})
+		} else if config.noBuild {
+			slog.Debug("skipping tsh-webauthnmock build (--no-build)", "path", config.connectTshBinPath)
+		}
 	}
 
 	return g.Wait()
@@ -166,4 +193,22 @@ func runInDir(ctx context.Context, dir, name string, args ...string) error {
 	}
 
 	return nil
+}
+
+func shouldBuild(path string, noBuild bool) bool {
+	if !noBuild {
+		return true
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			slog.Info("binary missing, rebuilding", "path", path)
+		} else {
+			slog.Warn("error checking binary, rebuilding just in case", "path", path, "error", err)
+		}
+
+		return true
+	}
+
+	return false
 }

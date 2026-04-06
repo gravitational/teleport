@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 )
 
 // Handlers returns a map of Handler per kind.
@@ -34,7 +35,7 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
-	return map[string]Handler{
+	m := map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
@@ -98,6 +99,12 @@ func Handlers() map[string]Handler {
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
 		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
+
+	if subca.Enabled() {
+		m[types.KindCertAuthorityOverride] = certAuthorityOverrideHandler()
+	}
+
+	return m
 }
 
 // Handler represents a resource supported by the tctl resource command.
