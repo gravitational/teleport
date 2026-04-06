@@ -450,6 +450,9 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 		case <-conn.discoSub.Wait():
 			var req discoveryRequest
 			req.Proxies = conn.discoSub.Get()
+			if len(req.Proxies) == 0 {
+				continue
+			}
 			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				conn.markInvalid(err)

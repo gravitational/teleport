@@ -816,9 +816,6 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
 			req.Proxies = rconn.discoSub.GetAll()
-			if len(req.Proxies) == 0 {
-				continue
-			}
 			if err := rconn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				rconn.markInvalid(err)
