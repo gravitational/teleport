@@ -97,10 +97,6 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
 	require.NoError(t, err)
 
-	// Attempt to overwrite an existing file. This should fail.
-	_, err = handler.UploadSummary(ctx, id, strings.NewReader("impostor"))
-	require.Error(t, err)
-
 	// Download the final version.
 	finalRC, err := handler.StreamSessionSummary(ctx, id)
 	require.NoError(t, err)

@@ -167,7 +167,7 @@ func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) err
 type UploadCompleter struct {
 	cfg              UploadCompleterConfig
 	log              *slog.Logger
-	reuploadStreamer Streamer
+	reuploadStreamer *ProtoStreamer
 	closeC           chan struct{}
 }
 
@@ -412,7 +412,8 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 		}
 		version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, upload.ID)
 		if err != nil {
-			return trace.Wrap(err)
+			log.ErrorContext(ctx, "failed to check recording version", "error", err)
+			continue
 		}
 		if version == "" {
 			continue
@@ -441,10 +442,10 @@ type TempSessionStreamer interface {
 func MergeUpload(
 	ctx context.Context,
 	uploadStreamer TempSessionStreamer,
-	streamer Streamer,
+	streamer *ProtoStreamer,
 	upload StreamUpload,
 ) (err error) {
-	stream, err := streamer.ResumeAuditStream(ctx, upload.SessionID, upload.ID)
+	stream, err := streamer.CreateOverwriteAuditStream(ctx, upload.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
