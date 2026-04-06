@@ -44,7 +44,7 @@ func (s *Server) startDatabaseWatchers() error {
 
 	var (
 		newDatabases []types.Database
-		mu           sync.Mutex
+		mu           sync.RWMutex
 	)
 
 	reconciler, err := services.NewReconciler(
@@ -52,8 +52,8 @@ func (s *Server) startDatabaseWatchers() error {
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
 			GetNewResources: func() map[string]types.Database {
-				mu.Lock()
-				defer mu.Unlock()
+				mu.RLock()
+				defer mu.RUnlock()
 				return utils.FromSlice(newDatabases, types.Database.GetName)
 			},
 			Logger:   s.Log.With("kind", types.KindDatabase),
@@ -76,68 +76,64 @@ func (s *Server) startDatabaseWatchers() error {
 			Origin:         types.OriginCloud,
 			Clock:          s.clock,
 			PreFetchHookFn: s.databaseWatcherIterationStarted,
+			ProcessResourcesDiscoveredHookFn: func(rwl types.ResourcesWithLabels) {
+				s.handleDatabaseEnrollment(rwl, reconciler, &mu, &newDatabases)
+			},
+			PostFetchHookFn: s.databaseWatcherIterationEnded,
 		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	go watcher.Start()
-
-	go func() {
-		for {
-			resourcesFoundByGroup := make(map[awsResourceGroup]int)
-
-			select {
-			case newResources := <-watcher.ResourcesC():
-				dbs := make([]types.Database, 0, len(newResources))
-				for _, r := range newResources {
-					db, ok := r.(types.Database)
-					if !ok {
-						continue
-					}
-
-					resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
-					resourcesFoundByGroup[resourceGroup] += 1
-
-					dbs = append(dbs, db)
-
-					s.collectRDSIssuesAsUserTasks(db, resourceGroup.integration, resourceGroup.discoveryConfigName)
-				}
-				mu.Lock()
-				newDatabases = dbs
-				mu.Unlock()
-
-				for group, count := range resourcesFoundByGroup {
-					s.awsRDSResourcesStatus.incrementFound(group, count)
-				}
-
-				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WarnContext(s.ctx, "Unable to reconcile database resources", "error", err)
-
-					// When reconcile fails, it is assumed that everything failed.
-					for group, count := range resourcesFoundByGroup {
-						s.awsRDSResourcesStatus.incrementFailed(group, count)
-					}
-
-					break
-				}
-
-				for group, count := range resourcesFoundByGroup {
-					s.awsRDSResourcesStatus.incrementEnrolled(group, count)
-				}
-
-				if s.onDatabaseReconcile != nil {
-					s.onDatabaseReconcile()
-				}
-
-			case <-s.ctx.Done():
-				return
-			}
-
-			s.upsertTasksForAWSRDSFailedEnrollments()
-		}
-	}()
 	return nil
+}
+
+func (s *Server) handleDatabaseEnrollment(newResources types.ResourcesWithLabels, reconciler *services.Reconciler[types.Database], mu *sync.RWMutex, newDatabases *[]types.Database) {
+	resourcesFoundByGroup := make(map[awsResourceGroup]int)
+
+	dbs := make([]types.Database, 0, len(newResources))
+	for _, r := range newResources {
+		db, ok := r.(types.Database)
+		if !ok {
+			continue
+		}
+
+		resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
+		resourcesFoundByGroup[resourceGroup] += 1
+
+		dbs = append(dbs, db)
+
+		s.collectRDSIssuesAsUserTasks(db, resourceGroup.integration, resourceGroup.discoveryConfigName)
+	}
+	mu.Lock()
+	*newDatabases = dbs
+	mu.Unlock()
+
+	defer s.upsertTasksForAWSRDSFailedEnrollments()
+
+	for group, count := range resourcesFoundByGroup {
+		s.awsRDSResourcesStatus.incrementFound(group, count)
+	}
+
+	if err := reconciler.Reconcile(s.ctx); err != nil {
+		s.Log.WarnContext(s.ctx, "Unable to reconcile database resources", "error", err)
+
+		// When reconcile fails, it is assumed that everything failed.
+		for group, count := range resourcesFoundByGroup {
+			s.awsRDSResourcesStatus.incrementFailed(group, count)
+		}
+
+		return
+	}
+
+	for group, count := range resourcesFoundByGroup {
+		s.awsRDSResourcesStatus.incrementEnrolled(group, count)
+	}
+
+	if s.onDatabaseReconcile != nil {
+		s.onDatabaseReconcile()
+	}
 }
 
 // collectRDSIssuesAsUserTasks receives a discovered database converted into a Teleport Database resource and creates
@@ -180,11 +176,6 @@ func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, dis
 
 func (s *Server) databaseWatcherIterationStarted() {
 	allFetchers := s.getAllDatabaseFetchers()
-	if len(allFetchers) == 0 {
-		return
-	}
-
-	s.submitFetchersEvent(allFetchers)
 
 	awsResultGroups := slices.FilterMapUnique(
 		allFetchers,
@@ -198,16 +189,23 @@ func (s *Server) databaseWatcherIterationStarted() {
 		},
 	)
 
-	discoveryConfigs := slices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
-		return g.discoveryConfigName, true
-	})
+	s.awsRDSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
+	discoveryConfigs := s.awsRDSResourcesStatus.iterationDiscoveryConfigs()
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-	s.awsRDSResourcesStatus.reset()
-	for _, g := range awsResultGroups {
-		s.awsRDSResourcesStatus.iterationStarted(g)
-	}
 
 	s.awsRDSTasks.reset()
+
+	if len(allFetchers) > 0 {
+		s.submitFetchersEvent(allFetchers)
+	}
+}
+
+func (s *Server) databaseWatcherIterationEnded() {
+	syncEnded := s.clock.Now()
+	s.awsRDSResourcesStatus.iterationEnded(syncEnded)
+
+	discoveryConfigs := s.awsRDSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 }
 
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {

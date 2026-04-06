@@ -785,7 +785,7 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 
 	// Test add/remove detection when the number of resources stays the same.
 	t.Run("add/remove", func(t *testing.T) {
-		t.Parallel()
+		// Don't t.Parallel(), may edit resources on failure.
 
 		cn, err := clt.GetClusterName(t.Context())
 		require.NoError(t, err, "read cluster name")
@@ -814,7 +814,7 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 
 	// Test replacing one of the resources with a duplicate of another.
 	t.Run("duplicate", func(t *testing.T) {
-		t.Parallel()
+		// Don't t.Parallel(), may edit resources on failure.
 
 		editor := func(name string) error {
 			f, err := os.OpenFile(name, os.O_RDWR, 0644)
@@ -857,7 +857,7 @@ func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
 	})
 
 	t.Run("edit", func(t *testing.T) {
-		t.Parallel()
+		// Don't t.Parallel(), edits resources.
 
 		const caType1 = types.HostCA
 		const caType2 = types.WindowsCA

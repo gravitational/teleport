@@ -152,7 +152,9 @@ type ScopedRoleSpec struct {
 	// Rules describes basic resource:verb permissions (e.g. scoped_role:read).
 	Rules []*ScopedRule `protobuf:"bytes,6,rep,name=rules,proto3" json:"rules,omitempty"`
 	// Ssh specifies controls that govern SSH access.
-	Ssh           *ScopedRoleSSH `protobuf:"bytes,7,opt,name=ssh,proto3" json:"ssh,omitempty"`
+	Ssh *ScopedRoleSSH `protobuf:"bytes,7,opt,name=ssh,proto3" json:"ssh,omitempty"`
+	// The kubernetes specific configuration for a scoped role.
+	Kube          *ScopedRoleKube `protobuf:"bytes,8,opt,name=kube,proto3" json:"kube,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +213,13 @@ func (x *ScopedRoleSpec) GetRules() []*ScopedRule {
 func (x *ScopedRoleSpec) GetSsh() *ScopedRoleSSH {
 	if x != nil {
 		return x.Ssh
+	}
+	return nil
+}
+
+func (x *ScopedRoleSpec) GetKube() *ScopedRoleKube {
+	if x != nil {
+		return x.Kube
 	}
 	return nil
 }
@@ -333,6 +342,85 @@ func (x *ScopedRoleSSH) GetClientIdleTimeout() string {
 	return ""
 }
 
+// The group of all scoped role fields relevant to kube access. Fields within the kube block
+// encompass selection criteria and preconditions for access, as well as the controls to be applied in
+// cases where access is permitted. A kube block is the primary source of truth for controls to be applied
+// to the kube access it permits, but defaults and global or scope-bound controls may also affect the nature of
+// the resulting access.
+type ScopedRoleKube struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The map of kubernetes cluster labels used for RBAC.
+	Labels []*v11.Label `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
+	// The list of kubernetes groups this role allows.
+	Groups []string `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
+	// An optional list of impersonatable kubernetes users this role allows.
+	Users []string `protobuf:"bytes,3,rep,name=users,proto3" json:"users,omitempty"`
+	// Overrides the defaults block idle timeout specifically for kube sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string `protobuf:"bytes,5,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ScopedRoleKube) Reset() {
+	*x = ScopedRoleKube{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleKube) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleKube) ProtoMessage() {}
+
+func (x *ScopedRoleKube) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedRoleKube.ProtoReflect.Descriptor instead.
+func (*ScopedRoleKube) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ScopedRoleKube) GetLabels() []*v11.Label {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *ScopedRoleKube) GetGroups() []string {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+func (x *ScopedRoleKube) GetUsers() []string {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *ScopedRoleKube) GetClientIdleTimeout() string {
+	if x != nil {
+		return x.ClientIdleTimeout
+	}
+	return ""
+}
+
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
 // permissions like 'scoped_role:read' or 'scoped_role_assignment:create'.
 type ScopedRule struct {
@@ -347,7 +435,7 @@ type ScopedRule struct {
 
 func (x *ScopedRule) Reset() {
 	*x = ScopedRule{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -359,7 +447,7 @@ func (x *ScopedRule) String() string {
 func (*ScopedRule) ProtoMessage() {}
 
 func (x *ScopedRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[4]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -372,7 +460,7 @@ func (x *ScopedRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopedRule.ProtoReflect.Descriptor instead.
 func (*ScopedRule) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ScopedRule) GetResources() []string {
@@ -401,18 +489,24 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
-	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x9d\x02\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\xdc\x02\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12I\n" +
 	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
-	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03sshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
+	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
+	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
 	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\x89\x01\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
-	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\"@\n" +
+	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\"\xb1\x01\n" +
+	"\x0eScopedRoleKube\x120\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
+	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
+	"\x05users\x18\x03 \x03(\tR\x05users\x12.\n" +
+	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeoutJ\x04\b\x04\x10\x05R\tresources\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -430,28 +524,31 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),         // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),     // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*ScopedRoleDefaults)(nil), // 2: teleport.scopes.access.v1.ScopedRoleDefaults
 	(*ScopedRoleSSH)(nil),      // 3: teleport.scopes.access.v1.ScopedRoleSSH
-	(*ScopedRule)(nil),         // 4: teleport.scopes.access.v1.ScopedRule
-	(*v1.Metadata)(nil),        // 5: teleport.header.v1.Metadata
-	(*v11.Label)(nil),          // 6: teleport.label.v1.Label
+	(*ScopedRoleKube)(nil),     // 4: teleport.scopes.access.v1.ScopedRoleKube
+	(*ScopedRule)(nil),         // 5: teleport.scopes.access.v1.ScopedRule
+	(*v1.Metadata)(nil),        // 6: teleport.header.v1.Metadata
+	(*v11.Label)(nil),          // 7: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	5, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	6, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
-	4, // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	5, // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3, // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
-	6, // 5: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	4, // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
+	7, // 6: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	7, // 7: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -465,7 +562,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
