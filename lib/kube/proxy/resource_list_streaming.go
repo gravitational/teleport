@@ -46,8 +46,7 @@ func newStreamFilter(contentType string, matcher resourceMatcher) streamFilter {
 		// Protobuf is a length-prefixed format: every message and repeated field
 		// must declare its total byte size before the content. This means we'd
 		// need to buffer all filtered items to compute sizes before writing any
-		// output, defeating the purpose of streaming. The caller forces
-		// Accept: application/json upstream when possible to avoid this path.
+		// output, defeating the purpose of streaming.
 		return nil
 	default:
 		return nil
