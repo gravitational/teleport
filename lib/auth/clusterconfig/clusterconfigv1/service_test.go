@@ -736,6 +736,45 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating agent connection count", err)
 			},
 		},
+		{
+			name: "cloud disconnect threshold count",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+					Identity:             authz.RemoteUser{},
+				}, nil
+			}),
+			cnc: func() types.ClusterNetworkingConfig {
+				cnc := types.DefaultClusterNetworkingConfig()
+				cnc.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+				return cnc
+			}(),
+			config: func(p types.ClusterNetworkingConfig) {
+				modulestest.SetTestModules(t, modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Cloud: true,
+					},
+				})
+				ts := p.GetProxyPeeringTunnelStrategy()
+				ts.DisconnectThreshold = types.Duration(time.Minute)
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: ts,
+					},
+				})
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected cloud feature to prevent updating disconnect threshold", err)
+			},
+		},
 	}
 
 	for _, test := range cases {

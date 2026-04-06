@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -39,12 +40,17 @@ type Config struct {
 	ProxyExpiry time.Duration
 	// ClusterName is the name of the tracked cluster.
 	ClusterName string
+	// Clock is used to control time in tests. Defaults to the system clock.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults set default values for Config.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
 		c.ProxyExpiry = DefaultProxyExpiry
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing ClusterName in track.Config")
@@ -57,10 +63,15 @@ func (c *Config) CheckAndSetDefaults() error {
 // that it knows about. Based on that information, the Tracker is in charge of
 // deciding if new connection attempts should be made, by giving out [Lease]s.
 type Tracker struct {
+	clock         clockwork.Clock
 	proxyExpiry   time.Duration
 	clusterSuffix string
 
 	mu sync.Mutex
+
+	// LastTopologyChange is the last time a state change was observered. State
+	// changes include: proxy membership, group/generation, and connection count.
+	lastTopologyChange time.Time
 
 	// connectionCount is nonpositive for full connectivity (agent mesh) mode, a
 	// positive number for the connection count of proxy peering mode.
@@ -92,6 +103,7 @@ type Proxy struct {
 	Name       string
 	Group      string
 	Generation uint64
+	TTL        time.Duration
 
 	expiry time.Time
 }
@@ -117,10 +129,12 @@ func New(cfg Config) (*Tracker, error) {
 		return nil, trace.Wrap(err)
 	}
 	t := &Tracker{
-		proxyExpiry:   cfg.ProxyExpiry,
-		clusterSuffix: "." + cfg.ClusterName,
-		claimed:       make(map[string]struct{}),
-		tracked:       make(map[string]Proxy),
+		clock:              cfg.Clock,
+		proxyExpiry:        cfg.ProxyExpiry,
+		clusterSuffix:      "." + cfg.ClusterName,
+		lastTopologyChange: cfg.Clock.Now().UTC(),
+		claimed:            make(map[string]struct{}),
+		tracked:            make(map[string]Proxy),
 	}
 	return t, nil
 }
@@ -157,11 +171,12 @@ func (t *Tracker) TryAcquire() *Lease {
 }
 
 func (t *Tracker) expireProxiesLocked() {
-	now := time.Now()
+	now := t.clock.Now()
 	for k, v := range t.tracked {
 		if v.expiry.Before(now) {
 			delete(t.tracked, k)
 			t.cannotLease = false
+			t.lastTopologyChange = now.UTC()
 		}
 	}
 }
@@ -215,13 +230,23 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 		return
 	}
 
+	now := t.clock.Now()
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	expiry := time.Now().Add(t.proxyExpiry)
 	t.cannotLease = false
 	for _, p := range proxies {
-		p.expiry = expiry
+		ttl := p.TTL
+		if ttl <= 0 {
+			ttl = t.proxyExpiry
+		}
+		prev, ok := t.tracked[p.Name]
+		if !ok || prev.Group != p.Group || prev.Generation != p.Generation {
+			t.lastTopologyChange = now
+		}
+		p.TTL = ttl
+		p.expiry = now.Add(ttl)
 		// TODO(espadolini): log a warning if a proxy is changing group or
 		// changing (decreasing?) generation; it should be paired with support
 		// for parsing discovery messages coming from proxies that don't support
@@ -236,11 +261,51 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 // tunnel_strategy; 0 means full connectivity, i.e. "agent mesh" mode, a nonzero
 // value (the connection_count of the tunnel_strategy) is proxy peering mode.
 func (t *Tracker) SetConnectionCount(connectionCount int) {
+	now := t.clock.Now()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.connectionCount != connectionCount {
+		t.lastTopologyChange = now
+	}
+
 	t.cannotLease = false
 	t.connectionCount = connectionCount
+}
+
+// TrackerSnapshot is a snapshot of the trackers state.
+type TrackerSnapshot struct {
+	// Proxies is a map of proxy ID to a bool indicating if the proxy is in the
+	// desired set. A desired proxy is in the latest generation of a group.
+	Proxies map[string]bool
+	// ConnectionCount is the configured connection count used to issue leases.
+	ConnectionCount int
+	// LastTopologyChange is the last time a state change was observered. State
+	// changes include: proxy membership, group/generation, and connection count.
+	LastTopologyChange time.Time
+}
+
+// Snapshot returns a snapshot of the tracker state.
+func (t *Tracker) Snapshot() TrackerSnapshot {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	snapshot := TrackerSnapshot{
+		Proxies:            make(map[string]bool, len(t.tracked)),
+		ConnectionCount:    t.connectionCount,
+		LastTopologyChange: t.lastTopologyChange,
+	}
+
+	desiredGen := make(map[string]uint64, 8)
+	for _, v := range t.tracked {
+		if v.Generation > desiredGen[v.Group] {
+			desiredGen[v.Group] = v.Generation
+		}
+	}
+
+	for k, v := range t.tracked {
+		snapshot.Proxies[k] = desiredGen[v.Group] == v.Generation
+	}
+	return snapshot
 }
 
 // Claim attempts to claim exclusive access to a reverse tunnel server

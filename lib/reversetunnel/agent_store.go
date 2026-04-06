@@ -84,3 +84,14 @@ func (s *agentStore) proxyIDs() []string {
 	}
 	return ids
 }
+
+func (s *agentStore) getByProxyID(proxyID string) (Agent, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, agent := range s.agents {
+		if id, ok := agent.GetProxyID(); ok && id == proxyID {
+			return agent, true
+		}
+	}
+	return nil, false
+}

@@ -707,8 +707,13 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 
 	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
 	newts := newConfig.GetProxyPeeringTunnelStrategy()
-	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
-		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+	if oldts != nil && newts != nil {
+		if oldts.AgentConnectionCount != newts.AgentConnectionCount {
+			return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+		}
+		if oldts.DisconnectThreshold != newts.DisconnectThreshold {
+			return trace.BadParameter(cloudUpdateFailureMsg, "disconnect_threshold")
+		}
 	}
 
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {

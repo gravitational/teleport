@@ -2529,6 +2529,12 @@ message AgentMeshTunnelStrategy {}
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
   int64 AgentConnectionCount = 1 [(gogoproto.jsontag) = "agent_connection_count,omitempty"];
+  // DisconnectThreshold is the duration without connectivity or topology changes
+  // before an agent pool may disconnect excess connections.
+  int64 DisconnectThreshold = 2 [
+    (gogoproto.jsontag) = "disconnect_threshold,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.

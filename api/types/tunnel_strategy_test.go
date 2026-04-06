@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -49,6 +50,16 @@ func TestTunnelStrategyMarshalling(t *testing.T) {
 			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
 				ProxyPeering: &ProxyPeeringTunnelStrategy{
 					AgentConnectionCount: 2,
+				},
+			}},
+		},
+		{
+			json: `{"agent_connection_count":2,"disconnect_threshold":"1m0s","type":"proxy_peering"}`,
+			yaml: "agent_connection_count: 2\ndisconnect_threshold: 1m0s\ntype: proxy_peering\n",
+			strategy: &TunnelStrategyV1{Strategy: &TunnelStrategyV1_ProxyPeering{
+				ProxyPeering: &ProxyPeeringTunnelStrategy{
+					AgentConnectionCount: 2,
+					DisconnectThreshold:  Duration(time.Minute),
 				},
 			}},
 		},

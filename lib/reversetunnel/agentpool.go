@@ -79,6 +79,9 @@ type AgentPool struct {
 	active  *agentStore
 	tracker *track.Tracker
 
+	// lastConnectivityChange is updated on any agent event.
+	lastConnectivityChange time.Time
+
 	// runtimeConfig contains dynamic configuration values.
 	runtimeConfig *agentPoolRuntimeConfig
 
@@ -184,6 +187,9 @@ type Agent interface {
 	GetState() AgentState
 	// GetProxyID returns the proxy id of the proxy the agent is connected to.
 	GetProxyID() (string, bool)
+	// RTT returns a estimated roundtrip time. If the bool is false then an
+	// estimate has not yet been computed.
+	RTT() (time.Duration, bool)
 }
 
 // NewAgentPool returns new instance of the agent pool.
@@ -211,14 +217,15 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 			"target_cluster", config.Cluster,
 			"local_cluster", config.LocalCluster,
 		),
-		runtimeConfig: newAgentPoolRuntimeConfig(config.InsecureMode),
+		runtimeConfig:          newAgentPoolRuntimeConfig(config.InsecureMode),
+		lastConnectivityChange: config.Clock.Now(),
 	}
 
 	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
 	pool.newAgentFunc = pool.newAgent
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)
-	pool.tracker, err = track.New(track.Config{ClusterName: pool.Cluster})
+	pool.tracker, err = track.New(track.Config{ClusterName: pool.Cluster, Clock: pool.Clock})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,6 +298,7 @@ func (p *AgentPool) run() error {
 		} else {
 			p.wg.Add(1)
 			p.active.add(agent)
+			p.lastConnectivityChange = p.Clock.Now()
 			p.updateConnectedProxies()
 		}
 
@@ -369,7 +377,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 			continue
 		default:
 		}
@@ -397,12 +405,83 @@ func (p *AgentPool) waitForLease(ctx context.Context, events <-chan Agent) (*tra
 		select {
 		case <-ctx.Done():
 		case <-t.C:
+			p.tryDisconnect(ctx)
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 		}
 	}
 
 	return nil, trace.Wrap(ctx.Err())
+}
+
+// tryDisconnect disconnects an agent if all the following are true:
+// 1. A disconnect threshold has been configured in the clusternetworkconfig.
+// 2. There have been no connectivity changes within the configured threshold
+// 3. There have been no tracker topology changes within the configured threshold
+// 4. There are more active agents than the configured connection count.
+func (p *AgentPool) tryDisconnect(ctx context.Context) {
+	disconnectThreshold := p.runtimeConfig.getDisconnectThreshold()
+	if disconnectThreshold <= 0 {
+		return
+	}
+	proxyIDs := p.active.proxyIDs()
+	snapshot := p.tracker.Snapshot()
+	if snapshot.ConnectionCount == 0 {
+		return
+	}
+
+	var activeDesiredProxies int
+	for _, proxyID := range proxyIDs {
+		desired, ok := snapshot.Proxies[proxyID]
+		if desired && ok {
+			activeDesiredProxies++
+		}
+	}
+	if activeDesiredProxies <= snapshot.ConnectionCount {
+		return
+	}
+
+	now := p.Clock.Now()
+	if !p.lastConnectivityChange.Add(disconnectThreshold).Before(now) {
+		return
+	}
+	if !snapshot.LastTopologyChange.Add(disconnectThreshold).Before(now) {
+		return
+	}
+
+	var (
+		maxRTT     time.Duration
+		disconnect Agent
+	)
+	for _, proxyID := range proxyIDs {
+		// Only desired proxies are considered for disconnects. Connections to
+		// untracked proxies may recover and connections to undesired proxies
+		// indicate a rollout and should be shutdown on their own.
+		if desired, ok := snapshot.Proxies[proxyID]; ok && desired {
+			agent, ok := p.active.getByProxyID(proxyID)
+			if !ok {
+				continue
+			}
+
+			// Wait until all desired agents have a measured RTT before
+			// choosing any to disconnect.
+			rtt, ok := agent.RTT()
+			if !ok {
+				return
+			}
+			if rtt > maxRTT {
+				maxRTT = rtt
+				disconnect = agent
+			}
+		}
+	}
+
+	if disconnect != nil {
+		p.lastConnectivityChange = now
+		if err := disconnect.Stop(); err != nil {
+			p.logger.DebugContext(ctx, "Error disconnecting agent", "error", err)
+		}
+	}
 }
 
 // waitForBackoff processes events while waiting for the backoff.
@@ -415,12 +494,20 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) err
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 		}
 	}
 }
 
-// handleEvent processes a single event.
+// handleSyncEvent handles a single agent event. This should be used synchonously
+// within the main agentpool loop.
+func (p *AgentPool) handleSyncEvent(ctx context.Context, agent Agent) {
+	p.lastConnectivityChange = p.Clock.Now()
+	p.handleEvent(ctx, agent)
+}
+
+// handleEvent processes a single agent event. Use [AgentPool.handleSyncEvent]
+// instead when executing from within the main agentpool loop.
 func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 	state := agent.GetState()
 	switch state {
@@ -647,6 +734,9 @@ type agentPoolRuntimeConfig struct {
 	// connectionCount determines how many proxy servers the agent pool will
 	// connect to. This settings is ignored for the AgentMesh tunnel strategy.
 	connectionCount int
+	// disconnectThreshold is the minimum stable period before excess proxy
+	// peering connections may be disconnected.
+	disconnectThreshold time.Duration
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
 	// keepAliveCount specifies the amount of missed ping heartbeats
@@ -710,6 +800,12 @@ func (c *agentPoolRuntimeConfig) getConnectionCount() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.connectionCount
+}
+
+func (c *agentPoolRuntimeConfig) getDisconnectThreshold() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disconnectThreshold
 }
 
 // useReverseTunnelV2Locked returns true if reverse tunnel should be used.
@@ -833,6 +929,7 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 	if c.tunnelStrategyType == types.ProxyPeering {
 		strategy := netConfig.GetProxyPeeringTunnelStrategy()
 		c.connectionCount = int(strategy.AgentConnectionCount)
+		c.disconnectThreshold = strategy.DisconnectThreshold.Duration()
 	}
 	if c.connectionCount <= 0 {
 		c.connectionCount = defaultAgentConnectionCount

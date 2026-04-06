@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -372,6 +373,47 @@ func TestAgentStart(t *testing.T) {
 	require.Contains(t, callback.states, AgentClosed)
 	require.Equal(t, 3, callback.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentClosed, agent.GetState())
+}
+
+func TestAgentSmoothedRTT(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	agent, client := testAgent(t, agentConfig{
+		staleConnTimeoutDisabled: true,
+		keepAlive:                time.Minute,
+		clock:                    clock,
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	agent.ctx = ctx
+	agent.cancel = cancel
+	agent.client = client
+
+	count := &atomic.Int32{}
+	client.MockSendRequest = func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
+		switch count.Add(1) {
+		case 1:
+			clock.Advance(20 * time.Millisecond)
+		case 2:
+			clock.Advance(100 * time.Millisecond)
+		default:
+			return false, nil, trace.Errorf("err")
+
+		}
+		return true, nil, nil
+	}
+
+	go agent.sendKeepalives()
+
+	require.NoError(t, clock.BlockUntilContext(ctx, 1))
+	clock.Advance(time.Minute)
+	require.NoError(t, clock.BlockUntilContext(ctx, 1))
+
+	rtt, ok := agent.RTT()
+	require.True(t, ok)
+	require.Equal(t, 2, int(count.Load()))
+	assert.Equal(t, 30*time.Millisecond, rtt)
 }
 
 func TestAgentStateTransitions(t *testing.T) {
