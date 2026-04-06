@@ -108,7 +108,6 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -891,39 +890,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.env0IDTokenValidator = validator
 	}
 
-	if as.azureJoinConfig == nil {
+	if as.azureClientCache == nil {
 		azureClientCache, err := utils.NewFnCache(utils.FnCacheConfig{
-			TTL:   time.Minute * 15,
+			TTL:   1 * time.Minute,
 			Clock: as.clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		as.azureJoinConfig = &azurejoin.AzureJoinConfig{
-			GetSubscriptionClient: func(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
-				// For Azure join flow, the join token might allow wildcard
-				// subscriptions which requires listing the Azure subscriptions
-				// to check that a VM is allowed to join the cluster.
-				// This requires Azure credentials to be accessible to Auth.
-				// The credentials can come from an integration or from ambient
-				// credentials, when an integration is not specified in the join
-				// token.
-				//
-				// Using ambient credentials when the Auth Service is running
-				// within Teleport Cloud is not supported.
-				// In that scenario a NotImplemented error is returned.
-				if integration == "" && modules.GetModules().Features().Cloud {
-					return nil, trace.NotImplemented("Azure subscriptions cannot be listed on Teleport Cloud without an Azure OIDC integration included in the join token spec")
-				}
-				azureClients, err := as.getAzureClients(ctx, azureClientCache, integration)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				subClient, err := azureClients.GetSubscriptionClient(ctx)
-				return subClient, trace.Wrap(err)
-			},
-		}
+		as.azureClientCache = azureClientCache
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -1450,8 +1425,12 @@ type Server struct {
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
 
-	// azureJoinConfig holds configuration for the Azure join method.
-	azureJoinConfig *azurejoin.AzureJoinConfig
+	// azureJoinConfigOverride holds configuration for the Azure join method.
+	// Only used for overriding Azure join config in tests.
+	azureJoinConfigOverride *azurejoin.AzureJoinConfig
+
+	// azureClientCache is used to cache Azure clients.
+	azureClientCache *utils.FnCache
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -8862,20 +8841,4 @@ func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writ
 	defer reader.Close()
 	_, err = io.Copy(writer, reader)
 	return trace.Wrap(err)
-}
-
-func (s *Server) getAzureClients(ctx context.Context, cache *utils.FnCache, integration string) (azure.Clients, error) {
-	clients, err := utils.FnCacheGet(ctx, cache, integration,
-		func(ctx context.Context) (azure.Clients, error) {
-			var opts []azure.ClientsOption
-			if integration != "" {
-				opts = append(opts, azure.WithIntegrationCredentials(integration, s))
-			}
-			clients, err := azure.NewClients(opts...)
-			return clients, trace.Wrap(err)
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return clients, nil
 }
