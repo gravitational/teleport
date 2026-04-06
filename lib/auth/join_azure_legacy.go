@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -135,11 +134,9 @@ func (a *Server) GetAzureJoinConfig() *azurejoin.AzureJoinConfig {
 			if integration == "" && modules.GetModules().Features().Cloud {
 				return nil, trace.NotImplemented("Azure subscriptions cannot be listed on Teleport Cloud without an Azure OIDC integration included in the join token spec")
 			}
-			subClient, err := a.getAzureSubscriptionClient(ctx, integration)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return subClient, nil
+			return azureSubscriptionClientFunc(func(ctx context.Context) ([]string, error) {
+				return a.listAzureSubscriptionIDs(ctx, integration)
+			}), nil
 		},
 	}
 }
@@ -151,9 +148,27 @@ func (a *Server) SetAzureJoinConfig(c *azurejoin.AzureJoinConfig) {
 	a.azureJoinConfigOverride = c
 }
 
-func (a *Server) getAzureSubscriptionClient(ctx context.Context, integration string) (azure.SubscriptionClient, error) {
-	subClient, err := utils.FnCacheGet(ctx, a.azureClientCache, integration,
-		func(ctx context.Context) (azure.SubscriptionClient, error) {
+type azureSubscriptionClientFunc func(ctx context.Context) ([]string, error)
+
+func (fn azureSubscriptionClientFunc) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
+	return fn(ctx)
+}
+
+type azureClientCacheKey struct {
+	// api is the name of the Azure API call that is being cached.
+	api string
+	// integration is the name of the Teleport integration that is used for
+	// credentials. It is empty if using ambient credentials.
+	integration string
+}
+
+func newListAzureSubscriptionIDsCacheKey(integration string) azureClientCacheKey {
+	return azureClientCacheKey{api: "ListSubscriptionIDs", integration: integration}
+}
+
+func (a *Server) listAzureSubscriptionIDs(ctx context.Context, integration string) ([]string, error) {
+	subscriptions, err := utils.FnCacheGet(ctx, a.azureClientCache, newListAzureSubscriptionIDsCacheKey(integration),
+		func(ctx context.Context) ([]string, error) {
 			var opts []azure.ClientsOption
 			if integration != "" {
 				opts = append(opts, azure.WithIntegrationCredentials(integration, a))
@@ -166,29 +181,8 @@ func (a *Server) getAzureSubscriptionClient(ctx context.Context, integration str
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &listSubscriptionsOnceClient{subClient: subClient}, nil
+			subscriptions, err := subClient.ListSubscriptionIDs(ctx)
+			return subscriptions, trace.Wrap(err)
 		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return subClient, nil
-}
-
-// listSubscriptionsOnceClient performs ListSubscriptionIDs only once and caches
-// the result for all future calls. It can be returned from a TTL cache to
-// provide Azure API response caching with a TTL.
-type listSubscriptionsOnceClient struct {
-	subClient azure.SubscriptionClient
-
-	listOnce      sync.Once
-	subscriptions []string
-	err           error
-}
-
-func (c *listSubscriptionsOnceClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
-	c.listOnce.Do(func() {
-		subs, err := c.subClient.ListSubscriptionIDs(ctx)
-		c.subscriptions, c.err = subs, trace.Wrap(err)
-	})
-	return c.subscriptions, c.err
+	return subscriptions, trace.Wrap(err)
 }
