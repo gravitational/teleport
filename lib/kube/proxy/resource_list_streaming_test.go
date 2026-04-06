@@ -441,9 +441,9 @@ func Test_extractTableRowMeta(t *testing.T) {
 		wantError bool
 	}{
 		{"valid", `{"object":{"metadata":{"name":"svc","namespace":"default"}}}`, "svc", "default", false},
-		{"missing object", `{"cells":["a"]}`, "", "", false},
+		{"missing object", `{"cells":["a"]}`, "", "", true},
 		{"missing metadata in object", `{"object":{"kind":"Pod"}}`, "", "", false},
-		{"empty object", `{}`, "", "", false},
+		{"empty object", `{}`, "", "", true},
 		{"invalid JSON", `{broken`, "", "", true},
 	}
 	for _, tt := range tests {

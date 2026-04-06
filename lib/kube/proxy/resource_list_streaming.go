@@ -201,7 +201,7 @@ type kubeItemEnvelope struct {
 // kubeTableRowEnvelope is the minimal struct needed to extract name and namespace
 // from a Kubernetes Table row for RBAC filtering.
 type kubeTableRowEnvelope struct {
-	Object struct {
+	Object *struct {
 		Metadata struct {
 			Name      string `json:"name"`
 			Namespace string `json:"namespace"`
@@ -218,11 +218,14 @@ func extractItemMeta(item json.RawMessage) (name, namespace string, err error) {
 	return env.Metadata.Name, env.Metadata.Namespace, nil
 }
 
-// extractTableRowMeta extracts name and namespace from a Table row.
+// extractTableRowMeta extracts name and namespace from a Table row's embedded object metadata.
 func extractTableRowMeta(item json.RawMessage) (name, namespace string, err error) {
 	var env kubeTableRowEnvelope
 	if err := json.Unmarshal(item, &env); err != nil {
 		return "", "", trace.Wrap(err)
+	}
+	if env.Object == nil {
+		return "", "", trace.BadParameter("table row has no embedded object")
 	}
 	return env.Object.Metadata.Name, env.Object.Metadata.Namespace, nil
 }
