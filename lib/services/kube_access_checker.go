@@ -74,3 +74,32 @@ func (c *KubeAccessChecker) GetGroupsAndUsers(ttl time.Duration, overrideTTL boo
 	}
 	return c.checker.scopedCompatChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }
+
+// GetGroupsAndUsers returns the kube groups and users that are permitted for
+// impersonation.
+func (c *KubeAccessChecker) GetResources(cluster types.KubeCluster) (allowed []types.KubernetesResource, denied []types.KubernetesResource) {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.GetKubeResources(cluster)
+	}
+	// resources are not yet supported for scoped identities
+	return nil, nil
+}
+
+func (c *KubeAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) time.Duration {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout)
+	}
+	// kube block takes precedence over defaults block.
+	idleStr := c.checker.role.GetSpec().GetKube().GetClientIdleTimeout()
+	if idleStr == "" {
+		idleStr = c.checker.role.GetSpec().GetDefaults().GetClientIdleTimeout()
+	}
+	if idleStr != "" {
+		if d, err := time.ParseDuration(idleStr); err == nil && d > 0 {
+			if timeout == 0 || d < timeout {
+				return d
+			}
+		}
+	}
+	return timeout
+}

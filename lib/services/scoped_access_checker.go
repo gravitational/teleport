@@ -290,6 +290,15 @@ func (c *ScopedAccessChecker) GetAllowedLoginsForResource(resource AccessCheckab
 	return c.scopedCompatChecker.GetAllowedLoginsForResource(resource)
 }
 
+func (c *ScopedAccessChecker) GetAllowedResourceAccessIDs() []types.ResourceAccessID {
+	if !c.isScoped() {
+		return c.unscopedChecker.GetAllowedResourceAccessIDs()
+	}
+
+	// scoped identities do not support checking active resource IDs.
+	return nil
+}
+
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This
 // function differs from AccessChecker.CheckAccessToRule in that it does not support advanced context-based features
 // or namespacing, and accepts a set of verbs all of which must evaluate to allow for the check to succeed.

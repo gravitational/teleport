@@ -199,3 +199,57 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	// Otherwise, return the current certificates expiration
 	return identity.Expires
 }
+
+func (c *ScopedContext) GetAccessState(authPref readonly.AuthPreference) (services.AccessState, error) {
+	if c.unscopedContext != nil {
+		return c.unscopedContext.GetAccessState(authPref), nil
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO(fspmarshall/scopes): implement scoped MFA
+		// NOTE: this will require additional refactoring of relevant access-checking logic. currently, we often
+		// check MFA requirements *before* we determine access to the underlying resource, but a scoped MFA model
+		// will need to first determine the scope of access *before* we can determine whether MFA is required for that scope.
+		return services.AccessState{}, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+	return services.AccessState{
+		MFARequired: services.MFARequiredNever,
+		MFAVerified: false,
+	}, nil
+}
+
+// LockTargets returns a list of LockTargets inferred from the context's
+// Identity
+func (c *ScopedContext) LockTargets() []types.LockTarget {
+	if c.unscopedContext != nil {
+		return c.unscopedContext.LockTargets()
+	}
+
+	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
+	if r, ok := c.Identity.(BuiltinRole); ok {
+		switch r.Role {
+		// Node role is a special case because it was previously suported as a
+		// lock target that only locked the `ssh_service`. If the same Teleport server
+		// had multiple roles, Node lock would only lock the `ssh_service` while
+		// other roles would be able to authenticate into Teleport without a problem.
+		// To remove the ambiguity, we now lock the entire Teleport server for
+		// all roles using the LockTarget.ServerID field and `Node` field is
+		// deprecated.
+		// In order to support legacy behavior, we need fill in both `ServerID`
+		// and `Node` fields if the role is `Node` so that the previous behavior
+		// is preserved.
+		// This is a legacy behavior that we need to support for backwards compatibility.
+		case types.RoleNode:
+			lockTargets = append(lockTargets,
+				types.LockTarget{ServerID: r.GetServerID()},
+				types.LockTarget{ServerID: r.Identity.Username},
+			)
+		default:
+			lockTargets = append(lockTargets,
+				types.LockTarget{ServerID: r.GetServerID()},
+				types.LockTarget{ServerID: r.Identity.Username},
+			)
+		}
+	}
+	return lockTargets
+}
