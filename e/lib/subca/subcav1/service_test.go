@@ -96,17 +96,31 @@ func TestService_authz(t *testing.T) {
 			},
 			adminActionNotRequired: true,
 		},
+		{
+			name: "ListCertAuthorityOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.ListCertAuthorityOverride(
+					t.Context(), &subcapb.ListCertAuthorityOverrideRequest{})
+				return err
+			},
+			want: []*authorizeAttempt{
+				// Order is deterministic.
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbRead},
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbList},
+			},
+			adminActionNotRequired: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Don't t.Parallel(), denyAuthorizer is not built for concurrency.
 
-			_ = authorizer.GetAndClearAttempts() // reset
+			authorizer.Reset()
 			err := test.doRPC(t)
 			require.ErrorAs(t, err, new(*trace.AccessDeniedError), "RPC error mismatch")
 			assert.ErrorContains(t, err, "deny authorizer")
 
-			got := authorizer.GetAndClearAttempts()
+			got := authorizer.GetAttemptsAndReset()
 			want := test.want
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("Authz attempts mismatch (-want +got)\n%s", diff)
@@ -114,7 +128,7 @@ func TestService_authz(t *testing.T) {
 
 			t.Run("admin actions", func(t *testing.T) {
 				if test.adminActionNotRequired {
-					authorizer.SetAllowNextWithAdminAction(authz.AdminActionAuthUnauthorized)
+					authorizer.SetAllowWithAdminAction(authz.AdminActionAuthUnauthorized)
 					// Success or a non-AccessDenied error are both valid.
 					if err := test.doRPC(t); err != nil {
 						assert.NotErrorAs(t, err, new(*trace.AccessDeniedError),
@@ -124,14 +138,14 @@ func TestService_authz(t *testing.T) {
 				}
 
 				// Admin action requirement fails.
-				authorizer.SetAllowNextWithAdminAction(authz.AdminActionAuthUnauthorized)
+				authorizer.SetAllowWithAdminAction(authz.AdminActionAuthUnauthorized)
 				err := test.doRPC(t)
 				require.ErrorAs(t, err, new(*trace.AccessDeniedError),
 					"Want admin action required")
 				require.ErrorContains(t, err, "admin-level API")
 
 				// Admin action requirement fulfilled.
-				authorizer.SetAllowNextWithAdminAction(authz.AdminActionAuthMFAVerifiedWithReuse)
+				authorizer.SetAllowWithAdminAction(authz.AdminActionAuthMFAVerifiedWithReuse)
 				err = test.doRPC(t)
 				assert.NotErrorAs(t, err, new(*trace.AccessDeniedError),
 					"Want admin action fulfilled")
@@ -171,26 +185,31 @@ func (a *denyAuthorizer) CheckAccessToRule(context services.RuleContext, namespa
 	})
 
 	if a.allowNext {
-		a.allowNext = false
-		a.adminActionState = 0 // default aka unauthorized
 		return nil
 	}
 
 	return trace.AccessDenied("deny authorizer")
 }
 
-// GetAndClearAttempts clears and returns all current authentication attempts.
-func (a *denyAuthorizer) GetAndClearAttempts() []*authorizeAttempt {
+// GetAttemptsAndReset returns the current authentication attempts and resets
+// the authorizer state.
+func (a *denyAuthorizer) GetAttemptsAndReset() []*authorizeAttempt {
 	ats := a.attempts
-	a.attempts = nil
+	a.Reset()
 	return ats
 }
 
-// SetAllowNextWithAdminAction allows the next CheckAccessToRule call to succeed
+// SetAllowWithAdminAction allows following CheckAccessToRule calls to succeed
 // and sets its admin action state.
-func (a *denyAuthorizer) SetAllowNextWithAdminAction(s authz.AdminActionAuthState) {
+func (a *denyAuthorizer) SetAllowWithAdminAction(s authz.AdminActionAuthState) {
 	a.allowNext = true
 	a.adminActionState = s
+}
+
+func (a *denyAuthorizer) Reset() {
+	a.attempts = nil
+	a.allowNext = false
+	a.adminActionState = 0
 }
 
 func TestService_Create(t *testing.T) {
@@ -266,6 +285,66 @@ func TestService_Create(t *testing.T) {
 		got = getResp.CaOverride
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("Get mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
+func TestService_List(t *testing.T) {
+	t.Parallel()
+
+	const caType1 = types.DatabaseClientCA
+	const caType2 = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType1,
+				caType2,
+			},
+		},
+	})
+	subCA := env.SubCAClient
+
+	t.Run("empty", func(t *testing.T) {
+		// Don't t.Parallel(), can't race against override creation.
+
+		got, err := subCA.ListCertAuthorityOverride(
+			t.Context(), &subcapb.ListCertAuthorityOverrideRequest{})
+		require.NoError(t, err, "List errored")
+
+		// Verify empty response.
+		want := &subcapb.ListCertAuthorityOverrideResponse{}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("List mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	// Prepare overrides for testing.
+	o1 := env.NewOverrideForCAType(t, caType1)
+	resp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		CaOverride: o1,
+	})
+	require.NoError(t, err, "Create errored")
+	o1 = resp.CaOverride
+
+	o2 := env.NewOverrideForCAType(t, caType2)
+	resp, err = subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		CaOverride: o2,
+	})
+	require.NoError(t, err, "Create errored")
+	o2 = resp.CaOverride
+
+	t.Run("ok", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := subCA.ListCertAuthorityOverride(
+			t.Context(), &subcapb.ListCertAuthorityOverrideRequest{})
+		require.NoError(t, err, "List")
+		assert.Empty(t, resp.NextPageToken, "got non-empty nextPageToken")
+
+		got := resp.CaOverrides
+		want := []*subcapb.CertAuthorityOverride{o1, o2}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("List mismatch (-want +got)\n%s", diff)
 		}
 	})
 }

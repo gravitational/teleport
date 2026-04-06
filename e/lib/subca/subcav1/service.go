@@ -38,7 +38,12 @@ import (
 // See lib/services/local.SubCAService.
 type CachedSubCAStorage interface {
 	GetCertAuthorityOverride(
-		context.Context, local.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error)
+		ctx context.Context, id local.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error)
+	ListCertAuthorityOverrides(
+		ctx context.Context,
+		pageSize int,
+		pageToken string,
+	) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error)
 }
 
 // SubCAStorage is the storage implementation of SubCAService.
@@ -46,7 +51,9 @@ type CachedSubCAStorage interface {
 // See lib/services/local.SubCAService.
 type SubCAStorage interface {
 	CreateCertAuthorityOverride(
-		context.Context, *subcav1.CertAuthorityOverride) (*subcav1.CertAuthorityOverride, error)
+		ctx context.Context,
+		resource *subcav1.CertAuthorityOverride,
+	) (*subcav1.CertAuthorityOverride, error)
 }
 
 // ServiceParams holds creation parameters for [Service].
@@ -182,6 +189,27 @@ func (s *Service) GetCertAuthorityOverride(
 
 	return &subcav1.GetCertAuthorityOverrideResponse{
 		CaOverride: caOverride,
+	}, nil
+}
+
+func (s *Service) ListCertAuthorityOverride(
+	ctx context.Context,
+	req *subcav1.ListCertAuthorityOverrideRequest,
+) (*subcav1.ListCertAuthorityOverrideResponse, error) {
+	if err := s.authorizeCAOverride(
+		ctx, adminActionNotNeeded, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caOverrides, nextPageToken, err := s.cachedSubCA.ListCertAuthorityOverrides(
+		ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &subcav1.ListCertAuthorityOverrideResponse{
+		CaOverrides:   caOverrides,
+		NextPageToken: nextPageToken,
 	}, nil
 }
 
