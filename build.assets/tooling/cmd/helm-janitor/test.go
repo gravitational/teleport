@@ -1,0 +1,37 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/gravitational/trace"
+)
+
+func runTest(ctx context.Context, charts []Chart, updateSnapshots bool) error {
+	if err := checkDependencies(helmBinName); err != nil {
+		return trace.Wrap(err, "preflight checks")
+	}
+
+	for _, chart := range charts {
+		if err := testHelm(ctx, chart, updateSnapshots); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func testHelm(ctx context.Context, chart Chart, updateSnapshots bool) error {
+	fmt.Println("Running tests for chart:", chart.Name)
+	args := []string{"unittest", "-3", "--with-subchart=false", chart.Path}
+	if updateSnapshots {
+		args = append(args, "-u")
+	}
+	stdout, stderr, err := run(ctx, helmBinName, args...)
+	if err != nil {
+		fmt.Printf("Helm unit tests failed for chart %q", chart.Path)
+		fmt.Println(string(stdout))
+		fmt.Println(string(stderr))
+		return trace.Wrap(err, "testing chart %q", chart.Path)
+	}
+	return nil
+}
