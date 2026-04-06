@@ -892,8 +892,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 
 	if as.azureClientCache == nil {
 		azureClientCache, err := utils.NewFnCache(utils.FnCacheConfig{
-			TTL:   1 * time.Minute,
-			Clock: as.clock,
+			TTL:         1 * time.Minute,
+			Clock:       as.clock,
+			ReloadOnErr: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
