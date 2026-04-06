@@ -667,11 +667,10 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return authz.BuiltinRole{
+		return authz.UnauthenticatedRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
 			ClusterName: a.ClusterName,
-			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]

@@ -249,6 +249,15 @@ func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.
 		return nil
 	}
 
+	// Fast pre-check: if no role even mentions KindSession/VerbRead, skip the
+	// more expensive predicate evaluation below.
+	if err := a.context.Checker.GuessIfAccessIsPossible(
+		&services.Context{User: a.context.User},
+		apidefaults.Namespace, types.KindSession, types.VerbRead,
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// First try a simple check without the extended context.
 	if err := a.actionWithContext(&services.Context{User: a.context.User}, types.KindSession, types.VerbRead); err == nil {
 		return nil
@@ -861,7 +870,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// unauthenticated clients can never check for alerts. we don't normally explicitly
 	// check for this kind of thing, but since alerts use an unusual access-control
 	// pattern, explicitly rejecting the nop role makes things easier.
-	if a.hasBuiltinRole(types.RoleNop) {
+	if authz.HasUnauthenticatedRole(a.context, string(types.RoleNop)) {
 		return nil, trace.AccessDenied("alerts not available to unauthenticated clients")
 	}
 
@@ -2926,7 +2935,6 @@ func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start st
 	}
 
 	return tokens, next, nil
-
 }
 
 // DeleteWebToken removes the web token specified with req.
@@ -6611,15 +6619,6 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	err := a.localServerAction()
-	isTeleportServer := err == nil
-
-	// StreamSessionEvents can be called internally, and when that
-	// happens we don't want to emit an event or check for permissions.
-	if isTeleportServer {
-		return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
-	}
-
 	if err := a.actionForKindSession(ctx, sessionID); err != nil {
 		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 		e <- trace.Wrap(err)
@@ -6870,10 +6869,8 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 			},
 		),
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 
 	return out, nil
