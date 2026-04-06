@@ -2,6 +2,8 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.25.9
 
+tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+
 require (
 	buf.build/go/bufplugin v0.9.0
 	github.com/DataDog/datadog-agent/pkg/template v0.77.2
