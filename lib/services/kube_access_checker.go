@@ -50,11 +50,11 @@ func (c *KubeAccessChecker) CanAccessServer(target types.KubeServer) error {
 }
 
 // CheckAccessToCluster checks access to a kube cluster.
-func (c *KubeAccessChecker) CheckAccessToCluster(target types.KubeCluster, state AccessState) error {
+func (c *KubeAccessChecker) CheckAccessToCluster(target types.KubeCluster, state AccessState, matchers ...RoleMatcher) error {
 	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CheckAccess(target, state)
+		return c.checker.unscopedChecker.CheckAccess(target, state, matchers...)
 	}
-	return c.checker.scopedCompatChecker.CheckAccess(target, state)
+	return c.checker.scopedCompatChecker.CheckAccess(target, state, matchers...)
 }
 
 // CanAccessCluster checks whether read access to the specified kube server is possible without

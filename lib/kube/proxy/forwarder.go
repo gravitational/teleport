@@ -1180,7 +1180,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// once we find a scoped checker that grants access, that's the checker we should use for all subsequent
 		// checks
 		err := actx.CheckerContext.Decision(ctx, ks.GetScope(), func(check *services.ScopedAccessChecker) error {
-			if err := check.Kube().CheckAccessToCluster(ks, state); err != nil {
+			if err := check.Kube().CheckAccessToCluster(ks, state, roleMatchers...); err != nil {
 				return trace.Wrap(err)
 			}
 			actx.checker = check
