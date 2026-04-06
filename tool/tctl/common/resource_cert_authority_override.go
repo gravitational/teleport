@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package resources
+package common
 
 import (
 	"context"
@@ -38,7 +38,7 @@ type certAuthorityOverrideCollection struct {
 	overrides []*subcav1.CertAuthorityOverride
 }
 
-func (c *certAuthorityOverrideCollection) Resources() []types.Resource {
+func (c *certAuthorityOverrideCollection) resources() []types.Resource {
 	ret := make([]types.Resource, len(c.overrides))
 	for i, o := range c.overrides {
 		ret[i] = types.Resource153ToLegacy(o)
@@ -46,7 +46,7 @@ func (c *certAuthorityOverrideCollection) Resources() []types.Resource {
 	return ret
 }
 
-func (c *certAuthorityOverrideCollection) WriteText(w io.Writer, verbose bool) error {
+func (c *certAuthorityOverrideCollection) writeText(w io.Writer, verbose bool) error {
 	// Mimics the CA table.
 	// One entry per certificate override, or one entry per "empty" CA override.
 	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Public Key Hash"})
@@ -82,22 +82,12 @@ func (c *certAuthorityOverrideCollection) WriteText(w io.Writer, verbose bool) e
 	return trace.Wrap(t.WriteTo(w))
 }
 
-func certAuthorityOverrideHandler() Handler {
-	return Handler{
-		getHandler:    getCertAuthorityOverride,
-		createHandler: createCertAuthorityOverride,
-		updateHandler: updateCertAuthorityOverride,
-		deleteHandler: deleteCertAuthorityOverride,
-		description:   "CA overrides for Teleport CA certificates. Allows admins to chain Teleport CAs to an external trust root.",
-	}
-}
-
-func getCertAuthorityOverride(
+func (rc *ResourceCommand) getCAOverrides(
 	ctx context.Context,
 	authClient *authclient.Client,
-	ref services.Ref,
-	opts GetOpts,
-) (Collection, error) {
+) (ResourceCollection, error) {
+	ref := rc.ref
+
 	// Defensive. Shouldn't happen. Only 3 forms of ref are possible:
 	//   - kind ("tctl get ca_overrides")
 	//   - kind + name ("tctl get ca_overrides/{ca_type}")
@@ -157,10 +147,10 @@ func getCertAuthorityOverride(
 	}, nil
 }
 
-func createCertAuthorityOverride(ctx context.Context,
+func (rc *ResourceCommand) createCAOverride(
+	ctx context.Context,
 	authClient *authclient.Client,
 	raw services.UnknownResource,
-	opts CreateOpts,
 ) error {
 	caOverride, err := services.UnmarshalCertAuthorityOverride(
 		raw.Raw, services.DisallowUnknown())
@@ -172,7 +162,7 @@ func createCertAuthorityOverride(ctx context.Context,
 
 	var created *subcav1.CertAuthorityOverride
 	var action string
-	if opts.Force {
+	if rc.force {
 		resp, err1 := subCA.UpsertCertAuthorityOverride(ctx, &subcav1.UpsertCertAuthorityOverrideRequest{
 			CaOverride: caOverride,
 		})
@@ -200,11 +190,10 @@ func createCertAuthorityOverride(ctx context.Context,
 	return nil
 }
 
-func updateCertAuthorityOverride(
+func (rc *ResourceCommand) updateCAOverride(
 	ctx context.Context,
 	authClient *authclient.Client,
 	raw services.UnknownResource,
-	opts CreateOpts,
 ) error {
 	caOverride, err := services.UnmarshalCertAuthorityOverride(
 		raw.Raw, services.DisallowUnknown())
@@ -230,11 +219,12 @@ func updateCertAuthorityOverride(
 	return nil
 }
 
-func deleteCertAuthorityOverride(
+func (rc *ResourceCommand) deleteCAOverride(
 	ctx context.Context,
 	authClient *authclient.Client,
-	ref services.Ref,
 ) error {
+	ref := rc.ref
+
 	if ref.Kind != types.KindCertAuthorityOverride ||
 		ref.SubKind != "" ||
 		ref.Name == "" {
