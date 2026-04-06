@@ -39,7 +39,7 @@ import (
 
 // needsFiltering returns true if RBAC filtering is required for the given rules.
 func needsFiltering(allowedResources, deniedResources []types.KubernetesResource) bool {
-	return !(containsWildcard(allowedResources) && len(deniedResources) == 0)
+	return !containsWildcard(allowedResources) || len(deniedResources) != 0
 }
 
 // newResourceFilterer creates a wrapper function that once executed creates
