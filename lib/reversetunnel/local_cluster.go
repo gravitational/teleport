@@ -33,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -71,7 +70,7 @@ const (
 // to ensure that proxies are still always synced before expiry.
 var proxySyncInterval = func() time.Duration {
 	defaultSyncInterval := track.DefaultProxyExpiry * 2 / 3
-	calculatedSyncInteval := defaults.ProxyAnnounceTTL() * 2 / 3
+	calculatedSyncInteval := apidefaults.ProxyAnnounceTTL() * 2 / 3
 	if calculatedSyncInteval < defaultSyncInterval {
 		return calculatedSyncInteval
 	}
