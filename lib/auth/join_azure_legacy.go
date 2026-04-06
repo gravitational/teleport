@@ -113,8 +113,8 @@ func (a *Server) RegisterUsingAzureMethod(
 
 // GetAzureJoinConfig gets configuration options for azure joining.
 func (a *Server) GetAzureJoinConfig() *azurejoin.AzureJoinConfig {
-	a.lock.Lock()
-	defer a.lock.Unlock()
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 	if a.azureJoinConfigOverride != nil {
 		return a.azureJoinConfigOverride
 	}
