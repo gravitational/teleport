@@ -233,6 +233,8 @@ message Azure {
   // with the "azure" join method.
   message Rule {
     // The Azure subscription.
+    // It supports wildcard "*", which will allow all Azure subscriptions that
+    // the Auth Service can list (Microsoft.Resources/subscriptions/read permission).
     string subscription = 1;
     // A list of Azure resource groups the node is allowed to join from.
     repeated string resource_groups = 2;

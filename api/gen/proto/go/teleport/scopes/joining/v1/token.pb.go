@@ -1265,6 +1265,8 @@ func (x *GCP_Rule) GetServiceAccounts() []string {
 type Azure_Rule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The Azure subscription.
+	// It supports wildcard "*", which will allow all Azure subscriptions that
+	// the Auth Service can list (Microsoft.Resources/subscriptions/read permission).
 	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
 	// A list of Azure resource groups the node is allowed to join from.
 	ResourceGroups []string `protobuf:"bytes,2,rep,name=resource_groups,json=resourceGroups,proto3" json:"resource_groups,omitempty"`

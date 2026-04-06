@@ -491,7 +491,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"subscriptions": {
-							Description: "Subscriptions are Azure subscriptions to query for resources.",
+							Description: "Subscriptions are Azure subscriptions to query for resources. It supports wildcard \"*\", which will discover resources in all Azure subscriptions that the Discovery Service can list (Microsoft.Resources/subscriptions/read permission).",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},

@@ -6073,6 +6073,8 @@ var xxx_messageInfo_ProvisionTokenSpecV2Azure proto.InternalMessageInfo
 // allowed to use this ProvisionToken.
 type ProvisionTokenSpecV2Azure_Rule struct {
 	// Subscription is the Azure subscription.
+	// It supports wildcard "*", which will allow all Azure subscriptions that
+	// the Auth Service can list (Microsoft.Resources/subscriptions/read permission).
 	Subscription string `protobuf:"bytes,1,opt,name=Subscription,proto3" json:"subscription,omitempty"`
 	// ResourceGroups is a list of Azure resource groups the node is allowed
 	// to join from.
@@ -24282,6 +24284,8 @@ var xxx_messageInfo_AzureInstallerParams proto.InternalMessageInfo
 // It defines which resource types, filters and some configuration params.
 type AzureMatcher struct {
 	// Subscriptions are Azure subscriptions to query for resources.
+	// It supports wildcard "*", which will discover resources in all Azure
+	// subscriptions that the Discovery Service can list (Microsoft.Resources/subscriptions/read permission).
 	Subscriptions []string `protobuf:"bytes,1,rep,name=Subscriptions,proto3" json:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `protobuf:"bytes,2,rep,name=ResourceGroups,proto3" json:"resource_groups,omitempty"`

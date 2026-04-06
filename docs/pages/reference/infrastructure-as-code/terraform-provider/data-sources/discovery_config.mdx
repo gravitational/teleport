@@ -206,7 +206,7 @@ Optional:
 - `integration` (String) Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.
 - `regions` (List of String) Regions are Azure locations to match for databases.
 - `resource_groups` (List of String) ResourceGroups are Azure resource groups to query for resources.
-- `subscriptions` (List of String) Subscriptions are Azure subscriptions to query for resources.
+- `subscriptions` (List of String) Subscriptions are Azure subscriptions to query for resources. It supports wildcard "*", which will discover resources in all Azure subscriptions that the Discovery Service can list (Microsoft.Resources/subscriptions/read permission).
 - `tags` (Map of List of String) ResourceTags are Azure tags on resources to match.
 - `types` (List of String) Types are Azure types to match: "mysql", "postgres", "aks", "vm"
 

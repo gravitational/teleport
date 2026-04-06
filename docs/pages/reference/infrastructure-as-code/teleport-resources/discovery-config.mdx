@@ -507,7 +507,7 @@ integration: "string"
 |integration|The integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.|string|
 |regions|Azure locations to match for databases.|[]string|
 |resource_groups|Azure resource groups to query for resources.|[]string|
-|subscriptions|Azure subscriptions to query for resources.|[]string|
+|subscriptions|Azure subscriptions to query for resources. It supports wildcard "*", which will discover resources in all Azure subscriptions that the Discovery Service can list (Microsoft.Resources/subscriptions/read permission).|[]string|
 |tags|Azure tags on resources to match.|[Labels](#labels)|
 |types|Azure types to match: "mysql", "postgres", "aks", "vm"|[]string|
 

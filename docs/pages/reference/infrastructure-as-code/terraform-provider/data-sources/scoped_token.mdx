@@ -96,7 +96,7 @@ Optional:
 Optional:
 
 - `resource_groups` (List of String) A list of Azure resource groups the node is allowed to join from.
-- `subscription` (String) The Azure subscription.
+- `subscription` (String) The Azure subscription. It supports wildcard "*", which will allow all Azure subscriptions that the Auth Service can list (Microsoft.Resources/subscriptions/read permission).
 
 
 

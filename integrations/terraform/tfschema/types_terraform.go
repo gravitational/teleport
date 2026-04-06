@@ -1261,7 +1261,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},
 							"subscription": {
-								Description: "Subscription is the Azure subscription.",
+								Description: "Subscription is the Azure subscription. It supports wildcard \"*\", which will allow all Azure subscriptions that the Auth Service can list (Microsoft.Resources/subscriptions/read permission).",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},

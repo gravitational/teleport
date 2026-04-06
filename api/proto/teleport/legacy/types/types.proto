@@ -1897,6 +1897,8 @@ message ProvisionTokenSpecV2Azure {
   // allowed to use this ProvisionToken.
   message Rule {
     // Subscription is the Azure subscription.
+    // It supports wildcard "*", which will allow all Azure subscriptions that
+    // the Auth Service can list (Microsoft.Resources/subscriptions/read permission).
     string Subscription = 1 [(gogoproto.jsontag) = "subscription,omitempty"];
     // ResourceGroups is a list of Azure resource groups the node is allowed
     // to join from.
@@ -9193,6 +9195,8 @@ message AzureInstallerParams {
 // It defines which resource types, filters and some configuration params.
 message AzureMatcher {
   // Subscriptions are Azure subscriptions to query for resources.
+  // It supports wildcard "*", which will discover resources in all Azure
+  // subscriptions that the Discovery Service can list (Microsoft.Resources/subscriptions/read permission).
   repeated string Subscriptions = 1 [(gogoproto.jsontag) = "subscriptions,omitempty"];
   // ResourceGroups are Azure resource groups to query for resources.
   repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
