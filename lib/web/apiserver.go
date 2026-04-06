@@ -212,10 +212,6 @@ type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
-// PresenceChecker is a function that executes an MFA prompt to enforce
-// that a user is present.
-type PresenceChecker = func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error
-
 // Config represents web handler configuration parameters
 type Config struct {
 	// PluginRegistry handles plugin registration
@@ -325,9 +321,9 @@ type Config struct {
 	// AppServerWatcher ia a app server watcher to speed up app look up.
 	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
-	// PresenceChecker periodically runs the mfa ceremony for moderated
-	// sessions.
-	PresenceChecker PresenceChecker
+	// PresenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	PresenceMaxDuration time.Duration
 
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
@@ -357,8 +353,8 @@ func (c *Config) SetDefaults() {
 		c.TracerProvider = tracing.NoopProvider()
 	}
 
-	if c.PresenceChecker == nil {
-		c.PresenceChecker = client.RunPresenceTask
+	if c.PresenceMaxDuration == 0 {
+		c.PresenceMaxDuration = client.DefaultPresenceMaxDuration
 	}
 
 	if c.AutomaticUpgradesChannels == nil {
@@ -4124,26 +4120,26 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	term, err := NewTerminal(ctx, TerminalHandlerConfig{
-		Logger:             h.logger,
-		Term:               req.Term,
-		SessionCtx:         sessionCtx,
-		UserAuthClient:     clt,
-		LocalAccessPoint:   h.auth.accessPoint,
-		DisplayLogin:       displayLogin,
-		SessionData:        sessionData,
-		KeepAliveInterval:  keepAliveInterval,
-		ProxyHostPort:      h.ProxyHostPort(),
-		ProxyPublicAddr:    h.PublicProxyAddr(),
-		InteractiveCommand: req.InteractiveCommand,
-		Router:             h.cfg.Router,
-		TracerProvider:     h.cfg.TracerProvider,
-		ParticipantMode:    req.ParticipantMode,
-		PROXYSigner:        h.cfg.PROXYSigner,
-		Tracker:            tracker,
-		PresenceChecker:    h.cfg.PresenceChecker,
-		WebsocketConn:      ws,
-		SSHDialTimeout:     dialTimeout,
-		FIPSBuild:          h.cfg.Modules.IsBoringBinary(),
+		Logger:              h.logger,
+		Term:                req.Term,
+		SessionCtx:          sessionCtx,
+		UserAuthClient:      clt,
+		LocalAccessPoint:    h.auth.accessPoint,
+		DisplayLogin:        displayLogin,
+		SessionData:         sessionData,
+		KeepAliveInterval:   keepAliveInterval,
+		ProxyHostPort:       h.ProxyHostPort(),
+		ProxyPublicAddr:     h.PublicProxyAddr(),
+		InteractiveCommand:  req.InteractiveCommand,
+		Router:              h.cfg.Router,
+		TracerProvider:      h.cfg.TracerProvider,
+		ParticipantMode:     req.ParticipantMode,
+		PROXYSigner:         h.cfg.PROXYSigner,
+		Tracker:             tracker,
+		PresenceMaxDuration: h.cfg.PresenceMaxDuration,
+		WebsocketConn:       ws,
+		SSHDialTimeout:      dialTimeout,
+		FIPSBuild:           h.cfg.Modules.IsBoringBinary(),
 		HostNameResolver: func(serverID string) (string, error) {
 			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID

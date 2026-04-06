@@ -91,7 +91,6 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -179,7 +178,7 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *authtest.Server
 	proxyClient *authclient.Client
-	clock       *clockwork.FakeClock
+	clock       clockwork.Clock
 }
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -224,11 +223,12 @@ type webSuiteConfig struct {
 	// ClusterFeatures allows overriding default auth server features
 	ClusterFeatures *authproto.Features
 
-	// presenceChecker executes presence prompts for tests
-	presenceChecker PresenceChecker
+	// presenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	presenceMaxDuration time.Duration
 
 	// clock to use for all server components
-	clock *clockwork.FakeClock
+	clock clockwork.Clock
 
 	// databaseREPLGetter allows setting custom database REPLs.
 	databaseREPLGetter dbrepl.REPLRegistry
@@ -253,7 +253,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 
 	if cfg.clock == nil {
-		cfg.clock = clockwork.NewFakeClock()
+		cfg.clock = clockwork.NewRealClock()
 	}
 
 	if cfg.modules == nil {
@@ -403,6 +403,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetPresenceMaxDuration(cfg.presenceMaxDuration),
 	)
 	require.NoError(t, err)
 	s.node = node
@@ -599,7 +600,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:                    router,
 		HealthCheckAppServer:      cfg.HealthCheckAppServer,
 		UI:                        cfg.uiConfig,
-		PresenceChecker:           cfg.presenceChecker,
+		PresenceMaxDuration:       cfg.presenceMaxDuration,
 		GetProxyClientCertificate: getProxyClientCert,
 		IntegrationAppHandler:     &mockIntegrationAppHandler{},
 		DatabaseREPLRegistry:      cfg.databaseREPLGetter,
@@ -1074,12 +1075,14 @@ func TestCSRF(t *testing.T) {
 
 func TestPasswordChange(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+
+	clock := clockwork.NewFakeClock()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{clock: clock})
 	pack := s.authPack(t, "foo")
 
 	// invalidate the token
-	s.clock.Advance(1 * time.Minute)
-	validToken, err := totp.GenerateCode(pack.otpSecret, s.clock.Now())
+	clock.Advance(1 * time.Minute)
+	validToken, err := totp.GenerateCode(pack.otpSecret, clock.Now())
 	require.NoError(t, err)
 
 	req := changePasswordReq{
@@ -1116,10 +1119,11 @@ func TestValidateBearerToken(t *testing.T) {
 
 func TestWebSessionsBadInput(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+
+	clock := clockwork.NewFakeClock()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{clock: clock})
 
 	authServer := s.server.Auth()
-	clock := s.clock
 	ctx := context.Background()
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -8273,7 +8277,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 }
 
 func waitForOutput(r ReaderWithDeadline, substr string) error {
-	const timeout = 10 * time.Second
+	const timeout = 30 * time.Second
 	timeoutCh := time.After(timeout)
 
 	var prev string
@@ -10622,9 +10626,8 @@ func TestModeratedSession(t *testing.T) {
 func TestModeratedSessionWithMFA(t *testing.T) {
 	const RPID = "localhost"
 
-	presenceClock := clockwork.NewFakeClock()
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
+		clock:                     clockwork.NewRealClock(),
 		disableDiskBasedRecording: true,
 		authPreferenceSpec: &types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
@@ -10635,10 +10638,11 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 				RPID: RPID,
 			},
 		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
-		},
-		modules: modulestest.EnterpriseModules(),
+		// TODO(Joerger): This test relies on a real timer to drive the presence task, which can inherently
+		// introduce a test flake if the test runner is sufficiently slow. This isn't a problem for now, but
+		// ideally this test would be replaced with a thinner synctest closer to the session logic.
+		presenceMaxDuration: 10 * time.Second,
+		modules:             modulestest.EnterpriseModules(),
 	})
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
@@ -10745,8 +10749,6 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	// run the presence check a few times
 	for range 3 {
-		presenceClock.BlockUntil(1)
-		presenceClock.Advance(30 * time.Second)
 		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
@@ -10768,22 +10770,6 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 		require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 	}
-
-	// Advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we advance the
-	// clock in a loop to ensure it is caught by the stale presence goroutine.
-	go func() {
-		s.clock.Advance(3 * time.Minute)
-		for {
-			select {
-			case <-time.After(100 * time.Millisecond):
-				s.clock.Advance(3 * time.Minute)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	require.NoError(t, waitForOutput(moderatorTerm, "wait: remote command exited without exit status or exit signal"))
 	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"))

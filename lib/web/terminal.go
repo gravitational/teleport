@@ -140,13 +140,13 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			sshDialTimeout:     cfg.SSHDialTimeout,
 			fipsBuild:          cfg.FIPSBuild,
 		},
-		displayLogin:    cfg.DisplayLogin,
-		term:            cfg.Term,
-		proxySigner:     cfg.PROXYSigner,
-		participantMode: cfg.ParticipantMode,
-		tracker:         cfg.Tracker,
-		presenceChecker: cfg.PresenceChecker,
-		websocketConn:   cfg.WebsocketConn,
+		displayLogin:        cfg.DisplayLogin,
+		term:                cfg.Term,
+		proxySigner:         cfg.PROXYSigner,
+		participantMode:     cfg.ParticipantMode,
+		tracker:             cfg.Tracker,
+		presenceMaxDuration: cfg.PresenceMaxDuration,
+		websocketConn:       cfg.WebsocketConn,
 	}, nil
 }
 
@@ -197,8 +197,9 @@ type TerminalHandlerConfig struct {
 	// Tracker is the session tracker of the session being joined. May be nil
 	// if the user is not joining a session.
 	Tracker types.SessionTracker
-	// PresenceChecker used for presence checking.
-	PresenceChecker PresenceChecker
+	// PresenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	PresenceMaxDuration time.Duration
 	// Clock allows interaction with time.
 	Clock clockwork.Clock
 	// WebsocketConn is the active websocket connection
@@ -256,6 +257,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.Clock == nil {
 		t.Clock = clockwork.NewRealClock()
+	}
+
+	if t.PresenceMaxDuration == 0 {
+		t.PresenceMaxDuration = client.DefaultPresenceMaxDuration
 	}
 
 	t.tracer = t.TracerProvider.Tracer("webterminal")
@@ -335,8 +340,9 @@ type TerminalHandler struct {
 	// if the user is not joining a session.
 	tracker types.SessionTracker
 
-	// presenceChecker to use for presence checking
-	presenceChecker PresenceChecker
+	// PresenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	presenceMaxDuration time.Duration
 
 	// closedByClient indicates if the websocket connection was closed by the
 	// user (closing the browser tab, exiting the session, etc).
@@ -803,7 +809,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
 				baseCeremony := newMFACeremony(t.stream.WSStream, nil, t.proxyPublicAddr)
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
+				mfaInterval := t.presenceMaxDuration / 2
+				if err := client.RunPresenceTask(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony, mfaInterval); err != nil {
 					t.logger.WarnContext(ctx, "Unable to stream terminal - failure performing presence checks", "error", err)
 					return
 				}

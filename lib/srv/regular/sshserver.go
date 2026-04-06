@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -264,6 +265,10 @@ type Server struct {
 
 	// immutableLabels are the immutable labels assigned to the server's host certificate
 	immutableLabels map[string]string
+
+	// presenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	presenceMaxDuration time.Duration
 }
 
 // EventMetadata returns metadata about the server.
@@ -373,6 +378,12 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 		ExecLogConfig: srv.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
+}
+
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *Server) GetPresenceMaxDuration() time.Duration {
+	return s.presenceMaxDuration
 }
 
 // ServerOption is a functional option passed to the server
@@ -837,6 +848,15 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	}
 }
 
+// SetPresenceMaxDuration sets the max duration that a moderated session
+// can continue between presence verifications.
+func SetPresenceMaxDuration(maxDuration time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.presenceMaxDuration = maxDuration
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -907,6 +927,10 @@ func New(
 
 	if s.tracerProvider == nil {
 		s.tracerProvider = tracing.DefaultProvider()
+	}
+
+	if s.presenceMaxDuration == 0 {
+		s.presenceMaxDuration = client.DefaultPresenceMaxDuration
 	}
 
 	var component string

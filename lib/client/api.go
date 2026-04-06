@@ -2420,7 +2420,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
+				RunDefaultPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
 			}
 		}
 	}

@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -354,6 +356,10 @@ func (m *mockServer) ChildLogConfig() ChildLogConfig {
 		},
 		Writer: os.Stdout,
 	}
+}
+
+func (m *mockServer) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
 }
 
 // Implementation of ssh.Conn interface.

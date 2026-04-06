@@ -61,11 +61,6 @@ import (
 const sessionRecorderID = "session-recorder"
 
 const (
-	PresenceVerifyInterval = time.Second * 15
-	PresenceMaxDifference  = time.Minute
-)
-
-const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
 	sessionRecordingWarningMessage = "Warning: node error. This might cause some functionalities not to work correctly."
@@ -1336,7 +1331,8 @@ func (s *session) launch() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
-			ticker := s.registry.clock.NewTicker(PresenceVerifyInterval)
+			checkPresenceInterval := s.scx.srv.GetPresenceMaxDuration() / 4
+			ticker := s.registry.clock.NewTicker(checkPresenceInterval)
 			defer ticker.Stop()
 			for {
 				select {
@@ -1836,7 +1832,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(s.scx.srv.GetPresenceMaxDuration())) {
 			s.logger.WarnContext(
 				ctx, "Participant is not active, kicking.",
 				"participant", participant.ID,

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -570,6 +571,12 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 		ExecLogConfig: srv.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
+}
+
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *Server) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
 }
 
 func (s *Server) Serve() {
