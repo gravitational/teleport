@@ -606,6 +606,11 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	// TODO(fspmarshall/scopes): remove the need for this. this is only here to satisfy the common
+	// interface used by lib/srv components. scoped access is not support for cross-cluster operations.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -1617,6 +1622,12 @@ func (w *KubernetesWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadKubernetesAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
+}
+
+func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on kube agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 type DatabaseWrapper struct {
