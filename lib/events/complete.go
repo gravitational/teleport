@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -450,7 +451,7 @@ func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
 // TempSessionStreamer is an alternate version of [SessionStreamer] that can stream
 // events from temporary recordings.
 type TempSessionStreamer interface {
-	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error)
+	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan events.AuditEvent, chan error)
 }
 
 // AppendUpload appends a temporary recording to an existing session recording
