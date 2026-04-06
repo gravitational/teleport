@@ -1126,16 +1126,6 @@ func TestResumeAuditStream(t *testing.T) {
 			assertCreateUpload: assertUploadNotCreated,
 		},
 		{
-			name:                 "create merge recording for existing temp recording",
-			recordingVersion:     "foo",
-			tempRecordingVersion: "bar",
-			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
-				require.Equal(t, sessionID, sid)
-				require.False(t, options.Temporary)
-				require.Equal(t, "foo", options.ReplaceVersion)
-			},
-		},
-		{
 			name:                 "resume merge upload",
 			recordingVersion:     "foo",
 			tempRecordingVersion: "bar",
@@ -1180,6 +1170,18 @@ func TestResumeAuditStream(t *testing.T) {
 			stream, err := streamer.ResumeAuditStream(t.Context(), sessionID, uploadID)
 			require.NoError(t, err)
 			require.NoError(t, stream.Close(t.Context()))
+		})
+		t.Run("don't create merge upload", func(t *testing.T) {
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader: &eventstest.MockUploader{
+					RecordingVersion:     "foo",
+					TempRecordingVersion: "bar",
+				},
+			})
+			require.NoError(t, err)
+			stream, err := streamer.ResumeAuditStream(t.Context(), sessionID, uploadID)
+			require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			require.Nil(t, stream)
 		})
 	}
 }

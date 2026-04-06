@@ -247,37 +247,38 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		return nil, trace.Wrap(err)
 	}
 
-	var currentRecordingExists bool
-	currentRecordingVersion, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, "")
-	if err == nil {
-		currentRecordingExists = currentRecordingVersion != ""
+	version, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, "" /* upload ID */)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	var tempRecordingExists bool
-	tempRecordingVersion, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, uploadID)
-	if err == nil {
-		tempRecordingExists = tempRecordingVersion != ""
+	tempVersion, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, uploadID)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if tempRecordingExists && !currentRecordingExists {
-		// Should not be possible.
-		return nil, trace.Errorf("temporary recording for upload %v exists without an existing recording to merge into, this is a bug", uploadID)
-	}
+
 	var createOpts []CreateUploadOption
-	if currentRecordingExists {
-		if tempRecordingExists {
-			// Both recordings exist, this stream is merging the two and overwriting
-			// the current recording.
-			log.DebugContext(ctx, "Found existing temporary recording. Creating upload to replace current recording.")
-			createOpts = append(createOpts, WithUploadReplace(currentRecordingVersion))
-		} else {
-			// Only current recording exists, we need to create the temporary recording.
-			log.DebugContext(ctx, "Found existing complete recording. Creating a new upload to merge with it.")
-			upload.Temporary = true
-			createOpts = append(createOpts, WithUploadTemporary())
+	if version != "" {
+		if tempVersion != "" {
+			return nil, trace.BadParameter("Both complete and temporary uploads exist for session %q, nothing to do.", sid)
 		}
+		// Only current recording exists, we need to create the temporary recording.
+		log.DebugContext(ctx, "Found existing complete recording. Creating a new temporary upload to merge with it.")
+		createOpts = append(createOpts, WithUploadTemporary())
 	} else {
 		log.DebugContext(ctx, "Upload missing, creating a new one.")
 	}
 	return s.createAuditStream(ctx, sid, createOpts...)
+}
+
+// CreateOverwriteAuditStream creates an audit stream that will overwrite the
+// recording that exists at call time.
+func (s *ProtoStreamer) CreateOverwriteAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	version, err := s.cfg.Uploader.GetRecordingVersion(ctx, sid, "" /* upload ID */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slog.DebugContext(ctx, "Creating upload to overwrite existing recording.", "session_id", sid)
+	return s.createAuditStream(ctx, sid, WithUploadReplace(version))
 }
 
 // ProtoStreamConfig configures proto stream
