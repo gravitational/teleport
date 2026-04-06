@@ -146,7 +146,7 @@ type AzureJoinConfig struct {
 	// fetch the intermediate CA which issued the attested data document
 	// signing certificate.
 	IssuerHTTPClient utils.HTTPDoClient
-	// GetAzureClients returns [AzureClients] for the given integration name.
+	// GetSubscriptionClient returns [SubscriptionClientGetter] for the given integration name.
 	// If the integration name is the empty string, then ambient credentials will be used instead.
 	GetSubscriptionClient SubscriptionClientGetter
 }
