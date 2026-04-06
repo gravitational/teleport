@@ -39,6 +39,7 @@ func Commands() []CLICommand {
 		&TokensCommand{},
 		&AuthCommand{},
 		&StatusCommand{},
+		&AccessGraphCommand{},
 		&top.Command{},
 		&AccessRequestCommand{},
 		&AppsCommand{},
