@@ -2,6 +2,8 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.25.8
 
+tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+
 require (
 	buf.build/go/bufplugin v0.9.0
 	github.com/Masterminds/sprig/v3 v3.3.0
