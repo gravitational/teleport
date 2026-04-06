@@ -721,8 +721,8 @@ func Test_jsonStreamFilter_roundTrip(t *testing.T) {
 			buf := responsewriters.NewMemoryResponseWriter()
 			buf.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
 			buf.Write(rawJSON)
-			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, log)
-			require.NoError(t, filterBuffer(filterWrapper, buf))
+			filter := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowedResources, nil, log), log)
+			require.NoError(t, filterBuffer(filter, buf))
 
 			_, decoder, err := newEncoderAndDecoderForContentType(responsewriters.DefaultContentType, newClientNegotiator(&globalKubeCodecs))
 			require.NoError(t, err)
@@ -847,14 +847,14 @@ func BenchmarkStreamFilter(b *testing.B) {
 			})
 
 			b.Run(prefix+"/buffered_filter", func(b *testing.B) {
-				filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, allowed, denied, log)
+				factory := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowed, denied, log), log)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {
 					buf := responsewriters.NewMemoryResponseWriter()
 					buf.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
 					buf.Write(jsonPayload)
-					filterBuffer(filterWrapper, buf)
+					filterBuffer(factory, buf)
 				}
 			})
 		}

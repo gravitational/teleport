@@ -37,18 +37,18 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
+// needsFiltering returns true if RBAC filtering is required for the given rules.
+func needsFiltering(allowedResources, deniedResources []types.KubernetesResource) bool {
+	return !(containsWildcard(allowedResources) && len(deniedResources) == 0)
+}
+
 // newResourceFilterer creates a wrapper function that once executed creates
 // a runtime filter for kubernetes resources.
 // The filter exclusion criteria is:
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
-	// If the list of allowed resources contains a wildcard and no deniedResources, then we
-	// don't need to filter anything.
-	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
-		return nil
-	}
+func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, matcher resourceMatcher, log *slog.Logger) responsewriters.FilterWrapper {
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		negotiator := newClientNegotiator(codecs)
 		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
@@ -63,7 +63,7 @@ func newResourceFilterer(mr metaResource, codecs *serializer.CodecFactory, allow
 			negotiator:   negotiator,
 			log:          log,
 			metaResource: mr,
-			matcher:      newMatcher(mr, allowedResources, deniedResources, log),
+			matcher:      matcher,
 		}, nil
 	}
 }

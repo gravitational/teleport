@@ -695,7 +695,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 				},
 				verb: types.KubeVerbWatch,
 			}
-			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, tt.args.allowed, tt.args.denied, logtest.NewLogger())
+			filterWrapper := newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, tt.args.allowed, tt.args.denied, logtest.NewLogger()), logtest.NewLogger())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)

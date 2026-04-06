@@ -130,8 +130,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// Check if filtering is needed before buffering the entire response.
 	// If the user has wildcard access and no denied resources, we can skip
 	// buffering and directly forward the response for better performance.
-	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, allowedResources, deniedResources, f.log)
-	if filterWrapper == nil {
+	if !needsFiltering(allowedResources, deniedResources) {
 		// No filtering needed - use direct forwarding with status recording only.
 		// This avoids buffering the entire response in memory and the subsequent
 		// deserialization/re-serialization overhead.
@@ -168,8 +167,8 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 
 	// For successful list responses with a streaming filter implementation,
 	// filter directly to the client without buffering the entire response.
+	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
 	if status == http.StatusOK {
-		matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
 		sf := newStreamFilter(contentType, matcher)
 		if sf != nil {
 			src, dst, compErr := wrapContentEncoding(pipeReader, w, contentEncoding)
@@ -210,6 +209,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
+	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
 	if err := filterBuffer(filterWrapper, memBuffer); err != nil {
 		filterSpan.End()
 		return memBuffer.Status(), trace.Wrap(err)
@@ -277,16 +277,21 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
+
+	var filter responsewriters.FilterWrapper
+	if needsFiltering(allowedResources, deniedResources) {
+		filter = newResourceFilterer(
+			sess.metaResource,
+			sess.codecFactory,
+			newMatcher(sess.metaResource, allowedResources, deniedResources, f.log),
+			f.log,
+		)
+	}
+
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
-		newResourceFilterer(
-			sess.metaResource,
-			sess.codecFactory,
-			allowedResources,
-			deniedResources,
-			f.log,
-		),
+		filter,
 	)
 	if err != nil {
 		return http.StatusInternalServerError, trace.Wrap(err)
