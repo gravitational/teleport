@@ -109,16 +109,16 @@ message ScopedRoleSSH {
 
   // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
   // over an SSH session. It defaults to allowing the user to download and upload files by default.
-  optional SSHFileCopy ssh_file_copy = 5;
+  SSHFileCopy ssh_file_copy = 5;
 
   // ForwardAgent is SSH agent forwarding.
   optional bool forward_agent = 6;
 
   // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
-  optional SSHPortForwarding ssh_port_forwarding = 7;
+  SSHPortForwarding ssh_port_forwarding = 7;
 
-  // CreateHostUser configures the creation of host users.
-  optional CreateHostUser create_host_user = 8;
+  // HostUserCreation configures the creation of host users.
+  CreateHostUser host_user_creation = 8;
 
   // MaxSessions defines the maximum number of
   // concurrent sessions per connection.
@@ -126,10 +126,14 @@ message ScopedRoleSSH {
 }
 
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
-// over an SSH session. It defaults to true unless explicitly set to false.
+// over an SSH session. It defaults to allowing the user to download and upload files by default.
+// Currently we only allow roles to have both download and upload set to true or false.
+// We currently do not support only allowing uploads and disallowing downloads, and vice versa.
 message SSHFileCopy {
-  // Allow for remote file operations via SCP or SFTP.
-  optional bool enabled = 1;
+  // Allow for remote file downloads.
+  optional bool download = 1;
+  // Allow for remote file uploads.
+  optional bool upload = 2;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -167,36 +171,33 @@ message ScopedRule {
 
 // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 message SSHPortForwarding {
-  // Allow local port forwarding
-  optional bool local = 1;
-  // Allow remote port forwarding
-  optional bool remote = 2;
+  // Allow for local port forwarding.
+  SSHLocalPortForwarding local = 1;
+  // Allow for remote port forwarding.
+  SSHRemotePortForwarding remote = 2;
+}
+
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+message SSHLocalPortForwarding {
+  optional bool enabled = 1;
+}
+
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+message SSHRemotePortForwarding {
+  optional bool enabled = 1;
 }
 
 // CreateHostUser configures what types of host user creation are allowed by a role.
 message CreateHostUser {
   // CreateHostUserMode specifies how the host user should be created.
-  optional CreateHostUserMode create_host_user_mode = 1;
-  // HostSudoers is a list of entries to include in a users sudoer file
-  repeated string host_sudoers = 2;
+  string create_host_user_mode = 1;
 
-  // HostGroups is a list of host groups to add the user to.
-  repeated string host_groups = 3;
+  // Sudoers is a list of entries to include in a users sudoer file
+  repeated string sudoers = 2;
 
-  // HostShell is the shell to set for the user.
-  optional string host_shell = 4;
-}
+  // Groups is a list of host groups to add the user to.
+  repeated string groups = 3;
 
-// CreateHostUserMode determines whether host user creation should be
-// disabled or if host users should be cleaned up or kept after
-// sessions end.
-enum CreateHostUserMode {
-  CREATE_HOST_USER_MODE_UNSPECIFIED = 0;
-  // CREATE_HOST_USER_MODE_OFF disables host user creation.
-  CREATE_HOST_USER_MODE_OFF = 1;
-  // CREATE_HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
-  CREATE_HOST_USER_MODE_KEEP = 2;
-  // CREATE_HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
-  // users at session end.
-  CREATE_HOST_USER_MODE_INSECURE_DROP = 3;
+  // Shell is the shell to set for the user.
+  string shell = 4;
 }

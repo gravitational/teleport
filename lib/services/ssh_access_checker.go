@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -126,8 +125,17 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 		return c.checker.unscopedChecker.SSHPortForwardMode()
 	}
 
-	denyRemote := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetRemote()
-	denyLocal := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetLocal()
+	remote := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetRemote()
+	local := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetLocal()
+
+	var denyRemote, denyLocal bool
+	if remote != nil && !remote.GetEnabled() {
+		denyRemote = true
+	}
+	if local != nil && !local.GetEnabled() {
+		denyLocal = true
+	}
+
 	// enforcing implicit allow and preferring allow over explicit deny
 	switch {
 	case denyRemote && denyLocal:
@@ -146,7 +154,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return c.checker.role.GetSpec().GetSsh().GetCreateHostUser().GetHostSudoers(), nil
+	return c.checker.role.GetSpec().GetSsh().GetHostUserCreation().GetSudoers(), nil
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
@@ -163,12 +171,18 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		return c.checker.unscopedChecker.HostUsers(srv)
 	}
 
-	createHostUser := c.checker.role.GetSpec().GetSsh().GetCreateHostUser()
+	createHostUser := c.checker.role.GetSpec().GetSsh().GetHostUserCreation()
+
+	var legacyHostUserMode types.CreateHostUserMode
 
 	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
 	mode := createHostUser.GetCreateHostUserMode()
-	if mode == accessv1.CreateHostUserMode_CREATE_HOST_USER_MODE_UNSPECIFIED ||
-		mode == accessv1.CreateHostUserMode_CREATE_HOST_USER_MODE_OFF {
+	if err := legacyHostUserMode.UnmarshalJSON([]byte(mode)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if legacyHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
+		legacyHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return &HostUsersDecision{
 			Info: nil,
 			DeniedBy: []*decisionpb.Determinant{{
@@ -178,12 +192,12 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		}, nil
 	}
 
-	// Convert scoped CreateHostUserMode to decision proto HostUserMode.
+	// Convert to decision
 	var decisionMode decisionpb.HostUserMode
-	switch mode {
-	case accessv1.CreateHostUserMode_CREATE_HOST_USER_MODE_KEEP:
+	switch legacyHostUserMode {
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
 		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
-	case accessv1.CreateHostUserMode_CREATE_HOST_USER_MODE_INSECURE_DROP:
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
 		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
 	default:
 		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
@@ -201,11 +215,11 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 
 	return &HostUsersDecision{
 		Info: &decisionpb.HostUsersInfo{
-			Groups: createHostUser.GetHostGroups(),
+			Groups: createHostUser.GetGroups(),
 			Mode:   decisionMode,
 			Uid:    uid,
 			Gid:    gid,
-			Shell:  createHostUser.GetHostShell(),
+			Shell:  createHostUser.GetShell(),
 		},
 		AllowedBy: []*decisionpb.Determinant{{
 			Kind: c.checker.role.GetKind(),
@@ -252,14 +266,29 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 
 // CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.
 // If GetSshFileCopy is nil, then we default to true.
+// We currently only support setting both download and upload to true or false.
+// If a user has set download to false and upload to true, or vice versa, we don't allow for file copying.
 func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
 
 	fileCopy := c.checker.role.GetSpec().GetSsh().GetSshFileCopy()
-	if fileCopy == nil || fileCopy.Enabled == nil {
+	if fileCopy == nil {
 		return true
 	}
-	return fileCopy.GetEnabled()
+
+	// Both download and upload must be explicitly enabled.
+	// If either is set to false, file copying is disabled.
+	download := fileCopy.GetDownload()
+	upload := fileCopy.GetUpload()
+
+	if !download {
+		return false
+	}
+	if !upload {
+		return false
+	}
+
+	return true
 }

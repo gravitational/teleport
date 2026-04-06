@@ -224,6 +224,15 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// For now, we only support roles when both download and upload are the same values
+	if fileCopy := role.GetSpec().GetSsh().GetSshFileCopy(); fileCopy != nil {
+		download := fileCopy.GetDownload()
+		upload := fileCopy.GetUpload()
+		if download != upload {
+			return trace.BadParameter("scoped role %q has mismatched ssh_file_copy download and upload values, both must be the same", role.GetMetadata().GetName())
+		}
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role

@@ -37,65 +37,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// CreateHostUserMode determines whether host user creation should be
-// disabled or if host users should be cleaned up or kept after
-// sessions end.
-type CreateHostUserMode int32
-
-const (
-	CreateHostUserMode_CREATE_HOST_USER_MODE_UNSPECIFIED CreateHostUserMode = 0
-	// CREATE_HOST_USER_MODE_OFF disables host user creation.
-	CreateHostUserMode_CREATE_HOST_USER_MODE_OFF CreateHostUserMode = 1
-	// CREATE_HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
-	CreateHostUserMode_CREATE_HOST_USER_MODE_KEEP CreateHostUserMode = 2
-	// CREATE_HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
-	// users at session end.
-	CreateHostUserMode_CREATE_HOST_USER_MODE_INSECURE_DROP CreateHostUserMode = 3
-)
-
-// Enum value maps for CreateHostUserMode.
-var (
-	CreateHostUserMode_name = map[int32]string{
-		0: "CREATE_HOST_USER_MODE_UNSPECIFIED",
-		1: "CREATE_HOST_USER_MODE_OFF",
-		2: "CREATE_HOST_USER_MODE_KEEP",
-		3: "CREATE_HOST_USER_MODE_INSECURE_DROP",
-	}
-	CreateHostUserMode_value = map[string]int32{
-		"CREATE_HOST_USER_MODE_UNSPECIFIED":   0,
-		"CREATE_HOST_USER_MODE_OFF":           1,
-		"CREATE_HOST_USER_MODE_KEEP":          2,
-		"CREATE_HOST_USER_MODE_INSECURE_DROP": 3,
-	}
-)
-
-func (x CreateHostUserMode) Enum() *CreateHostUserMode {
-	p := new(CreateHostUserMode)
-	*p = x
-	return p
-}
-
-func (x CreateHostUserMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (CreateHostUserMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_scopes_access_v1_role_proto_enumTypes[0].Descriptor()
-}
-
-func (CreateHostUserMode) Type() protoreflect.EnumType {
-	return &file_teleport_scopes_access_v1_role_proto_enumTypes[0]
-}
-
-func (x CreateHostUserMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use CreateHostUserMode.Descriptor instead.
-func (CreateHostUserMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{0}
-}
-
 // ScopedRole is a role whose resource and permissions are scoped. Scoped roles implement a subset of role
 // features tailored to the usecases of scoped access and scoped access administration. Scoped roles may be
 // assigned to the same user multiple times at various scopes. Scoped roles do not contain deny rules.
@@ -351,13 +292,13 @@ type ScopedRoleSSH struct {
 	PermitX11Forwarding *bool `protobuf:"varint,4,opt,name=permit_x11_forwarding,json=permitX11Forwarding,proto3,oneof" json:"permit_x11_forwarding,omitempty"`
 	// SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 	// over an SSH session. It defaults to allowing the user to download and upload files by default.
-	SshFileCopy *SSHFileCopy `protobuf:"bytes,5,opt,name=ssh_file_copy,json=sshFileCopy,proto3,oneof" json:"ssh_file_copy,omitempty"`
+	SshFileCopy *SSHFileCopy `protobuf:"bytes,5,opt,name=ssh_file_copy,json=sshFileCopy,proto3" json:"ssh_file_copy,omitempty"`
 	// ForwardAgent is SSH agent forwarding.
 	ForwardAgent *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
-	SshPortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=ssh_port_forwarding,json=sshPortForwarding,proto3,oneof" json:"ssh_port_forwarding,omitempty"`
-	// CreateHostUser configures the creation of host users.
-	CreateHostUser *CreateHostUser `protobuf:"bytes,8,opt,name=create_host_user,json=createHostUser,proto3,oneof" json:"create_host_user,omitempty"`
+	SshPortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=ssh_port_forwarding,json=sshPortForwarding,proto3" json:"ssh_port_forwarding,omitempty"`
+	// HostUserCreation configures the creation of host users.
+	HostUserCreation *CreateHostUser `protobuf:"bytes,8,opt,name=host_user_creation,json=hostUserCreation,proto3" json:"host_user_creation,omitempty"`
 	// MaxSessions defines the maximum number of
 	// concurrent sessions per connection.
 	MaxSessions   *int64 `protobuf:"varint,9,opt,name=max_sessions,json=maxSessions,proto3,oneof" json:"max_sessions,omitempty"`
@@ -444,9 +385,9 @@ func (x *ScopedRoleSSH) GetSshPortForwarding() *SSHPortForwarding {
 	return nil
 }
 
-func (x *ScopedRoleSSH) GetCreateHostUser() *CreateHostUser {
+func (x *ScopedRoleSSH) GetHostUserCreation() *CreateHostUser {
 	if x != nil {
-		return x.CreateHostUser
+		return x.HostUserCreation
 	}
 	return nil
 }
@@ -459,11 +400,15 @@ func (x *ScopedRoleSSH) GetMaxSessions() int64 {
 }
 
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
-// over an SSH session. It defaults to true unless explicitly set to false.
+// over an SSH session. It defaults to allowing the user to download and upload files by default.
+// Currently we only allow roles to have both download and upload set to true or false.
+// We currently do not support only allowing uploads and disallowing downloads, and vice versa.
 type SSHFileCopy struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Allow for remote file operations via SCP or SFTP.
-	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	// Allow for remote file downloads.
+	Download *bool `protobuf:"varint,1,opt,name=download,proto3,oneof" json:"download,omitempty"`
+	// Allow for remote file uploads.
+	Upload        *bool `protobuf:"varint,2,opt,name=upload,proto3,oneof" json:"upload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -498,9 +443,16 @@ func (*SSHFileCopy) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SSHFileCopy) GetEnabled() bool {
-	if x != nil && x.Enabled != nil {
-		return *x.Enabled
+func (x *SSHFileCopy) GetDownload() bool {
+	if x != nil && x.Download != nil {
+		return *x.Download
+	}
+	return false
+}
+
+func (x *SSHFileCopy) GetUpload() bool {
+	if x != nil && x.Upload != nil {
+		return *x.Upload
 	}
 	return false
 }
@@ -643,10 +595,10 @@ func (x *ScopedRule) GetVerbs() []string {
 // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 type SSHPortForwarding struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Allow local port forwarding
-	Local *bool `protobuf:"varint,1,opt,name=local,proto3,oneof" json:"local,omitempty"`
-	// Allow remote port forwarding
-	Remote        *bool `protobuf:"varint,2,opt,name=remote,proto3,oneof" json:"remote,omitempty"`
+	// Allow for local port forwarding.
+	Local *SSHLocalPortForwarding `protobuf:"bytes,1,opt,name=local,proto3" json:"local,omitempty"`
+	// Allow for remote port forwarding.
+	Remote        *SSHRemotePortForwarding `protobuf:"bytes,2,opt,name=remote,proto3" json:"remote,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -681,16 +633,106 @@ func (*SSHPortForwarding) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *SSHPortForwarding) GetLocal() bool {
-	if x != nil && x.Local != nil {
-		return *x.Local
+func (x *SSHPortForwarding) GetLocal() *SSHLocalPortForwarding {
+	if x != nil {
+		return x.Local
+	}
+	return nil
+}
+
+func (x *SSHPortForwarding) GetRemote() *SSHRemotePortForwarding {
+	if x != nil {
+		return x.Remote
+	}
+	return nil
+}
+
+// SSHLocalPortForwarding configures access controls for local SSH port forwarding.
+type SSHLocalPortForwarding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SSHLocalPortForwarding) Reset() {
+	*x = SSHLocalPortForwarding{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHLocalPortForwarding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHLocalPortForwarding) ProtoMessage() {}
+
+func (x *SSHLocalPortForwarding) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHLocalPortForwarding.ProtoReflect.Descriptor instead.
+func (*SSHLocalPortForwarding) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SSHLocalPortForwarding) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
 
-func (x *SSHPortForwarding) GetRemote() bool {
-	if x != nil && x.Remote != nil {
-		return *x.Remote
+// SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
+type SSHRemotePortForwarding struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SSHRemotePortForwarding) Reset() {
+	*x = SSHRemotePortForwarding{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SSHRemotePortForwarding) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SSHRemotePortForwarding) ProtoMessage() {}
+
+func (x *SSHRemotePortForwarding) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SSHRemotePortForwarding.ProtoReflect.Descriptor instead.
+func (*SSHRemotePortForwarding) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SSHRemotePortForwarding) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
@@ -699,20 +741,20 @@ func (x *SSHPortForwarding) GetRemote() bool {
 type CreateHostUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// CreateHostUserMode specifies how the host user should be created.
-	CreateHostUserMode *CreateHostUserMode `protobuf:"varint,1,opt,name=create_host_user_mode,json=createHostUserMode,proto3,enum=teleport.scopes.access.v1.CreateHostUserMode,oneof" json:"create_host_user_mode,omitempty"`
-	// HostSudoers is a list of entries to include in a users sudoer file
-	HostSudoers []string `protobuf:"bytes,2,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
-	// HostGroups is a list of host groups to add the user to.
-	HostGroups []string `protobuf:"bytes,3,rep,name=host_groups,json=hostGroups,proto3" json:"host_groups,omitempty"`
-	// HostShell is the shell to set for the user.
-	HostShell     *string `protobuf:"bytes,4,opt,name=host_shell,json=hostShell,proto3,oneof" json:"host_shell,omitempty"`
+	CreateHostUserMode string `protobuf:"bytes,1,opt,name=create_host_user_mode,json=createHostUserMode,proto3" json:"create_host_user_mode,omitempty"`
+	// Sudoers is a list of entries to include in a users sudoer file
+	Sudoers []string `protobuf:"bytes,2,rep,name=sudoers,proto3" json:"sudoers,omitempty"`
+	// Groups is a list of host groups to add the user to.
+	Groups []string `protobuf:"bytes,3,rep,name=groups,proto3" json:"groups,omitempty"`
+	// Shell is the shell to set for the user.
+	Shell         string `protobuf:"bytes,4,opt,name=shell,proto3" json:"shell,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateHostUser) Reset() {
 	*x = CreateHostUser{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -724,7 +766,7 @@ func (x *CreateHostUser) String() string {
 func (*CreateHostUser) ProtoMessage() {}
 
 func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -737,33 +779,33 @@ func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateHostUser.ProtoReflect.Descriptor instead.
 func (*CreateHostUser) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{8}
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *CreateHostUser) GetCreateHostUserMode() CreateHostUserMode {
-	if x != nil && x.CreateHostUserMode != nil {
-		return *x.CreateHostUserMode
-	}
-	return CreateHostUserMode_CREATE_HOST_USER_MODE_UNSPECIFIED
-}
-
-func (x *CreateHostUser) GetHostSudoers() []string {
+func (x *CreateHostUser) GetCreateHostUserMode() string {
 	if x != nil {
-		return x.HostSudoers
+		return x.CreateHostUserMode
+	}
+	return ""
+}
+
+func (x *CreateHostUser) GetSudoers() []string {
+	if x != nil {
+		return x.Sudoers
 	}
 	return nil
 }
 
-func (x *CreateHostUser) GetHostGroups() []string {
+func (x *CreateHostUser) GetGroups() []string {
 	if x != nil {
-		return x.HostGroups
+		return x.Groups
 	}
 	return nil
 }
 
-func (x *CreateHostUser) GetHostShell() string {
-	if x != nil && x.HostShell != nil {
-		return *x.HostShell
+func (x *CreateHostUser) GetShell() string {
+	if x != nil {
+		return x.Shell
 	}
 	return ""
 }
@@ -788,27 +830,25 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
 	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\x9e\x05\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xd4\x04\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
 	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x127\n" +
-	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12O\n" +
-	"\rssh_file_copy\x18\x05 \x01(\v2&.teleport.scopes.access.v1.SSHFileCopyH\x01R\vsshFileCopy\x88\x01\x01\x12(\n" +
-	"\rforward_agent\x18\x06 \x01(\bH\x02R\fforwardAgent\x88\x01\x01\x12a\n" +
-	"\x13ssh_port_forwarding\x18\a \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingH\x03R\x11sshPortForwarding\x88\x01\x01\x12X\n" +
-	"\x10create_host_user\x18\b \x01(\v2).teleport.scopes.access.v1.CreateHostUserH\x04R\x0ecreateHostUser\x88\x01\x01\x12&\n" +
-	"\fmax_sessions\x18\t \x01(\x03H\x05R\vmaxSessions\x88\x01\x01B\x18\n" +
+	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12J\n" +
+	"\rssh_file_copy\x18\x05 \x01(\v2&.teleport.scopes.access.v1.SSHFileCopyR\vsshFileCopy\x12(\n" +
+	"\rforward_agent\x18\x06 \x01(\bH\x01R\fforwardAgent\x88\x01\x01\x12\\\n" +
+	"\x13ssh_port_forwarding\x18\a \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingR\x11sshPortForwarding\x12W\n" +
+	"\x12host_user_creation\x18\b \x01(\v2).teleport.scopes.access.v1.CreateHostUserR\x10hostUserCreation\x12&\n" +
+	"\fmax_sessions\x18\t \x01(\x03H\x02R\vmaxSessions\x88\x01\x01B\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
-	"\x0e_ssh_file_copyB\x10\n" +
-	"\x0e_forward_agentB\x16\n" +
-	"\x14_ssh_port_forwardingB\x13\n" +
-	"\x11_create_host_userB\x0f\n" +
-	"\r_max_sessions\"8\n" +
-	"\vSSHFileCopy\x12\x1d\n" +
-	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
-	"\n" +
-	"\b_enabled\"\xb1\x01\n" +
+	"\x0e_forward_agentB\x0f\n" +
+	"\r_max_sessions\"c\n" +
+	"\vSSHFileCopy\x12\x1f\n" +
+	"\bdownload\x18\x01 \x01(\bH\x00R\bdownload\x88\x01\x01\x12\x1b\n" +
+	"\x06upload\x18\x02 \x01(\bH\x01R\x06upload\x88\x01\x01B\v\n" +
+	"\t_downloadB\t\n" +
+	"\a_upload\"\xb1\x01\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
@@ -817,26 +857,23 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
-	"\x05verbs\x18\x02 \x03(\tR\x05verbs\"`\n" +
-	"\x11SSHPortForwarding\x12\x19\n" +
-	"\x05local\x18\x01 \x01(\bH\x00R\x05local\x88\x01\x01\x12\x1b\n" +
-	"\x06remote\x18\x02 \x01(\bH\x01R\x06remote\x88\x01\x01B\b\n" +
-	"\x06_localB\t\n" +
-	"\a_remote\"\x88\x02\n" +
-	"\x0eCreateHostUser\x12e\n" +
-	"\x15create_host_user_mode\x18\x01 \x01(\x0e2-.teleport.scopes.access.v1.CreateHostUserModeH\x00R\x12createHostUserMode\x88\x01\x01\x12!\n" +
-	"\fhost_sudoers\x18\x02 \x03(\tR\vhostSudoers\x12\x1f\n" +
-	"\vhost_groups\x18\x03 \x03(\tR\n" +
-	"hostGroups\x12\"\n" +
+	"\x05verbs\x18\x02 \x03(\tR\x05verbs\"\xa8\x01\n" +
+	"\x11SSHPortForwarding\x12G\n" +
+	"\x05local\x18\x01 \x01(\v21.teleport.scopes.access.v1.SSHLocalPortForwardingR\x05local\x12J\n" +
+	"\x06remote\x18\x02 \x01(\v22.teleport.scopes.access.v1.SSHRemotePortForwardingR\x06remote\"C\n" +
+	"\x16SSHLocalPortForwarding\x12\x1d\n" +
+	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
 	"\n" +
-	"host_shell\x18\x04 \x01(\tH\x01R\thostShell\x88\x01\x01B\x18\n" +
-	"\x16_create_host_user_modeB\r\n" +
-	"\v_host_shell*\xa3\x01\n" +
-	"\x12CreateHostUserMode\x12%\n" +
-	"!CREATE_HOST_USER_MODE_UNSPECIFIED\x10\x00\x12\x1d\n" +
-	"\x19CREATE_HOST_USER_MODE_OFF\x10\x01\x12\x1e\n" +
-	"\x1aCREATE_HOST_USER_MODE_KEEP\x10\x02\x12'\n" +
-	"#CREATE_HOST_USER_MODE_INSECURE_DROP\x10\x03BWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\b_enabled\"D\n" +
+	"\x17SSHRemotePortForwarding\x12\x1d\n" +
+	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabled\"\x8b\x01\n" +
+	"\x0eCreateHostUser\x121\n" +
+	"\x15create_host_user_mode\x18\x01 \x01(\tR\x12createHostUserMode\x12\x18\n" +
+	"\asudoers\x18\x02 \x03(\tR\asudoers\x12\x16\n" +
+	"\x06groups\x18\x03 \x03(\tR\x06groups\x12\x14\n" +
+	"\x05shell\x18\x04 \x01(\tR\x05shellBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
@@ -850,40 +887,41 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
-	(CreateHostUserMode)(0),    // 0: teleport.scopes.access.v1.CreateHostUserMode
-	(*ScopedRole)(nil),         // 1: teleport.scopes.access.v1.ScopedRole
-	(*ScopedRoleSpec)(nil),     // 2: teleport.scopes.access.v1.ScopedRoleSpec
-	(*ScopedRoleDefaults)(nil), // 3: teleport.scopes.access.v1.ScopedRoleDefaults
-	(*ScopedRoleSSH)(nil),      // 4: teleport.scopes.access.v1.ScopedRoleSSH
-	(*SSHFileCopy)(nil),        // 5: teleport.scopes.access.v1.SSHFileCopy
-	(*ScopedRoleKube)(nil),     // 6: teleport.scopes.access.v1.ScopedRoleKube
-	(*ScopedRule)(nil),         // 7: teleport.scopes.access.v1.ScopedRule
-	(*SSHPortForwarding)(nil),  // 8: teleport.scopes.access.v1.SSHPortForwarding
-	(*CreateHostUser)(nil),     // 9: teleport.scopes.access.v1.CreateHostUser
-	(*v1.Metadata)(nil),        // 10: teleport.header.v1.Metadata
-	(*v11.Label)(nil),          // 11: teleport.label.v1.Label
+	(*ScopedRole)(nil),              // 0: teleport.scopes.access.v1.ScopedRole
+	(*ScopedRoleSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleSpec
+	(*ScopedRoleDefaults)(nil),      // 2: teleport.scopes.access.v1.ScopedRoleDefaults
+	(*ScopedRoleSSH)(nil),           // 3: teleport.scopes.access.v1.ScopedRoleSSH
+	(*SSHFileCopy)(nil),             // 4: teleport.scopes.access.v1.SSHFileCopy
+	(*ScopedRoleKube)(nil),          // 5: teleport.scopes.access.v1.ScopedRoleKube
+	(*ScopedRule)(nil),              // 6: teleport.scopes.access.v1.ScopedRule
+	(*SSHPortForwarding)(nil),       // 7: teleport.scopes.access.v1.SSHPortForwarding
+	(*SSHLocalPortForwarding)(nil),  // 8: teleport.scopes.access.v1.SSHLocalPortForwarding
+	(*SSHRemotePortForwarding)(nil), // 9: teleport.scopes.access.v1.SSHRemotePortForwarding
+	(*CreateHostUser)(nil),          // 10: teleport.scopes.access.v1.CreateHostUser
+	(*v1.Metadata)(nil),             // 11: teleport.header.v1.Metadata
+	(*v11.Label)(nil),               // 12: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	10, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
-	2,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
-	3,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
-	7,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
-	4,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
-	6,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
-	11, // 6: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	5,  // 7: teleport.scopes.access.v1.ScopedRoleSSH.ssh_file_copy:type_name -> teleport.scopes.access.v1.SSHFileCopy
-	8,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.ssh_port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	9,  // 9: teleport.scopes.access.v1.ScopedRoleSSH.create_host_user:type_name -> teleport.scopes.access.v1.CreateHostUser
-	11, // 10: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	0,  // 11: teleport.scopes.access.v1.CreateHostUser.create_host_user_mode:type_name -> teleport.scopes.access.v1.CreateHostUserMode
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
+	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
+	6,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
+	5,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
+	12, // 6: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	4,  // 7: teleport.scopes.access.v1.ScopedRoleSSH.ssh_file_copy:type_name -> teleport.scopes.access.v1.SSHFileCopy
+	7,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.ssh_port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	10, // 9: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	12, // 10: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	8,  // 11: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	9,  // 12: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -893,21 +931,20 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[7].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[8].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      0,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_teleport_scopes_access_v1_role_proto_goTypes,
 		DependencyIndexes: file_teleport_scopes_access_v1_role_proto_depIdxs,
-		EnumInfos:         file_teleport_scopes_access_v1_role_proto_enumTypes,
 		MessageInfos:      file_teleport_scopes_access_v1_role_proto_msgTypes,
 	}.Build()
 	File_teleport_scopes_access_v1_role_proto = out.File
