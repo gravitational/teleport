@@ -50,3 +50,16 @@ func LoadDefaultConfig(ctx context.Context, optFns ...func(*awsconfig.LoadOption
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, optFns...)
 	return cfg, trace.Wrap(err)
 }
+
+// ConfigureRegion sets the region on cfg after validating it. An empty region
+// is accepted and clears the existing value. Use this instead of assigning
+// cfg.Region directly so that invalid region strings are rejected before use.
+func ConfigureRegion(cfg *aws.Config, region string) error {
+	if region != "" {
+		if err := apiutilsaws.IsValidRegionWithWeakCheck(region); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	cfg.Region = region
+	return nil
+}
