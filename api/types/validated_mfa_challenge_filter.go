@@ -25,13 +25,9 @@ const validatedMFAChallengeFilterKeyTargetCluster = "target_cluster"
 
 // IntoMap copies ValidatedMFAChallengeFilter values into a map.
 func (f *ValidatedMFAChallengeFilter) IntoMap() map[string]string {
-	m := make(map[string]string)
-
-	if f.TargetCluster != "" {
-		m[validatedMFAChallengeFilterKeyTargetCluster] = f.TargetCluster
+	return map[string]string{
+		validatedMFAChallengeFilterKeyTargetCluster: f.TargetCluster,
 	}
-
-	return m
 }
 
 // FromMap copies values from a map into this ValidatedMFAChallengeFilter value.
@@ -43,8 +39,9 @@ func (f *ValidatedMFAChallengeFilter) FromMap(m map[string]string) {
 
 // Match checks whether the target cluster matches the filter.
 func (f *ValidatedMFAChallengeFilter) Match(targetCluster string) bool {
-	// If no target cluster is specified in the filter, it matches nothing.
-	if f.TargetCluster == "" {
+	// If the filter's target cluster is empty or the target cluster is empty, no match. This is a safety measure to
+	// prevent accidentally matching all challenges when the filter or the cluster is not properly set.
+	if f.TargetCluster == "" || targetCluster == "" {
 		return false
 	}
 

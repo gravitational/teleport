@@ -35,7 +35,9 @@ func TestValidatedMFAChallengeFilterIntoMap(t *testing.T) {
 		{
 			name:   "empty filter",
 			filter: types.ValidatedMFAChallengeFilter{},
-			want:   map[string]string{},
+			want: map[string]string{
+				"target_cluster": "",
+			},
 		},
 		{
 			name: "target cluster",
@@ -112,6 +114,12 @@ func TestValidatedMFAChallengeFilterMatch(t *testing.T) {
 			name:          "empty filter matches nothing",
 			filter:        types.ValidatedMFAChallengeFilter{},
 			targetCluster: "root",
+			want:          false,
+		},
+		{
+			name:          "empty filter and target cluster matches nothing",
+			filter:        types.ValidatedMFAChallengeFilter{},
+			targetCluster: "",
 			want:          false,
 		},
 		{
