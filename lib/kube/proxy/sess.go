@@ -446,10 +446,14 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	log.DebugContext(req.Context(), "Creating session")
 
 	var policySets []*types.SessionTrackerPolicySet
-	roles := ctx.Checker.Roles()
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
+	unscopedCtx, ok := ctx.UnscopedContext()
+	if ok {
+		// only unscoped identities issue policy sets
+		roles := unscopedCtx.Checker.Roles()
+		for _, role := range roles {
+			policySet := role.GetSessionPolicySet()
+			policySets = append(policySets, &policySet)
+		}
 	}
 
 	q := req.URL.Query()
@@ -969,8 +973,12 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
+	unscopedCtx, ok := p.Ctx.UnscopedContext()
+	if !ok {
+		return trace.AccessDenied("scoped identities do not support session moderation")
+	}
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roles := p.Ctx.Checker.Roles()
+		roles := unscopedCtx.Checker.Roles()
 
 		accessContext := moderation.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),

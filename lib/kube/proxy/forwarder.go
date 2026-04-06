@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -118,6 +119,8 @@ type ForwarderConfig struct {
 	Keygen sshca.Authority
 	// Authz authenticates user
 	Authz authz.Authorizer
+	// ScopedAuthz authenticates a scoped user
+	ScopedAuthz authz.ScopedAuthorizer
 	// AuthClient is a auth server client.
 	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
@@ -430,7 +433,10 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // authContext is a context of authenticated user,
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
-	authz.Context
+	*authz.ScopedContext
+	// checker is the scoped access checker that granted access to the cluster
+	// authContext provides access to.
+	checker           *services.ScopedAccessChecker
 	kubeGroups        map[string]struct{}
 	kubeUsers         map[string]struct{}
 	kubeClusterLabels map[string]string
@@ -568,12 +574,12 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
-	userContext, err := f.cfg.Authz.Authorize(ctx)
+	scopedCtx, err := f.cfg.ScopedAuthz.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser)
+	authContext, err := f.setupContext(ctx, scopedCtx, req, isRemoteUser)
 	if err != nil {
 		f.log.WarnContext(ctx, "Unable to setup context", "error", err)
 		if trace.IsAccessDenied(err) {
@@ -611,7 +617,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 }
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
-func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
+func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity tlsca.Identity) error {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
 		"kube.Forwarder/acquireConnectionLockWithIdentity",
@@ -622,8 +628,8 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 		),
 	)
 	defer span.End()
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	user := identity.Username
+	roles, err := getRolesByName(f, identity.Groups)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -677,7 +683,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		if err := f.authorize(ctx, authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = f.acquireConnectionLockWithIdentity(ctx, authContext)
+		err = f.acquireConnectionLockWithIdentity(ctx, authContext.Identity.GetIdentity())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -705,7 +711,7 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
+		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext.Identity.GetIdentity())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -783,7 +789,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 
 func (f *Forwarder) setupContext(
 	ctx context.Context,
-	authCtx authz.Context,
+	scopedCtx *authz.ScopedContext,
 	req *http.Request,
 	isRemoteUser bool,
 ) (*authContext, error) {
@@ -798,13 +804,7 @@ func (f *Forwarder) setupContext(
 	)
 	defer span.End()
 
-	roles := authCtx.Checker
-
-	// adjust session ttl to the smaller of two values: the session
-	// ttl requested in tsh or the session ttl for the role.
-	sessionTTL := roles.AdjustSessionTTL(time.Hour)
-
-	identity := authCtx.Identity.GetIdentity()
+	identity := scopedCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
@@ -858,14 +858,14 @@ func (f *Forwarder) setupContext(
 	}
 
 	return &authContext{
-		clientIdleTimeout:        roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		ScopedContext:            scopedCtx,
+		clientIdleTimeout:        netConfig.GetClientIdleTimeout(),
 		clientIdleTimeoutMessage: netConfig.GetClientIdleTimeoutMessage(),
-		sessionTTL:               sessionTTL,
-		Context:                  authCtx,
 		recordingConfig:          recordingConfig,
 		kubeClusterName:          kubeCluster,
 		certExpires:              identity.Expires,
-		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
+		disconnectExpiredCert:    scopedCtx.GetDisconnectCertExpiry(authPref),
+		sessionTTL:               time.Hour,
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -994,8 +994,9 @@ type kubeAccessDetails struct {
 
 // getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
 func (f *Forwarder) getKubeAccessDetails(
+	ctx context.Context,
 	kubeServers []types.KubeServer,
-	accessChecker services.AccessChecker,
+	checkerCtx *services.ScopedAccessCheckerContext,
 	kubeClusterName string,
 	sessionTTL time.Duration,
 	mr metaResource,
@@ -1014,7 +1015,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
 		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.Traits()),
+			services.NewKubernetesClusterLabelMatcher(labels, checkerCtx.Traits()),
 		)
 
 		// If the kubeResource is available, append an extra matcher that validates
@@ -1036,15 +1037,26 @@ func (f *Forwarder) getKubeAccessDetails(
 			}
 		}
 		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
-		// and kubernetes_users that satisfy te provided matchers.
-		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
+		// and kubernetes_users that satisfy the provided matchers for unscoped identities.
+		// For scoped identities, only the groups and users for the role permitting access
+		// are returned.
+		// When a KubernetesResourceMatcher is used, it will gather the Kubernetes principals
 		// whose role satisfy the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
-		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
-		if err != nil {
+		var groups, users []string
+		if err := checkerCtx.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			var err error
+			overrideTTL := false
+			groups, users, err = checker.Kube().GetGroupsAndUsers(sessionTTL, overrideTTL, matchers...)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}); err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
 		}
+
 		return kubeAccessDetails{
 			kubeGroups:    groups,
 			kubeUsers:     users,
@@ -1094,7 +1106,10 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.Wrap(err)
 	}
 
-	state := actx.GetAccessState(authPref)
+	state, err := actx.GetAccessState(authPref)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
 	var roleMatchers services.RoleMatchers
@@ -1120,8 +1135,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if !actx.teleportCluster.isRemote {
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
 		kubeAccessDetails, err := f.getKubeAccessDetails(
+			ctx,
 			actx.kubeServers,
-			actx.Checker,
+			actx.CheckerContext,
 			actx.kubeClusterName,
 			actx.sessionTTL,
 			actx.metaResource,
@@ -1161,7 +1177,17 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		switch err := actx.Checker.CheckAccess(ks, state, roleMatchers...); {
+		// once we find a scoped checker that grants access, that's the checker we should use for all subsequent
+		// checks
+		err := actx.CheckerContext.Decision(ctx, ks.GetScope(), func(check *services.ScopedAccessChecker) error {
+			if err := check.Kube().CheckAccessToCluster(ks, state); err != nil {
+				return trace.Wrap(err)
+			}
+			actx.checker = check
+			return nil
+		})
+
+		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
 			return trace.Wrap(err)
 		case err != nil:
@@ -1172,7 +1198,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if !actx.metaResource.isList {
-			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceAccessIDs()) > 0 {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.checker.GetAllowedResourceAccessIDs()) > 0 {
 				// GetKubeResources returns the allowed and denied Kubernetes resources
 				// for the user. Since we have active access requests, the allowed
 				// resources will be the list of pods that the user requested access to if he
@@ -1180,7 +1206,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 				// allow if the user requested access a kubernetes cluster. If the user
 				// did not request access to any Kubernetes resource type, the allowed
 				// list will be empty.
-				allowed, denied := actx.Checker.GetKubeResources(ks)
+				allowed, denied := actx.checker.Kube().GetResources(ks)
 				if result, err := matchKubernetesResource(*rbacResource, actx.metaResource.isClusterWideResource(), allowed, denied); err != nil || !result {
 					return trace.AccessDenied("%s", notFoundMessage)
 				}
@@ -1188,6 +1214,14 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 		// store a copy of the Kubernetes Cluster.
 		actx.kubeCluster = ks
+		// set session TTL and client idle timeout now that we know which
+		// checker permits access
+		actx.sessionTTL = actx.checker.AdjustSessionTTL(time.Hour)
+		netConfig, err := f.cfg.CachingAuthClient.GetClusterNetworkingConfig(f.ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		actx.clientIdleTimeout = actx.checker.Kube().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 		return nil
 	}
 	if actx.kubeClusterName == f.cfg.ClusterName {
@@ -1626,7 +1660,12 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 // canStartSessionAlone returns true if the user associated with authCtx
 // is allowed to start a session without moderation.
 func (f *Forwarder) canStartSessionAlone(authCtx *authContext) (bool, error) {
-	policySets := authCtx.Checker.SessionPolicySets()
+	unscopedCtx, ok := authCtx.UnscopedContext()
+	if !ok {
+		// scoped identities do not support session moderation
+		return true, nil
+	}
+	policySets := unscopedCtx.Checker.SessionPolicySets()
 	authorizer := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, authCtx.User.GetName())
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
@@ -1992,7 +2031,7 @@ func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeAndValidateImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.User.GetName(), headers)
+	impersonateUser, impersonateGroups, err := computeAndValidateImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.authContext.User.GetName(), headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2460,7 +2499,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		connCancel(err)
 		return nil, trace.Wrap(err)
 	}
-	lockTargets := s.LockTargets()
+	lockTargets := s.authContext.LockTargets()
 	// when the target is not a kubernetes_service instance, we don't need to lock it.
 	// the target could be a remote cluster or a local Kubernetes API server. In both cases,
 	// hostID is empty.

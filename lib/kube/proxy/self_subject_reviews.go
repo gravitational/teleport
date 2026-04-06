@@ -136,8 +136,14 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 	}
 
 	actx := sess.authContext
-	state := actx.GetAccessState(authPref)
-	switch err := actx.Checker.CheckAccess(
+	unscopedCtx, ok := actx.UnscopedContext()
+	if !ok {
+		// TODO (eriktate): remove this limitation
+		return trace.AccessDenied("scoped identities do not support self subject access reviews")
+	}
+
+	state := unscopedCtx.GetAccessState(authPref)
+	switch err := unscopedCtx.Checker.CheckAccess(
 		actx.kubeCluster,
 		state,
 		services.RoleMatchers{

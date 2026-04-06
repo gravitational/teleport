@@ -129,13 +129,13 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	const (
 		systemMastersGroup = "system:masters"
 	)
-	accessChecker := s.authContext.Checker
+	checkerCtx := s.authContext.CheckerContext
 	matchers := make([]services.RoleMatcher, 0, 3)
 	// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 	// defined for each user's role.
 	matchers = append(
 		matchers,
-		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, accessChecker.Traits()),
+		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, checkerCtx.Traits()),
 	)
 
 	// If the kubeResource is available, append an extra matcher that validates
@@ -171,6 +171,8 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 		}),
 	)
 
-	_, _, _ = accessChecker.CheckKubeGroupsAndUsers(s.sessionTTL, false /* overrideTTL */, matchers...)
+	overrideTTL := false
+	_, _, _ = s.authContext.checker.Kube().GetGroupsAndUsers(s.sessionTTL, overrideTTL, matchers...)
+
 	return rolesWithSystemMasters
 }

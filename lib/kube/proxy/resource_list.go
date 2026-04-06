@@ -70,7 +70,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
+		allowedResources, deniedResources := sess.checker.Kube().GetResources(sess.kubeCluster)
 
 		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess.metaResource, allowedResources, deniedResources)
 		if err != nil {

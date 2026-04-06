@@ -338,12 +338,12 @@ func deleteResources[T kubeObjectInterface](
 	for _, item := range items {
 		// Compute users and groups from available roles that match the
 		// cluster labels and kubernetes resources.
-		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.Checker.CheckKubeGroupsAndUsers(
+		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.checker.Kube().GetGroupsAndUsers(
 			params.authCtx.sessionTTL,
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
-				params.authCtx.Checker.Traits(),
+				params.authCtx.CheckerContext.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),
