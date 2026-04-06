@@ -27,6 +27,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	workloadclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
+	"github.com/gravitational/teleport/e/lib/auth/workloadcluster/workloadclusterv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
@@ -258,6 +260,20 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err)
 	}
 	p.authServer.AuthServer.SetOIDCService(oas)
+
+	if modules.GetModules().Features().Cloud {
+		workloadclusterServiceServer, err := workloadclusterv1.NewService(workloadclusterv1.ServiceConfig{
+			Authorizer:        p.authServer.Authorizer,
+			Emitter:           p.authServer.Emitter,
+			CloudClientGetter: p,
+			Modules:           modules.GetModules(),
+			Logger:            p.logger,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(gRPCServer, workloadclusterServiceServer)
+	}
 
 	keypair := p.Config.License.GetKeyPair()
 	// Create the ReleaseClient
