@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -260,7 +259,7 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: &types.Metadata{
-				Name:      keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
+				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
 			},
 			Spec: &mfav1.ValidatedMFAChallengeSpec{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
