@@ -496,9 +496,9 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// AppendPutUserActions adds conditional actions to an atomic write to create
-// or update the user resource (without secrets).
-func (s *IdentityService) AppendPutUserActions(
+// AppendPutUserParamsActions adds conditional actions to an atomic write to
+// create or update the user params resource (without secrets, mfa devices).
+func (s *IdentityService) AppendPutUserParamsActions(
 	actions []backend.ConditionalAction,
 	user types.User,
 	condition backend.Condition,
@@ -745,9 +745,13 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	return trace.NewAggregate(notifErrors...)
 }
 
-// AppendDeleteUserActions adds conditional actions to an atomic write to
-// delete the user's params resource.
-func (s *IdentityService) AppendDeleteUserActions(
+// AppendDeleteUserParamsActions adds conditional actions to an atomic write
+// to delete the user params resource.
+//
+// Note: the returned actions will NOT delete the user's password, MFA devices,
+// etc. so is only really suitable for bot users, in most cases you should use
+// DeleteUser instead.
+func (s *IdentityService) AppendDeleteUserParamsActions(
 	actions []backend.ConditionalAction,
 	user string,
 	condition backend.Condition,

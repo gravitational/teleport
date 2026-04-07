@@ -73,17 +73,21 @@ type UsersService interface {
 type IdentityInternal interface {
 	Identity
 
-	// AppendPutUserActions adds conditional actions to an atomic write to create
-	// or update the user resource (without secrets).
-	AppendPutUserActions(
+	// AppendPutUserParamsActions adds conditional actions to an atomic write to
+	// create or update the user params resource (without secrets, mfa devices).
+	AppendPutUserParamsActions(
 		actions []backend.ConditionalAction,
 		user types.User,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
 
-	// AppendDeleteUserActions adds conditional actions to an atomic write to
-	// delete the user resource.
-	AppendDeleteUserActions(
+	// AppendDeleteUserParamsActions adds conditional actions to an atomic write
+	// to delete the user params resource.
+	//
+	// Note: the returned actions will NOT delete the user's password, MFA devices,
+	// etc. so is only really suitable for bot users, in most cases you should use
+	// DeleteUser instead.
+	AppendDeleteUserParamsActions(
 		actions []backend.ConditionalAction,
 		user string,
 		condition backend.Condition,
