@@ -117,8 +117,6 @@ type ForwarderConfig struct {
 	ClusterName string
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-	// Authz authenticates user
-	Authz authz.Authorizer
 	// ScopedAuthz authenticates a scoped user
 	ScopedAuthz authz.ScopedAuthorizer
 	// AuthClient is a auth server client.
@@ -212,8 +210,8 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.CachingAuthClient == nil {
 		return trace.BadParameter("missing parameter CachingAuthClient")
 	}
-	if f.Authz == nil {
-		return trace.BadParameter("missing parameter Authz")
+	if f.ScopedAuthz == nil {
+		return trace.BadParameter("missing parameter ScopedAuthz")
 	}
 	if f.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")

@@ -234,10 +234,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	}
-	authorizer, err := authz.NewAuthorizer(authOpts)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	scopedAuthorizer, err := authz.NewScopedAuthorizer(authOpts)
 	if err != nil {
 		return trace.Wrap(err)
@@ -280,7 +276,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			Namespace:                     apidefaults.Namespace,
 			Keygen:                        cfg.Keygen,
 			ClusterName:                   teleportClusterName,
-			Authz:                         authorizer,
 			ScopedAuthz:                   scopedAuthorizer,
 			AuthClient:                    conn.Client,
 			Emitter:                       asyncEmitter,
