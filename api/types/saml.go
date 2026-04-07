@@ -129,6 +129,12 @@ type SAMLConnector interface {
 	SetIncludeSubject(bool)
 	// IsEqual determines if two connectors are equivalent to one another.
 	IsEqual(SAMLConnector) bool
+	// GetEntraIDGroupsProvider returns Entra ID groups provider.
+	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+	IsEntraIDGroupsProviderDisabled() bool
+	// GetOAuthClientCredentials returns the OAuth client credentials.
+	GetOAuthClientCredentials() *OAuthClientCredentials
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -198,6 +204,9 @@ func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 		q2 := *k2
 		q2.PrivateKey = ""
 		o2.SetEncryptionKeyPair(&q2)
+	}
+	if o.GetOAuthClientCredentials() != nil {
+		o2.Spec.Credentials = nil
 	}
 	return &o2
 }
@@ -492,6 +501,19 @@ func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
 	r.Spec.IncludeSubject = includeSubject
 }
 
+func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
+	return r.Spec.GetOauth()
+}
+
+func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
+	return r.Spec.EntraIdGroupsProvider
+}
+
+func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
+	entra := r.Spec.EntraIdGroupsProvider
+	return entra != nil && entra.Disabled
+}
+
 const (
 	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
 	SAMLRequestHTTPRedirectBinding = "http-redirect"
@@ -546,6 +568,22 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("need roles field in attributes_to_roles")
+		}
+	}
+
+	if oauth := o.GetOAuthClientCredentials(); oauth != nil {
+		if oauth.ClientId == "" {
+			return trace.BadParameter("missing required client_id in credentials.oauth")
+		}
+		if oauth.ClientSecret == "" {
+			return trace.BadParameter("missing required client_secret in credentials.oauth")
+		}
+	}
+
+	entra := o.GetEntraIDGroupsProvider()
+	if entra != nil {
+		if err := entra.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
