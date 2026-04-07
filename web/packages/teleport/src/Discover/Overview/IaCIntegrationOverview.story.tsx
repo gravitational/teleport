@@ -66,6 +66,8 @@ Default.parameters = {
   msw: {
     handlers: [
       http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+        const lastSync = Date.now() - 2 * 60 * 1000;
+
         return HttpResponse.json({
           name: integrationName,
           subKind: IntegrationKind.AwsOidc,
@@ -95,9 +97,9 @@ Default.parameters = {
           awsoidc: {
             roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
           },
-          awsec2: { enrolled: 5, failed: 1 },
-          awsrds: { enrolled: 3, failed: 0 },
-          awseks: { enrolled: 2, failed: 0 },
+          awsec2: { enrolled: 5, failed: 1, discoverLastSync: lastSync },
+          awsrds: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
+          awseks: { enrolled: 2, failed: 0, discoverLastSync: lastSync },
           isManagedByTerraform: true,
         });
       }),
@@ -188,6 +190,8 @@ Healthy.parameters = {
   msw: {
     handlers: [
       http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+        const lastSync = Date.now() - 2 * 60 * 1000;
+
         return HttpResponse.json({
           name: integrationName,
           subKind: IntegrationKind.AwsOidc,
@@ -196,9 +200,9 @@ Healthy.parameters = {
           awsoidc: {
             roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
           },
-          awsec2: { enrolled: 10, failed: 0 },
-          awsrds: { enrolled: 5, failed: 0 },
-          awseks: { enrolled: 3, failed: 0 },
+          awsec2: { enrolled: 10, failed: 0, discoverLastSync: lastSync },
+          awsrds: { enrolled: 5, failed: 0, discoverLastSync: lastSync },
+          awseks: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
           isManagedByTerraform: true,
         });
       }),

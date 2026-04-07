@@ -22,6 +22,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -36,9 +39,11 @@ import (
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/aws"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -58,6 +63,9 @@ type ServiceConfig struct {
 
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
+
+	// UsageReporter is the reporter for sending usage events.
+	UsageReporter func() usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -72,6 +80,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
+	}
+	if s.UsageReporter == nil {
+		return trace.BadParameter("usage reporter is required")
 	}
 
 	if s.Logger == nil {
@@ -89,11 +100,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log        *slog.Logger
-	authorizer authz.Authorizer
-	backend    services.DiscoveryConfigs
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
+	log           *slog.Logger
+	authorizer    authz.Authorizer
+	backend       services.DiscoveryConfigs
+	clock         clockwork.Clock
+	emitter       apievents.Emitter
+	usageReporter func() usagereporter.UsageReporter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -103,11 +115,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:        cfg.Logger,
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		clock:      cfg.Clock,
-		emitter:    cfg.Emitter,
+		log:           cfg.Logger,
+		authorizer:    cfg.Authorizer,
+		backend:       cfg.Backend,
+		clock:         cfg.Clock,
+		emitter:       cfg.Emitter,
+		usageReporter: cfg.UsageReporter,
 	}, nil
 }
 
@@ -206,6 +219,8 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+
 	return conv.ToProto(resp), nil
 }
 
@@ -252,6 +267,8 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config update event.", "error", err)
 	}
 
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_UPDATE)
+
 	return conv.ToProto(resp), nil
 }
 
@@ -295,6 +312,8 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config create event.", "error", err)
 	}
 
+	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
+
 	return conv.ToProto(resp), nil
 }
 
@@ -307,6 +326,14 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the DiscoveryConfig before deletion to capture metadata for the usage event.
+	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
+			"discovery_config_name", req.GetName(),
+			"error", err)
 	}
 
 	if err := s.backend.DeleteDiscoveryConfig(ctx, req.GetName()); err != nil {
@@ -325,6 +352,10 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.log.WarnContext(ctx, "Failed to emit discovery config delete event.", "error", err)
+	}
+
+	if dc != nil {
+		s.emitUsageEvent(dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -390,6 +421,60 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+}
+
+// emitUsageEvent emits a DiscoveryConfigEvent usage event.
+func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action prehogv1a.DiscoveryConfigAction) {
+	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
+
+	creationMethod := CreationMethodGuided
+	if _, ok := dc.GetMetadata().Labels[types.DiscoveryIACToolLabel]; ok {
+		creationMethod = CreationMethodIAC
+	}
+
+	s.usageReporter().AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
+		Action:              action,
+		DiscoveryConfigName: dc.GetName(),
+		ResourceTypes:       resourceTypes,
+		CloudProviders:      cloudProviders,
+		CreationMethod:      creationMethod,
+	})
+}
+
+// extractDiscoveryConfigMetadata extracts resource types and cloud providers
+// for DiscoveryConfigEvent fields.
+func extractDiscoveryConfigMetadata(dc *discoveryconfig.DiscoveryConfig) (resourceTypes, cloudProviders []string) {
+	cloudProviderSet := make(map[string]struct{})
+	resourceTypeSet := make(map[string]struct{})
+
+	addMatcher := func(cloud string, types []string) {
+		if len(types) == 0 {
+			return
+		}
+
+		c := strings.ToLower(cloud)
+
+		cloudProviderSet[c] = struct{}{}
+		for _, t := range types {
+			label := c + ":" + t
+			resourceTypeSet[label] = struct{}{}
+		}
+	}
+
+	for _, m := range dc.Spec.AWS {
+		addMatcher(types.CloudAWS, m.Types)
+	}
+	for _, m := range dc.Spec.Azure {
+		addMatcher(types.CloudAzure, m.Types)
+	}
+	for _, m := range dc.Spec.GCP {
+		addMatcher(types.CloudGCP, m.Types)
+	}
+	for _, m := range dc.Spec.Kube {
+		addMatcher(types.DiscoveredResourceKubernetes, m.Types)
+	}
+
+	return slices.Collect(maps.Keys(resourceTypeSet)), slices.Collect(maps.Keys(cloudProviderSet))
 }
 
 // MaybeDowngradeDiscoveryConfig tests the client version passed through the gRPC metadata,

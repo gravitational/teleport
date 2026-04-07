@@ -536,9 +536,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
 
 	integrationConfSessionSummariesCmd := integrationConfigureCmd.Command("session-summaries", "Adds required IAM permissions for Session Summaries feature.")
-	integrationBedrockSessionSummariesCmd := integrationConfSessionSummariesCmd.Command("bedrock", "Adds required IAM permissions for Session Summaries feature using AWS Bedrock.")
+	integrationBedrockSessionSummariesCmd := integrationConfSessionSummariesCmd.Command("bedrock", "Adds required IAM permissions for Session Summaries feature using Amazon Bedrock.")
 	integrationBedrockSessionSummariesCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Role)
-	integrationBedrockSessionSummariesCmd.Flag("resource", "The AWS Bedrock resource to grant access to. Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).").Default("*").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Resource)
+	integrationBedrockSessionSummariesCmd.Flag("resource", "The Amazon Bedrock resource to grant access to. Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).").Default("*").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.Resource)
 	integrationBedrockSessionSummariesCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AccountID)
 	integrationBedrockSessionSummariesCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfSessionSummariesBedrockArguments.AutoConfirm)
 

@@ -65,10 +65,34 @@ func WithTriggerFetchC[Instances any](triggerFetchC <-chan struct{}) Option[Inst
 	}
 }
 
+// WithTriggerFetchHookFn sets a callback function to call each time the watcher receives a manual trigger.
+// The hook is called prior to processing the update.
+func WithTriggerFetchHookFn[Instances any](callback func()) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		w.triggerFetchHookFn = callback
+	}
+}
+
 // WithPreFetchHookFn sets a function that gets called before each new iteration.
 func WithPreFetchHookFn[Instances any](f func(fetchers []Fetcher[Instances])) Option[Instances] {
 	return func(w *Watcher[Instances]) {
 		w.preFetchHookFn = f
+	}
+}
+
+// WithPerInstanceHookFn sets an optional callback for each fetched set of group of instances.
+// It will be called once per each fetcher.
+// This callback replaces normal channel writes done to InstancesC.
+func WithPerInstanceHookFn[Instances any](callback func(groups []Instances)) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		w.perInstanceHookFn = callback
+	}
+}
+
+// WithPostFetchHookFn sets an optional callback to be called after the fetch round is finished.
+func WithPostFetchHookFn[Instances any](f func()) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		w.postFetchHookFn = f
 	}
 }
 
@@ -95,12 +119,15 @@ type Watcher[Instances any] struct {
 
 	fetcherMap utils.SyncMap[string, []Fetcher[Instances]]
 
-	pollInterval   time.Duration
-	clock          clockwork.Clock
-	triggerFetchC  <-chan struct{}
-	ctx            context.Context
-	cancel         context.CancelFunc
-	preFetchHookFn func(fetchers []Fetcher[Instances])
+	pollInterval       time.Duration
+	clock              clockwork.Clock
+	triggerFetchC      <-chan struct{}
+	ctx                context.Context
+	cancel             context.CancelFunc
+	preFetchHookFn     func(fetchers []Fetcher[Instances])
+	postFetchHookFn    func()
+	triggerFetchHookFn func()
+	perInstanceHookFn  func(instances []Instances)
 }
 
 // NewWatcher initializes a new instance of Watcher.
@@ -113,6 +140,19 @@ func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *
 		pollInterval: time.Minute,
 		InstancesC:   make(chan Instances),
 	}
+	watcher.perInstanceHookFn = func(instances []Instances) {
+		for _, inst := range instances {
+			if cancelCtx.Err() != nil {
+				return
+			}
+
+			select {
+			case watcher.InstancesC <- inst:
+			case <-cancelCtx.Done():
+			}
+		}
+	}
+
 	for _, opt := range opts {
 		opt(&watcher)
 	}
@@ -129,6 +169,11 @@ func (w *Watcher[Instances]) DeleteFetchers(dcName string) {
 	w.fetcherMap.Delete(dcName)
 }
 
+// ReplaceFetchers replaces whole fetcher set atomically.
+func (w *Watcher[Instances]) ReplaceFetchers(replaceMap map[string][]Fetcher[Instances]) {
+	w.fetcherMap.Set(replaceMap)
+}
+
 func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, err error) {
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -137,12 +182,7 @@ func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, 
 		slog.ErrorContext(context.Background(), "Failed to fetch instances", "error", err)
 		return
 	}
-	for _, inst := range instancesColl {
-		select {
-		case w.InstancesC <- inst:
-		case <-w.ctx.Done():
-		}
-	}
+	w.perInstanceHookFn(instancesColl)
 }
 
 // fetchAndSubmit fetches the resources and submits them for processing.
@@ -156,6 +196,10 @@ func (w *Watcher[Instances]) fetchAndSubmit() {
 
 	for _, fetcher := range fetchers {
 		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
+	}
+
+	if w.postFetchHookFn != nil {
+		w.postFetchHookFn()
 	}
 }
 
@@ -181,6 +225,10 @@ func (w *Watcher[Instances]) Run() {
 			pollTimer.Reset(w.pollInterval)
 
 		case <-w.triggerFetchC:
+			if w.triggerFetchHookFn != nil {
+				w.triggerFetchHookFn()
+			}
+
 			w.fetchAndSubmit()
 
 			// stop and drain timer

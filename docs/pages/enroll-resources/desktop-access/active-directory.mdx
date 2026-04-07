@@ -252,7 +252,7 @@ To configure the group policy object:
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
 
-   This command applies the GPO to the entire Active Director domain.
+   This command applies the GPO to the entire Active Directory domain.
    If you only want to protect a subset of computers in the domain, you can apply the GPO to
    a specific organizational unit (OU) that only includes those computers.
 

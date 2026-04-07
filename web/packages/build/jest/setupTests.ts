@@ -17,7 +17,6 @@
  */
 
 import 'whatwg-fetch';
-
 import crypto from 'node:crypto';
 import path from 'node:path';
 

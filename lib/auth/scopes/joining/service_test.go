@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -69,11 +70,9 @@ func TestScopedJoiningService(t *testing.T) {
 		service := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
@@ -179,66 +178,54 @@ func TestScopedJoiningService(t *testing.T) {
 		admin := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging": {
-						Roles: []string{"staging-admin"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
 			},
 		})
 
 		writer := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-create"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-create"}},
+				}),
 			},
 		})
 
 		reader := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-read"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-read"}},
+				}),
 			},
 		})
 
 		readerNoSecrets := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-readnosecrets"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-readnosecrets"}},
+				}),
 			},
 		})
 
 		deleter := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-delete"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-delete"}},
+				}),
 			},
 		})
 
 		updater := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
 				Scope: "/staging/aa",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/staging/aa": {
-						Roles: []string{"staging-upserter"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging/aa": {"/staging/aa": {"staging-upserter"}},
+				}),
 			},
 		})
 

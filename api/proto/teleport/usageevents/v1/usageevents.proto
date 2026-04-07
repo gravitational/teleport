@@ -619,6 +619,9 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
+  INTEGRATION_ENROLL_KIND_AWS_CLOUD = 30;
+  INTEGRATION_ENROLL_KIND_AZURE_CLOUD = 31;
+  INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD = 32;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -667,6 +670,9 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
+
+  // General integration setup steps.
+  INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -802,6 +808,9 @@ message ResourceCreateEvent {
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;
+  // discovery_config_name is the name of the DiscoveryConfig that triggered discovery.
+  // Empty for teleport.yaml matcher configuration.
+  string discovery_config_name = 5;
 }
 
 // DiscoveredDatabaseMetadata contains additional database information.

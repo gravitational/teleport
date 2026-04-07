@@ -589,14 +589,15 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 			return nil
 		}
 
+		loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed",
+			"ip", ip,
+			"error", err,
+			"stdout", string(stdout),
+			"stderr", string(stderr),
+		)
+
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
-			loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed after connecting",
-				"ip", ip,
-				"error", err,
-				"stdout", string(stdout),
-				"stderr", string(stderr),
-			)
 			return trace.Wrap(err)
 		}
 		errs = append(errs, err)

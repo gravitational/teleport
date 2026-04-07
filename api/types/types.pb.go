@@ -120,6 +120,10 @@ func (DatabaseTLSMode) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{1}
 }
 
+// UpdaterStatus indicates the status of automatic updates as determined by an
+// agent. 1: The updater status is okay. 2: Automatic updates appear disabled or
+// paused. 3: A specific version is pinned. 4: The agent failed to read its
+// update status.
 type UpdaterStatus int32
 
 const (
@@ -16173,7 +16177,7 @@ type LockTarget struct {
 	MFADevice string `protobuf:"bytes,5,opt,name=MFADevice,proto3" json:"mfa_device,omitempty"`
 	// WindowsDesktop specifies the name of a Windows desktop.
 	WindowsDesktop string `protobuf:"bytes,6,opt,name=WindowsDesktop,proto3" json:"windows_desktop,omitempty"`
-	// AccessRequest specifies the UUID of an access request.
+	// AccessRequest specifies the UUID of an Access Request.
 	AccessRequest string `protobuf:"bytes,7,opt,name=AccessRequest,proto3" json:"access_request,omitempty"`
 	// Device is the device ID of a trusted device.
 	// Requires Teleport Enterprise.

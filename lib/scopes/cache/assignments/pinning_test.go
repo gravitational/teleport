@@ -32,6 +32,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
 
 // TestPopulatePinnedAssignmentsForUser verifies the basic expected behavior of scope pin assignment population.
@@ -188,7 +189,7 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 		},
 	}
 
-	cache := NewAssignmentCache()
+	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name: assignment.GetMetadata().GetName(),
@@ -221,14 +222,10 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			ok: true,
 			expect: &scopesv1.Pin{
 				Scope: "/aa/bb",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/aa": {
-						Roles: []string{"role-01", "role-03"},
-					},
-					"/aa/bb": {
-						Roles: []string{"role-04"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":   {"/aa": {"role-01"}},
+					"/aa": {"/aa": {"role-03"}, "/aa/bb": {"role-04"}},
+				}),
 			},
 		},
 		{
@@ -240,20 +237,11 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			ok: true,
 			expect: &scopesv1.Pin{
 				Scope: "/",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/aa": {
-						Roles: []string{"role-01", "role-03"},
-					},
-					"/aa/bb": {
-						Roles: []string{"role-04", "role-05"},
-					},
-					"/aa/bb/cc": {
-						Roles: []string{"role-06"},
-					},
-					"/bb": {
-						Roles: []string{"role-02"},
-					},
-				},
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":      {"/aa": {"role-01"}, "/bb": {"role-02"}},
+					"/aa":    {"/aa": {"role-03"}, "/aa/bb": {"role-04"}},
+					"/aa/bb": {"/aa/bb": {"role-05"}, "/aa/bb/cc": {"role-06"}},
+				}),
 			},
 		},
 		{
@@ -280,4 +268,91 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			require.Empty(t, cmp.Diff(pin, tt.expect, protocmp.Transform()))
 		})
 	}
+}
+
+// TestAssignmentTreePruning verifies that the assignment cache actually prunes oversized assignment trees
+// as expected. See [pinning.PruneAssignmentTree] for detailed discussion of assignment tree pruning.
+func TestAssignmentTreePruning(t *testing.T) {
+	t.Parallel()
+
+	// set up a cache with a very small max tree size in order to verify pruning behavior
+	cache := NewAssignmentCache(AssignmentCacheConfig{
+		MaxAssignmentTreeBytes: 50,
+	})
+
+	// set up some initial assignments. pruning operates at the scope of origin level, so assignments
+	// must have a mix of resource scopes to provide a natural pruning boundary.
+	assignments := []*scopedaccessv1.ScopedRoleAssignment{
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "alice-root",
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: "alice",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "root-role", Scope: "/staging"},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "alice-staging",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: "alice",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "staging-role", Scope: "/staging"},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: &headerpb.Metadata{
+				Name: "alice-staging-west",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: "alice",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "west-role", Scope: "/staging/west"},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	for _, assignment := range assignments {
+		err := cache.Put(assignment)
+		require.NoError(t, err)
+	}
+
+	pin := &scopesv1.Pin{
+		Scope: "/staging/west",
+	}
+	err := cache.PopulatePinnedAssignmentsForUser(t.Context(), "alice", pin)
+	require.NoError(t, err)
+
+	// verify the tree was populated
+	require.NotNil(t, pin.AssignmentTree)
+
+	// verify the tree fits within the size limit
+	treeSize := proto.Size(pin.AssignmentTree)
+	require.LessOrEqual(t, treeSize, cache.cfg.MaxAssignmentTreeBytes,
+		"assignment tree should be pruned to fit within configured limit")
+
+	// verify that the pruned tree retained the most important assignment
+	expectedTree := map[string]map[string][]string{
+		"/": {
+			"/staging": {"root-role"},
+		},
+	}
+	actualTree := pinning.AssignmentTreeIntoMap(pin.AssignmentTree)
+	require.Equal(t, expectedTree, actualTree,
+		"pruning should preserve highest authority assignments (root level)")
 }

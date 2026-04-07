@@ -186,7 +186,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 		},
 	}
 
-	cache := NewAssignmentCache()
+	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name: assignment.GetMetadata().GetName(),
@@ -595,7 +595,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 	}
 
-	cache := NewAssignmentCache()
+	cache := NewAssignmentCache(AssignmentCacheConfig{})
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name: assignment.GetMetadata().GetName(),

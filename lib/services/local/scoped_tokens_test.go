@@ -658,7 +658,7 @@ func TestScopedTokenUpdate(t *testing.T) {
 				update.Spec.AssignedScope = "/notadescendant"
 			},
 			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
-				require.ErrorContains(t, err, "scoped token assigned scope must be descendant of its resource scope")
+				require.ErrorContains(t, err, "scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 			},
 		},
 	}

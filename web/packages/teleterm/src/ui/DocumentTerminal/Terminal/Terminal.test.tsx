@@ -17,7 +17,6 @@
  */
 
 import 'jest-canvas-mock';
-
 import { EventEmitter } from 'node:events';
 
 import { screen, waitFor } from '@testing-library/react';

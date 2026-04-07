@@ -865,6 +865,10 @@ message UpdaterV2Info {
   UpdaterStatus UpdaterStatus = 3;
 }
 
+// UpdaterStatus indicates the status of automatic updates as determined by an
+// agent. 1: The updater status is okay. 2: Automatic updates appear disabled or
+// paused. 3: A specific version is pinned. 4: The agent failed to read its
+// update status.
 enum UpdaterStatus {
   // UPDATER_STATUS_UNSPECIFIED is the zero value.
   UPDATER_STATUS_UNSPECIFIED = 0;
@@ -6391,7 +6395,7 @@ message LockTarget {
   // WindowsDesktop specifies the name of a Windows desktop.
   string WindowsDesktop = 6 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
 
-  // AccessRequest specifies the UUID of an access request.
+  // AccessRequest specifies the UUID of an Access Request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
 
   // Device is the device ID of a trusted device.

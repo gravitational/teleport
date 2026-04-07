@@ -21,14 +21,19 @@ package regular
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"os/user"
+	"runtime"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -56,9 +61,26 @@ func BenchmarkRootExecCommand(b *testing.B) {
 
 	for _, test := range cases {
 		b.Run(test.name, func(b *testing.B) {
-			var opts []ServerOption
+			if test.createUser && runtime.GOOS != constants.LinuxOS {
+				b.Skip("Skip benchmark with user creation on non-linux OS")
+			}
+
+			opts := []ServerOption{
+				// TODO(okraport): Disable child logs to reduce noise in benchmark results.
+				// Re-enable once we have a better way to benchmark with logging enabled.
+				func(s *Server) error {
+					s.childLogConfig = &srv.ChildLogConfig{
+						ExecLogConfig: srv.ExecLogConfig{
+							Level: &slog.LevelVar{},
+						},
+						Writer: io.Discard,
+					}
+					return nil
+				},
+			}
+
 			if test.createUser {
-				opts = []ServerOption{SetCreateHostUser(true)}
+				opts = append(opts, SetCreateHostUser(true))
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)

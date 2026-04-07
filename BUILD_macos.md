@@ -26,10 +26,6 @@ PRs with corrections and updates are welcome!
   brew install go
   ````
 
-* `Rust` and `Cargo` version from
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11)
-  (search for RUST_VERSION):
-
   * Follow [official instructions](https://www.rust-lang.org/tools/install) to install `rustup`
     * Or install with homebrew:
 
@@ -53,16 +49,6 @@ PRs with corrections and updates are welcome!
   # . ~/.zprofile
   #
   # or open a new shell
-  ```
-
-  * Install the required version
-
-  ```shell
-  rustup toolchain install <version from build.assets/versions.mk>
-  cd <teleport.git>
-  rustup override set <version from build.assets/versions.mk>
-  rustc --version
-  # rustc <version from build.assets/versions.mk>
   ```
 
 * To install `libfido2` (pulls `openssl 3` as dependency)

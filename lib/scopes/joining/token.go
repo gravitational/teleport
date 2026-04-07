@@ -122,8 +122,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err, "validating scoped token assigned scope")
 	}
 
-	if !scopes.ResourceScope(spec.AssignedScope).IsSubjectToPolicyScope(token.GetScope()) {
-		return trace.BadParameter("scoped token assigned scope must be descendant of its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.AssignedScope) {
+		return trace.BadParameter("scoped token assigned scope must be descendant of or equivalent to the token's resource scope")
 	}
 
 	if err := validateJoinMethod(token); err != nil {

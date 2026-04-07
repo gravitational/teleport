@@ -92,8 +92,8 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	// ControlMaster is often used by applications like Ansible.
 	if o.ControlPath != "" {
 		execArgs = append(execArgs, "-oControlMaster=auto")
-		execArgs = append(execArgs, "-oControlPersist=1s")
-		execArgs = append(execArgs, "-oConnectTimeout=2")
+		execArgs = append(execArgs, "-oControlPersist=0")
+		execArgs = append(execArgs, "-oConnectTimeout=10")
 		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
 	}
 

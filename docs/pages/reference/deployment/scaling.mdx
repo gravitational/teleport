@@ -17,9 +17,9 @@ Set up Teleport with a [High Availability configuration](../../zero-trust-access
 
 | Scenario                                                              | Max Recommended Count | Proxy Service         | Auth Service          | AWS Instance Types |
 |-----------------------------------------------------------------------|-----------------------|-----------------------|-----------------------|--------------------|
-| Teleport SSH Nodes connected to Auth Service                          | 10,000                | 2x  4 vCPUs, 8GB RAM  | 2x 8 vCPUs, 16GB RAM  | m4.2xlarge         |
-| Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m4.2xlarge         |
-| Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge         |
+| Teleport SSH Nodes connected to Auth Service                          | 10,000                | 2x  4 vCPUs, 8GB RAM  | 2x 8 vCPUs, 16GB RAM  | m8i.2xlarge        |
+| Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m8i.2xlarge        |
+| Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m8i.2xlarge        |
 
 ## Auth Service and Proxy Service Configuration
 

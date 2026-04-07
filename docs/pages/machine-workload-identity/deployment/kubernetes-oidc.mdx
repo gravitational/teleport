@@ -21,7 +21,7 @@ deployment. It writes output credentials to a Kubernetes secret, which can then
 be mounted in the pods that need to use the credentials. While `tbot` can also
 run as a sidecar within the same pod as the service that needs to use the
 credentials it generates, we recommend running `tbot` as a standalone deployment
-due the limited support Kubernetes has for sidecars.
+due to the limited support Kubernetes has for sidecars.
 
 In this guide, we demonstrate the `kubernetes` join method using its OIDC
 support, in which `tbot` proves its identity to the Teleport Auth Service by

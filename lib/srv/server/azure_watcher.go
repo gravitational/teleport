@@ -30,6 +30,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,43 +39,96 @@ const azureEventPrefix = "azure/"
 
 // AzureInstances contains information about discovered Azure virtual machines.
 type AzureInstances struct {
+	// DiscoveryConfigName is the name of discovery config.
+	DiscoveryConfigName string
+	// Integration is the optional name of the integration to use for auth.
+	Integration string
+
 	// Region is the Azure region where the instances are located.
 	Region string
 	// SubscriptionID is the subscription ID for the instances.
 	SubscriptionID string
 	// ResourceGroup is the resource group for the instances.
 	ResourceGroup string
+
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
-	// Integration is the optional name of the integration to use for auth.
-	Integration string
 }
 
 // MakeEvents generates MakeEvents for these instances.
-func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
-	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+
+	failed := map[string]struct{}{}
+	for _, failure := range failures {
+		id := azure.StringVal(failure.Instance.ID)
+		failed[id] = struct{}{}
+	}
+
+	expectedSize := len(instances.Instances) - len(failures)
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, expectedSize)
 	for _, inst := range instances.Instances {
-		events[azureEventPrefix+azure.StringVal(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAzure,
+		id := azure.StringVal(inst.ID)
+		// skip failed
+		if _, found := failed[id]; found {
+			continue
+		}
+		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudAzure,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events
 }
 
+// FilterExistingNodes removes instances matching existing nodes in place.
+func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
+	vmIDs := make(map[string]struct{})
+	for _, node := range existingNodes {
+		labels := node.GetAllLabels()
+		subscriptionID := labels[types.SubscriptionIDLabel]
+		if subscriptionID != instances.SubscriptionID {
+			continue
+		}
+		vmID := labels[types.VMIDLabel]
+		if vmID != "" {
+			vmIDs[vmID] = struct{}{}
+		}
+	}
+
+	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *armcompute.VirtualMachine) bool {
+		var vmID string
+		if instance.Properties != nil && instance.Properties.VMID != nil {
+			vmID = *instance.Properties.VMID
+		}
+		_, found := vmIDs[vmID]
+		return found
+	})
+}
+
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
 
+type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
+
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
+func MatchersToAzureInstanceFetchers(
+	ctx context.Context,
+	logger *slog.Logger,
+	matchers []types.AzureMatcher,
+	getClient azureClientGetter,
+	discoveryConfigName string,
+	listSubs listSubscriptionsFunc,
+) []Fetcher[*AzureInstances] {
 	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
+		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
@@ -90,6 +144,35 @@ func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.Azure
 		}
 	}
 	return ret
+}
+
+// expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
+// subscriptions and replaces the wildcard with the subscriptions list.
+func expandAzureMatcherSubscriptions(
+	ctx context.Context,
+	logger *slog.Logger,
+	subscriptions []string,
+	integration string,
+	listSubs listSubscriptionsFunc,
+) []string {
+	var out []string
+	for _, sub := range subscriptions {
+		if sub != types.Wildcard {
+			out = append(out, sub)
+			continue
+		}
+		subs, err := listSubs(ctx, integration)
+		if err != nil {
+			// TODO(gavin): make a user task
+			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
+				"integration", integration,
+				"error", err,
+			)
+			continue
+		}
+		out = append(out, subs...)
+	}
+	return utils.Deduplicate(out)
 }
 
 type azureFetcherConfig struct {
@@ -188,7 +271,8 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 			if err != nil {
 				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
 					"subscription_id", f.Subscription,
-					"vm_id", azure.StringVal(vm.ID),
+					"vm_id", azure.StringVal(vm.Properties.VMID),
+					"resource_id", azure.StringVal(vm.ID),
 					"error", err,
 				)
 				continue
@@ -211,12 +295,13 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	var instances []*AzureInstances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
 		instances = append(instances, &AzureInstances{
-			SubscriptionID:  f.Subscription,
-			Region:          batchGroup.location,
-			ResourceGroup:   batchGroup.resourceGroup,
-			Instances:       vms,
-			Integration:     f.Integration,
-			InstallerParams: f.InstallerParams,
+			SubscriptionID:      f.Subscription,
+			Region:              batchGroup.location,
+			ResourceGroup:       batchGroup.resourceGroup,
+			Instances:           vms,
+			Integration:         f.Integration,
+			InstallerParams:     f.InstallerParams,
+			DiscoveryConfigName: f.DiscoveryConfigName,
 		})
 	}
 

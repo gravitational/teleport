@@ -46,7 +46,8 @@ function writeInstallationId(filePath: string): string {
     fs.writeFileSync(filePath, newId);
   } catch (error) {
     throw new Error(
-      `Could not write installation_id to ${filePath}, ${error.message}`
+      `Could not write installation_id to ${filePath}, ${error.message}`,
+      { cause: error }
     );
   }
   return newId;

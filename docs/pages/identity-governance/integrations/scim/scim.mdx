@@ -23,7 +23,7 @@ policies.
 ## How it works
 
 The SCIM integration uses a 1:1 mapping between SCIM group and Teleport
-Access Lists
+Access Lists:
 
 - Each SCIM group `displayName` must match the `spec.title` of a Teleport
 Access List.
@@ -86,7 +86,7 @@ resource "teleport_access_list" "acl-group-requester" {
 </Admonition>
 
 
-## Step 2/3. Configure SCIM Integration
+## Step 2/3: Configure SCIM Integration
 Teleport provides a guided Web UI-based configuration flow for the SCIM integration.
 
 In the Teleport Web UI, go to **"Add new integration"** and select **SCIM**.
@@ -108,7 +108,7 @@ Click **Continue** to proceed to the **SCIM Credentials** screen.
 - Copy the **Client ID**, **Client Secret**, and **Base URL** — you'll use them
   when configuring your Identity Provider in the next step.
 
-## Step 3/3. Configure SCIM integration with your Identity Management SCIM provider
+## Step 3/3: Configure SCIM integration with your Identity Management SCIM provider
 
 SCIM configuration may differ depending on your IdP. The integration has been officially tested with the following providers:
 

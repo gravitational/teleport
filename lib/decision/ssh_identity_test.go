@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -46,11 +47,9 @@ func TestSSHIdentityConversion(t *testing.T) {
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"role1", "role2"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"role1", "role2"}},
+			}),
 		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
@@ -77,11 +76,28 @@ func TestSSHIdentityConversion(t *testing.T) {
 		BotName:       "bot",
 		BotInstanceID: "instance",
 		JoinToken:     "join-token",
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs: []types.ResourceID{{
 			ClusterName:     "cluster",
 			Kind:            types.KindKubePod, // must use a kube resource kind for parsing of sub-resource to work correctly
-			Name:            "name",
+			Name:            "name1",
 			SubResourceName: "sub/sub",
+		}},
+		AllowedResourceAccessIDs: []types.ResourceAccessID{{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
+				Name:            "name2",
+				SubResourceName: "sub/sub",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/TestRole"},
+					},
+				},
+			},
 		}},
 		ConnectionDiagnosticID: "diag",
 		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
@@ -109,6 +125,30 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"ResourceID.XXX_NoUnkeyedLiteral",
 		"ResourceID.XXX_unrecognized",
 		"ResourceID.XXX_sizecache",
+		"Pin.XXX_NoUnkeyedLiteral",
+		"Pin.XXX_unrecognized",
+		"Pin.XXX_sizecache",
+		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
+		"PinnedAssignments.XXX_NoUnkeyedLiteral",
+		"PinnedAssignments.XXX_unrecognized",
+		"PinnedAssignments.XXX_sizecache",
+		"AssignmentNode.XXX_NoUnkeyedLiteral",
+		"AssignmentNode.XXX_unrecognized",
+		"AssignmentNode.XXX_sizecache",
+		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.XXX_NoUnkeyedLiteral",
+		"RoleNode.XXX_unrecognized",
+		"RoleNode.XXX_sizecache",
+		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
+		"ResourceAccessID.XXX_NoUnkeyedLiteral",
+		"ResourceAccessID.XXX_unrecognized",
+		"ResourceAccessID.XXX_sizecache",
+		"ResourceConstraints.XXX_NoUnkeyedLiteral",
+		"ResourceConstraints.XXX_unrecognized",
+		"ResourceConstraints.XXX_sizecache",
+		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
+		"AWSConsoleResourceConstraints.XXX_unrecognized",
+		"AWSConsoleResourceConstraints.XXX_sizecache",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

@@ -28,7 +28,6 @@ import {
   H3,
   Indicator,
   Label,
-  LabelState,
   Text,
 } from 'design';
 import Table from 'design/DataTable';
@@ -38,8 +37,9 @@ import {
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
+  Key,
 } from 'design/Icon';
-import { LabelKind } from 'design/LabelState/LabelState';
+import { Status, StatusDot, StatusKind } from 'design/Status';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
 import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
@@ -49,9 +49,11 @@ import {
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
+  hasResourceConstraints,
   RequestKind,
   RequestState,
   Resource,
+  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
 import type {
@@ -62,7 +64,10 @@ import {
   getAssumeStartTimeTooltipText,
   PromotedMessage,
 } from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
+import {
+  formatAWSRoleARNForDisplay,
+  getFormattedDurationTxt,
+} from '../../Shared/utils';
 import { formattedName } from '../formattedName';
 import { RequestDelete } from './RequestDelete';
 import RequestReview from './RequestReview';
@@ -112,11 +117,11 @@ export function RequestView({
   }
 
   if (fetchRequestAttempt.status === 'error') {
-    return <Alert kind="danger" children={fetchRequestAttempt.statusText} />;
+    return <Alert kind="danger">{fetchRequestAttempt.statusText}</Alert>;
   }
 
   if (assumeRoleAttempt.status === 'error') {
-    return <Alert kind="danger" children={assumeRoleAttempt.statusText} />;
+    return <Alert kind="danger">{assumeRoleAttempt.statusText}</Alert>;
   }
 
   const request =
@@ -211,7 +216,6 @@ export function RequestView({
                   state={request.state}
                   mr={3}
                   px={3}
-                  py={1}
                   style={{ fontWeight: 'bold' }}
                 />
                 <H3>
@@ -449,6 +453,42 @@ export function Timestamp({
   );
 }
 
+const AWSConstraintChip = ({ label }: { label: string }) => {
+  return (
+    <Flex
+      flexDirection="row"
+      justifyContent="center"
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor={'spotBackground.0'}
+      borderRadius="999px"
+      title={label}
+    >
+      <Key size="small" />
+      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
+    </Flex>
+  );
+};
+
+const AwsConsoleConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'aws_console', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>Role ARNs</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.aws_console.role_arns.map(arn => (
+          <AWSConstraintChip key={arn} label={arn} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
 function Comment({
   author,
   comment,
@@ -460,6 +500,29 @@ function Comment({
   createdDuration: string;
   resources?: Resource[];
 }) {
+  const data = resources?.map(resource => ({
+    ...resource.id,
+    ...resource.details,
+    name: resource.details?.friendlyName || formattedName(resource),
+    constraints: resource.constraints,
+  }));
+
+  const renderConstraints = (r: NonNullable<typeof data>[number]) =>
+    hasResourceConstraints(r, 'aws_console') ? (
+      <AwsConsoleConstraintsList resource={r} />
+    ) : null;
+
+  const renderAfter = (r: NonNullable<typeof data>[number]) =>
+    r.constraints ? (
+      <tr style={{ borderTop: 'none' }} data-render-after-row>
+        <td colSpan={3}>
+          <Flex flexDirection="column" gap={1} mt={-2}>
+            {renderConstraints(r)}
+          </Flex>
+        </td>
+      </tr>
+    ) : null;
+
   return (
     <Box
       border="1px solid"
@@ -472,11 +535,11 @@ function Comment({
         <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated">
+        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
           {comment}
         </Box>
       )}
-      {resources?.length > 0 && (
+      {!!data?.length && (
         <Box
           pt={comment ? 0 : 3}
           pl={3}
@@ -488,11 +551,8 @@ function Comment({
           bg="levels.elevated"
         >
           <StyledTable
-            data={resources.map(resource => ({
-              ...resource.id,
-              ...resource.details,
-              name: resource.details?.friendlyName || formattedName(resource),
-            }))}
+            data={data}
+            row={{ renderAfter }}
             columns={[
               {
                 key: 'clusterName',
@@ -517,12 +577,7 @@ function Comment({
 
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
-    let kind: LabelKind = 'warning';
-    if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
-      kind = 'success';
-    } else if (reviewer.state === 'DENIED') {
-      kind = 'danger';
-    }
+    let dotKind: StatusKind = stateToStatusKind(reviewer.state);
 
     return (
       <Flex
@@ -551,15 +606,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         >
           {reviewer.name}
         </Text>
-        <LabelState
-          kind={kind}
-          width="10px"
-          p={0}
-          style={{
-            minHeight: '10px',
-            minWidth: '10px',
-          }}
-        />
+        <StatusDot kind={dotKind} />
       </Flex>
     );
   });
@@ -599,29 +646,33 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   );
 }
 
-function StateLabel(props: { state: RequestState; [key: string]: any }) {
-  const { state, ...styles } = props;
+function stateToStatusKind(state: RequestState): StatusKind {
   switch (state) {
     case 'APPROVED':
     case 'PROMOTED':
-      return (
-        <LabelState kind="success" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'success';
     case 'DENIED':
-      return (
-        <LabelState kind="danger" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'danger';
+    case 'NONE':
     case 'PENDING':
-      return (
-        <LabelState kind="warning" {...styles}>
-          {state}
-        </LabelState>
-      );
+    case 'APPLIED':
+    case '':
+      return 'warning';
+    default:
+      state satisfies never;
+      return 'warning';
   }
+}
+
+function StateLabel(props: { state: RequestState; [key: string]: any }) {
+  const { state, ...styles } = props;
+  let kind: StatusKind = stateToStatusKind(state);
+
+  return (
+    <Status kind={kind} variant="filled" icon={false} {...styles}>
+      {state}
+    </Status>
+  );
 }
 
 function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
@@ -684,6 +735,16 @@ const StyledTable = styled(Table)`
 
   & > tbody > tr > td {
     vertical-align: middle;
+  }
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
   }
 ` as typeof Table;
 

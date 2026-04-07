@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import {
   Box,
@@ -25,6 +25,7 @@ import {
   Flex,
   H2,
   Indicator,
+  P2,
   StepSlider,
   Text,
 } from 'design';
@@ -54,6 +55,58 @@ export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
 export const ClusterLoginPresentation = (
   props: ClusterLoginPresentationProps
 ) => {
+  const [motdAcknowledged, setMotdAcknowledged] = useState(false);
+  const showMotd =
+    props.initAttempt.status === 'success' &&
+    !!props.initAttempt.data.messageOfTheDay &&
+    !motdAcknowledged;
+
+  if (
+    props.initAttempt.status === '' ||
+    props.initAttempt.status === 'processing'
+  ) {
+    return (
+      <>
+        <LoginHeader cluster={props.title} onClose={props.onCloseDialog} />
+        <Box px={outermostPadding} textAlign="center">
+          <Indicator delay="none" />
+        </Box>
+      </>
+    );
+  }
+
+  if (props.initAttempt.status === 'error') {
+    return (
+      <>
+        <LoginHeader cluster={props.title} onClose={props.onCloseDialog} />
+        <Flex px={outermostPadding} flexDirection="column" gap={3}>
+          <Alerts.Danger
+            details={props.initAttempt.statusText}
+            margin={0}
+            width="100%"
+          >
+            Unable to retrieve cluster auth preferences
+          </Alerts.Danger>
+          <ButtonPrimary autoFocus={true} size="large" onClick={props.init}>
+            Retry
+          </ButtonPrimary>
+        </Flex>
+      </>
+    );
+  }
+
+  if (showMotd) {
+    return (
+      <>
+        <LoginHeader cluster={props.title} onClose={props.onCloseDialog} />
+        <MessageOfTheDay
+          message={props.initAttempt.data.messageOfTheDay}
+          onAcknowledge={() => setMotdAcknowledged(true)}
+        />
+      </>
+    );
+  }
+
   return (
     <StepSlider
       flows={loginViews}
@@ -63,6 +116,7 @@ export const ClusterLoginPresentation = (
         // Instead, the entire dialog should be scrollable.
         flex-shrink: 0;
       `}
+      authSettings={props.initAttempt.data}
       {...props}
     />
   );
@@ -72,10 +126,15 @@ export type ClusterLoginPresentationProps = State & {
   reason: ClusterConnectReason;
 };
 
+export type ClusterLoginFormProps = Omit<State, 'initAttempt' | 'init'> &
+  StepComponentProps & {
+    reason: ClusterConnectReason;
+    authSettings: AuthSettings;
+  };
+
 function ClusterLoginForm({
   title,
-  initAttempt,
-  init,
+  authSettings,
   loginAttempt,
   clearLoginAttempt,
   onLoginWithLocal,
@@ -98,71 +157,39 @@ function ClusterLoginForm({
   quitAndInstallAppUpdate,
   downloadAppUpdate,
   checkForAppUpdates,
-}: ClusterLoginPresentationProps & StepComponentProps) {
+}: ClusterLoginFormProps) {
   return (
     <Flex ref={refCallback} flexDirection="column">
-      <DialogHeader px={outermostPadding}>
-        <H2>
-          Log in to <b>{title}</b>
-        </H2>
-        <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
-          <Icons.Cross size="medium" />
-        </ButtonIcon>
-      </DialogHeader>
+      <LoginHeader cluster={title} onClose={onCloseDialog} />
       <DialogContent mb={0} gap={2}>
         {reason && (
           <Box px={outermostPadding}>
             <Reason reason={reason} />
           </Box>
         )}
-
-        {initAttempt.status === 'error' && (
-          <Flex
-            px={outermostPadding}
-            flexDirection="column"
-            alignItems="flex-start"
-            gap={3}
-          >
-            <Alerts.Danger
-              details={initAttempt.statusText}
-              margin={0}
-              width="100%"
-            >
-              Unable to retrieve cluster auth preferences
-            </Alerts.Danger>
-            <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
-          </Flex>
-        )}
-        {initAttempt.status === 'processing' && (
-          <Box px={outermostPadding} textAlign="center">
-            <Indicator delay="none" />
-          </Box>
-        )}
-        {initAttempt.status === 'success' && (
-          <LoginForm
-            authSettings={initAttempt.data}
-            primaryAuthType={getPrimaryAuthType(initAttempt.data)}
-            loggedInUserName={loggedInUserName}
-            onLoginWithSso={onLoginWithSso}
-            onLoginWithPasswordless={onLoginWithPasswordless}
-            onLogin={onLoginWithLocal}
-            onAbort={onAbort}
-            loginAttempt={loginAttempt}
-            clearLoginAttempt={clearLoginAttempt}
-            ssoPrompt={ssoPrompt}
-            passwordlessLoginState={passwordlessLoginState}
-            shouldSkipVersionCheck={shouldSkipVersionCheck}
-            disableVersionCheck={disableVersionCheck}
-            platform={platform}
-            checkForAppUpdates={checkForAppUpdates}
-            changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
-            appUpdateEvent={appUpdateEvent}
-            cancelAppUpdateDownload={cancelAppUpdateDownload}
-            downloadAppUpdate={downloadAppUpdate}
-            quitAndInstallAppUpdate={quitAndInstallAppUpdate}
-            switchToAppUpdateDetails={next}
-          />
-        )}
+        <LoginForm
+          authSettings={authSettings}
+          primaryAuthType={getPrimaryAuthType(authSettings)}
+          loggedInUserName={loggedInUserName}
+          onLoginWithSso={onLoginWithSso}
+          onLoginWithPasswordless={onLoginWithPasswordless}
+          onLogin={onLoginWithLocal}
+          onAbort={onAbort}
+          loginAttempt={loginAttempt}
+          clearLoginAttempt={clearLoginAttempt}
+          ssoPrompt={ssoPrompt}
+          passwordlessLoginState={passwordlessLoginState}
+          shouldSkipVersionCheck={shouldSkipVersionCheck}
+          disableVersionCheck={disableVersionCheck}
+          platform={platform}
+          checkForAppUpdates={checkForAppUpdates}
+          changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
+          appUpdateEvent={appUpdateEvent}
+          cancelAppUpdateDownload={cancelAppUpdateDownload}
+          downloadAppUpdate={downloadAppUpdate}
+          quitAndInstallAppUpdate={quitAndInstallAppUpdate}
+          switchToAppUpdateDetails={next}
+        />
       </DialogContent>
     </Flex>
   );
@@ -265,3 +292,37 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
     }
   }
 };
+
+function LoginHeader(props: { cluster: string; onClose(): void }) {
+  return (
+    <DialogHeader px={outermostPadding}>
+      <H2>
+        Log in to <b>{props.cluster}</b>
+      </H2>
+      <ButtonIcon ml="auto" p={3} onClick={props.onClose} aria-label="Close">
+        <Icons.Cross size="medium" />
+      </ButtonIcon>
+    </DialogHeader>
+  );
+}
+
+function MessageOfTheDay(props: { message: string; onAcknowledge(): void }) {
+  return (
+    <>
+      {/* Make the internal container scrollable, so that the acknowledge button is always visible. */}
+      <Box mb={3} maxHeight="400px" overflow="auto">
+        <P2 whiteSpace="pre-wrap" px={outermostPadding}>
+          {props.message}
+        </P2>
+      </Box>
+      <ButtonPrimary
+        size="large"
+        mx={outermostPadding}
+        autoFocus
+        onClick={props.onAcknowledge}
+      >
+        Acknowledge
+      </ButtonPrimary>
+    </>
+  );
+}

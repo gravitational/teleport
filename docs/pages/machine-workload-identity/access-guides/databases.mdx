@@ -84,7 +84,7 @@ $ tctl bots update example --add-roles example-role
 
 This rule will allow the bot to do two things:
 
-- Access the database `example` on any database server (due to the `'*': '*'`
+- Access the database `example-db` on any database server (due to the `'*': '*'`
   label selector) as the user `alice`.
 - Discover information about database resources in Teleport.
 
@@ -142,7 +142,7 @@ services:
     path: /opt/machine-id
   # Specify the details of the database you wish to connect to.
   service: example-server
-  database: example
+  database: example-db
   username: alice
   # Specify a format to use for the output credentials. For most databases,
   # this configuration field can be omitted.
@@ -150,8 +150,7 @@ services:
 ```
 
 If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to execute the Ansible
-playbook.
+one-shot mode, it must be executed before you attempt to access the database.
 
 ## Step 3/4. Configure the local database access proxy
 

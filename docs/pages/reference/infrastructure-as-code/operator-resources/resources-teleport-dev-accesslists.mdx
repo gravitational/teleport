@@ -61,21 +61,42 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
-|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+|traits|[object](#specgrantstraits)|traits are the traits that are granted to users who are members of the Access List.|
+
+### spec.grants.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.membership_requires
 
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the user roles that must be present for the user to obtain access.|
-|traits|object|traits are the traits that must be present for the user to obtain access.|
+|traits|[object](#specmembership_requirestraits)|traits are the traits that must be present for the user to obtain access.|
+
+### spec.membership_requires.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.owner_grants
 
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
-|traits|object|traits are the traits that are granted to users who are members of the Access List.|
+|traits|[object](#specowner_grantstraits)|traits are the traits that are granted to users who are members of the Access List.|
+
+### spec.owner_grants.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.owners items
 
@@ -91,5 +112,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |roles|[]string|roles are the user roles that must be present for the user to obtain access.|
-|traits|object|traits are the traits that must be present for the user to obtain access.|
+|traits|[object](#specownership_requirestraits)|traits are the traits that must be present for the user to obtain access.|
+
+### spec.ownership_requires.traits
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 

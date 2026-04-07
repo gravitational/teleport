@@ -36,6 +36,9 @@ cpu: Intel(R) Xeon(R) CPU @ 2.80GHz
 BenchmarkStore-4               3         480249642 ns/op
 */
 func BenchmarkStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const insertions = 100_000
 	const uniqueServers = 10_000
 	const readMod = 100

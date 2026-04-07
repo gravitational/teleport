@@ -184,22 +184,29 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 		Path:   path.Join("webapi", "find"),
 	}
 
+	orExitWithMessageScriptSnippet := func(exitCode installstatus.ExitCode, message string) string {
+		return fmt.Sprintf(`|| { echo "%s"; exit %d; }`, message, exitCode)
+	}
+
 	return map[installstatus.ExitCode]string{
 		// Basic command checks for bash, sudo and curl.
-		installstatus.BashNotFound: fmt.Sprintf(`command -v bash > /dev/null 2>&1 || exit %d`, installstatus.BashNotFound),
-		installstatus.SudoNotFound: fmt.Sprintf(`command -v sudo > /dev/null 2>&1 || exit %d`, installstatus.SudoNotFound),
-		installstatus.CurlNotFound: fmt.Sprintf(`command -v curl > /dev/null 2>&1 || exit %d`, installstatus.CurlNotFound),
+		installstatus.BashNotFound: fmt.Sprintf(`command -v bash > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.BashNotFound, "bash is missing")),
+		installstatus.SudoNotFound: fmt.Sprintf(`command -v sudo > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.SudoNotFound, "sudo is missing")),
+		installstatus.CurlNotFound: fmt.Sprintf(`command -v curl > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.CurlNotFound, "curl is missing")),
 
 		// check if there's enough disk space for the installation
 		// df -Pm outputs disk usage in megabytes; awk selects the data row (NR==2) and
 		// exits non-zero if the available column ($4) is below the required threshold.
 		// Falls back to checking "/" if "/opt" does not exist.
-		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' || exit %d`, installstatus.InstallerMinFreeDiskMB, installstatus.InsufficientDiskSpace),
+		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' %s`,
+			installstatus.InstallerMinFreeDiskMB,
+			orExitWithMessageScriptSnippet(installstatus.InsufficientDiskSpace, "insufficient disk space"),
+		),
 
 		// check if network connection to the proxy is available
-		installstatus.ProxyPingError: fmt.Sprintf(`curl --silent --max-time 10 --output /dev/null %s || exit %d`,
+		installstatus.ProxyPingError: fmt.Sprintf(`curl --silent --max-time 10 --output /dev/null %s %s`,
 			shsprintf.EscapeDefaultContext(proxyFindURL.String()),
-			installstatus.ProxyPingError,
+			orExitWithMessageScriptSnippet(installstatus.ProxyPingError, "proxy is unreachable"),
 		),
 	}
 }

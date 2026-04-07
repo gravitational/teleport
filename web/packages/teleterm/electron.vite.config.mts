@@ -91,6 +91,7 @@ const config = defineConfig(env => {
       },
     },
     renderer: {
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       root: '.',
       build: {
         outDir: path.resolve(outputDirectory, 'renderer'),
@@ -111,6 +112,18 @@ const config = defineConfig(env => {
         reactPlugin(env.mode),
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
+        {
+          // The IronRDP wasm module is embedded into the renderer app earlier in the build.
+          // Exclude it here, otherwise rollup still emits it as a static asset by default.
+          name: 'drop-wasm-assets',
+          generateBundle(_, bundle) {
+            for (const file of Object.keys(bundle)) {
+              if (file.endsWith('.wasm')) {
+                delete bundle[file];
+              }
+            }
+          },
+        },
       ],
       define: {
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),

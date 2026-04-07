@@ -241,7 +241,8 @@ function AgentSetup() {
                 !error.isResolvableWithRelogin
               ) {
                 throw new Error(
-                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`
+                  `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`,
+                  { cause: error }
                 );
               }
               throw error;

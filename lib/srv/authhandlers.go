@@ -286,12 +286,10 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return nil
 	}
 
-	if ctx.Identity.ProxyingPermit != nil && h.c.Component == teleport.ComponentProxy {
-		// we are a proxy and not the access-controlling boundary. allow agent forwarding
-		// in order to ensure that session recording functions correctly. Note that it is
-		// the ForwardingNode component that actually does session recording, but the
-		// proxy component is the one that wants agent forwarding enabled in order to set up the
-		// prerequisite conditions for recording.
+	if ctx.Identity.ProxyingPermit != nil &&
+		(h.c.Component == teleport.ComponentProxy || h.c.Component == teleport.ComponentForwardingNode) {
+		// We are in the proxying path and not the access-controlling boundary.
+		// Allow agent forwarding requests to pass through to the enforcing node.
 		return nil
 	}
 
@@ -817,6 +815,7 @@ type proxyingPermit struct {
 	DisconnectExpiredCert time.Time
 	MappedRoles           []string
 	SessionRecordingMode  constants.SessionRecordingMode
+	PinSourceIP           bool
 }
 
 func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
@@ -863,6 +862,7 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 		MappedRoles:           accessInfo.Roles,
 		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
+		PinSourceIP:           accessChecker.PinSourceIP(),
 	}, nil
 }
 
@@ -1021,7 +1021,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		hostUsersInfo = nil
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          checker.Common().CheckAgentForward(osUser) == nil,
 		X11Forwarding:         checker.Common().PermitX11Forwarding(),
 		MaxConnections:        checker.Common().MaxConnections(),
@@ -1038,7 +1038,15 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
-	}, nil
+	}
+
+	if checker.Common().PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // evaluateSSHAccess checks the given certificate (supplied by a connected
@@ -1129,7 +1137,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		hostUsersInfo = nil
 	}
 
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
@@ -1146,7 +1154,15 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
-	}, nil
+	}
+
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)

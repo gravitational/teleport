@@ -104,7 +104,12 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 
 // getRawMetadata gets the raw metadata from a specified path.
 func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string, queryParams url.Values) ([]byte, error) {
-	httpClient, err := defaults.HTTPClient()
+	// From Azure Docs at https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=windows#proxies
+	//
+	// > IMDS is not intended to be used behind a proxy and doing so is unsupported.
+	// > Most HTTP clients provide an option for you to disable proxies on your requests, and this functionality must be utilized when communicating with IMDS.
+	// > Consult your client's documentation for details.
+	httpClient, err := defaults.HTTPClient(defaults.DisableProxyFromEnvironment())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

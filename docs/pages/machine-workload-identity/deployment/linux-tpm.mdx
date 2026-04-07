@@ -111,7 +111,7 @@ spec:
 
   # bot_name specifies the name of the bot that this token will grant access to
   # when it is used.
-  bot_name: my-bot
+  bot_name: example
 
   # tpm specifies the TPM join method specific configuration for this token.
   tpm:
@@ -131,7 +131,7 @@ spec:
     allow:
         # description is a human-readable description of the rule. It has no
         # bearing on whether a TPM is allowed to join, but can be used to
-        # associate a rule with a specific host (e.g the asset tag of the server
+        # associate a rule with a specific host (e.g. the asset tag of the server
         # in which the TPM resides).
       - description: "example-server-100"
         # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format
@@ -146,7 +146,7 @@ replace the `ekcert_allowed_cas` section with the PEM wrapped CA certificate.
 Otherwise, remove this section.
 
 If you have multiple hosts that you wish to authenticate as the same Bot, you
-can add additional rules the `allow` list, one for each host.
+can add additional rules to the `allow` list, one for each host.
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -208,7 +208,7 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
 your environment.
 - Read the [TPM joining reference](../../reference/deployment/join-methods.mdx#trusted-platform-module-tpm)
-to learn more about `tpm`joining.
+to learn more about `tpm` joining.
 - Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
 all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)

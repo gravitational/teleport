@@ -172,7 +172,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 			attributeTerraformAddress: {
 				Type:        types.StringType,
 				Optional:    true,
-				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
+				Description: fmt.Sprintf("host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 3080) or the Teleport Auth Service address (port 3025). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformAddress),
 			},
 			attributeTerraformCertificates: {
 				Type:        types.StringType,
@@ -537,10 +537,12 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
+		"teleport_lock":                       resourceTeleportLockType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
 		"teleport_role":                       resourceTeleportRoleType{},
 		"teleport_saml_connector":             resourceTeleportSAMLConnectorType{},
+		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
 		"teleport_user":                       resourceTeleportUserType{},
@@ -562,6 +564,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
 	}, nil
 }
 
@@ -576,10 +579,12 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
+		"teleport_lock":                       dataSourceTeleportLockType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
 		"teleport_role":                       dataSourceTeleportRoleType{},
 		"teleport_saml_connector":             dataSourceTeleportSAMLConnectorType{},
+		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   dataSourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            dataSourceTeleportTrustedClusterType{},
 		"teleport_user":                       dataSourceTeleportUserType{},
@@ -596,6 +601,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                dataSourceTeleportIntegrationType{},
+		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting

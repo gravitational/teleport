@@ -30,6 +30,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
 import {
+  INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
   IntegrationStatusCode,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
@@ -231,7 +232,10 @@ function isSummarySyncing(summary: IntegrationWithSummary): boolean {
     getTimestamp(summary.rolesAnywhereProfileSync?.syncEndTime)
   );
 
-  return lastSync === 0;
+  return (
+    lastSync === 0 ||
+    Date.now() >= lastSync + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS
+  );
 }
 
 function getTimestamp(value: unknown): number {

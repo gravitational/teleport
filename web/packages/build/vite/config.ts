@@ -21,7 +21,7 @@ import { resolve } from 'path';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type UserConfig } from 'vite';
-import compression from 'vite-plugin-compression';
+import { compression } from 'vite-plugin-compression2';
 import wasm from 'vite-plugin-wasm';
 
 import { generateAppHashFile } from './apphash';
@@ -88,6 +88,7 @@ export function createViteConfig(
         generateAppHashFile(outputDirectory, ENTRY_FILE_NAME),
         wasm(),
       ],
+      assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
@@ -103,11 +104,11 @@ export function createViteConfig(
       if (!process.env.VITE_DISABLE_COMPRESSION) {
         config.plugins.push(
           compression({
-            algorithm: 'brotliCompress',
-            deleteOriginFile: true,
-            filter: /\.(js|svg|wasm)$/,
+            algorithms: ['brotliCompress'],
+            deleteOriginalAssets: true,
+            include: /\.(js|svg|wasm)$/,
             threshold: 1024 * 10, // 10KB
-            verbose: false,
+            logLevel: 'silent',
           })
         );
       }

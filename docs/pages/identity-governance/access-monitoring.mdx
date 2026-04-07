@@ -94,7 +94,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
       ],
       "Effect": "Allow",
       "Resource": [
-        "arn:aws:s3::::audit-transient/results/*",
+        "arn:aws:s3:::audit-transient/results/*",
         "arn:aws:s3:::audit-long-term/report_results/*"
       ]
     },
@@ -319,7 +319,7 @@ The report allows to identify the following weak security events:
 ### Database sessions with weak security
 
 The following query identifies database sessions with weak security
-such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -351,7 +351,7 @@ ORDER BY
 ### SSH sessions with weak security
 
 The following query identifies SSH sessions with weak security,
-such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT

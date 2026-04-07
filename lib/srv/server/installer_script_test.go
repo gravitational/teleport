@@ -31,11 +31,11 @@ import (
 // installerScriptChecksFor returns the expected shell checks prefix for a given proxy address.
 // It mirrors the logic in installerScriptChecks so that tests stay in sync with the implementation.
 func installerScriptChecksFor(proxyAddr string) string {
-	return `command -v bash > /dev/null 2>&1 || exit 100` +
-		`; command -v sudo > /dev/null 2>&1 || exit 101` +
-		`; command -v curl > /dev/null 2>&1 || exit 102` +
-		`; df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<1250)}' || exit 103` +
-		`; curl --silent --max-time 10 --output /dev/null https://` + proxyAddr + `/webapi/find || exit 104` +
+	return `command -v bash > /dev/null 2>&1 || { echo "bash is missing"; exit 100; }` +
+		`; command -v sudo > /dev/null 2>&1 || { echo "sudo is missing"; exit 101; }` +
+		`; command -v curl > /dev/null 2>&1 || { echo "curl is missing"; exit 102; }` +
+		`; df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<1250)}' || { echo "insufficient disk space"; exit 103; }` +
+		`; curl --silent --max-time 10 --output /dev/null https://` + proxyAddr + `/webapi/find || { echo "proxy is unreachable"; exit 104; }` +
 		`; `
 }
 

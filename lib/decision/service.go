@@ -249,6 +249,12 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		HostUsersInfo:         hostUsersInfo,
 	}
 
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
 	return &decisionpb.EvaluateSSHAccessResponse{
 		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
 			Permit: permit,
