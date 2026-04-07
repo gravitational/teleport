@@ -293,13 +293,13 @@ func Test_session_trackSession(t *testing.T) {
 				podNamespace:    "podNamespace",
 				accessEvaluator: moderation.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
 				ctx: authContext{
-					Context: authz.Context{
+					ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "username",
 							},
 						},
-					},
+					}),
 					teleportCluster: teleportClusterClient{
 						name: "name",
 					},
