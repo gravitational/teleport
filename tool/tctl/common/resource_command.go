@@ -3870,7 +3870,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if !rc.withSecrets {
+			if !rc.withSecrets && token.GetStatus().GetSecret() != "" {
 				token.GetStatus().Secret = "******"
 			}
 			return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
@@ -3887,7 +3887,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 			if !rc.withSecrets {
 				for _, token := range res.GetTokens() {
-					token.GetStatus().Secret = "******"
+					if token.GetStatus().GetSecret() != "" {
+						token.GetStatus().Secret = "******"
+					}
 				}
 			}
 
