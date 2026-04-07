@@ -753,6 +753,8 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 			)
 
 			return nil, "", trace.Wrap(err, "loading bound keypair registration secret")
+		} else if registrationSecret == "" {
+			return nil, "", trace.BadParameter("no existing bound keypair credentials and no registration secret configured")
 		}
 
 		process.logger.InfoContext(
