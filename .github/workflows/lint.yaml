@@ -41,7 +41,7 @@ jobs:
               - 'build.assets/Dockerfile*'
               - 'Makefile'
               - '.golangci.yml'
-              - '.golangci-nostructfieldassign.yml'
+              - '.golangci-custom-plugins.yml'
               - '.custom-gcl.yml'
               - 'build.assets/tools/linters/nostructfieldassign/**'
             has_rust:
