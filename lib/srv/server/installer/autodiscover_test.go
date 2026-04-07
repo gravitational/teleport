@@ -1328,7 +1328,7 @@ func TestCheckJoinHealth(t *testing.T) {
 			errC <- inst.checkJoinHealth(context.Background())
 		}()
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		// Immediate check (not ready). Timer created → advance.
