@@ -1,5 +1,9 @@
 # Changelog
 
+## 17.7.22 (04/06/26)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
 ## 17.7.21 (03/10/26)
 
 This is a private security release. Changelog will be publicly announced in a later version.
