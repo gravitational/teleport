@@ -406,6 +406,17 @@ message UIAccessListDefineOwnersEvent {
 }
 ```
 
+To track how often the old way of creating an access list is used:
+
+```proto
+// UIAccessListCustomEvent is emitted when an access list was successfully
+// created or errored, the old way.
+message UIAccessListCustomEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+```
+
 To track how long the method took:
 
 ```proto
@@ -450,14 +461,15 @@ message UIAccessListIntegrateEvent {
 
 ##### List of event names with common event properties
 
-| Event                                 | Description                                           |
-| :------------------------------------ | :---------------------------------------------------- |
-| `tp.ui.access_list.start`             | Emitted when the wizard (or old method) is started    |
-| `tp.ui.access_list.define.access`     | Emitted when user is done with define access step     |
-| `tp.ui.access_list.define.identities` | Emitted when user is done with define identities step |
-| `tp.ui.access_list.define.basicinfo`  | Emitted when user is done with basic info step        |
-| `tp.ui.access_list.define.members`    | Emitted when user is done with define members step    |
-| `tp.ui.access_list.define.owners`     | Emitted when user is done with define owners step     |
+| Event                                 | Description                                                    |
+| :------------------------------------ | :------------------------------------------------------------- |
+| `tp.ui.access_list.start`             | Emitted when the wizard (or old method) is started             |
+| `tp.ui.access_list.define.access`     | Emitted when user is done with define access step              |
+| `tp.ui.access_list.define.identities` | Emitted when user is done with define identities step          |
+| `tp.ui.access_list.define.basicinfo`  | Emitted when user is done with basic info step                 |
+| `tp.ui.access_list.define.members`    | Emitted when user is done with define members step             |
+| `tp.ui.access_list.define.owners`     | Emitted when user is done with define owners step              |
+| `tp.ui.access_list.custom`            | Emitted when an access list is created (or failed) the old way |
 
 Properties:
 
@@ -466,7 +478,7 @@ Properties:
 - tp.access_list.step.status
 - tp.access_list.step.error
 
-Note: To determine use of the old creation method, the tp.access_list.metadata.preset will be unspecified.
+Note: To determine use of the old creation method for the start and complete events, the tp.access_list.metadata.preset will be `unspecified`.
 
 ##### tp.ui.access_list.complete
 
