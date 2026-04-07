@@ -310,9 +310,7 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 			name: "true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					FileCopy: &scopedaccessv1.SSHFileCopy{
-						Enabled: boolPtr(true),
-					},
+					FileCopy: boolPtr(true),
 				},
 			},
 			expect: true,
@@ -321,23 +319,10 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 			name: "false",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					FileCopy: &scopedaccessv1.SSHFileCopy{
-						Enabled: boolPtr(false),
-					},
+					FileCopy: boolPtr(false),
 				},
 			},
 			expect: false,
-		},
-		{
-			name: "enabled nil (unset) defaults to true",
-			spec: &scopedaccessv1.ScopedRoleSpec{
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					FileCopy: &scopedaccessv1.SSHFileCopy{
-						Enabled: nil,
-					},
-				},
-			},
-			expect: true,
 		},
 	}
 

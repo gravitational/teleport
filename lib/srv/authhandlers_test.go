@@ -1629,16 +1629,10 @@ func TestScopedSSHFileCopy(t *testing.T) {
 	const copyUnset = "copy-unset"
 
 	enabled := baseScopedRoleForAuthz(copyEnabled)
-	enabled.Spec.Ssh.SshFileCopy = &scopedaccessv1.SSHFileCopy{
-		Download: proto.Bool(true),
-		Upload:   proto.Bool(true),
-	}
+	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
 
 	disabled := baseScopedRoleForAuthz(copyDisabled)
-	disabled.Spec.Ssh.SshFileCopy = &scopedaccessv1.SSHFileCopy{
-		Download: proto.Bool(false),
-		Upload:   proto.Bool(false),
-	}
+	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
 
 	unset := baseScopedRoleForAuthz(copyUnset)
 
@@ -1669,19 +1663,19 @@ func TestScopedSSHPortForwarding(t *testing.T) {
 	const pfUnset = "pf-unset"
 
 	bothOn := baseScopedRoleForAuthz(pfBothOn)
-	bothOn.Spec.Ssh.SshPortForwarding = &scopedaccessv1.SSHPortForwarding{
+	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
 		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
 		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
 	}
 
 	bothOff := baseScopedRoleForAuthz(pfBothOff)
-	bothOff.Spec.Ssh.SshPortForwarding = &scopedaccessv1.SSHPortForwarding{
+	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
 		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
 		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
 	}
 
 	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
-	localOnly.Spec.Ssh.SshPortForwarding = &scopedaccessv1.SSHPortForwarding{
+	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
 		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
 		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
 	}
@@ -1748,15 +1742,14 @@ func TestScopedHostUserCreation(t *testing.T) {
 
 	keep := baseScopedRoleForAuthz(hostUserKeep)
 	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
-		CreateHostUserMode: "keep",
-		Sudoers:            []string{"ALL=(ALL) NOPASSWD:ALL"},
-		Groups:             []string{"wheel"},
-		Shell:              "/bin/bash",
+		Mode:   "keep",
+		Groups: []string{"wheel"},
+		Shell:  "/bin/bash",
 	}
 
 	off := baseScopedRoleForAuthz(hostUserOff)
 	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
-		CreateHostUserMode: "off",
+		Mode: "off",
 	}
 
 	unset := baseScopedRoleForAuthz(hostUserUnset)
@@ -1781,6 +1774,34 @@ func TestScopedHostUserCreation(t *testing.T) {
 			} else {
 				require.NotNil(t, permit.HostUsersInfo)
 			}
+		})
+	}
+}
+
+func TestHostSudoers(t *testing.T) {
+	const sudoersPresent = "sudoers-present"
+	const sudoersUnset = "sudoers-unset"
+
+	present := baseScopedRoleForAuthz(sudoersPresent)
+	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
+	present.Spec.Ssh.HostSudoers = expectedSudoers
+	unset := baseScopedRoleForAuthz(sudoersUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect []string
+	}{
+		{"enabled", pinForRole(sudoersPresent), expectedSudoers},
+		{"unset defaults to false", pinForRole(sudoersUnset), nil},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.HostSudoers)
 		})
 	}
 }

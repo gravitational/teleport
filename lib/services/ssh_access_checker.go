@@ -272,10 +272,10 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
 
-	fileCopy := c.checker.role.GetSpec().GetSsh().GetFileCopy()
-	if fileCopy == nil {
+	fileCopy := c.checker.role.GetSpec().GetSsh()
+	if fileCopy.FileCopy == nil {
 		return true
 	}
-	return fileCopy.GetEnabled()
+	return fileCopy.GetFileCopy()
 
 }

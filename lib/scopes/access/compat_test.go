@@ -318,9 +318,7 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 
 	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.FileCopy = &scopedaccessv1.SSHFileCopy{
-		Enabled: boolPtr(false),
-	}
+	sr.Spec.Ssh.FileCopy = boolPtr(false)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)

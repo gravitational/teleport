@@ -299,48 +299,6 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "ssh_file_copy download and upload both true",
-			role: &scopedaccessv1.ScopedRole{
-				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
-					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						FileCopy: &scopedaccessv1.SSHFileCopy{
-							Enabled: proto.Bool(true),
-						},
-					},
-				},
-				Version: types.V1,
-			},
-			strongOk: true,
-			weakOk:   true,
-		},
-		{
-			name: "ssh_file_copy download and upload both false",
-			role: &scopedaccessv1.ScopedRole{
-				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
-					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						FileCopy: &scopedaccessv1.SSHFileCopy{
-							Enabled: proto.Bool(false),
-						},
-					},
-				},
-				Version: types.V1,
-			},
-			strongOk: true,
-			weakOk:   true,
-		},
-		{
 			name: "invalid create_host_user_mode",
 			role: &scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
@@ -1085,7 +1043,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			},
 			ClientIdleTimeout:   "1h",
 			PermitX11Forwarding: proto.Bool(true),
-			FileCopy:            &scopedaccessv1.SSHFileCopy{Enabled: proto.Bool(true)},
+			FileCopy:            proto.Bool(true),
 			ForwardAgent:        proto.Bool(true),
 			PortForwarding: &scopedaccessv1.SSHPortForwarding{
 				Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
