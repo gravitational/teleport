@@ -162,7 +162,7 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 // Filesystem Hierarchy Standard (FHS) or are specified in their
 // respective man pages.
 func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
-	var eventTracker bpf.LostEventTracker
+	var lostEvents bpf.EventCount
 
 	// Create a temp dir and files for commands to use.
 	cmdDir := t.TempDir()
@@ -525,17 +525,20 @@ eval $(echo %s | base64 --decode)`,
 		t.Run(tt.name, func(t *testing.T) {
 			runBPFTestCase(t, srv, bpfSrv, tt, false)
 
-			lostCmd, lostDisk, lostNet := eventTracker.NewlyLost(bpfSrv.LostEvents())
-			if lostCmd > 0 {
+			le := bpfSrv.LostEvents()
+			newlyLost := le.Delta(lostEvents)
+			if newlyLost.CommandEvents() > 0 {
 				// TODO(capnspacehook): make error once new trace points are in place
-				t.Logf("error: %d command events were lost", lostCmd)
+				t.Logf("error: %d command events were lost", newlyLost.CommandEvents())
 			}
-			if lostDisk > 0 {
-				t.Errorf("error: %d disk events were lost", lostDisk)
+			if newlyLost.DiskEvents() > 0 {
+				t.Errorf("error: %d disk events were lost", newlyLost.DiskEvents())
 			}
-			if lostNet > 0 {
-				t.Errorf("error: %d network events were lost", lostNet)
+			if newlyLost.NetworkEvents() > 0 {
+				t.Errorf("error: %d network events were lost", newlyLost.NetworkEvents())
 			}
+
+			lostEvents = le
 		})
 	}
 }

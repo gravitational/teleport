@@ -45,8 +45,8 @@ type BPF interface {
 	Enabled() bool
 
 	// LostEvents returns the total number of lost events for command, disk,
-	// and network events respectively since the service was started.
-	LostEvents() (uint64, uint64, uint64)
+	// and network events since the service was started.
+	LostEvents() EventCount
 }
 
 // SessionContext contains all the information needed to track and emit
@@ -123,8 +123,8 @@ func (s *NOP) Enabled() bool {
 
 // LostEvents returns the number of lost events. Note this function
 // does nothing.
-func (s *NOP) LostEvents() (uint64, uint64, uint64) {
-	return 0, 0, 0
+func (s *NOP) LostEvents() EventCount {
+	return EventCount{}
 }
 
 // IsHostCompatible checks that BPF programs can run on this host.

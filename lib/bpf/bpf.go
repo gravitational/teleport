@@ -54,26 +54,38 @@ type sessionHandler interface {
 	endSession(auditSessionID uint32) error
 }
 
-// LostEventTracker allows callers to easily check the number of lost
-// events since the last check.
-type LostEventTracker struct {
-	oldLostCmd  uint64
-	oldLostDisk uint64
-	oldLostNet  uint64
+// EventCount is a simple struct to track the number of events.
+type EventCount struct {
+	commandEvents uint64
+	diskEvents    uint64
+	networkEvents uint64
 }
 
-// NewlyLost returns the number of lost command, disk, and network
-// events respectively since the it was called last.
-func (l *LostEventTracker) NewlyLost(lostCmd, lostDisk, lostNet uint64) (uint64, uint64, uint64) {
-	newLostCmd := lostCmd - l.oldLostCmd
-	newLostDisk := lostDisk - l.oldLostDisk
-	newLostNet := lostNet - l.oldLostNet
+// Delta returns the number of events that have occurred since the previous
+// EventCount.
+func (e EventCount) Delta(prev EventCount) EventCount {
+	return EventCount{
+		commandEvents: e.commandEvents - prev.commandEvents,
+		diskEvents:    e.diskEvents - prev.diskEvents,
+		networkEvents: e.networkEvents - prev.networkEvents,
+	}
+}
 
-	l.oldLostCmd = lostCmd
-	l.oldLostDisk = lostDisk
-	l.oldLostNet = lostNet
+// Empty returns true if there are no events.
+func (e EventCount) Empty() bool {
+	return max(e.commandEvents, e.diskEvents, e.networkEvents) == 0
+}
 
-	return newLostCmd, newLostDisk, newLostNet
+func (e EventCount) CommandEvents() uint64 {
+	return e.commandEvents
+}
+
+func (e EventCount) DiskEvents() uint64 {
+	return e.diskEvents
+}
+
+func (e EventCount) NetworkEvents() uint64 {
+	return e.networkEvents
 }
 
 // Service manages BPF and control groups orchestration.
@@ -106,7 +118,7 @@ type Service struct {
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
 
-	eventTracker LostEventTracker
+	lostEvents EventCount
 
 	wg sync.WaitGroup
 }
@@ -319,9 +331,13 @@ func (s *Service) Enabled() bool {
 }
 
 // LostEvents returns the total number of lost events for command, disk,
-// and network events respectively since the service was started.
-func (s *Service) LostEvents() (uint64, uint64, uint64) {
-	return s.exec.lostCounter.Count(), s.open.lostCounter.Count(), s.conn.lostCounter.Count()
+// and network events since the service was started.
+func (s *Service) LostEvents() EventCount {
+	return EventCount{
+		commandEvents: s.exec.lostCounter.Count(),
+		diskEvents:    s.open.lostCounter.Count(),
+		networkEvents: s.conn.lostCounter.Count(),
+	}
 }
 
 func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
@@ -349,16 +365,13 @@ func (s *Service) logLostEvents() {
 	for {
 		select {
 		case <-ticker.C:
-			lostCmd, lostDisk, lostNet := s.eventTracker.NewlyLost(s.LostEvents())
-			if lostCmd > 0 {
-				logger.WarnContext(s.closeContext, "Lost some command events in the last 5 seconds", "lost_events", lostCmd)
+			le := s.LostEvents()
+			newlyLost := le.Delta(s.lostEvents)
+			if !newlyLost.Empty() {
+				logger.WarnContext(s.closeContext, "Lost some events in the last 5 seconds", "command_events", newlyLost.commandEvents, "disk_events", newlyLost.diskEvents, "network_events", newlyLost.networkEvents)
 			}
-			if lostDisk > 0 {
-				logger.WarnContext(s.closeContext, "Lost some disk events in the last 5 seconds", "lost_events", lostDisk)
-			}
-			if lostNet > 0 {
-				logger.WarnContext(s.closeContext, "Lost some network events in the last 5 seconds", "lost_events", lostNet)
-			}
+
+			s.lostEvents = le
 		case <-s.closeContext.Done():
 			return
 		}
