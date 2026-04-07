@@ -263,7 +263,7 @@ export interface MouseWheel {
      */
     axis: MouseWheelAxis;
     /**
-     * @generated from protobuf field: uint32 delta = 2;
+     * @generated from protobuf field: int32 delta = 2;
      */
     delta: number;
 }
@@ -1697,7 +1697,7 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
     constructor() {
         super("teleport.desktop.v1.MouseWheel", [
             { no: 1, name: "axis", kind: "enum", T: () => ["teleport.desktop.v1.MouseWheelAxis", MouseWheelAxis, "MOUSE_WHEEL_AXIS_"] },
-            { no: 2, name: "delta", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "delta", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<MouseWheel>): MouseWheel {
@@ -1716,8 +1716,8 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
                 case /* teleport.desktop.v1.MouseWheelAxis axis */ 1:
                     message.axis = reader.int32();
                     break;
-                case /* uint32 delta */ 2:
-                    message.delta = reader.uint32();
+                case /* int32 delta */ 2:
+                    message.delta = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1734,9 +1734,9 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
         /* teleport.desktop.v1.MouseWheelAxis axis = 1; */
         if (message.axis !== 0)
             writer.tag(1, WireType.Varint).int32(message.axis);
-        /* uint32 delta = 2; */
+        /* int32 delta = 2; */
         if (message.delta !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.delta);
+            writer.tag(2, WireType.Varint).int32(message.delta);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
