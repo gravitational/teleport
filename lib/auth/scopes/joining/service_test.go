@@ -490,7 +490,7 @@ func newFakeScopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, read
 					Name: accessInfo.Username,
 				},
 			},
-			CheckerContext: services.NewScopedSplitAccessCheckerContext(scopedCtx),
+			CheckerContext: scopedCtx,
 		},
 	}
 }
@@ -547,12 +547,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList, types.VerbDelete, types.VerbUpdate},
 					},
 				},
 			},
@@ -565,12 +563,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbCreate},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbCreate},
 					},
 				},
 			},
@@ -583,12 +579,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbRead, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbRead, types.VerbList},
 					},
 				},
 			},
@@ -601,12 +595,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 					},
 				},
 			},
@@ -619,12 +611,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbDelete},
 					},
 				},
 			},
@@ -637,12 +627,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging/aa"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbUpdate, types.VerbCreate},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbUpdate, types.VerbCreate},
 					},
 				},
 			},
@@ -655,12 +643,10 @@ func newBackendPack(t *testing.T) *backendPack {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{types.KindScopedToken},
-							Verbs:     []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindScopedToken},
+						Verbs:     []string{types.VerbRead, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},

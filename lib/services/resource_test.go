@@ -73,6 +73,11 @@ func TestParseShortcut(t *testing.T) {
 		"cert_authorities": {expectedOutput: types.KindCertAuthority},
 		"cas":              {expectedOutput: types.KindCertAuthority},
 
+		"cert_authority_override":  {expectedOutput: types.KindCertAuthorityOverride},
+		"cert_authority_overrides": {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_override":              {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_overrides":             {expectedOutput: types.KindCertAuthorityOverride},
+
 		"tunnel":          {expectedOutput: types.KindReverseTunnel},
 		"reverse_tunnels": {expectedOutput: types.KindReverseTunnel},
 		"rts":             {expectedOutput: types.KindReverseTunnel},

@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"text/template"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -337,7 +338,16 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(createUsageTemplate())
+	app.UsageFuncs(template.FuncMap{
+		"CommandPrintfWidth": func(cmds []*kingpin.CmdModel) int {
+			cmdWidth := defaultCommandPrintfWidth
+			for _, cmd := range cmds {
+				cmdWidth = max(cmdWidth, len(cmd.FullCommand))
+			}
+			return cmdWidth
+		},
+	})
+	return app.UsageTemplate(defaultUsageTemplate)
 }
 
 // InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
@@ -350,18 +360,6 @@ func InitHiddenCLIParser() (app *kingpin.Application) {
 	app.Terminate(func(i int) {})
 
 	return app
-}
-
-// createUsageTemplate creates an usage template for kingpin applications.
-func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
-	opt := &usageTemplateOptions{
-		commandPrintfWidth: defaultCommandPrintfWidth,
-	}
-
-	for _, optFunc := range opts {
-		optFunc(opt)
-	}
-	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -436,13 +434,6 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// usageTemplateOptions defines options to format the usage template.
-type usageTemplateOptions struct {
-	// commandPrintfWidth is the width of the command name with padding, for
-	//   {{.FullCommand | printf "%%-%ds"}}
-	commandPrintfWidth int
-}
-
 // defaultCommandPrintfWidth is the default command printf width.
 const defaultCommandPrintfWidth = 12
 
@@ -454,9 +445,10 @@ const defaultUsageTemplate = `{{define "FormatCommand" -}}
 {{end -}}
 
 {{define "FormatCommands" -}}
+{{- $cmdWidth := .FlattenedCommands | CommandPrintfWidth -}}
 {{range .FlattenedCommands -}}
 {{if not .Hidden -}}
-{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+{{"  "}}{{printf (printf "%%-%ds" $cmdWidth) .FullCommand}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end -}}
 {{end -}}
 {{end -}}

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+//go:generate go run ./cmd/gen-ts-fixtures
+
 package main
 
 import (
@@ -32,6 +34,8 @@ import (
 
 	"github.com/lmittmann/tint"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 var logLevel = new(slog.LevelVar)
@@ -49,10 +53,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	resultsPath := filepath.Join(e2eDir, "test-results", "results.json")
+
 	flags, mode, err := parseFlags(filepath.Dir(e2eDir))
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
 		os.Exit(1)
+	}
+
+	if mode == modeGitHubReport {
+		if err := writeGitHubReport(resultsPath); err != nil {
+			slog.Error("failed to write GitHub report", "error", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	if mode == modeReport || mode == modeTestResults {
@@ -64,6 +78,7 @@ func main() {
 		cfg := &reportConfig{
 			prNumber:  flags.reportPR,
 			repo:      repo,
+			sha:       flags.reportSHA,
 			e2eDir:    e2eDir,
 			tracePath: flags.tracePath,
 		}
@@ -82,7 +97,7 @@ func main() {
 		return
 	}
 
-	_ = os.Remove(filepath.Join(e2eDir, "test-results", ".results.json"))
+	_ = os.Remove(resultsPath)
 
 	isCI := os.Getenv("CI") != ""
 	runErr := run(flags, mode, e2eDir, isCI)
@@ -97,14 +112,8 @@ func main() {
 		tty.Close()
 	}
 
-	if isCI {
-		if err := writeGitHubReport(e2eDir); err != nil {
-			slog.Error("failed to write GitHub report", "error", err)
-		}
-	}
-
 	if !flags.quiet {
-		printTestSummary(e2eDir)
+		printTestSummary(e2eDir, resultsPath)
 	}
 
 	if runErr != nil {
@@ -115,10 +124,11 @@ func main() {
 
 type e2eConfig struct {
 	e2eFlags
-	isCI     bool
-	repoRoot string
-	e2eDir   string
-	certsDir string
+	isCI      bool
+	repoRoot  string
+	e2eDir    string
+	sharedDir string // shared resource dir (templates, scripts); defaults to e2eDir
+	certsDir  string
 
 	nodeConfigTemplate     string
 	teleportConfigTemplate string
@@ -143,17 +153,25 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	sharedDir := e2eDir
+	if v := os.Getenv("E2E_SHARED_DIR"); v != "" {
+		sharedDir = v
+	}
+
+	repoRoot := filepath.Dir(e2eDir)
+
 	config := &e2eConfig{
 		e2eFlags:               *flags,
 		isCI:                   isCI,
-		repoRoot:               filepath.Dir(e2eDir),
+		repoRoot:               repoRoot,
 		e2eDir:                 e2eDir,
+		sharedDir:              sharedDir,
 		certsDir:               filepath.Join(e2eDir, "certs"),
-		stateTemplate:          filepath.Join(e2eDir, "config", "state.yaml.tmpl"),
-		teleportConfigTemplate: filepath.Join(e2eDir, "config", "teleport.yaml.tmpl"),
-		nodeConfigTemplate:     filepath.Join(e2eDir, "node", "node.yaml.tmpl"),
-		connectAppDir:          filepath.Join(filepath.Dir(e2eDir), "web", "packages", "teleterm"),
-		connectTshBinPath:      filepath.Join(filepath.Dir(e2eDir), "build", "tsh-e2e-webauthnmock"),
+		stateTemplate:          filepath.Join(sharedDir, "config", "state.yaml.tmpl"),
+		teleportConfigTemplate: filepath.Join(sharedDir, "config", "teleport.yaml.tmpl"),
+		nodeConfigTemplate:     filepath.Join(sharedDir, "node", "node.yaml.tmpl"),
+		connectAppDir:          filepath.Join(repoRoot, "web", "packages", "teleterm"),
+		connectTshBinPath:      filepath.Join(repoRoot, "build", "tsh-e2e-webauthnmock"),
 	}
 
 	switch config.teleportBin {
@@ -193,7 +211,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		config.instances = append(config.instances, inst)
 	}
 
-	if connect.enabled {
+	if fixtures.Connect.Enabled {
 		config.connectInstance = &browserInstance{
 			browser: "connect",
 			log:     newBrowserLogger("connect"),
@@ -205,7 +223,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	var portTargets []*int
 	for _, inst := range config.instances {
 		portTargets = append(portTargets, &inst.proxyPort, &inst.authPort)
-		if sshNode.enabled {
+		if fixtures.SSHNode.Enabled {
 			portTargets = append(portTargets, &inst.sshPort)
 		}
 	}
@@ -235,7 +253,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	case os.IsNotExist(statErr) || config.replaceCerts:
 		slog.Info("generating self-signed TLS certificates", "dir", config.certsDir)
 
-		if err := generateSelfSignedCert(config.certsDir, sshNode.enabled); err != nil {
+		if err := generateSelfSignedCert(config.certsDir); err != nil {
 			return fmt.Errorf("failed to generate TLS certificates: %w", err)
 		}
 	}
@@ -331,7 +349,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 		}()
 
-		if sshNode.enabled {
+		if fixtures.SSHNode.Enabled {
 			slog.Info("running with SSH node fixture enabled")
 
 			nodeBin := config.teleportBin
@@ -395,15 +413,8 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 	}
 
-	var extraProjects []string
-	// Project names from playwright.config.ts.
-	if sshNode.enabled {
-		extraProjects = append(extraProjects, "with-ssh-node")
-	}
-
 	pw := &playwrightRunner{
-		config:        config,
-		extraProjects: extraProjects,
+		config: config,
 	}
 
 	return pw.run(ctx, mode)

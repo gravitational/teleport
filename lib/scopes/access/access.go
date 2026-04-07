@@ -19,6 +19,7 @@ package access
 import (
 	"iter"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -43,6 +44,12 @@ const (
 
 	// KindScopedToken is the kind of a scoped token resource.
 	KindScopedToken = "scoped_token"
+
+	// SubKindDynamic is the sub kind of a scoped role assignment created via the API.
+	SubKindDynamic = "dynamic"
+
+	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
+	SubKindMaterialized = "materialized"
 
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
@@ -163,7 +170,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	}
 
 	// verify that all rules are allowed for scoped roles
-	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+	for _, rule := range role.GetSpec().GetRules() {
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
@@ -176,30 +183,75 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that logins are well-formed
-	for _, login := range role.GetSpec().GetAllow().GetLogins() {
+	const invalidChars = "{}^$*"
+	const invalidLabelChars = "{}^$"
+	// verify that ssh logins are well-formed
+	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// logins. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
-		if strings.ContainsAny(login, "{}^$*") {
-			return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
-		}
+		return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
 	}
 
-	// verify that node labels are well-formed
-	for _, label := range role.GetSpec().GetAllow().GetNodeLabels() {
+	// verify that ssh node labels are well-formed
+	for _, label := range role.GetSpec().GetSsh().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// node labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
 
-		if strings.ContainsAny(label.GetName(), "{}^$") {
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
 			return trace.BadParameter("scoped role %q has invalid node label name %q", role.GetMetadata().GetName(), label.GetName())
 		}
-		for _, value := range label.GetValues() {
-			if strings.ContainsAny(value, "{}^$") {
-				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-			}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
+	}
+
+	// verify that client_idle_timeout fields are valid Go duration strings
+	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetKube().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+
+	// verify that kube labels are well-formed
+	for _, label := range role.GetSpec().GetKube().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+		}
+	}
+
+	// verify that kube groups are well-formed
+	if group := validateDoesNotContain(role.GetSpec().GetKube().GetGroups(), invalidChars); group != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube gruops. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube group %q", role.GetMetadata().GetName(), group)
+	}
+
+	// verify that kube users are well-formed
+	if user := validateDoesNotContain(role.GetSpec().GetKube().GetUsers(), invalidChars); user != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube users. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
 	}
 
 	// verify that scoped role converts to a valid unscoped role
@@ -208,6 +260,18 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	}
 
 	return nil
+}
+
+// validateDoestNotContain checks that a given slice of string values do not contain any of the characters in the given
+// invalid set. The first invalid value is returned to be included in any error messages.
+func validateDoesNotContain(values []string, invalidSet string) string {
+	for _, val := range values {
+		if strings.ContainsAny(val, invalidSet) {
+			return val
+		}
+	}
+
+	return ""
 }
 
 func validateRoleName(name string) error {
@@ -308,6 +372,14 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.Wrap(err)
 	}
 
+	switch assignment.GetSubKind() {
+	case SubKindDynamic, SubKindMaterialized:
+	case "":
+		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
+	default:
+		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
+	}
+
 	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
 		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
 	}
@@ -356,10 +428,6 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetKind() != KindScopedRoleAssignment {
 		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
-	}
-
-	if assignment.GetSubKind() != "" {
-		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
 	if assignment.GetVersion() == "" {

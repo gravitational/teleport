@@ -1079,7 +1079,7 @@ func testInstanceSelfRepair(t *testing.T, params instanceSelfRepairParams) {
 	const hostName = "testhost"
 	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
 		cfg := servicecfg.MakeDefaultConfig()
-		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
+		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Addr().String()))
 		cfg.Clock = clockwork.NewRealClock()
 		cfg.DataDir = dataDir
 		cfg.Hostname = hostName
@@ -1168,7 +1168,7 @@ func TestSSHPrincipals(t *testing.T) {
 	logger := logtest.NewLogger()
 	const hostName = "testhost"
 	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Listener.Addr().String()))
+	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Addr().String()))
 	nodeCfg.Clock = clockwork.NewRealClock()
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.Hostname = hostName

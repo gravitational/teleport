@@ -21,8 +21,7 @@ import { builtinModules } from 'node:module';
 import path from 'node:path';
 
 import { defineConfig, UserConfig } from 'electron-vite';
-import type { RolldownOptions } from 'rolldown';
-import type { Plugin } from 'vite';
+import type { Plugin, Rolldown } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -47,7 +46,7 @@ const deps = Object.keys(pkg.dependencies || {}).filter(
   dep => !externalizeDeps.includes(dep)
 );
 
-const commonRolldownOptions: RolldownOptions = {
+const commonRolldownOptions: Rolldown.RolldownOptions = {
   onLog(level, log, defaultHandler) {
     // Suppress direct eval warning from @protobufjs/inquire.
     // The eval is intentional (to call require without bundler detection) and patching
@@ -62,7 +61,7 @@ const commonRolldownOptions: RolldownOptions = {
 
 // Main and preload run in Node.js, so we externalize electron, Node.js built-in
 // modules, and package.json dependencies (they'll be included during packaging).
-const nodeExternalOptions: RolldownOptions = {
+const nodeExternalOptions: Rolldown.RolldownOptions = {
   external: [
     'electron',
     /^electron\/.+/,

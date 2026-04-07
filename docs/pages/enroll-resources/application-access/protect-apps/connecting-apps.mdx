@@ -16,10 +16,11 @@ capabilities.
 
 To enroll a web application with your Teleport cluster, you deploy the Teleport
 Application Service, which uses a join token to establish trust with the
-Teleport Auth Service. Users visit Teleport-protected web applications through
-the Teleport Web UI. The Teleport Proxy Service routes browser traffic to the
-Teleport Application Service, which forwards HTTP requests to and from target
-applications.
+Teleport Auth Service. Users visit a Teleport-protected web application through
+the Teleport Web UI or by accessing the URL of the application, a subdomain of
+the Teleport Proxy Service address. The Teleport Proxy Service routes browser
+traffic to the Teleport Application Service, which forwards HTTP requests to and
+from target applications.
 
 ## Prerequisites
 

@@ -224,6 +224,8 @@ type MFAAuthData struct {
 	SourceCluster string
 	// TargetCluster is the target cluster name associated with this MFA authentication.
 	TargetCluster string
+	// MFAViaBrowser indicates that this MFA device was used as part of the Browser MFA flow.
+	MFAViaBrowser bool
 }
 
 // authorizer creates new local authorizer

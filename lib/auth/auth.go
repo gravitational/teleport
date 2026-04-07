@@ -147,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -2820,7 +2821,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		User:            req.User,
 		SSHPublicKey:    req.PublicKey,
 		Compatibility:   constants.CertificateFormatStandard,
-		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
 		TTL:             sessionTTL,
 		Traits:          req.User.GetTraits(),
 		RouteToCluster:  req.Cluster,
@@ -2975,7 +2976,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	certs, err := a.generateUserCert(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
@@ -3039,7 +3040,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		TLSPublicKey:   req.PublicKey,
 		LoginIP:        req.PinnedIP,
 		PinIP:          req.PinnedIP != "",
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            time.Hour,
 		Traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
@@ -3373,7 +3374,7 @@ func (a *Server) augmentUserCertificates(
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		checkerContext:       services.NewUnscopedSplitAccessCheckerContext(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
+		checkerContext:       services.NewScopedAccessCheckerContextFromUnscoped(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
@@ -4059,7 +4060,7 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 
 type verifyLocksForUserCertsReq struct {
 	// checkerContext is a split access checker context which may be scoped or unscoped.
-	checkerContext *services.SplitAccessCheckerContext
+	checkerContext *services.ScopedAccessCheckerContext
 	// defaultMode is the default locking mode, as recorded in the cluster
 	// Auth Preferences.
 	defaultMode constants.LockingMode
@@ -8151,7 +8152,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8170,8 +8171,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowCLIAuthViaBrowser() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8240,6 +8242,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.Code = events.ValidateMFAAuthResponseCode
 		auditEvent.Success = true
 		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		deviceMetadata.MFAViaBrowser = authData.MFAViaBrowser
 		auditEvent.MFADevice = &deviceMetadata
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
@@ -8351,6 +8354,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
@@ -8797,4 +8803,15 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// TODO(tigrato): remove Download* methods once e no longer references them.
+func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	reader, err := s.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	_, err = io.Copy(writer, reader)
+	return trace.Wrap(err)
 }
