@@ -27,6 +27,8 @@ require (
 	k8s.io/apiextensions-apiserver v0.35.1
 )
 
+require github.com/google/go-cmp v0.7.0
+
 require (
 	buf.build/gen/go/bufbuild/bufplugin/protocolbuffers/go v1.36.3-20250121211742-6d880cc6cc8d.1 // indirect
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1 // indirect
@@ -149,7 +151,6 @@ require (
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-attestation v0.6.0 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.20.7 // indirect
 	github.com/google/go-github/v70 v70.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect

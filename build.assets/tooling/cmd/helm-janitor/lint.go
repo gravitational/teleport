@@ -12,13 +12,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func runLint(ctx context.Context, charts []Chart) error {
+func runLint(ctx context.Context, charts []Chart, rootDir string) error {
 	// Preflight check ot make sure yamllint is installed
 	if err := checkDependencies(yamllintBinName, helmBinName); err != nil {
 		return trace.Wrap(err, "preflight checks")
 	}
 
+	configPath := filepath.Join(rootDir, yamlLintConfigPath)
+
 	for _, chart := range charts {
+		if chart.IsLibrary {
+			continue
+		}
 		fmt.Println("Running lint for chart:", chart.Name)
 		valuesDir := filepath.Join(chart.Path, ".lint")
 		content, err := os.ReadDir(valuesDir)
@@ -26,13 +31,10 @@ func runLint(ctx context.Context, charts []Chart) error {
 			return trace.Wrap(err, "reading values directory for %s", chart.Path)
 		}
 
-		// If the chart has no lint directory or if it's empty, we lint with the default values.
-		if len(content) == 0 {
-			return trace.Wrap(lint(ctx, "", chart), "linting chart %s", chart.Path)
-		}
-
+		values := make([]os.DirEntry, 0, len(content))
 		for _, file := range content {
 			if file.IsDir() {
+				log.Println("Skipping directory", file.Name())
 				continue
 			}
 			ext := filepath.Ext(file.Name())
@@ -40,20 +42,34 @@ func runLint(ctx context.Context, charts []Chart) error {
 				log.Printf("Skipping non-yaml file %s", file.Name())
 				continue
 			}
-			if err := lint(ctx, filepath.Join(valuesDir, file.Name()), chart); err != nil {
+			values = append(values, file)
+		}
+
+		// If the chart has no lint directory or if it's empty, we lint with the default values.
+		if len(values) == 0 {
+			if err := lint(ctx, "", configPath, chart); err != nil {
+				return trace.Wrap(err, "linting chart %s with default values", chart.Path)
+			}
+		}
+
+		for _, file := range values {
+			if err := lint(ctx, filepath.Join(valuesDir, file.Name()), configPath, chart); err != nil {
 				return trace.Wrap(err, "linting chart %s", chart.Path)
 			}
 		}
 	}
+
+	fmt.Println(" ✅ Charts successfully linted.")
 	return nil
 }
 
 // lint runs all the lint operations on a chart for a given value file.
 // If the value file path is empty, the chart is linted with its default values.
-func lint(ctx context.Context, valuesPath string, chart Chart) error {
+func lint(ctx context.Context, valuesPath, configPath string, chart Chart) error {
 	// Yamllint the values
 	if valuesPath != "" {
-		if stdout, stderr, err := run(ctx, yamllintBinName, "-c", yamlLintConfigPath, valuesPath); err != nil {
+		if stdout, stderr, err := run(ctx, yamllintBinName, "-c", configPath, valuesPath); err != nil {
+			fmt.Printf(" ❌ yamllint values %q failed\n", valuesPath)
 			// yamllint seems to output to stdout
 			fmt.Println(string(stdout))
 			fmt.Println(string(stderr))
@@ -69,6 +85,7 @@ func lint(ctx context.Context, valuesPath string, chart Chart) error {
 		args = append(args, "-f", valuesPath)
 	}
 	if stdout, stderr, err := run(ctx, helmBinName, args...); err != nil {
+		fmt.Printf(" ❌ Helm linting chart %q failed with values %q\n", chart.Name, valuesPath)
 		fmt.Println(string(stdout))
 		fmt.Println(string(stderr))
 		return trace.Wrap(err, "linting with values %q", valuesPath)
@@ -98,12 +115,13 @@ func lint(ctx context.Context, valuesPath string, chart Chart) error {
 	}
 
 	// Yammllint the manifests
-	if stdout, stderr, err := run(ctx, yamllintBinName, "-c", yamlLintConfigPath, tmpDest.Name()); err != nil {
-		// yamllint seems to output to stdout
-		fmt.Println("Linted templates:")
+	if stdout, stderr, err := run(ctx, yamllintBinName, "-c", configPath, tmpDest.Name()); err != nil {
+		fmt.Printf(" ❌ yamllint rendered chart %q with values %q failed\n", chart.Name, valuesPath)
+		// We output the linted template to stdout with line numbers to make finding and fixing the error easier.
+		fmt.Println(" 🔎 Linted templates:")
 		printWithLineNumbers(rendered)
 		fmt.Println()
-		fmt.Println("Linting errors:")
+		fmt.Println(" ⚠️ Linting errors:")
 		fmt.Println(string(stdout))
 		fmt.Println(string(stderr))
 		return trace.Wrap(err, "linting rendered templates for values %q", valuesPath)
