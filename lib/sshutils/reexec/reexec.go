@@ -45,11 +45,11 @@ type ErrorContext struct {
 // ChildErrorWithContext returns the given error message with additional error context
 // gathered from the given ErrorContext. If the context is not relative to the error
 // message, the error message is returned unmodified with a nil error.
-func ChildErrorWithContext(errMsg string, context *ErrorContext) (string, error) {
+func ChildErrorWithContext(errMsg string, context *ErrorContext) string {
 	// If we don't have a decision context, we don't have any context to
 	// add to the error message. Return stderr as is.
 	if errMsg == "" || context == nil || context.DecisionContext == nil {
-		return errMsg, nil
+		return errMsg
 	}
 
 	// If some roles allow host user creation while others deny it, this can be
@@ -69,16 +69,16 @@ func ChildErrorWithContext(errMsg string, context *ErrorContext) (string, error)
 	case strings.Contains(errMsg, "failed to open PAM context"): // PAM errors are often cause by an unknown user.
 		if _, err := user.Lookup(context.Login); errors.Is(err, unknownUserError) {
 			if ambiguousHostUserDenial {
-				return ambiguousHostUserError(), nil
+				return ambiguousHostUserError()
 			}
 		}
 	case strings.Contains(errMsg, unknownUserError.Error()):
 		if ambiguousHostUserDenial {
-			return ambiguousHostUserError(), nil
+			return ambiguousHostUserError()
 		}
 	}
 
-	return errMsg, nil
+	return errMsg
 }
 
 // ReadChildErrorWithContext reads the child process's stderr pipe and returns it as a string,
@@ -95,5 +95,5 @@ func ReadChildErrorWithContext(stderr io.Reader, context *ErrorContext) (string,
 		return "", nil
 	}
 
-	return ChildErrorWithContext(errMsg.String(), context)
+	return ChildErrorWithContext(errMsg.String(), context), nil
 }

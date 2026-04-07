@@ -1328,7 +1328,7 @@ func (s *Server) startNetworkingProcess(ctx context.Context, scx *srv.ServerCont
 
 		// If the networking process failed with an error message from stderr, prefer
 		// that over the other error.
-		childErr, err = reexecutils.ChildErrorWithContext(childErr, &reexecutils.ErrorContext{
+		childErr = reexecutils.ChildErrorWithContext(childErr, &reexecutils.ErrorContext{
 			DecisionContext: scx.Identity.AccessPermit.DecisionContext,
 			Login:           scx.Identity.Login,
 		})
