@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -968,14 +967,14 @@ func (a *AccessListService) validateScopedRoleGrants(ctx context.Context, existi
 		return nil, nil
 	}
 
-	var existingListGrants set.Set[accesslist.ScopedRoleGrant]
+	var existingListGrants utils.Set[accesslist.ScopedRoleGrant]
 	if existingList != nil {
-		existingListGrants = set.New(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
+		existingListGrants = utils.NewSet(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
 	}
-	newListGrants := set.New(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
+	newListGrants := utils.NewSet(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
 	addedGrants := newListGrants.Subtract(existingListGrants)
 
-	if addedGrants.Len() == 0 {
+	if len(addedGrants) == 0 {
 		// The new list does not grant any scoped roles at scopes not already
 		// granted by the existing list, no validation is necessary.
 		return nil, nil
