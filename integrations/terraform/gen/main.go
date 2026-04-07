@@ -975,6 +975,28 @@ var (
 		ForceSetKind:          "apitypes.KindScopedRole",
 	}
 
+	scopedRoleAssignment = payload{
+		Name:                  "ScopedRoleAssignment",
+		TypeName:              "ScopedRoleAssignment",
+		VarName:               "scopedRoleAssignment",
+		GetMethod:             "GetScopedRoleAssignment",
+		CreateMethod:          "CreateScopedRoleAssignment",
+		UpdateMethod:          "UpsertScopedRoleAssignment",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "DeleteScopedRoleAssignment",
+		ID:                    "scopedRoleAssignment.Metadata.Name",
+		Kind:                  "scoped_role_assignment",
+		HasStaticID:           false,
+		ProtoPackage:          "accessv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
+		SchemaPackage:         "assignmentschemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1",
+		TerraformResourceType: "teleport_scoped_role_assignment",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
+		ForceSetKind:          "apitypes.KindScopedRoleAssignment",
+	}
+
 	scopedToken = payload{
 		Name:                  "ScopedToken",
 		TypeName:              "ScopedToken",
@@ -1113,6 +1135,8 @@ func genTFSchema() {
 	generateDataSource(inferencePolicy, pluralDataSource)
 	generateResource(scopedRole, pluralResource)
 	generateDataSource(scopedRole, pluralDataSource)
+	generateResource(scopedRoleAssignment, pluralResource)
+	generateDataSource(scopedRoleAssignment, pluralDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.

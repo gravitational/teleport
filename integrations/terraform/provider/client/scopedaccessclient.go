@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/scopes/access"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	accessv1 "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // AccessClient is a wrapper around the scoped access Client that unwraps gRPC
@@ -69,6 +70,49 @@ func (t *AccessClient) UpsertScopedRole(ctx context.Context, role *scopedaccessv
 func (t *AccessClient) DeleteScopedRole(ctx context.Context, name string) error {
 	_, err := t.client.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 		Name: name,
+	})
+	return err
+}
+
+// GetScopedRoleAssignment gets a scoped role assignment by name.
+func (t *AccessClient) GetScopedRoleAssignment(ctx context.Context, name string) (*scopedaccessv1.ScopedRoleAssignment, error) {
+	res, err := t.client.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    name,
+		SubKind: accessv1.SubKindDynamic,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetAssignment(), nil
+}
+
+// CreateScopedRoleAssignment creates a new scoped role assignment.
+func (t *AccessClient) CreateScopedRoleAssignment(ctx context.Context, assignment *scopedaccessv1.ScopedRoleAssignment) (*scopedaccessv1.ScopedRoleAssignment, error) {
+	res, err := t.client.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetAssignment(), nil
+}
+
+// UpsertScopedRoleAssignment upserts a scoped role assignment.
+func (t *AccessClient) UpsertScopedRoleAssignment(ctx context.Context, assignment *scopedaccessv1.ScopedRoleAssignment) (*scopedaccessv1.ScopedRoleAssignment, error) {
+	res, err := t.client.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		Assignment: assignment,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.GetAssignment(), nil
+}
+
+// DeleteScopedRoleAssignment deletes a scoped role assignment by name.
+func (t *AccessClient) DeleteScopedRoleAssignment(ctx context.Context, name string) error {
+	_, err := t.client.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+		Name:    name,
+		SubKind: accessv1.SubKindDynamic,
 	})
 	return err
 }
