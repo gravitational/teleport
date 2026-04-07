@@ -2170,6 +2170,7 @@ func TestInitAppsEmptyConfig(t *testing.T) {
 	log := logtest.NewLogger()
 	supervisor, err := NewSupervisor("test-initApps", log, clock)
 	require.NoError(t, err)
+	t.Cleanup(func() { supervisor.Wait() })
 	process := &TeleportProcess{
 		Supervisor: supervisor,
 		Clock:      clock,
@@ -2194,7 +2195,7 @@ func TestInitKubernetesUnlicensed(t *testing.T) {
 	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { stor.Close() })
-	t.Cleanup(func() { supervisor.signalExit() })
+	t.Cleanup(func() { supervisor.signalExit(); supervisor.Wait() })
 
 	process := &TeleportProcess{
 		Supervisor:    supervisor,
