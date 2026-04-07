@@ -261,7 +261,6 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			Version: types.V1,
 			Metadata: &types.Metadata{
 				Name:      keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
-				Namespace: defaults.Namespace,
 			},
 			Spec: &mfav1.ValidatedMFAChallengeSpec{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
