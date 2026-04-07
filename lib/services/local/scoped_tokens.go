@@ -103,6 +103,10 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
+	if err := maybeInitBoundKeypair(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := joining.StrongValidateToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -382,6 +386,10 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			return nil, trace.Wrap(err)
 		}
 
+		if err := maybeInitBoundKeypair(tokenUpsert); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		if err := joining.StrongValidateToken(tokenUpsert); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -564,6 +572,81 @@ func (p *staticScopedTokenParser) parse(event backend.Event) (types.Resource, er
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+}
+
+// maybeInitBoundKeypair performs basic initialization tasks for bound keypair
+// tokens, like generating an initial joining secret.
+func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
+	if token.GetSpec().GetJoinMethod() != string(types.JoinMethodBoundKeypair) {
+		// Nothing to do
+		return nil
+	}
+
+	if token.GetSpec().GetBoundKeypair() == nil {
+		return trace.BadParameter("bound_keypair tokens require a non-nil spec.bound_keypair")
+	}
+
+	spec := token.GetSpec().GetBoundKeypair()
+
+	// Initialize a few fields to default values if needed.
+	// Unlike ProvisionTokenV2, we won't bother to require `spec.Recovery` and
+	// can assume defaults. (That field is initialized automatically anyway.)
+
+	if spec.GetRecovery() == nil {
+		spec.Recovery = &joiningv1.BoundKeypairSpec_RecoverySpec{}
+	}
+
+	// Tokens should have a limit of 1 at creation to allow first use without
+	// additional parameters. No mode is needed; "" is mapped to
+	// `RecoveryModeStandard` at join time, and a registration secret is
+	// generated if needed.
+	if spec.GetRecovery().GetLimit() == 0 {
+		spec.GetRecovery().Limit = 1
+	}
+
+	if spec.GetOnboarding() == nil {
+		spec.Onboarding = &joiningv1.BoundKeypairSpec_OnboardingSpec{}
+	}
+
+	if token.GetStatus() == nil {
+		token.Status = &joiningv1.ScopedTokenStatus{}
+	}
+
+	status := token.Status.GetUsage().GetBoundKeypair()
+	if status == nil {
+		status = &joiningv1.BoundKeypairStatus{}
+		token.Status.Usage = &joiningv1.UsageStatus{
+			Status: &joiningv1.UsageStatus_BoundKeypair{
+				BoundKeypair: status,
+			},
+		}
+	}
+
+	// If necessary, generate a registration secret.
+
+	// If the token already has a key configured (either bound or preregistered)
+	// we don't want to generate a secret.
+	if status.GetBoundPublicKey() != "" || spec.GetOnboarding().GetInitialPublicKey() != "" {
+		// Nothing to do here; any initial key binding occurs at join time, not
+		// here.
+		return nil
+	}
+
+	// If the user specified their own secret, copy that into status.
+	if secret := spec.GetOnboarding().GetRegistrationSecret(); secret != "" {
+		status.RegistrationSecret = secret
+		return nil
+	}
+
+	// Otherwise, with no pre-registered key and no preexisting secret, generate
+	// one here.
+	s, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	status.RegistrationSecret = s
+	return nil
 }
 
 // maybeSetTokenSecret sets a random secret if not provided.
