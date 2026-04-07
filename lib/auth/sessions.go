@@ -901,5 +901,5 @@ func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthcon
 }
 
 func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.Wrap(a.Services.Identity.UpdateAppSession(ctx, session))
+	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
 }
