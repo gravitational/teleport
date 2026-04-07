@@ -117,7 +117,7 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !opts.WithSecrets {
+		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
 			token.GetStatus().Secret = "******"
 		}
 		return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
@@ -134,7 +134,9 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 		}
 		if !opts.WithSecrets {
 			for _, token := range res.GetTokens() {
-				token.GetStatus().Secret = "******"
+				if token.GetStatus().GetSecret() != "" {
+					token.GetStatus().Secret = "******"
+				}
 			}
 		}
 
@@ -166,7 +168,10 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 		if withSecrets {
 			return t.GetStatus().GetSecret()
 		}
-		return "******"
+		if t.GetStatus().GetSecret() != "" {
+			return "******"
+		}
+		return ""
 	}
 
 	now := time.Now()
