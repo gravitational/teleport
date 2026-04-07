@@ -26,7 +26,9 @@ import (
 // Storage to be used by the Server
 type Storage struct {
 	Users        map[string]*msgraph.User
+	UsersDelta   map[int][]msgraph.ListUsersDeltaResponse
 	Groups       map[string]*msgraph.Group
+	GroupsDelta  map[int][]msgraph.ListGroupsDeltaResponse
 	GroupMembers map[string][]msgraph.GroupMember
 	GroupOwners  map[string][]*msgraph.User
 	Applications map[string]*msgraph.Application
@@ -36,7 +38,9 @@ type Storage struct {
 func NewStorage() *Storage {
 	return &Storage{
 		Users:        make(map[string]*msgraph.User),
+		UsersDelta:   make(map[int][]msgraph.ListUsersDeltaResponse),
 		Groups:       make(map[string]*msgraph.Group),
+		GroupsDelta:  make(map[int][]msgraph.ListGroupsDeltaResponse),
 		GroupMembers: make(map[string][]msgraph.GroupMember),
 		GroupOwners:  make(map[string][]*msgraph.User),
 		Applications: make(map[string]*msgraph.Application),

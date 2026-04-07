@@ -18,12 +18,18 @@ package msgraphtest
 
 import (
 	"encoding/json"
+	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
@@ -65,7 +71,9 @@ func (s *Server) Handler() http.Handler {
 	r := http.NewServeMux()
 
 	r.HandleFunc("GET /v1.0/users", s.handleListUsers)
+	r.HandleFunc("GET /v1.0/users/delta", s.handleListUsersDelta)
 	r.HandleFunc("GET /v1.0/groups", s.handleListGroups)
+	r.HandleFunc("GET /v1.0/groups/delta", s.handleListGroupsDelta)
 	r.HandleFunc("GET /v1.0/groups/{id}/members", s.handleListGroupMembers)
 	r.HandleFunc("GET /v1.0/groups/{id}/owners/microsoft.graph.user", s.handleListGroupOwners)
 	r.HandleFunc("/v1.0/", s.handleCatchAll)
@@ -75,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("====== handleListUsers: ", r.RequestURI)
 	s.mu.RLock()
 	users := make([]*msgraph.User, 0, len(s.Storage.Users))
 	for _, user := range s.Storage.Users {
@@ -87,7 +96,59 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("====== handleListUsersDelta: ", r.RequestURI)
+	s.mu.RLock()
+	token := r.URL.Query().Get("$deltatoken")
+
+	var users []msgraph.ListUsersDeltaResponse
+	if token != "" {
+		v, _ := json.MarshalIndent(s.Storage.UsersDelta, "", " ")
+		fmt.Println(" s.Storage.UsersDelta: ", string(v))
+		parts := strings.Split(token, "#")
+		if parts[1] != "" {
+			i, err := strconv.Atoi(parts[1])
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			users = append(users, s.Storage.UsersDelta[i]...)
+		}
+
+	} else {
+		users = make([]msgraph.ListUsersDeltaResponse, 0, len(s.Storage.Users))
+		for _, user := range s.Storage.Users {
+			users = append(users, msgraph.ListUsersDeltaResponse{User: *user})
+		}
+	}
+
+	latestKey := 0
+	if len(s.Storage.UsersDelta) == 0 {
+		latestKey = 1
+		s.Storage.UsersDelta[1] = []msgraph.ListUsersDeltaResponse{}
+	} else {
+		keys := slices.Collect(maps.Keys(s.Storage.UsersDelta))
+		latestKey = keys[len(keys)-1]
+		// increment key to mimic new delta token and tracker
+		latestKey++
+		s.Storage.UsersDelta[latestKey] = []msgraph.ListUsersDeltaResponse{}
+
+	}
+
+	s.mu.RUnlock()
+
+	if len(users) == 0 {
+		users = []msgraph.ListUsersDeltaResponse{}
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"@odata.deltaLink": deltaLink(r, strconv.Itoa(latestKey)),
+		"value":            users,
+	})
+}
+
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("====== handleListGroups: ", r.RequestURI)
 	s.mu.RLock()
 	groups := make([]*msgraph.Group, 0, len(s.Storage.Groups))
 	for _, group := range s.Storage.Groups {
@@ -97,6 +158,90 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 
 	jsonResponse(w, map[string]interface{}{
 		"value": groups,
+	})
+}
+
+func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("====== handleListGroupsDelta: ", r.RequestURI)
+	s.mu.RLock()
+	token := r.URL.Query().Get("$deltatoken")
+	var groups []msgraph.ListGroupsDeltaResponse
+	if token != "" {
+		v, _ := json.MarshalIndent(s.Storage.GroupsDelta, "", " ")
+		fmt.Println(" s.Storage.GroupsDelta: ", string(v))
+		parts := strings.Split(token, "#")
+
+		if parts[1] != "" {
+			i, err := strconv.Atoi(parts[1])
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			groups = append(groups, s.Storage.GroupsDelta[i]...)
+		}
+	} else {
+		// this is the first delta request
+		groups = make([]msgraph.ListGroupsDeltaResponse, 0, len(s.Storage.Groups))
+		for id, group := range s.Storage.Groups {
+			memberDeltas := make([]msgraph.Delta, 0, len(s.Storage.GroupMembers[id]))
+			for _, member := range s.Storage.GroupMembers[id] {
+				if member == nil || member.GetID() == nil {
+					continue
+				}
+
+				d := msgraph.Delta{
+					DirectoryObject: msgraph.DirectoryObject{ID: member.GetID()},
+				}
+				switch member.(type) {
+				case *msgraph.User:
+					d.Type = "#microsoft.graph.user"
+				case *msgraph.Group:
+					d.Type = "#microsoft.graph.group"
+				default:
+					d.Type = "#microsoft.graph.directoryObject"
+				}
+				memberDeltas = append(memberDeltas, d)
+			}
+
+			ownerDeltas := make([]msgraph.Delta, 0, len(s.Storage.GroupOwners[id]))
+			for _, owner := range s.Storage.GroupOwners[id] {
+				if owner == nil || owner.ID == nil {
+					continue
+				}
+				ownerDeltas = append(ownerDeltas, msgraph.Delta{
+					DirectoryObject: msgraph.DirectoryObject{ID: owner.ID},
+					Type:            "#microsoft.graph.user",
+				})
+			}
+
+			groups = append(groups, msgraph.ListGroupsDeltaResponse{
+				Group:   *group,
+				Members: memberDeltas,
+				Owners:  ownerDeltas,
+			})
+		}
+	}
+	s.mu.RUnlock()
+
+	latestKey := 0
+	if len(s.Storage.GroupsDelta) == 0 {
+		latestKey = 1
+		s.Storage.GroupsDelta[latestKey] = []msgraph.ListGroupsDeltaResponse{}
+	} else {
+		keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+		latestKey = keys[len(keys)-1]
+		// increment key to mimic new delta token and tracker
+		latestKey++
+		s.Storage.GroupsDelta[latestKey] = []msgraph.ListGroupsDeltaResponse{}
+	}
+
+	if len(groups) == 0 {
+		groups = []msgraph.ListGroupsDeltaResponse{}
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"@odata.deltaLink": deltaLink(r, strconv.Itoa(latestKey)),
+		"value":            groups,
 	})
 }
 
@@ -199,6 +344,94 @@ func (s *Server) SetUsers(users []*msgraph.User) {
 			s.Storage.Users[*user.ID] = user
 		}
 	}
+
+	keys := slices.Collect(maps.Keys(s.Storage.UsersDelta))
+	latestKey := keys[len(keys)-1]
+
+	var userDelta []msgraph.ListUsersDeltaResponse
+	for _, d := range users {
+		userDelta = append(userDelta, msgraph.ListUsersDeltaResponse{
+			User: *d,
+		})
+	}
+	s.Storage.UsersDelta[latestKey] = append(s.Storage.UsersDelta[latestKey], userDelta...)
+}
+
+// DeleteUsers updates users storage.
+func (s *Server) DeleteUsers(users []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, userID := range users {
+		if userID != "" {
+			delete(s.Storage.Users, userID)
+		}
+	}
+
+	// update user delta
+	keys := slices.Collect(maps.Keys(s.Storage.UsersDelta))
+	latestKey := 1
+	if len(keys) >= 2 {
+		latestKey = keys[len(keys)-1]
+	}
+
+	var userDelta []msgraph.ListUsersDeltaResponse
+	for _, userID := range users {
+		userDelta = append(userDelta, msgraph.ListUsersDeltaResponse{
+			User: msgraph.User{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(userID),
+				},
+			},
+			Removed: &msgraph.RemovedReason{
+				Reason: to.Ptr("changed"),
+			},
+		})
+	}
+	s.Storage.UsersDelta[latestKey] = append(s.Storage.UsersDelta[latestKey], userDelta...)
+
+	// remove user's group membership
+	var groupsDelta []msgraph.ListGroupsDeltaResponse
+	for gi, gms := range s.Storage.GroupMembers {
+		newMembers := []msgraph.GroupMember{}
+		removedMemberDelta := []msgraph.Delta{}
+		for _, gm := range gms {
+			if slices.Contains(users, *gm.GetID()) {
+				// remove the user from the group membership
+				// update group member delta
+				memberType := "#microsoft.graph.user"
+				switch gm.(type) {
+				case *msgraph.Group:
+					memberType = "#microsoft.graph.group"
+				default:
+					// handle unknown member type
+				}
+
+				// collect removed member Ids
+				removedMemberDelta = append(removedMemberDelta, msgraph.Delta{
+					DirectoryObject: msgraph.DirectoryObject{
+						ID: gm.GetID(),
+					},
+					Type: memberType,
+					Removed: &msgraph.RemovedReason{
+						Reason: to.Ptr("deleted"),
+					},
+				})
+
+			} else {
+				newMembers = append(newMembers, gm)
+			}
+		}
+		groupsDelta = append(groupsDelta, msgraph.ListGroupsDeltaResponse{
+			Group: msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(gi),
+				},
+			},
+			Members: removedMemberDelta,
+		})
+
+		s.Storage.GroupMembers[gi] = newMembers
+	}
 }
 
 // SetGroups updates groups storage.
@@ -219,11 +452,99 @@ func (s *Server) SetGroupMembers(groupID string, members []msgraph.GroupMember) 
 	s.Storage.GroupMembers[groupID] = members
 }
 
+func (s *Server) DeleteGroupMembers(groupID string, members []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	groupMembers := s.Storage.GroupMembers[groupID]
+	newMembers := []msgraph.GroupMember{}
+	newMemberDeltas := []msgraph.Delta{}
+	for _, gm := range groupMembers {
+		if slices.Contains(members, *gm.GetID()) {
+			memberType := "#microsoft.graph.user"
+			switch gm.(type) {
+			case *msgraph.Group:
+				memberType = "#microsoft.graph.group"
+			default:
+				// handle unknown member type
+			}
+			newMemberDeltas = append(newMemberDeltas, msgraph.Delta{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: gm.GetID(),
+				},
+				Type: memberType,
+				Removed: &msgraph.RemovedReason{
+					Reason: to.Ptr("changed"),
+				},
+			})
+		} else {
+			newMembers = append(newMembers, gm)
+		}
+	}
+	s.Storage.GroupMembers[groupID] = newMembers
+
+	// update delta
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := 1
+	if len(keys) >= 2 {
+		latestKey = keys[len(keys)-1]
+	}
+
+	// TODO(sshah): check if the group delta already exists for this group
+	// e.g., group membership was updated by DeleteGroupMembers.
+	// below, it replaces the whole group delta for the given groupiD
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], msgraph.ListGroupsDeltaResponse{
+		Group: msgraph.Group{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID: to.Ptr(groupID),
+			},
+		},
+		Members: newMemberDeltas,
+	})
+
+}
+
 // SetGroupOwners updates group owners storage.
 func (s *Server) SetGroupOwners(groupID string, users []*msgraph.User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Storage.GroupOwners[groupID] = users
+}
+
+func (s *Server) DeleteGroups(groups []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, groupID := range groups {
+		if groupID != "" {
+			delete(s.Storage.Groups, groupID)
+		}
+	}
+
+	// update user delta
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := 1
+	if len(keys) >= 2 {
+		latestKey = keys[len(keys)-1]
+	}
+
+	var groupDeltas []msgraph.ListGroupsDeltaResponse
+	for _, groupID := range groups {
+		groupDeltas = append(groupDeltas, msgraph.ListGroupsDeltaResponse{
+			Group: msgraph.Group{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: to.Ptr(groupID),
+				},
+			},
+			Removed: &msgraph.RemovedReason{
+				Reason: to.Ptr("deleted"),
+			},
+		})
+	}
+
+	// TODO(sshah): check if the group delta already exists for this group
+	// e.g., group membership was updated by DeleteGroupMembers.
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], groupDeltas...)
+
 }
 
 // SetApplications updates application storage.
@@ -255,4 +576,13 @@ func (rt *RewriteTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	req.URL.Scheme = rt.URL.Scheme
 	req.URL.Host = rt.URL.Host
 	return rt.Base.RoundTrip(req)
+}
+
+func deltaLink(r *http.Request, deltaToken string) string {
+	u := *r.URL
+	q := u.Query()
+	q.Del("$deltatoken")
+	q.Set("$deltatoken", "mock-delta-token#"+deltaToken)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
