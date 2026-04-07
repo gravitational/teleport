@@ -247,7 +247,7 @@ $ helm repo update
 
 Create a release from the chart:
 ```code
-$ helm upgrade --install -n teleport-cluster teleport teleport/teleport-cluster -f values.yaml
+$ helm upgrade --install -n teleport-cluster teleport teleport/teleport-cluster --version=(=teleport.version=) -f values.yaml
 
 Release "teleport" does not exist. Installing it now.
 NAME: teleport
