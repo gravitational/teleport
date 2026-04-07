@@ -19,7 +19,7 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonText, Flex, Text } from 'design';
+import { Box, ButtonText, Flex, Text, Toggle } from 'design';
 import * as Icons from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
@@ -73,31 +73,9 @@ const requiredRegions =
     };
   };
 
-type ServiceDescriptor = {
-  type: ServiceType;
-  label: string;
-  resourceName: string;
-  allowWildcardRegions: boolean;
-};
-
-const serviceDescriptors: ServiceDescriptor[] = [
-  {
-    type: 'ec2',
-    label: 'EC2 Instances',
-    resourceName: 'EC2 instances',
-    allowWildcardRegions: true,
-  },
-  {
-    type: 'eks',
-    label: 'EKS Clusters',
-    resourceName: 'EKS clusters',
-    allowWildcardRegions: false,
-  },
-];
-
 type ResourcesSectionProps = {
   configs: ServiceConfigs;
-  onConfigChange: (type: ServiceType, config: ServiceConfig) => void;
+  onConfigChange: (type: ServiceType, patch: Partial<ServiceConfig>) => void;
 };
 
 export function ResourcesSection({
@@ -127,48 +105,66 @@ export function ResourcesSection({
           {message}
         </Text>
       )}
-      {serviceDescriptors.map((desc, i) => (
-        <Box key={desc.type} mt={i > 0 ? 3 : 0}>
-          <AwsService
-            label={desc.label}
-            tooltipText={`Filter for ${desc.resourceName} by their tags. If no tags are added, Teleport will enroll all ${desc.resourceName}.`}
-            config={configs[desc.type]}
-            onChange={config => onConfigChange(desc.type, config)}
-            allowWildcardRegions={desc.allowWildcardRegions}
-          />
-        </Box>
-      ))}
+
+      <AwsService
+        label="EC2 Instances"
+        config={configs.ec2}
+        onUpdate={patch => onConfigChange('ec2', patch)}
+        allowAllRegions={true}
+        tagTooltip="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
+      />
+
+      <Box mt={3}>
+        <AwsService
+          label="EKS Clusters"
+          config={configs.eks}
+          onUpdate={patch => onConfigChange('eks', patch)}
+          allowAllRegions={false}
+          tagTooltip="Filter for EKS clusters by their tags. If no tags are added, Teleport will enroll all EKS clusters."
+        >
+          <Box mt={2}>
+            <Toggle
+              isToggled={configs.eks.kubeAppDiscovery ?? true}
+              onToggle={() =>
+                onConfigChange('eks', {
+                  kubeAppDiscovery: !(configs.eks.kubeAppDiscovery ?? true),
+                })
+              }
+            >
+              <Box ml={2} mr={1}>
+                Enable Kubernetes App Discovery
+              </Box>
+              <IconTooltip kind="info">
+                <Text>
+                  Teleport's Kubernetes App Discovery will automatically
+                  identify and enroll HTTP applications running inside
+                  discovered Kubernetes clusters.
+                </Text>
+              </IconTooltip>
+            </Toggle>
+          </Box>
+        </AwsService>
+      </Box>
     </>
   );
 }
 
-type AwsServiceProps = {
-  label: string;
-  tooltipText: string;
-  config: ServiceConfig;
-  onChange: (config: ServiceConfig) => void;
-  allowWildcardRegions: boolean;
-};
-
 function AwsService({
   label,
-  tooltipText,
   config,
-  onChange,
-  allowWildcardRegions,
-}: AwsServiceProps) {
-  const [showTags, setShowTags] = useState(config.tags.length > 0);
-
-  const toggle = () => {
-    onChange({
-      ...config,
-      enabled: !config.enabled,
-    });
-  };
-
-  const handleRegionsChange = (regions: CloudRegion[]) => {
-    onChange({ ...config, regions });
-  };
+  onUpdate,
+  allowAllRegions,
+  tagTooltip,
+  children,
+}: {
+  label: string;
+  config: ServiceConfig;
+  onUpdate: (update: Partial<ServiceConfig>) => void;
+  allowAllRegions: boolean;
+  tagTooltip: string;
+  children?: React.ReactNode;
+}) {
+  const [tagsExpanded, setTagsExpanded] = useState(config.tags.length > 0);
 
   return (
     <>
@@ -177,7 +173,7 @@ function AwsService({
         size="small"
         label={label}
         checked={config.enabled}
-        onChange={toggle}
+        onChange={() => onUpdate({ enabled: !config.enabled })}
       />
       {config.enabled && (
         <Box ml={4}>
@@ -185,23 +181,22 @@ function AwsService({
             <RegionMultiSelector
               regionGroups={awsRegionGroups}
               selectedRegions={config.regions}
-              onChange={handleRegionsChange}
-              disabled={false}
-              required={!allowWildcardRegions}
-              rule={requiredRegions(allowWildcardRegions)}
-              allowAllRegions={allowWildcardRegions}
+              onChange={regions => onUpdate({ regions })}
+              required={!allowAllRegions}
+              rule={requiredRegions(allowAllRegions)}
+              allowAllRegions={allowAllRegions}
             />
           </Box>
-          <FilterButton onClick={() => setShowTags(prev => !prev)}>
+          <FilterButton onClick={() => setTagsExpanded(prev => !prev)}>
             <Flex alignItems="center" gap={1} mb={2}>
-              <FilterChevron size="small" expanded={showTags} />
+              <FilterChevron size="small" expanded={tagsExpanded} />
               Filter by tag
               <IconTooltip kind="info">
-                <Text>{tooltipText}</Text>
+                <Text>{tagTooltip}</Text>
               </IconTooltip>
             </Flex>
           </FilterButton>
-          {showTags && (
+          {tagsExpanded && (
             <Box mb={2}>
               <Box width={400}>
                 <LabelsInput
@@ -215,17 +210,13 @@ function AwsService({
                     fieldName: 'Value',
                     placeholder: 'production',
                   }}
-                  setLabels={(tags: Label[]) =>
-                    onChange({
-                      ...config,
-                      tags: tags as AwsLabel[],
-                    })
-                  }
+                  setLabels={t => onUpdate({ tags: t as AwsLabel[] })}
                   rule={nonEmptyTags}
                 />
               </Box>
             </Box>
           )}
+          {children}
         </Box>
       )}
     </>

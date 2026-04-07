@@ -31,6 +31,7 @@ export type ServiceConfig = {
   enabled: boolean;
   regions: Regions[];
   tags: AwsLabel[];
+  kubeAppDiscovery?: boolean;
 };
 
 export type ServiceConfigs = Record<ServiceType, ServiceConfig>;
@@ -39,4 +40,5 @@ export type AwsMatcher = {
   type: ServiceType;
   regions: Regions[];
   tags: AwsLabel[];
+  kubeAppDiscovery?: boolean;
 };

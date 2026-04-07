@@ -69,6 +69,10 @@ const buildTfMatcher = (matcher: AwsMatcher): TFObject => {
     obj.tags = tags;
   }
 
+  if (matcher.type === 'eks' && matcher.kubeAppDiscovery === false) {
+    obj.kube_app_discovery = false;
+  }
+
   return obj;
 };
 

@@ -21,6 +21,7 @@ import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import { Link as RouterLink } from 'react-router-dom';
+
 import { Box, Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ButtonPrimaryBorder, ButtonText } from 'design/Button';

@@ -18,6 +18,7 @@
 
 import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
+
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
@@ -76,8 +77,11 @@ export function EnrollAws() {
     eks: { enabled: false, regions: [], tags: [] },
   });
 
-  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
-    setConfigs(prev => ({ ...prev, [type]: config }));
+  const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
+    setConfigs(prev => ({
+      ...prev,
+      [type]: { ...prev[type], ...patch },
+    }));
   };
 
   const terraformConfig = useMemo(() => {
@@ -87,6 +91,7 @@ export function EnrollAws() {
         type: t,
         regions: configs[t].regions,
         tags: configs[t].tags,
+        kubeAppDiscovery: configs[t].kubeAppDiscovery,
       }));
     return buildTerraformConfig({
       integrationName,
@@ -224,4 +229,3 @@ export function IntegrationSection({
     </>
   );
 }
-

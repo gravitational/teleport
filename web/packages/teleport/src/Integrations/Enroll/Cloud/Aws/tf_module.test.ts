@@ -100,7 +100,46 @@ describe('buildTerraformConfig', () => {
     expect(result).toContain('types   = ["eks"]');
     expect(result).toContain('regions = ["us-west-2"]');
     expect(result).toContain('team = ["platform"]');
+    expect(result).not.toContain('kube_app_discovery');
     expect(result).not.toContain('"ec2"');
+  });
+
+  test('EKS with kube_app_discovery disabled', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'eks',
+          regions: ['us-west-2'],
+          tags: [],
+          kubeAppDiscovery: false,
+        },
+      ],
+    });
+
+    expect(result).toContain('kube_app_discovery = false');
+  });
+
+  test('EKS with kube_app_discovery enabled omits it (TF default)', () => {
+    const result = buildTerraformConfig({
+      ...baseConfig,
+      matchers: [
+        {
+          type: 'eks',
+          regions: ['us-west-2'],
+          tags: [],
+          kubeAppDiscovery: true,
+        },
+      ],
+    });
+
+    expect(result).not.toContain('kube_app_discovery');
+  });
+
+  test('EC2 matcher does not include kube_app_discovery', () => {
+    const result = buildTerraformConfig(baseConfig);
+
+    expect(result).not.toContain('kube_app_discovery');
   });
 
   test('EC2 + EKS with different regions and tags', () => {

@@ -121,8 +121,11 @@ export function SettingsTab({
     eks: updatedConfigs.eks ?? getConfigFromRules(eksRules?.rules),
   };
 
-  const updateConfig = (type: ServiceType, config: ServiceConfig) => {
-    setUpdatedConfigs(prev => ({ ...prev, [type]: config }));
+  const updateConfig = (type: ServiceType, patch: Partial<ServiceConfig>) => {
+    setUpdatedConfigs(prev => ({
+      ...prev,
+      [type]: { ...configs[type], ...patch },
+    }));
   };
 
   const matchers = serviceTypes
@@ -131,6 +134,7 @@ export function SettingsTab({
       type: t,
       regions: configs[t].regions,
       tags: configs[t].tags,
+      kubeAppDiscovery: configs[t].kubeAppDiscovery,
     }));
 
   const terraformConfig = buildTerraformConfig({
