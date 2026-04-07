@@ -596,6 +596,26 @@ func newToken() *joiningv1.ScopedToken {
 	}
 }
 
+func newBoundKeypairToken() *joiningv1.ScopedToken {
+	return &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: uuid.New().String(),
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "",
+			BotName:       "example",
+			BotScope:      "/test",
+			JoinMethod:    string(types.JoinMethodBoundKeypair),
+			Roles:         []string{types.RoleBot.String()},
+			UsageMode:     string(joining.TokenUsageModeBot),
+			BoundKeypair:  &joiningv1.BoundKeypairSpec{},
+		},
+	}
+}
+
 func TestScopedTokenUpdate(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
@@ -779,6 +799,68 @@ func TestScopedTokenUpsert(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, gocmp.Diff(updatedToken.GetToken(), fetched.GetToken(), cmpOpts...))
+	})
+
+	t.Run("bound keypair tokens require non-nil field", func(t *testing.T) {
+		t.Parallel()
+
+		token := newBoundKeypairToken()
+		token.Spec.BoundKeypair = nil
+
+		_, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.ErrorContains(t, err, "bound_keypair tokens require a non-nil spec.bound_keypair")
+	})
+
+	t.Run("bound keypair initialized from empty", func(t *testing.T) {
+		t.Parallel()
+
+		token := newBoundKeypairToken()
+
+		upserted, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		spec := upserted.GetToken().GetSpec().GetBoundKeypair()
+		require.NotNil(t, spec)
+		status := upserted.GetToken().GetStatus().GetUsage().GetBoundKeypair()
+		require.NotNil(t, status)
+
+		require.NotEmpty(t, upserted.GetToken().GetMetadata().GetName(), "name should be set")
+		require.Equal(t, string(types.JoinMethodBoundKeypair), upserted.GetToken().GetSpec().GetJoinMethod(), "join method should default be bound_keypair")
+		require.Empty(t, spec.GetRecovery().GetMode())
+		require.EqualValues(t, 1, spec.GetRecovery().GetLimit())
+		require.NotEmpty(t, status.GetRegistrationSecret())
+	})
+
+	t.Run("bound keypair initialized with existing registration secret", func(t *testing.T) {
+		t.Parallel()
+
+		token := newBoundKeypairToken()
+		token.Spec.BoundKeypair.Onboarding = &joiningv1.BoundKeypairSpec_OnboardingSpec{
+			RegistrationSecret: "abc123",
+		}
+
+		upserted, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		status := upserted.GetToken().GetStatus().GetUsage().GetBoundKeypair()
+		require.Equal(t, "abc123", status.GetRegistrationSecret(), "specified registration secret must be copied to status")
+	})
+
+	t.Run("bound keypair initialized with preregistered key", func(t *testing.T) {
+		t.Parallel()
+
+		token := newBoundKeypairToken()
+		token.Spec.BoundKeypair.Onboarding = &joiningv1.BoundKeypairSpec_OnboardingSpec{
+			InitialPublicKey: "abc123",
+		}
+
+		upserted, err := service.UpsertScopedToken(ctx, &joiningv1.UpsertScopedTokenRequest{Token: token})
+		require.NoError(t, err)
+
+		status := upserted.GetToken().GetStatus().GetUsage().GetBoundKeypair()
+
+		require.Empty(t, status.GetBoundPublicKey(), "bound public key must not be copied at creation time")
+		require.Empty(t, status.GetRegistrationSecret(), "no registration secret can be generated")
 	})
 
 	rejectCases := []struct {
