@@ -6101,6 +6101,47 @@ func (c *Client) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 	return res.GetToken(), trace.Wrap(err)
 }
 
+// GetScopedRole gets a scoped role by name.
+func (c *Client) GetScopedRole(ctx context.Context, name string) (*scopedaccessv1.ScopedRole, error) {
+	res, err := c.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res.GetRole(), nil
+}
+
+// CreateScopedRole creates a new scoped role.
+func (c *Client) CreateScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
+	res, err := c.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: role,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res.GetRole(), nil
+}
+
+// UpsertScopedRole upserts an existing scoped role.
+func (c *Client) UpsertScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
+	res, err := c.ScopedAccessServiceClient().UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		Role: role,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res.GetRole(), nil
+}
+
+// DeleteScopedRole deletes a scoped role by name.
+func (c *Client) DeleteScopedRole(ctx context.Context, name string) error {
+	_, err := c.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
 // AppAuthConfigClient returns an [appauthconfigv1.AppAuthConfigServiceClient].
 func (c *Client) AppAuthConfigClient() appauthconfigv1.AppAuthConfigServiceClient {
 	return appauthconfigv1.NewAppAuthConfigServiceClient(c.conn)
