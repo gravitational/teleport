@@ -831,7 +831,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
-	u, err := as.AuthServer.GetUser(ctx, "dave", true /* withSecrets */)
+	u, err := as.AuthServer.IdentityInternal.GetUser(ctx, "dave", true /* withSecrets */)
 	require.NoError(t, err)
 	assert.Nil(t, u.GetLocalAuth(), "user LocalAuth not nil")
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())

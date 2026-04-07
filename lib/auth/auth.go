@@ -1019,7 +1019,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.WebSessions().Get(ctx, req)
+	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -5010,7 +5010,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.GetUser(ctx, req.User, false)
+		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
