@@ -290,7 +290,7 @@ type ScopedRoleSSH struct {
 	// PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions.
 	// If not set, X11 forwarding is not permitted.
 	PermitX11Forwarding *bool `protobuf:"varint,4,opt,name=permit_x11_forwarding,json=permitX11Forwarding,proto3,oneof" json:"permit_x11_forwarding,omitempty"`
-	// ForwardAgent is SSH agent forwarding.
+	// ForwardAgent enables SSH agent forwarding.
 	ForwardAgent *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 	PortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=port_forwarding,json=portForwarding,proto3" json:"port_forwarding,omitempty"`
