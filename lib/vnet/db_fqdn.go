@@ -17,9 +17,25 @@
 package vnet
 
 import (
+	"crypto/sha1"
+	"encoding/base32"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	// maxDNSLabelLength is the maximum length of a single DNS label (the part
+	// between dots in a FQDN)
+	maxDNSLabelLength = 63
+
+	// dbNameHashInfix separates the human-readable prefix from the hash suffix
+	dbNameHashInfix = "-vnethash-"
+
+	// dbNameHashLen is the number of base32 characters used from the SHA1 hash.
+	// 12 base32 chars = 60 bits of entropy, which provides negligible collision
+	// probability for database name sets
+	dbNameHashLen = 12
 )
 
 // dbFQDNInfix is the DNS label that separates the database-specific prefix
@@ -59,6 +75,12 @@ func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err err
 		return "", "", errNoMatch
 	}
 
+	// For hashed names, skip ValidateDatabaseName since the hashed label
+	// won't match the original database name regex.
+	if isHashedDBName(dbName) {
+		return dbUser, dbName, nil
+	}
+
 	// Validate that dbName looks like a valid database resource name. This
 	// avoids unnecessary cluster API calls for invalid names
 	if err := types.ValidateDatabaseName(dbName); err != nil {
@@ -66,4 +88,39 @@ func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err err
 	}
 
 	return dbUser, dbName, nil
+}
+
+// hashDBName returns a DNS-safe label for a database resource name. Names that
+// fit within a single DNS label (<=63 chars) are returned unchanged. Longer
+// names are truncated and suffixed with a hash to stay within DNS limits while
+// remaining deterministic and human-readable.
+//
+// Format for hashed names: <prefix>-vnethash-<hash12>
+// where <prefix> is the first portion of the original name and <hash12> is
+// 12 lowercase base32 characters of the SHA1 hash of the full name.
+func hashDBName(name string) string {
+	if len(name) <= maxDNSLabelLength {
+		return name
+	}
+
+	h := sha1.New()
+	h.Write([]byte(name))
+	hash := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(h.Sum(nil))
+
+	maxPrefix := maxDNSLabelLength - len(dbNameHashInfix) - dbNameHashLen
+	prefix := name[:maxPrefix]
+	// Ensure prefix doesn't end with a hyphen (invalid DNS label ending).
+	prefix = strings.TrimRight(prefix, "-")
+	return prefix + dbNameHashInfix + strings.ToLower(hash[:dbNameHashLen])
+}
+
+func isHashedDBName(name string) bool {
+	return strings.Contains(name, dbNameHashInfix)
+}
+
+func extractPrefixFromHashedDBName(name string) string {
+	if idx := strings.Index(name, dbNameHashInfix); idx >= 0 {
+		return name[:idx]
+	}
+	return name
 }
