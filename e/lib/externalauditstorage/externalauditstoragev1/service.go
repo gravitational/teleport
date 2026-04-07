@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	ecaint "github.com/gravitational/teleport/lib/integrations/externalauditstorage"
@@ -415,7 +416,7 @@ func (s *Service) getAWSConfig(ctx context.Context, authCtx *authz.Context) (aws
 	configurator.SetGenerateOIDCTokenFn(s.oidcTokenFn)
 	configurator.WaitForFirstCredentials(ctx)
 
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(configurator.GetSpec().Region), config.WithCredentialsProvider(configurator.CredentialsProvider()))
+	cfg, err := config.LoadDefaultConfig(ctx, awssdkconfig.WithRegion(configurator.GetSpec().Region), awssdkconfig.WithCredentialsProvider(configurator.CredentialsProvider()))
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}

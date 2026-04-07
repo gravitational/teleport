@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -204,8 +205,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.ExternalAuditStorage != nil && cfg.ExternalAuditStorage.IsUsed() {
 		cfg.ExternalAuditStorage.WaitForFirstCredentials(ctx)
 		awsConfig, err = config.LoadDefaultConfig(ctx,
-			config.WithRegion(athenaConfig.Region),
-			config.WithCredentialsProvider(cfg.ExternalAuditStorage.CredentialsProvider()),
+			awssdkconfig.WithRegion(athenaConfig.Region),
+			awssdkconfig.WithCredentialsProvider(cfg.ExternalAuditStorage.CredentialsProvider()),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -351,7 +352,7 @@ func (s *Service) maybeUpdateReport(ctx context.Context, report *reports.AuditRe
 		}
 	case trace.IsNotFound(err):
 		// If report is not found, create it.
-	case err != nil:
+	default:
 		return trace.Wrap(err)
 	}
 

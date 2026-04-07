@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -16,7 +17,7 @@ import (
 
 // BuildAWSConfig is a helper function allowing to build AWS config with the given region, role ARN and role tags.
 func BuildAWSConfig(ctx context.Context, region, roleARN string, roleTags map[string]string) (aws.Config, error) {
-	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	awsConfig, err := config.LoadDefaultConfig(ctx, awssdkconfig.WithRegion(region))
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}

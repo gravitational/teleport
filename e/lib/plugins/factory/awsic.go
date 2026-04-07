@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -20,6 +20,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
@@ -227,7 +228,7 @@ func makeAWSConfig(ctx context.Context, settings *types.PluginAWSICSettings, aut
 		// without role assumption.
 		// TODO(sshah): DELETE in Teleport 19.
 		logger.DebugContext(ctx, "Using ambient system AWS credential")
-		cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(settings.Region))
+		cfg, err := config.LoadDefaultConfig(ctx, awssdkconfig.WithRegion(settings.Region))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
