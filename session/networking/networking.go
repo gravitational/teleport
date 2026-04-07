@@ -114,7 +114,7 @@ type X11Request struct {
 
 // NewProcess starts a new networking process with the given command, which should
 // be pre-configured from a ssh server context with Teleport reexec settings. If an
-// error starting the process occurs, the the child error message from stderr is
+// error starting the process occurs, the child error message from stderr is
 // returned with the exit error.
 func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, string, error) {
 	proc := &Process{
@@ -133,7 +133,7 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, string, error) {
 	return proc, "", nil
 }
 
-// start the the networking process.
+// start the networking process.
 func (p *Process) start(ctx context.Context) error {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
