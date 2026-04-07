@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -84,7 +85,7 @@ type Status struct {
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
-	IntegrationDiscoveredResources map[string]*discoveryconfigv1.IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
+	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -99,6 +100,30 @@ func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, 
 	}
 
 	return discoveryConfig, nil
+}
+
+// IntegrationDiscoveredSummary holds the summary of resources discovered for a specific integration.
+type IntegrationDiscoveredSummary struct {
+	*discoveryconfigv1.IntegrationDiscoveredSummary
+}
+
+// MarshalJSON marshals the IntegrationDiscoveredSummary into JSON.
+func (s *IntegrationDiscoveredSummary) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		s = &IntegrationDiscoveredSummary{}
+	}
+	return protojson.Marshal(s.IntegrationDiscoveredSummary)
+}
+
+// UnmarshalJSON unmarshals JSON data into the IntegrationDiscoveredSummary.
+func (s *IntegrationDiscoveredSummary) UnmarshalJSON(data []byte) error {
+	if s.IntegrationDiscoveredSummary == nil {
+		s.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+	}
+
+	return protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal(data, s.IntegrationDiscoveredSummary)
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.

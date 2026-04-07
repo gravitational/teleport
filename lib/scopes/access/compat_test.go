@@ -247,3 +247,96 @@ func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
 	// via SSHAccessChecker.AdjustClientIdleTimeout reading directly from the scoped role proto.
 	require.Zero(t, role.GetOptions().ClientIdleTimeout.Duration())
 }
+
+// TestKubeConversion verifies the various kube-related scoped role conversion scenarios.
+func TestKubeConversion(t *testing.T) {
+	t.Parallel()
+
+	wildcardResources := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Name:      types.Wildcard,
+			APIGroup:  types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		},
+	}
+	tts := []struct {
+		name   string
+		kube   *scopedaccessv1.ScopedRoleKube
+		expect types.RoleConditions
+	}{
+		{
+			name:   "empty conditions",
+			kube:   &scopedaccessv1.ScopedRoleKube{},
+			expect: types.RoleConditions{},
+		},
+		{
+			name: "sparse",
+			kube: &scopedaccessv1.ScopedRoleKube{
+				Users:  []string{"system:user"},
+				Groups: []string{"viewer"},
+				Labels: []*labelv1.Label{
+					{
+						Name:   "team",
+						Values: []string{"red"},
+					},
+				},
+			},
+			expect: types.RoleConditions{
+				KubeUsers:  []string{"system:user"},
+				KubeGroups: []string{"viewer"},
+				KubernetesLabels: types.Labels{
+					"team": apiutils.Strings{"red"},
+				},
+				KubernetesResources: wildcardResources,
+			},
+		},
+		{
+			name: "full",
+			kube: &scopedaccessv1.ScopedRoleKube{
+				Users:  []string{"system:user", "system:admin"},
+				Groups: []string{"viewer", "editor"},
+				Labels: []*labelv1.Label{
+					{
+						Name:   "env",
+						Values: []string{"prod", "staging"},
+					},
+					{
+						Name:   "team",
+						Values: []string{"blue"},
+					},
+				},
+			},
+			expect: types.RoleConditions{
+				KubeUsers:  []string{"system:user", "system:admin"},
+				KubeGroups: []string{"viewer", "editor"},
+				KubernetesLabels: types.Labels{
+					"env":  apiutils.Strings{"prod", "staging"},
+					"team": apiutils.Strings{"blue"},
+				},
+				KubernetesResources: wildcardResources,
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/foo",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					Kube:             tt.kube,
+					AssignableScopes: []string{"/foo/bar"},
+				},
+				Version: types.V1,
+			}, "/foo/bar")
+			require.NoError(t, err)
+			tt.expect.Namespaces = []string{"default"}
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
+		})
+	}
+}

@@ -27,11 +27,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 )
 
 // TestParseShortcut will test parsing of shortcuts.
@@ -72,6 +69,11 @@ func TestParseShortcut(t *testing.T) {
 		"cert_authority":   {expectedOutput: types.KindCertAuthority},
 		"cert_authorities": {expectedOutput: types.KindCertAuthority},
 		"cas":              {expectedOutput: types.KindCertAuthority},
+
+		"cert_authority_override":  {expectedOutput: types.KindCertAuthorityOverride},
+		"cert_authority_overrides": {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_override":              {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_overrides":             {expectedOutput: types.KindCertAuthorityOverride},
 
 		"tunnel":          {expectedOutput: types.KindReverseTunnel},
 		"reverse_tunnels": {expectedOutput: types.KindReverseTunnel},
@@ -298,54 +300,4 @@ func TestProtoResourceRoundtrip(t *testing.T) {
 			require.WithinDuration(t, expires, unmarshalled.GetMetadata().GetExpires().AsTime(), time.Millisecond)
 		})
 	}
-}
-
-func TestConvertResource(t *testing.T) {
-	healthCfg, err := healthcheckconfig.NewHealthCheckConfig("example",
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
-					Name:   types.Wildcard,
-					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	user := &types.UserV2{
-		Kind: "user",
-		Metadata: types.Metadata{
-			Name: "llama",
-		},
-		Spec: types.UserSpecV2{
-			Roles: []string{"human", "camelidae"},
-		},
-	}
-
-	t.Run("converts legacy to RFD 153 resource", func(t *testing.T) {
-		resource := types.Resource153ToLegacy(healthCfg)
-		got, err := types.ConvertResource[*healthcheckconfigv1.HealthCheckConfig](resource)
-		require.NoError(t, err)
-		require.Equal(t, healthCfg, got)
-	})
-
-	t.Run("converts legacy to legacy", func(t *testing.T) {
-		resource := user.DeepCopy()
-		got, err := types.ConvertResource[*types.UserV2](types.Resource(resource))
-		require.NoError(t, err)
-		require.Equal(t, user, got)
-	})
-
-	t.Run("handles unexpected RFD 153 resource", func(t *testing.T) {
-		resource := types.Resource153ToLegacy(healthCfg)
-		_, err := types.ConvertResource[*types.Server](resource)
-		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.resource153ToLegacyAdapter")
-	})
-
-	t.Run("handles unexpected legacy resource", func(t *testing.T) {
-		resource := user.DeepCopy()
-		_, err := types.ConvertResource[*types.Server](types.Resource(resource))
-		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.UserV2")
-	})
 }

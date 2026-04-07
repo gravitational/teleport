@@ -877,8 +877,10 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
     - [ ] Azure Active Directory (AD) Screenshots are up-to-date
-- [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up-to-date
+- [ ] Entra ID SAML (previously ADFS) install instructions work
+    - [ ] Entra ID SAML Screenshots are up-to-date
+- [ ] Entra ID OIDC install instructions work
+    - [ ] Entra ID OIDC Screenshots are up-to-date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work

@@ -1,18 +1,18 @@
 /*
- * Copyright 2026 Gravitational, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+Copyright 2026 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package types
 
@@ -25,13 +25,9 @@ const validatedMFAChallengeFilterKeyTargetCluster = "target_cluster"
 
 // IntoMap copies ValidatedMFAChallengeFilter values into a map.
 func (f *ValidatedMFAChallengeFilter) IntoMap() map[string]string {
-	m := make(map[string]string)
-
-	if f.TargetCluster != "" {
-		m[validatedMFAChallengeFilterKeyTargetCluster] = f.TargetCluster
+	return map[string]string{
+		validatedMFAChallengeFilterKeyTargetCluster: f.TargetCluster,
 	}
-
-	return m
 }
 
 // FromMap copies values from a map into this ValidatedMFAChallengeFilter value.
@@ -41,11 +37,11 @@ func (f *ValidatedMFAChallengeFilter) FromMap(m map[string]string) {
 	}
 }
 
-// Match checks whether the target cluster matches the filter. Returns true if the target cluster matches the filter,
-// false otherwise. If the filter's TargetCluster is empty, it returns false to prevent unintended matches. This ensures
-// that only explicitly specified target clusters are considered a match.
+// Match checks whether the target cluster matches the filter.
 func (f *ValidatedMFAChallengeFilter) Match(targetCluster string) bool {
-	if f.TargetCluster == "" {
+	// If the filter's target cluster is empty or the target cluster is empty, no match. This is a safety measure to
+	// prevent accidentally matching all challenges when the filter or the cluster is not properly set.
+	if f.TargetCluster == "" || targetCluster == "" {
 		return false
 	}
 

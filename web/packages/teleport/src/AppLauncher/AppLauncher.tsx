@@ -131,6 +131,10 @@ export function AppLauncher({
         }
 
         // Continue the auth exchange.
+        // decodeURIComponent is redundant here: React Router's useParams()
+        // already decodes percent-encoded path segments (e.g. %2F → /),
+        // so params.arn contains the decoded ARN. Retained as defensive
+        // code in case a caller constructs the URL without encoding.
         if (params.arn) {
           params.arn = decodeURIComponent(params.arn);
         }

@@ -94,7 +94,9 @@ test.describe('state restoration from disk', () => {
       await using app = await launchApp(temp.path);
       const { page } = app;
       await expect(page.getByText('Reopen previous session')).toBeVisible();
-      await page.getByRole('button', { name: 'Reopen' }).click();
+      const reopenButton = page.getByRole('button', { name: 'Reopen' });
+      await expect(reopenButton).toBeFocused();
+      await reopenButton.click();
       await expect(page.getByText('Reopen previous session')).not.toBeVisible();
 
       // Both tabs should be restored.

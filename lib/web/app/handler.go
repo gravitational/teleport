@@ -29,8 +29,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -666,7 +666,17 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 			}
 		}
 
-		u.Path = path.Join(urlPath...)
+		// Percent-encode every segment so that slashes in ARNs
+		// are not interpreted as path separators during URL
+		// serialization. Use strings.Join instead of path.Join
+		// to preserve the percent-encoded segments.
+		for i, s := range urlPath {
+			urlPath[i] = url.PathEscape(s)
+		}
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Error is unreachable: RawPath was built from
+		// PathEscape output above.
+		u.Path, _ = url.PathUnescape(u.RawPath)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly

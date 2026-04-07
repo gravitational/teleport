@@ -339,20 +339,27 @@ type Identity interface {
 	SnowflakeSession
 }
 
-// AppSession defines application session features.
-type AppSession interface {
+// AppSessionReader defines application session features available to remote clients.
+type AppSessionReader interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
-	// UpsertAppSession upserts an application web session.
-	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
+}
+
+// AppSession defines application session features.
+type AppSession interface {
+	AppSessionReader
+	// UpdateAppSession updates an existing application web session if the revisions match.
+	UpdateAppSession(context.Context, types.WebSession) error
+	// UpsertAppSession upserts an application web session.
+	UpsertAppSession(context.Context, types.WebSession) error
 }
 
 // SnowflakeSession defines Snowflake session features.
