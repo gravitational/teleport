@@ -291,10 +291,18 @@ func (t *terminal) Wait() ExecResult {
 	result := ExecResult{
 		Code:    exitCode(exitErr),
 		Command: cmd,
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
 	}
 
 	if t.childStderr != "" {
 		result.Error = errors.New(strings.TrimRight(t.childStderr, "\r\n"))
+	} else if exitErr != nil {
+		// If we get a non exec.ExitError and no launch error, preserve the
+		// error from Wait as it may indicate some other genuine error.
+		var execExitErr *exec.ExitError
+		if !errors.As(exitErr, &execExitErr) {
+			result.Error = exitErr
+		}
 	}
 
 	return result

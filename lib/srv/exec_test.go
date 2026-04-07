@@ -121,6 +121,11 @@ func TestEmitExecAuditEvent(t *testing.T) {
 			} else {
 				require.Empty(t, execEvent.Error)
 			}
+			if tt.inResult.Code == 0 {
+				require.Equal(t, events.ExecCode, execEvent.Code)
+			} else {
+				require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			}
 			require.Equal(t, strconv.Itoa(tt.inResult.Code), execEvent.ExitCode)
 			require.Equal(t, expectedMeta, execEvent.UserMetadata)
 			require.Equal(t, "123", execEvent.ServerID)

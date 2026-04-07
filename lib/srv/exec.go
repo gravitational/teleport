@@ -284,10 +284,18 @@ func (e *localExec) Wait() ExecResult {
 	result := ExecResult{
 		Command: e.GetCommand(),
 		Code:    exitCode(exitErr),
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
 	}
 
 	if e.childStderr != "" {
 		result.Error = errors.New(strings.TrimRight(e.childStderr, "\r\n"))
+	} else if exitErr != nil {
+		// If we get a non exec.ExitError and no launch error, preserve the
+		// error from Wait as it may indicate some other genuine error.
+		var execExitErr *exec.ExitError
+		if !errors.As(exitErr, &execExitErr) {
+			result.Error = exitErr
+		}
 	}
 
 	// Emit the result of execution to the Audit Log.
@@ -565,13 +573,13 @@ func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 
 		switch action {
 		case events.SCPActionUpload:
-			if result.Error != nil {
+			if result.Code != 0 {
 				scpEvent.Code = events.SCPUploadFailureCode
 			} else {
 				scpEvent.Code = events.SCPUploadCode
 			}
 		case events.SCPActionDownload:
-			if result.Error != nil {
+			if result.Code != 0 {
 				scpEvent.Code = events.SCPDownloadFailureCode
 			} else {
 				scpEvent.Code = events.SCPDownloadCode
@@ -592,7 +600,7 @@ func emitExecAuditEvent(ctx *ServerContext, result ExecResult) {
 			ConnectionMetadata: connectionMeta,
 			CommandMetadata:    commandMeta,
 		}
-		if result.Error != nil {
+		if result.Code != 0 {
 			execEvent.Code = events.ExecFailureCode
 		} else {
 			execEvent.Code = events.ExecCode
