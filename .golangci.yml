@@ -90,6 +90,7 @@ linters:
             - '**/lib/cloud/imds/**'
           allow:
             - github.com/gravitational/teleport/lib/cloud/imds
+            - github.com/gravitational/teleport/lib/cloud/aws/config
           deny:
             - pkg: github.com/gravitational/teleport/lib/auth$
               desc: lib/auth should not be imported to prevent increasing binary size, prefer lib/auth/authclient instead
@@ -381,6 +382,9 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
+        - pattern: ^[^\.]+\.LoadDefaultConfig$
+          pkg: ^github.com/aws/aws-sdk-go-v2/config$
+          msg: use github.com/gravitational/teleport/lib/cloud/aws/config.LoadDefaultConfig to ensure region validation
       analyze-types: true
     misspell:
       locale: US
@@ -507,6 +511,18 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+      - linters:
+          - forbidigo
+        path: lib/cloud/aws/config/config.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: examples/dynamoathenamigration/migration.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: e/scripts/loadtest-login/main.go
+        text: LoadDefaultConfig
     paths:
       - (^|/)node_modules/
       - ^api/gen/

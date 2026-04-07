@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
@@ -16,38 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package bot
 
 import (
-	"flag"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 )
 
-var allFixtures []*fixture
+func TestBot_RejectsDoubleStart(t *testing.T) {
+	b, err := New(Config{
+		Connection: connection.Config{
+			Address:            "localhost:3025",
+			AddressKind:        connection.AddressKindProxy,
+			StaticProxyAddress: true,
+		},
+	})
+	require.NoError(t, err)
 
-type fixture struct {
-	name    string
-	usage   string
-	enabled bool
-}
+	ctx := t.Context()
 
-// registerFixture declares a new optional piece of test infrastructure
-// (like an SSH node) and adds it to the global registry so it gets a --with-<name> flag.
-func registerFixture(name, usage string) *fixture {
-	f := &fixture{name: name, usage: usage}
+	_ = b.OneShot(ctx)
 
-	allFixtures = append(allFixtures, f)
+	err = b.OneShot(ctx)
+	require.ErrorContains(t, err, "already been started")
 
-	return f
-}
-
-func bindFixtureFlags(fs *flag.FlagSet) {
-	for _, f := range allFixtures {
-		fs.BoolVar(&f.enabled, "with-"+f.name, false, f.usage)
-	}
-}
-
-func enableAllFixtures() {
-	for _, f := range allFixtures {
-		f.enabled = true
-	}
+	err = b.Run(ctx)
+	require.ErrorContains(t, err, "already been started")
 }

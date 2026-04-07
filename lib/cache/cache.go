@@ -689,7 +689,7 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.

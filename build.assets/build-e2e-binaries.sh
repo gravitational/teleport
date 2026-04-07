@@ -8,6 +8,7 @@ set -eo pipefail
 
 MAKE="${MAKE:-make}"
 BUILDDIR="${BUILDDIR:-build}"
+TSH_SOURCE="${TSH_SOURCE:-./tool/tsh}"
 
 cargo --version && rustc --version && echo "ARCH=$(uname -m)"
 
@@ -15,7 +16,7 @@ mkdir -p build-logs
 
 ${MAKE} "${BUILDDIR}/teleport" 2>&1 | tee build-logs/teleport.log & pid_teleport=$!
 ${MAKE} "${BUILDDIR}/tctl" 2>&1 | tee build-logs/tctl.log & pid_tctl=$!
-go build -tags webauthnmock -o "${BUILDDIR}/tsh-e2e-webauthnmock" ./tool/tsh 2>&1 | tee build-logs/tsh.log & pid_tsh=$!
+go build -tags webauthnmock -o "${BUILDDIR}/tsh-e2e-webauthnmock" "${TSH_SOURCE}" 2>&1 | tee build-logs/tsh.log & pid_tsh=$!
 
 failed=0
 wait $pid_teleport || { echo "::error::make ${BUILDDIR}/teleport failed with exit code $?"; failed=1; }

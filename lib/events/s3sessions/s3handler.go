@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -203,12 +204,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	}
 	logger := slog.With(teleport.ComponentKey, teleport.SchemeS3)
 
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(cfg.Region),
 	}
 
 	if cfg.Insecure {
-		opts = append(opts, config.WithHTTPClient(&http.Client{
+		opts = append(opts, awsconfig.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
@@ -219,16 +220,16 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		opts = append(opts, config.WithHTTPClient(hc))
+		opts = append(opts, awsconfig.WithHTTPClient(hc))
 	}
 
 	if cfg.CredentialsProvider != nil {
-		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+		opts = append(opts, awsconfig.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
 	opts = append(opts,
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
+		awsconfig.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		awsconfig.WithAPIOptions(s3metrics.MetricsMiddleware()),
 	)
 
 	resolver, err := endpoint.NewLoggingResolver(
@@ -254,7 +255,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			return nil, trace.BadParameter("configured S3 endpoint is invalid: %s", err.Error())
 		}
 
-		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
+		opts = append(opts, awsconfig.WithBaseEndpoint(cfg.Endpoint))
 
 		s3Opts = append(s3Opts, func(options *s3.Options) {
 			options.UsePathStyle = !cfg.UseVirtualStyleAddressing
