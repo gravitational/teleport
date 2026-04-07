@@ -21,8 +21,6 @@ should match the snapshot (smtp on):
         https_key_file = "/var/lib/teleport/plugins/jira/tls/tls.key"
         https_cert_file = "/var/lib/teleport/plugins/jira/tls/tls.crt"
 
-
-
         [log]
         output = "/var/log/teleport-jira.log"
         severity = "DEBUG"

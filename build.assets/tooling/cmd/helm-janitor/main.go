@@ -24,20 +24,30 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"sort"
-	"strings"
-
-	"gopkg.in/yaml.v3"
+	"syscall"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 )
 
+// Chart represents a chart we want to test, lint, publish a reference for, and update.
 type Chart struct {
-	Name          string
-	Path          string
+	// Name of the chart.
+	Name string
+	// Path of the chart, relative to the teleport repo root.
+	Path string
+	// ReferencePath is where the generated reference is stored.
+	// When it's empty, no reference is generated.
 	ReferencePath string
+	// IsLibrary describes if the chart is a library chart.
+	// Library charts cannot be installed and are not directly tested, nor linted.
+	IsLibrary bool
 }
 
+// charts is the source of truth for the list of charts we maintain.
+// If you need to introduce a new chart, add to this list.
 var charts = []Chart{
 	{
 		Name: "teleport-cluster",
@@ -91,6 +101,16 @@ var charts = []Chart{
 		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.access-slack.mdx",
 	},
 	{
+		Name:          "access-discord",
+		Path:          "examples/chart/access/discord",
+		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.access-discord.mdx",
+	},
+	{
+		Name:          "access-datadog",
+		Path:          "examples/chart/access/datadog",
+		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.access-datadog.mdx",
+	},
+	{
 		Name:          "event-handler",
 		Path:          "examples/chart/event-handler",
 		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.event-handler.mdx",
@@ -105,91 +125,91 @@ var charts = []Chart{
 		Path:          "examples/chart/tbot-spiffe-daemon-set",
 		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx",
 	},
+	{
+		Name:          "teleport-kube-updater",
+		Path:          "examples/chart/teleport-kube-updater",
+		ReferencePath: "",
+		IsLibrary:     true,
+	},
 }
 
 const usage = `Usage:
-  helm-janitor all [--charts=<names>]
-  helm-janitor test [--charts=<names>]
-  helm-janitor lint [--charts=<names>]
-  helm-janitor reference [--check] [--charts=<names>]
+  helm-janitor all [--charts=<names>] [--root-dir=<path>]
+  helm-janitor test [--charts=<names>] [--root-dir=<path>]
+  helm-janitor lint [--charts=<names>] [--root-dir=<path>]
+  helm-janitor reference [--check] [--charts=<names>] [--root-dir=<path>]
 
-  helm-janitor list
-  helm-janitor update-version <version>
+  helm-janitor list [--root-dir=<path>]
+  helm-janitor update-version <version> [--root-dir=<path>]
 
 <names> is a comma-separated list of chart names.
+<path> is the path to the teleport repo root.
 `
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case <-ch:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(1)
 	}
-
 	command := os.Args[1]
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// TODO: capture signals and cancel contexts
+	fs := flag.NewFlagSet("helm-janitor", flag.ExitOnError)
+	chartsFlag := fs.String("charts", "", "Comma-separated list of chart names")
+	updateSnapshotsFlag := fs.Bool("update-snapshots", false, "Update Helm test snapshots")
+	checkFlag := fs.Bool("check", false, "Check if references are up to date")
+	rootDirFlag := fs.String("root-dir", "", "Root directory of the teleport repo.")
+
+	if err := fs.Parse(os.Args[2:]); err != nil {
+		log.Fatal(err)
+	}
+
+	selectedCharts, err := selectCharts(*chartsFlag, *rootDirFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	switch command {
 	case "all":
-		allCmd := flag.NewFlagSet("all", flag.ExitOnError)
-		chartsFlag := allCmd.String("charts", "", "Comma-separated list of chart names")
-		if err := allCmd.Parse(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		selectedCharts := selectCharts(*chartsFlag)
-		if err := runAll(ctx, selectedCharts); err != nil {
+		if err := runAll(ctx, selectedCharts, *rootDirFlag); err != nil {
 			log.Fatal(err)
 		}
 
 	case "test":
-		testCmd := flag.NewFlagSet("test", flag.ExitOnError)
-		chartsFlag := testCmd.String("charts", "", "Comma-separated list of chart names")
-		updateSnapshotsFlag := testCmd.Bool("update-snapshots", false, "Update Helm test snapshots")
-		if err := testCmd.Parse(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		selectedCharts := selectCharts(*chartsFlag)
 		if err := runTest(ctx, selectedCharts, *updateSnapshotsFlag); err != nil {
 			log.Fatal(err)
 		}
 
 	case "lint":
-		lintCmd := flag.NewFlagSet("lint", flag.ExitOnError)
-		chartsFlag := lintCmd.String("charts", "", "Comma-separated list of chart names")
-		if err := lintCmd.Parse(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		selectedCharts := selectCharts(*chartsFlag)
-		if err := runLint(ctx, selectedCharts); err != nil {
+		if err := runLint(ctx, selectedCharts, *rootDirFlag); err != nil {
 			log.Fatal(err)
 		}
 
 	case "reference", "ref":
-		referenceCmd := flag.NewFlagSet("reference", flag.ExitOnError)
-		checkFlag := referenceCmd.Bool("check", false, "Check if references are up to date")
-		chartsFlag := referenceCmd.String("charts", "", "Comma-separated list of chart names")
-		if err := referenceCmd.Parse(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		selectedCharts := selectCharts(*chartsFlag)
 		if err := runReference(ctx, selectedCharts, *checkFlag); err != nil {
 			log.Fatal(err)
 		}
 
 	case "list":
-		if err := listCharts(); err != nil {
+		if err := listCharts(ctx, selectedCharts); err != nil {
 			log.Fatal(err)
 		}
 
 	case "update-version":
-		versionCmd := flag.NewFlagSet("update-version", flag.ExitOnError)
-		if err := versionCmd.Parse(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-
-		args := versionCmd.Args()
+		args := fs.Args()
 		if len(args) != 1 {
 			fmt.Fprintln(os.Stderr, "Error: update-version requires exactly one argument (version)")
 			fmt.Fprint(os.Stderr, usage)
@@ -197,7 +217,7 @@ func main() {
 		}
 		version := args[0]
 
-		if err := updateVersion(ctx, version); err != nil {
+		if err := updateVersion(ctx, version, selectedCharts); err != nil {
 			log.Fatal(err)
 		}
 
@@ -208,30 +228,9 @@ func main() {
 	}
 }
 
-func selectCharts(chartNames string) []Chart {
-	if chartNames == "" {
-		return charts
-	}
-
-	names := strings.Split(chartNames, ",")
-	nameSet := make(map[string]bool)
-	for _, name := range names {
-		nameSet[strings.TrimSpace(name)] = true
-	}
-
-	var selected []Chart
-	for _, chart := range charts {
-		if nameSet[chart.Name] {
-			selected = append(selected, chart)
-		}
-	}
-
-	return selected
-}
-
-func runAll(ctx context.Context, charts []Chart) error {
+func runAll(ctx context.Context, charts []Chart, rootDir string) error {
 	fmt.Println("Running all operations...")
-	if err := runLint(ctx, charts); err != nil {
+	if err := runLint(ctx, charts, rootDir); err != nil {
 		return trace.Wrap(err)
 	}
 	const updateSnapshots = false
@@ -244,7 +243,7 @@ func runAll(ctx context.Context, charts []Chart) error {
 	return nil
 }
 
-func listCharts() error {
+func listCharts(ctx context.Context, charts []Chart) error {
 	fmt.Println("Available charts:")
 	paths := make([]string, len(charts))
 	for i, chart := range charts {

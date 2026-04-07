@@ -12,12 +12,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func updateVersion(ctx context.Context, version string) error {
+func updateVersion(ctx context.Context, version string, charts []Chart) error {
 	for _, chart := range charts {
 		if err := updateChartVersion(ctx, chart, version); err != nil {
 			return trace.Wrap(err, "updating version of chart %q", chart.Name)
 		}
 	}
+	fmt.Printf(" ✅ Version updated to %s\n", version)
 	return nil
 }
 
@@ -31,7 +32,7 @@ func updateChartVersion(ctx context.Context, chart Chart, version string) error 
 	}
 	newChartYaml := versionRegex.ReplaceAll(chartYaml, []byte(fmt.Sprintf(`.version: &version %q`, version)))
 	if bytes.Equal(chartYaml, newChartYaml) {
-		fmt.Printf("Warning: Chart.yaml unchanged: %q\n", chart.Path)
+		fmt.Printf(" ⚠️ Warning: Chart.yaml unchanged: %q\n", chart.Path)
 	}
 	if err := os.WriteFile(filepath.Join(chart.Path, "Chart.yaml"), newChartYaml, 0644); err != nil {
 		return trace.Wrap(err, "writing Chart.yaml")
