@@ -740,20 +740,27 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 		return boundkeypair.NewStaticClientState(staticKey), "", nil
 	}
 
-	registrationSecret, err := cfg.RegistrationSecret()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
 	adapter := process.boundKeypairStorageAdapter()
 	state, err := boundkeypair.LoadClientState(process.GracefulExitContext(), adapter)
-	if trace.IsNotFound(err) && registrationSecret != "" {
+	if trace.IsNotFound(err) {
+		registrationSecret, err := cfg.RegistrationSecret()
+		if err != nil {
+			process.logger.ErrorContext(
+				process.ExitContext(),
+				"Could not complete bound keypair joining: no local credentials "+
+					"could be loaded and no registration secret was configured",
+				"error", err,
+			)
+
+			return nil, "", trace.Wrap(err, "loading bound keypair registration secret")
+		}
+
 		process.logger.InfoContext(
 			process.ExitContext(),
 			"No existing bound keypair client state found, will attempt to "+
 				"join with configured registration secret",
 		)
-		state = boundkeypair.NewEmptyFSClientState(adapter)
+		return boundkeypair.NewEmptyFSClientState(adapter), registrationSecret, nil
 	} else if err != nil {
 		process.logger.ErrorContext(
 			process.ExitContext(),
@@ -764,7 +771,7 @@ func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.Clie
 		return nil, "", trace.Wrap(err, "loading bound keypair client state")
 	}
 
-	return state, registrationSecret, nil
+	return state, "", nil
 }
 
 func (process *TeleportProcess) makeJoinParams(
