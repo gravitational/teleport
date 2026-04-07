@@ -705,7 +705,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallenge(); r != nil {
-		out.Resource = types.LegacyMetadataToResource(r)
+		out.Resource = &validatedMFAChallengeResourceWrapper{
+			Resource: types.LegacyMetadataToResource(r),
+			inner:    r,
+		}
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
@@ -729,4 +732,27 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 // TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 type validatedMFAChallengeUnwrapper interface {
 	UnwrapT() *mfav1.ValidatedMFAChallenge
+}
+
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
+type validatedMFAChallengeResourceWrapper struct {
+	types.Resource
+
+	inner *mfav1.ValidatedMFAChallenge
+}
+
+func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
+	if r.inner == nil || r.inner.GetSpec() == nil {
+		return ""
+	}
+
+	return r.inner.GetSpec().GetTargetCluster()
+}
+
+func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	if r == nil {
+		return nil
+	}
+
+	return r.inner
 }

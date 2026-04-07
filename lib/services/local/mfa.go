@@ -286,7 +286,7 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 
 	return &validatedMFAChallengeResourceWrapper{
 		Resource: types.LegacyMetadataToResource(chal),
-		chal:     chal,
+		inner:    chal,
 	}, nil
 }
 
@@ -294,13 +294,21 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 type validatedMFAChallengeResourceWrapper struct {
 	types.Resource
 
-	chal *mfav1.ValidatedMFAChallenge
+	inner *mfav1.ValidatedMFAChallenge
 }
 
 func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
-	if r.chal == nil || r.chal.GetSpec() == nil {
+	if r.inner == nil || r.inner.GetSpec() == nil {
 		return ""
 	}
 
-	return r.chal.GetSpec().GetTargetCluster()
+	return r.inner.GetSpec().GetTargetCluster()
+}
+
+func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	if r == nil {
+		return nil
+	}
+
+	return r.inner
 }
