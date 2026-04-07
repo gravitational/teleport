@@ -336,6 +336,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 
 	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)
 	require.NoError(t, err)
+	require.NoError(t, pool.Ping(ctx))
 	t.Cleanup(pool.Close)
 	return &pgConn{
 		logger: logtest.With("test_name", t.Name()),
