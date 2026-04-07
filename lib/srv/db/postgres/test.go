@@ -33,10 +33,10 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -410,9 +410,9 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 	}
 
 	messages := []pgproto3.BackendMessage{
-		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
+		&pgproto3.RowDescription{Fields: legacyFieldDescriptions(TestQueryResponse.FieldDescriptions)},
 		&pgproto3.DataRow{Values: TestQueryResponse.Rows[0]},
-		&pgproto3.CommandComplete{CommandTag: TestQueryResponse.CommandTag},
+		&pgproto3.CommandComplete{CommandTag: []byte(TestQueryResponse.CommandTag.String())},
 		&pgproto3.ReadyForQuery{},
 	}
 	for _, message := range messages {
@@ -720,7 +720,7 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteRe
 	}
 	if sendDeleteResponse {
 		messages = append(messages,
-			&pgproto3.RowDescription{Fields: TestDeleteUserResponse.FieldDescriptions},
+			&pgproto3.RowDescription{Fields: legacyFieldDescriptions(TestDeleteUserResponse.FieldDescriptions)},
 			&pgproto3.DataRow{Values: TestDeleteUserResponse.Rows[0]},
 		)
 	} else {
@@ -1102,16 +1102,26 @@ func (s *TestServer) registerCancel(pid uint32, cancel context.CancelFunc) error
 // TestQueryResponse is the response test Postgres server sends to every success
 // query.
 var TestQueryResponse = &pgconn.Result{
-	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("test-field")}},
+	FieldDescriptions: []pgconn.FieldDescription{{Name: "test-field"}},
 	Rows:              [][][]byte{{[]byte("test-value")}},
-	CommandTag:        pgconn.CommandTag("select 1"),
+	CommandTag:        pgconn.NewCommandTag("select 1"),
 }
 
 // TestDeleteUserResponse is the response test Postgres server sends to every
 // query that calls the auto user deletion procedure.
 var TestDeleteUserResponse = &pgconn.Result{
-	FieldDescriptions: []pgproto3.FieldDescription{{Name: []byte("state")}},
+	FieldDescriptions: []pgconn.FieldDescription{{Name: "state"}},
 	Rows:              [][][]byte{{[]byte("TP003")}},
+}
+
+// legacyFieldDescriptions converts pgconn.FieldDescriptions to legacy pgproto3.
+// TODO(greedy52): remove once the pgx is fully migrated.
+func legacyFieldDescriptions(fds []pgconn.FieldDescription) []pgproto3.FieldDescription {
+	out := make([]pgproto3.FieldDescription, len(fds))
+	for i, fd := range fds {
+		out[i] = pgproto3.FieldDescription{Name: []byte(fd.Name)}
+	}
+	return out
 }
 
 // TestLongRunningQuery is a stub SQL query clients can use to simulate a long

@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
