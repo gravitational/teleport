@@ -225,7 +225,6 @@ describe('waitForInitialSync', () => {
 
   test('should fail after max retries have been hit', async () => {
     jest.useFakeTimers();
-    // eslint-disable-next-line no-unused-vars -- spyOn is used to chain mockResolvedValue calls
     let spyOn = jest.spyOn(accessGraphService, 'getAccessGraphSettings');
     for (let i = 0; i < WAIT_FOR_SYNC_MAX_TRIES; i++) {
       spyOn = spyOn.mockResolvedValue({

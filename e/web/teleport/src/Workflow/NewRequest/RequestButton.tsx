@@ -904,7 +904,9 @@ const StyledMenuItem = styled(MenuItem)`
   margin: 0;
   padding: ${({ theme }) => theme.space[2]}px ${({ theme }) => theme.space[3]}px;
   user-select: none;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 
   &:focus-visible,
   &:hover {
@@ -920,7 +922,7 @@ const StyledMenuItem = styled(MenuItem)`
     margin-bottom: ${({ theme }) => theme.space[1]}px;
   }
 
-  &[aria-disabled="true"] {
+  &[aria-disabled='true'] {
     background: transparent;
     color: ${({ theme }) => theme.colors.text.muted};
   }

@@ -198,7 +198,7 @@ export function CustomLabel({ enabled }: { enabled: boolean }) {
           <span
             css={`
               @media screen and (max-width: ${p =>
-                p.theme.breakpoints.medium}) {
+                  p.theme.breakpoints.medium}) {
                 display: none;
               }
             `}

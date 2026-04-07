@@ -1,8 +1,9 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import {
+  createDeferredResponse,
   enableMswServer,
   render,
   screen,
@@ -55,7 +56,8 @@ afterEach(() => {
 });
 
 test('shows loading state when fetching roles for preset access list', async () => {
-  server.use(http.get(rolesV2Path, () => delay('infinite')));
+  const deferred = createDeferredResponse({ items: [], startKey: '' });
+  server.use(http.get(rolesV2Path, deferred.handler));
 
   renderProvider({
     accessList: modifyAccessList({ ...baseAccessList, preset: 'long-term' }),
