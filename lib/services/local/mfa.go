@@ -284,46 +284,23 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 
-	return validatedMFAChallengeToResource(chal), nil
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-func validatedMFAChallengeToResource(chal *mfav1.ValidatedMFAChallenge) types.Resource {
-	metadata := types.Metadata{}
-	if chal.GetMetadata() != nil {
-		metadata = *chal.GetMetadata()
-	}
-
 	return &watchedValidatedMFAChallengeResource{
-		Resource: &types.ResourceHeader{
-			Kind:     chal.GetKind(),
-			SubKind:  chal.GetSubKind(),
-			Version:  chal.GetVersion(),
-			Metadata: metadata,
-		},
-		inner: chal,
-	}
+		Resource: types.LegacyMetadataToResource(chal),
+		chal:     chal,
+	}, nil
 }
 
 // TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
 type watchedValidatedMFAChallengeResource struct {
 	types.Resource
 
-	inner *mfav1.ValidatedMFAChallenge
+	chal *mfav1.ValidatedMFAChallenge
 }
 
 func (r *watchedValidatedMFAChallengeResource) GetTargetCluster() string {
-	if r.inner == nil || r.inner.GetSpec() == nil {
+	if r.chal == nil || r.chal.GetSpec() == nil {
 		return ""
 	}
 
-	return r.inner.GetSpec().GetTargetCluster()
-}
-
-func (r *watchedValidatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	if r == nil {
-		return nil
-	}
-
-	return r.inner
+	return r.chal.GetSpec().GetTargetCluster()
 }
