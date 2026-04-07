@@ -189,6 +189,14 @@ spec:
           - read
           - update
           - delete
+      - resources:
+          - scoped_role
+        verbs:
+          - list
+          - create
+          - readnosecrets
+          - update
+          - delete
 
   deny: {}
 version: v7
