@@ -106,14 +106,14 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 
 	withRecovery := func(count, limit uint32) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.RecoveryCount = count
-			params.Token.Spec.BoundKeypair.Recovery.Limit = limit
+			params.Token.GetBoundKeypairStatus().RecoveryCount = count
+			params.Token.GetBoundKeypair().Recovery.Limit = limit
 		}
 	}
 
 	withInstanceID := func(id string) func(*JoinStateParams) {
 		return func(params *JoinStateParams) {
-			params.Token.Status.BoundKeypair.BoundBotInstanceID = id
+			params.Token.GetBoundKeypairStatus().BoundBotInstanceID = id
 		}
 	}
 
@@ -209,7 +209,10 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		{
 			name: "subject must match",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BotName = "invalid"
+				ptv2, ok := jsp.Token.(*types.ProvisionTokenV2)
+				require.True(t, ok)
+
+				ptv2.Spec.BotName = "invalid"
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError: func(tt require.TestingT, err error, i ...any) {
@@ -219,8 +222,8 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		{
 			name: "informational parameters can be modified",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				jsp.Token.Spec.BoundKeypair.Recovery.Mode = "relaxed"
-				jsp.Token.Spec.BoundKeypair.Recovery.Limit = 123
+				jsp.Token.GetBoundKeypair().Recovery.Mode = "relaxed"
+				jsp.Token.GetBoundKeypair().Recovery.Limit = 123
 			})),
 			verifyParams: makeParams(withRecovery(0, 1)),
 			assertError:  require.NoError,
