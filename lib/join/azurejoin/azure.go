@@ -130,7 +130,8 @@ type AzureVerifyTokenFunc func(ctx context.Context, rawIDToken string) (*AccessT
 // given subscription authenticated with a given static token credential.
 type VMClientGetter func(subscriptionID string, token *azure.StaticCredential) (azure.VirtualMachinesClient, error)
 
-// SubscriptionClientGetter returns an Azure subscription client.
+// SubscriptionClientGetter returns an Azure subscription client for the given Teleport integration name.
+// If the integration name is the empty string, then ambient credentials will be used instead.
 type SubscriptionClientGetter func(ctx context.Context, integration string) (azure.SubscriptionClient, error)
 
 // AzureJoinConfig holds configurable options for Azure joining.
@@ -146,7 +147,7 @@ type AzureJoinConfig struct {
 	// fetch the intermediate CA which issued the attested data document
 	// signing certificate.
 	IssuerHTTPClient utils.HTTPDoClient
-	// GetSubscriptionClient returns [SubscriptionClientGetter] for the given integration name.
+	// GetSubscriptionClient returns an Azure subscription client for the given Teleport integration name.
 	// If the integration name is the empty string, then ambient credentials will be used instead.
 	GetSubscriptionClient SubscriptionClientGetter
 }

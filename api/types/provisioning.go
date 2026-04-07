@@ -151,7 +151,7 @@ type ProvisionToken interface {
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
-	// Currently, this is only used to validate the AWS Organization.
+	// Currently, this is only used to validate the AWS Organization and Azure subscriptions.
 	GetIntegration() string
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
@@ -653,7 +653,7 @@ func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
 }
 
 // GetIntegration returns the integration name that provides credentials to validate allow rules.
-// Currently, this is only used to validate the AWS Organization.
+// Currently, this is only used to validate the AWS Organization and Azure subscriptions.
 func (p *ProvisionTokenV2) GetIntegration() string {
 	return p.Spec.Integration
 }
