@@ -1254,7 +1254,7 @@ func HandleBoundKeypairJoin(
 
 	// A reference to the final provision token state; may be modified below via
 	// mutators.
-	var finalToken provision.Token = params.ProvisionToken
+	finalToken := params.ProvisionToken
 
 	if len(mutators) > 0 {
 		finalToken, err = patchToken(ctx, params, mutators...)
