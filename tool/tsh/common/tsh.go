@@ -4642,7 +4642,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", trace.UserMessage(err))
 		} else {
 			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
