@@ -678,19 +678,14 @@ func TestX11AuditLog(t *testing.T) {
 	awaitX11Event := func(t *testing.T) *apievents.X11Forward {
 		t.Helper()
 
-		for {
-			select {
-			case event := <-emitter.C():
-				var ok bool
-				x11Event, ok := event.(*apievents.X11Forward)
-				if ok {
-					return x11Event
-				}
-			case <-t.Context().Done():
-				t.Fatal("timed out waiting for X11Forward audit event")
-				return nil
+		for event := range emitter.C() {
+			if x11Event, ok := event.(*apievents.X11Forward); ok {
+				return x11Event
 			}
 		}
+
+		t.Fatal("emitter closed before an x11 audit event was emitted")
+		return nil
 	}
 
 	testX11Audit := func(t *testing.T, clientConfig apissh.ClientConfig, assertX11Event func(t require.TestingT, e *apievents.X11Forward)) {

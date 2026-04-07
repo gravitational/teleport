@@ -69,7 +69,7 @@ const (
 func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
 	const expectedChildErr = "Failed to launch: test networking child error"
 
-	cmd := exec.Command(os.Args[0], "-test.run=^TestReexecHelperProcess$")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestNetworkingHelperProcess$")
 	cmd.Env = append(
 		os.Environ(),
 		reexecWaitHelperErrorEnv+"="+expectedChildErr,
@@ -80,7 +80,7 @@ func TestNetworkingProcessPropagatesChildStderr(t *testing.T) {
 	require.Contains(t, childErr, expectedChildErr)
 }
 
-func TestReexecHelperProcess(t *testing.T) {
+func TestNetworkingHelperProcess(t *testing.T) {
 	if os.Getenv(reexecWaitHelperErrorEnv) != "" {
 		_, _ = io.WriteString(os.Stderr, os.Getenv(reexecWaitHelperErrorEnv))
 		os.Exit(1)
