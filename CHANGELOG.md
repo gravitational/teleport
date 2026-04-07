@@ -1,5 +1,9 @@
 # Changelog
 
+## 18.7.4 (04/03/26)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
 ## 18.7.3 (03/10/26)
 
 This is a private security release. Changelog will be publicly announced in a later version.
