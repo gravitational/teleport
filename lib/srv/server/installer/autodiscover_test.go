@@ -1255,7 +1255,7 @@ func TestCheckJoinHealth(t *testing.T) {
 			return debug.Readiness{Ready: true, Status: "ok"}, nil
 		}
 
-		require.NoError(t, inst.checkJoinHealth(context.Background()))
+		require.NoError(t, inst.checkJoinHealth(t.Context()))
 		require.Equal(t, 1, calls)
 	})
 
