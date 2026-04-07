@@ -268,6 +268,7 @@ func TestInitCLIParser(t *testing.T) {
 
 		app.Command("hello", "Hello.")
 		app.Command("very-long-command", "Very long command.")
+		app.Command("hidden-very-long-command", "This command is hidden.").Hidden()
 
 		create := app.Command("create", "Create.")
 		create.Command("box", "Box.")
