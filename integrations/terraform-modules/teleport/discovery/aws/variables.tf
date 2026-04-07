@@ -34,11 +34,10 @@ variable "match_aws_resource_types" {
     condition = var.match_aws_resource_types == null || alltrue([
       for rt in var.match_aws_resource_types :
       contains([
-        "ec2",
-        "eks",
+        "ec2"
       ], rt)
     ])
-    error_message = "Allowed values for match_aws_resource_types are: ec2, eks."
+    error_message = "Allowed values for match_aws_resource_types are: ec2. Use the new aws_matchers field instead for all supported types."
   }
 }
 
@@ -49,6 +48,7 @@ variable "aws_matchers" {
     regions              = list(string)
     tags                 = optional(map(list(string)), { "*" : ["*"] })
     setup_access_for_arn = optional(string, "")
+    kube_app_discovery   = optional(bool, true)
   }))
   default  = null
   nullable = true
