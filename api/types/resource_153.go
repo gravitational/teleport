@@ -406,10 +406,10 @@ func LegacyMetadataToResource[T interface {
 // direct type assertion or assertion to an [types.Resource153UnwrapperT].
 func ConvertResource[T any](resource Resource) (T, error) {
 	switch resource := resource.(type) {
-	case T:
-		return resource, nil
 	case interface{ UnwrapT() T }:
 		return resource.UnwrapT(), nil
+	case T:
+		return resource, nil
 	}
 	var zero T
 	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)

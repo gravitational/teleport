@@ -284,20 +284,20 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 
-	return &watchedValidatedMFAChallengeResource{
+	return &validatedMFAChallengeResourceWrapper{
 		Resource: types.LegacyMetadataToResource(chal),
 		chal:     chal,
 	}, nil
 }
 
 // TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type watchedValidatedMFAChallengeResource struct {
+type validatedMFAChallengeResourceWrapper struct {
 	types.Resource
 
 	chal *mfav1.ValidatedMFAChallenge
 }
 
-func (r *watchedValidatedMFAChallengeResource) GetTargetCluster() string {
+func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
 	if r.chal == nil || r.chal.GetSpec() == nil {
 		return ""
 	}

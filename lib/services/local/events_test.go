@@ -243,7 +243,7 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpPut, event.Type)
 
-				chal, err := types.ConvertResource[*watchedValidatedMFAChallengeResource](event.Resource)
+				chal, err := types.ConvertResource[*validatedMFAChallengeResourceWrapper](event.Resource)
 				require.NoError(subtestT, err)
 				require.Equal(subtestT, "test-challenge", chal.GetName())
 				require.Equal(subtestT, "leaf.example.com", chal.GetTargetCluster())
@@ -281,7 +281,7 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpDelete, event.Type)
 
-				chal, err := types.ConvertResource[*watchedValidatedMFAChallengeResource](event.Resource)
+				chal, err := types.ConvertResource[*validatedMFAChallengeResourceWrapper](event.Resource)
 				require.NoError(subtestT, err)
 				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
 				require.Equal(subtestT, "test-challenge", chal.GetName())
