@@ -115,7 +115,7 @@ These ports are required:
 
 | Load Balancer Port | Proxy Service Port | Description |
 | - | - | - |
-| `3023` | `3023` | SSH port for clients connect to. |
+| `3023` | `3023` | SSH port for clients to connect to. |
 | `3024` | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
 | `443` | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
@@ -333,7 +333,7 @@ These ports are required:
 
 | Port | Description |
 | - | - |
-| `3023` | SSH port for clients connect to. |
+| `3023` | SSH port for clients to connect to. |
 | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
 | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
@@ -345,6 +345,7 @@ services:
 | `3026` | HTTPS Kubernetes proxy |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
+| `27017` | Mongo port |
 
 </TabItem>
 </Tabs>
@@ -383,7 +384,7 @@ proxy_service:
     cert_file: /etc/teleport-tls/tls.crt
 ```
 
-This configuration has no fields specific to TLS Routing. In `v2`, the
+This configuration has no fields specific to TLS Routing. In `v3`, the
 configuration version we are using here, TLS Routing is enabled by default.
 
 </TabItem>
