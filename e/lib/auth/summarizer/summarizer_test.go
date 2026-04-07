@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -919,12 +918,13 @@ func TestSummarizerEncrypedDecrypted(t *testing.T) {
 		summary,
 		protocmp.Transform(),
 	))
-	writer := &memBuffer{}
-	err = memoryUploader.DownloadSummary(ctx, session.ID(encryptedSessionID), writer)
+	rc, err := memoryUploader.StreamSessionSummary(ctx, session.ID(encryptedSessionID))
+	require.NoError(t, err)
+	encryptedData, err := io.ReadAll(rc)
+	require.NoError(t, rc.Close())
 	require.NoError(t, err)
 
 	// Verify that the uploaded summary is indeed encrypted.
-	encryptedData := writer.Bytes()
 	require.True(t, bytes.HasPrefix(encryptedData, []byte(agePrefix)))
 }
 
@@ -1199,36 +1199,6 @@ func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) 
 		return nil, trace.BadParameter("invalid encryption header")
 	}
 	return hex.NewDecoder(reader), nil
-}
-
-// memBuffer is a in-memory byte buffer that implements both io.Writer and
-// io.WriterAt interfaces.
-type memBuffer struct {
-	buf manager.WriteAtBuffer
-	// mu is a mutex to protect concurrent writes to the buffer. Even though the
-	// underlying buffer is thread-safe, we need to prevent a race condition in
-	// [MemBuffer.Write] between checking the length of the buffer and writing to
-	// it.
-	mu sync.Mutex
-}
-
-func (b *memBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.WriteAt(p, int64(len(b.buf.Bytes())))
-}
-
-func (b *memBuffer) WriteAt(p []byte, pos int64) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.WriteAt(p, pos)
-}
-
-// Bytes return the underlying byte slice.
-func (b *memBuffer) Bytes() []byte {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Bytes()
 }
 
 func ingestSession(

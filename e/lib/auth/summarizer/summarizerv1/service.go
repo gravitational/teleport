@@ -32,9 +32,9 @@ import (
 
 // SummaryDownloader provides backend access to session summary recordings.
 type SummaryDownloader interface {
-	// DownloadSummary downloads a final session summary and writes it to a
-	// writer.
-	DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error
+	// StreamSessionSummary streams a session summary and returns a ReadCloser for
+	// the content. Returns a "not found" error if there's no such summary.
+	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 }
 
 // ServiceConfig holds configuration for the [Service].
@@ -863,13 +863,13 @@ func (s *Service) GetSummary(
 func (s *Service) insecureGetSummary(
 	ctx context.Context, sid session.ID,
 ) (*pb.Summary, apievents.AuditEvent, error) {
-	buf := &events.MemBuffer{}
-	err := s.summaryDownloader.DownloadSummary(ctx, sid, buf)
+	rc, err := s.summaryDownloader.StreamSessionSummary(ctx, sid)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	defer rc.Close()
 
-	payload, err := s.decryptIfNeeded(ctx, buf.Bytes())
+	payload, err := s.decryptIfNeeded(ctx, rc)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "decrypting session summary")
 	}
@@ -926,10 +926,14 @@ func (s *Service) IsEnabled(
 	}, nil
 }
 
-// decryptIfNeeded decrypts the data if it is encrypted.
+// decryptIfNeeded decrypts the reader if it is encrypted.
 // If the data is not encrypted, it is returned as-is.
-func (s *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
-	decryptedData, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, s.decrypter)
+func (r *Service) decryptIfNeeded(ctx context.Context, reader io.ReadCloser) ([]byte, error) {
+	decrypted, err := recordingencryption.DecryptReaderIfEncrypted(ctx, reader, r.decrypter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create decrypt reader")
+	}
+	decryptedData, err := io.ReadAll(decrypted)
 	return decryptedData, trace.Wrap(err)
 }
 
