@@ -8460,7 +8460,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 		}
 
 		t.Run("sftp", func(t *testing.T) {
-			stderr := &output{buf: bytes.Buffer{}}
 			err := Run(ctx, []string{
 				"scp",
 				"--insecure",
@@ -8472,7 +8471,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 			},
 				setHomePath(homePath),
 				func(conf *CLIConf) error {
-					conf.overrideStderr = stderr
 					conf.Relogin = false
 					return nil
 				},
@@ -8509,7 +8507,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 		}
 
 		t.Run("sftp", func(t *testing.T) {
-			stderr := &output{buf: bytes.Buffer{}}
 			err := Run(ctx, []string{
 				"scp",
 				"--insecure",
@@ -8521,7 +8518,6 @@ func TestReexecErrorPropagation(t *testing.T) {
 			},
 				setHomePath(homePath),
 				func(conf *CLIConf) error {
-					conf.overrideStderr = stderr
 					conf.Relogin = false
 					return nil
 				},
