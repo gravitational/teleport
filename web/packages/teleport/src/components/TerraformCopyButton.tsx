@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState, MouseEvent } from 'react';
 
-import {  Button } from 'design';
-import { Check, Copy, } from 'design/Icon';
+import { Button } from 'design';
+import { Check, Copy } from 'design/Icon';
 
-export function CopyTerraformButton({
+export function TerraformCopyButton({
   onClick,
   disabled = false,
 }: {
-  onClick: (e: React.SyntheticEvent) => void;
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
 }) {
   const [configCopied, setConfigCopied] = useState(false);
 
-  const handleClick = (e: React.SyntheticEvent) => {
+  const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     onClick(e);
 
     if (!e.defaultPrevented) {

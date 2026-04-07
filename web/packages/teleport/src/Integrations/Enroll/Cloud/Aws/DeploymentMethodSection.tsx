@@ -25,7 +25,7 @@ import { rotate360 } from 'design/keyframes';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
 
-import { CopyTerraformButton } from 'teleport/components/Terraform/CopyTerraformButton';
+import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
 
@@ -87,7 +87,7 @@ export function DeploymentMethodSection({
             configuration.
           </Text>
           <Box>
-            <CopyTerraformButton
+            <TerraformCopyButton
               onClick={e => {
                 const isValid = validator.validate();
                 if (!isValid) {

@@ -32,7 +32,7 @@ import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuid
 import { useValidation } from 'shared/components/Validation';
 
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel/SlidingSidePanel';
-import { CopyTerraformButton } from 'teleport/components/Terraform/CopyTerraformButton';
+import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import LiveTextEditor from './LiveTextEditor';
@@ -102,7 +102,7 @@ export function TerraformInfoGuide({
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
       <Box p={3}>
-        <CopyTerraformButton
+        <TerraformCopyButton
           onClick={e => {
             const isValid = validator.validate();
             if (!isValid) {
