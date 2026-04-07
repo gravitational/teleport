@@ -163,7 +163,11 @@ func UserMessageFromError(err error) string {
 		return ""
 	}
 	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-		return trace.DebugReport(err)
+		msg := trace.DebugReport(err)
+		if !strings.HasSuffix(msg, "\n") {
+			msg += "\n"
+		}
+		return msg
 	}
 	var buf bytes.Buffer
 	if runtime.GOOS == constants.WindowsOS {
@@ -180,8 +184,7 @@ func UserMessageFromError(err error) string {
 }
 
 // FormatErrorWithNewline returns user friendly error message from error.
-// The error message is escaped if necessary. A newline is added if the error text
-// does not end with a newline.
+// The message will always end with a new line.
 func FormatErrorWithNewline(err error) string {
 	var buf bytes.Buffer
 	formatErrorWriter(err, &buf)
@@ -189,17 +192,18 @@ func FormatErrorWithNewline(err error) string {
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
-// The error message is escaped if necessary
+// The error message is escaped if necessary. A newline is added if the
+// error text does not end with a newline.
 func formatErrorWriter(err error, w io.Writer) {
 	if err == nil {
 		return
 	}
-	if certErr := formatCertError(err); certErr != "" {
-		fmt.Fprintln(w, certErr)
-		return
-	}
 
 	msg := trace.UserMessage(err)
+	if certErr := formatCertError(err); certErr != "" {
+		msg = certErr
+	}
+
 	// Error can be of type trace.proxyError where error message didn't get captured.
 	if msg == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
@@ -207,11 +211,10 @@ func formatErrorWriter(err error, w io.Writer) {
 	}
 
 	msg = AllowWhitespace(msg)
-	if !strings.HasSuffix(msg, "\n") {
-		msg += "\n"
-	}
-
 	fmt.Fprint(w, msg)
+	if !strings.HasSuffix(msg, "\n") {
+		w.Write([]byte("\n"))
+	}
 }
 
 func formatCertError(err error) string {
