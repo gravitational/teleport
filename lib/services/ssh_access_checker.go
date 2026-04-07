@@ -108,7 +108,7 @@ func (c *SSHAccessChecker) CanForwardAgents() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanForwardAgents()
 	}
-	return c.checker.role.GetSpec().GetSsh().GetForwardAgent()
+	return c.checker.scopedCompatChecker.CanForwardAgents()
 }
 
 // PermitX11Forwarding returns true if X11 forwarding is permitted.
@@ -129,10 +129,10 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	local := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetLocal()
 
 	var denyRemote, denyLocal bool
-	if remote != nil && !remote.GetEnabled() {
+	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
 		denyRemote = true
 	}
-	if local != nil && !local.GetEnabled() {
+	if local != nil && local.Enabled != nil && !*local.Enabled {
 		denyLocal = true
 	}
 
@@ -173,16 +173,15 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 
 	createHostUser := c.checker.role.GetSpec().GetSsh().GetHostUserCreation()
 
-	var legacyHostUserMode types.CreateHostUserMode
-
-	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
-	mode := createHostUser.GetCreateHostUserMode()
-	if err := legacyHostUserMode.UnmarshalJSON([]byte(mode)); err != nil {
+	var hostUserMode types.CreateHostUserMode
+	// quote the strings so it's valid json
+	if err := hostUserMode.UnmarshalJSON([]byte(`"` + createHostUser.GetCreateHostUserMode() + `"`)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if legacyHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
-		legacyHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
+	if hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
+		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return &HostUsersDecision{
 			Info: nil,
 			DeniedBy: []*decisionpb.Determinant{{
@@ -194,7 +193,7 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 
 	// Convert to decision
 	var decisionMode decisionpb.HostUserMode
-	switch legacyHostUserMode {
+	switch hostUserMode {
 	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
 		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
@@ -203,7 +202,6 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
 	}
 
-	// UID/GID from user traits (same as classic path).
 	traits := c.checker.Traits()
 	var uid, gid string
 	if uidL := traits[constants.TraitHostUserUID]; len(uidL) >= 1 {
@@ -233,7 +231,11 @@ func (c *SSHAccessChecker) CheckAgentForward(login string) error {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAgentForward(login)
 	}
-	return c.checker.scopedCompatChecker.CheckAgentForward(login)
+	if !c.checker.role.GetSpec().GetSsh().GetForwardAgent() {
+		return trace.AccessDenied("agent forwarding is not permitted for scoped role %q",
+			c.checker.role.GetMetadata().GetName())
+	}
+	return nil
 }
 
 // MaxConnections returns the maximum number of concurrent SSH connections permitted.
@@ -274,19 +276,13 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	}
 
 	fileCopy := c.checker.role.GetSpec().GetSsh().GetSshFileCopy()
-	if fileCopy == nil {
+	// If both fields is unset, we default to allow.
+	if fileCopy == nil || fileCopy.Download == nil && fileCopy.Upload == nil {
 		return true
 	}
 
-	// Both download and upload must be explicitly enabled.
-	// If either is set to false, file copying is disabled.
-	download := fileCopy.GetDownload()
-	upload := fileCopy.GetUpload()
-
-	if !download {
-		return false
-	}
-	if !upload {
+	// Deny when either are set to false.
+	if !fileCopy.GetDownload() || !fileCopy.GetUpload() {
 		return false
 	}
 

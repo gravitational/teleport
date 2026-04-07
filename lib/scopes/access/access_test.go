@@ -298,6 +298,152 @@ func TestValidateRole(t *testing.T) {
 			strongOk: false,
 			weakOk:   true,
 		},
+		{
+			name: "ssh_file_copy download and upload mismatch",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						SshFileCopy: &scopedaccessv1.SSHFileCopy{
+							Download: proto.Bool(true),
+							Upload:   proto.Bool(false),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh_file_copy download and upload both true",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						SshFileCopy: &scopedaccessv1.SSHFileCopy{
+							Download: proto.Bool(true),
+							Upload:   proto.Bool(true),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "ssh_file_copy download and upload both false",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						SshFileCopy: &scopedaccessv1.SSHFileCopy{
+							Download: proto.Bool(false),
+							Upload:   proto.Bool(false),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							CreateHostUserMode: "invalid-mode",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							CreateHostUserMode: "keep",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "negative max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(-1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "positive max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
 	}
 
 	for _, tt := range tts {
@@ -961,7 +1107,21 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				{Name: "env", Values: []string{"prod"}},
 			},
-			ClientIdleTimeout: "1h",
+			ClientIdleTimeout:   "1h",
+			PermitX11Forwarding: proto.Bool(true),
+			SshFileCopy:         &scopedaccessv1.SSHFileCopy{Download: proto.Bool(true), Upload: proto.Bool(true)},
+			ForwardAgent:        proto.Bool(true),
+			SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+				Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+				Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+			},
+			HostUserCreation: &scopedaccessv1.CreateHostUser{
+				CreateHostUserMode: "keep",
+				Sudoers:            []string{"ALL=(ALL) NOPASSWD:ALL"},
+				Groups:             []string{"wheel"},
+				Shell:              "/bin/bash",
+			},
+			MaxSessions: proto.Int64(10),
 		},
 		Kube: &scopedaccessv1.ScopedRoleKube{
 			Groups: []string{"viewer"},

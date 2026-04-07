@@ -226,11 +226,22 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	// For now, we only support roles when both download and upload are the same values
 	if fileCopy := role.GetSpec().GetSsh().GetSshFileCopy(); fileCopy != nil {
-		download := fileCopy.GetDownload()
-		upload := fileCopy.GetUpload()
-		if download != upload {
+		if fileCopy.GetDownload() != fileCopy.GetUpload() {
 			return trace.BadParameter("scoped role %q has mismatched ssh_file_copy download and upload values, both must be the same", role.GetMetadata().GetName())
 		}
+	}
+
+	// verify that create_host_user_mode is a recognized value
+	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetCreateHostUserMode(); mode != "" {
+		var hostUserMode types.CreateHostUserMode
+		if err := hostUserMode.UnmarshalJSON([]byte(`"` + mode + `"`)); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
+		}
+	}
+
+	// verify that max_sessions is non-negative
+	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
+		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
 	}
 
 	// verify that kube labels are well-formed

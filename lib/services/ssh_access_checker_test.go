@@ -24,9 +24,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 // newScopedCheckerWithRole is a test helper that builds a minimal ScopedAccessChecker
@@ -189,6 +192,509 @@ func TestSSHAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 	}
 }
 
-func TestSSHAccessCheckerX11Forwarding(t *testing.T) {
+func boolPtr(v bool) *bool { return &v }
 
+func int64Ptr(v int64) *int64 { return &v }
+
+func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect bool
+	}{
+		{
+			name: "nil ssh block defaults to false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expect: false,
+		},
+		{
+			name: "set true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PermitX11Forwarding: boolPtr(true),
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "set false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PermitX11Forwarding: boolPtr(false),
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.PermitX11Forwarding())
+		})
+	}
+}
+
+func TestSSHAccessCheckerCheckAgentForward(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name      string
+		spec      *scopedaccessv1.ScopedRoleSpec
+		expectErr bool
+	}{
+		{
+			name: "nil agent forwarding denies",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expectErr: true,
+		},
+		{
+			name: "set true allows",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					ForwardAgent: boolPtr(true),
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "set false denies",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					ForwardAgent: boolPtr(false),
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			err := checker.CheckAgentForward("testuser")
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect bool
+	}{
+		{
+			name: "nil file_copy defaults to true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: nil,
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "both true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: &scopedaccessv1.SSHFileCopy{
+						Download: boolPtr(true),
+						Upload:   boolPtr(true),
+					},
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "both false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: &scopedaccessv1.SSHFileCopy{
+						Download: boolPtr(false),
+						Upload:   boolPtr(false),
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "both nil (unset) defaults to true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: &scopedaccessv1.SSHFileCopy{},
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "download false upload nil",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: &scopedaccessv1.SSHFileCopy{
+						Download: boolPtr(false),
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "download nil upload false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshFileCopy: &scopedaccessv1.SSHFileCopy{
+						Upload: boolPtr(false),
+					},
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.CanCopyFiles())
+		})
+	}
+}
+
+func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect decisionpb.SSHPortForwardMode
+	}{
+		{
+			name: "nil port forwarding defaults to ON",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: nil,
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name: "both enabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name: "both disabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name: "local enabled remote disabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name: "local disabled remote enabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			name: "local and remote enabled not set defaults to ON",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.SSHPortForwardMode())
+		})
+	}
+}
+
+func TestSSHAccessCheckerMaxSessions(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect int64
+	}{
+		{
+			name: "not set defaults to 0",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expect: 0,
+		},
+		{
+			name: "set to 5",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					MaxSessions: int64Ptr(5),
+				},
+			},
+			expect: 5,
+		},
+		{
+			name: "set to 0",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					MaxSessions: int64Ptr(0),
+				},
+			},
+			expect: 0,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.MaxSessions())
+		})
+	}
+}
+
+func TestSSHAccessCheckerHostSudoers(t *testing.T) {
+	t.Parallel()
+
+	srv := &types.ServerV2{}
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect []string
+	}{
+		{
+			name: "nil host user creation block",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: nil,
+				},
+			},
+			expect: nil,
+		},
+		{
+			name: "no sudoers",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{},
+				},
+			},
+			expect: nil,
+		},
+		{
+			name: "has sudoers",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Sudoers: []string{"ALL=(ALL) NOPASSWD: ALL"},
+					},
+				},
+			},
+			expect: []string{"ALL=(ALL) NOPASSWD: ALL"},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			sudoers, err := checker.HostSudoers(srv)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, sudoers)
+		})
+	}
+}
+
+func TestSSHAccessCheckerHostUsers(t *testing.T) {
+	t.Parallel()
+
+	srv := &types.ServerV2{}
+
+	tts := []struct {
+		name         string
+		spec         *scopedaccessv1.ScopedRoleSpec
+		traits       wrappers.Traits
+		expectNil    bool
+		expectErr    bool
+		expectMode   decisionpb.HostUserMode
+		expectGroups []string
+		expectShell  string
+		expectUID    string
+		expectGID    string
+	}{
+		{
+			name: "nil host_user_creation - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: nil,
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "empty mode string - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "",
+					},
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "mode off - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "off",
+					},
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "mode keep",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "keep",
+						Groups:             []string{"test"},
+						Shell:              "/bin/bash",
+					},
+				},
+			},
+			expectNil:    false,
+			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			expectGroups: []string{"test"},
+			expectShell:  "/bin/bash",
+		},
+		{
+			name: "mode insecure-drop",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "insecure-drop",
+						Groups:             []string{"test"},
+					},
+				},
+			},
+			expectNil:    false,
+			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
+			expectGroups: []string{"test"},
+		},
+		{
+			name: "uid and gid from traits",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "keep",
+					},
+				},
+			},
+			traits: wrappers.Traits{
+				constants.TraitHostUserUID: []string{"1001"},
+				constants.TraitHostUserGID: []string{"1001"},
+			},
+			expectNil:  false,
+			expectMode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			expectUID:  "1001",
+			expectGID:  "1001",
+		},
+		{
+			name: "invalid mode returns error",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						CreateHostUserMode: "invalid",
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker.checker.scopedCompatChecker = newAccessChecker(&AccessInfo{
+				Traits: tt.traits,
+			}, "local", NewRoleSet())
+
+			decision, err := checker.HostUsers(srv)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, decision)
+
+			if tt.expectNil {
+				require.Nil(t, decision.Info)
+				require.NotEmpty(t, decision.DeniedBy)
+				return
+			}
+
+			require.NotNil(t, decision.Info, "expected Info to be non-nil (allowed)")
+			require.NotEmpty(t, decision.AllowedBy, "expected AllowedBy to be populated")
+			require.Equal(t, tt.expectMode, decision.Info.Mode)
+			require.Equal(t, tt.expectGroups, decision.Info.Groups)
+			require.Equal(t, tt.expectShell, decision.Info.Shell)
+			require.Equal(t, tt.expectUID, decision.Info.Uid)
+			require.Equal(t, tt.expectGID, decision.Info.Gid)
+		})
+	}
 }
