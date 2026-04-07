@@ -125,8 +125,8 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 		return c.checker.unscopedChecker.SSHPortForwardMode()
 	}
 
-	remote := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetRemote()
-	local := c.checker.role.GetSpec().GetSsh().GetSshPortForwarding().GetLocal()
+	remote := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetRemote()
+	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
 
 	var denyRemote, denyLocal bool
 	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
@@ -154,7 +154,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return c.checker.role.GetSpec().GetSsh().GetHostUserCreation().GetSudoers(), nil
+	return c.checker.role.GetSpec().GetSsh().GetHostSudoers(), nil
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
@@ -174,8 +174,7 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 	createHostUser := c.checker.role.GetSpec().GetSsh().GetHostUserCreation()
 
 	var hostUserMode types.CreateHostUserMode
-	// quote the strings so it's valid json
-	if err := hostUserMode.UnmarshalJSON([]byte(`"` + createHostUser.GetCreateHostUserMode() + `"`)); err != nil {
+	if err := hostUserMode.UnmarshalText([]byte(createHostUser.GetMode())); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -268,23 +267,15 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 
 // CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.
 // If GetSshFileCopy is nil, then we default to true.
-// We currently only support setting both download and upload to true or false.
-// If a user has set download to false and upload to true, or vice versa, we don't allow for file copying.
 func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
 
-	fileCopy := c.checker.role.GetSpec().GetSsh().GetSshFileCopy()
-	// If both fields is unset, we default to allow.
-	if fileCopy == nil || fileCopy.Download == nil && fileCopy.Upload == nil {
+	fileCopy := c.checker.role.GetSpec().GetSsh().GetFileCopy()
+	if fileCopy == nil {
 		return true
 	}
+	return fileCopy.GetEnabled()
 
-	// Deny when either are set to false.
-	if !fileCopy.GetDownload() || !fileCopy.GetUpload() {
-		return false
-	}
-
-	return true
 }

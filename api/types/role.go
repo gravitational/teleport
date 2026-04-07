@@ -2549,6 +2549,11 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	return trace.Wrap(err)
 }
 
+// UnmarshalText supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	return h.decode(string(text))
+}
+
 const (
 	createDatabaseUserModeOffString            = "off"
 	createDatabaseUserModeKeepString           = "keep"

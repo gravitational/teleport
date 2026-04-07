@@ -301,65 +301,43 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 			name: "nil file_copy defaults to true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: nil,
+					FileCopy: nil,
 				},
 			},
 			expect: true,
 		},
 		{
-			name: "both true",
+			name: "true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: &scopedaccessv1.SSHFileCopy{
-						Download: boolPtr(true),
-						Upload:   boolPtr(true),
+					FileCopy: &scopedaccessv1.SSHFileCopy{
+						Enabled: boolPtr(true),
 					},
 				},
 			},
 			expect: true,
 		},
 		{
-			name: "both false",
+			name: "false",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: &scopedaccessv1.SSHFileCopy{
-						Download: boolPtr(false),
-						Upload:   boolPtr(false),
+					FileCopy: &scopedaccessv1.SSHFileCopy{
+						Enabled: boolPtr(false),
 					},
 				},
 			},
 			expect: false,
 		},
 		{
-			name: "both nil (unset) defaults to true",
+			name: "enabled nil (unset) defaults to true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: &scopedaccessv1.SSHFileCopy{},
+					FileCopy: &scopedaccessv1.SSHFileCopy{
+						Enabled: nil,
+					},
 				},
 			},
 			expect: true,
-		},
-		{
-			name: "download false upload nil",
-			spec: &scopedaccessv1.ScopedRoleSpec{
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: &scopedaccessv1.SSHFileCopy{
-						Download: boolPtr(false),
-					},
-				},
-			},
-			expect: false,
-		},
-		{
-			name: "download nil upload false",
-			spec: &scopedaccessv1.ScopedRoleSpec{
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshFileCopy: &scopedaccessv1.SSHFileCopy{
-						Upload: boolPtr(false),
-					},
-				},
-			},
-			expect: false,
 		},
 	}
 
@@ -384,7 +362,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "nil port forwarding defaults to ON",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: nil,
+					PortForwarding: nil,
 				},
 			},
 			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
@@ -393,7 +371,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "both enabled",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
 						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
 						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
 					},
@@ -405,7 +383,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "both disabled",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
 						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
 						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
 					},
@@ -417,7 +395,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "local enabled remote disabled",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
 						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
 						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
 					},
@@ -429,7 +407,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "local disabled remote enabled",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
 						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
 						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
 					},
@@ -441,7 +419,7 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			name: "local and remote enabled not set defaults to ON",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					SshPortForwarding: &scopedaccessv1.SSHPortForwarding{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
 						Local:  &scopedaccessv1.SSHLocalPortForwarding{},
 						Remote: &scopedaccessv1.SSHRemotePortForwarding{},
 					},
@@ -515,19 +493,10 @@ func TestSSHAccessCheckerHostSudoers(t *testing.T) {
 		expect []string
 	}{
 		{
-			name: "nil host user creation block",
-			spec: &scopedaccessv1.ScopedRoleSpec{
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					HostUserCreation: nil,
-				},
-			},
-			expect: nil,
-		},
-		{
 			name: "no sudoers",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					HostUserCreation: &scopedaccessv1.CreateHostUser{},
+					HostSudoers: nil,
 				},
 			},
 			expect: nil,
@@ -536,9 +505,7 @@ func TestSSHAccessCheckerHostSudoers(t *testing.T) {
 			name: "has sudoers",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						Sudoers: []string{"ALL=(ALL) NOPASSWD: ALL"},
-					},
+					HostSudoers: []string{"ALL=(ALL) NOPASSWD: ALL"},
 				},
 			},
 			expect: []string{"ALL=(ALL) NOPASSWD: ALL"},
@@ -587,7 +554,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "",
+						Mode: "",
 					},
 				},
 			},
@@ -598,7 +565,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "off",
+						Mode: "off",
 					},
 				},
 			},
@@ -609,9 +576,9 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "keep",
-						Groups:             []string{"test"},
-						Shell:              "/bin/bash",
+						Mode:   "keep",
+						Groups: []string{"test"},
+						Shell:  "/bin/bash",
 					},
 				},
 			},
@@ -625,8 +592,8 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "insecure-drop",
-						Groups:             []string{"test"},
+						Mode:   "insecure-drop",
+						Groups: []string{"test"},
 					},
 				},
 			},
@@ -639,7 +606,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "keep",
+						Mode: "keep",
 					},
 				},
 			},
@@ -657,7 +624,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					HostUserCreation: &scopedaccessv1.CreateHostUser{
-						CreateHostUserMode: "invalid",
+						Mode: "invalid",
 					},
 				},
 			},

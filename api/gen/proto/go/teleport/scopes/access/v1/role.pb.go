@@ -292,16 +292,18 @@ type ScopedRoleSSH struct {
 	PermitX11Forwarding *bool `protobuf:"varint,4,opt,name=permit_x11_forwarding,json=permitX11Forwarding,proto3,oneof" json:"permit_x11_forwarding,omitempty"`
 	// SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 	// over an SSH session. It defaults to allowing the user to download and upload files by default.
-	SshFileCopy *SSHFileCopy `protobuf:"bytes,5,opt,name=ssh_file_copy,json=sshFileCopy,proto3" json:"ssh_file_copy,omitempty"`
+	FileCopy *SSHFileCopy `protobuf:"bytes,5,opt,name=file_copy,json=fileCopy,proto3" json:"file_copy,omitempty"`
 	// ForwardAgent is SSH agent forwarding.
 	ForwardAgent *bool `protobuf:"varint,6,opt,name=forward_agent,json=forwardAgent,proto3,oneof" json:"forward_agent,omitempty"`
 	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
-	SshPortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=ssh_port_forwarding,json=sshPortForwarding,proto3" json:"ssh_port_forwarding,omitempty"`
+	PortForwarding *SSHPortForwarding `protobuf:"bytes,7,opt,name=port_forwarding,json=portForwarding,proto3" json:"port_forwarding,omitempty"`
 	// HostUserCreation configures the creation of host users.
 	HostUserCreation *CreateHostUser `protobuf:"bytes,8,opt,name=host_user_creation,json=hostUserCreation,proto3" json:"host_user_creation,omitempty"`
 	// MaxSessions defines the maximum number of
 	// concurrent sessions per connection.
-	MaxSessions   *int64 `protobuf:"varint,9,opt,name=max_sessions,json=maxSessions,proto3,oneof" json:"max_sessions,omitempty"`
+	MaxSessions *int64 `protobuf:"varint,9,opt,name=max_sessions,json=maxSessions,proto3,oneof" json:"max_sessions,omitempty"`
+	// Sudoers is a list of entries to include in a users sudoer file
+	HostSudoers   []string `protobuf:"bytes,10,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -364,9 +366,9 @@ func (x *ScopedRoleSSH) GetPermitX11Forwarding() bool {
 	return false
 }
 
-func (x *ScopedRoleSSH) GetSshFileCopy() *SSHFileCopy {
+func (x *ScopedRoleSSH) GetFileCopy() *SSHFileCopy {
 	if x != nil {
-		return x.SshFileCopy
+		return x.FileCopy
 	}
 	return nil
 }
@@ -378,9 +380,9 @@ func (x *ScopedRoleSSH) GetForwardAgent() bool {
 	return false
 }
 
-func (x *ScopedRoleSSH) GetSshPortForwarding() *SSHPortForwarding {
+func (x *ScopedRoleSSH) GetPortForwarding() *SSHPortForwarding {
 	if x != nil {
-		return x.SshPortForwarding
+		return x.PortForwarding
 	}
 	return nil
 }
@@ -399,16 +401,20 @@ func (x *ScopedRoleSSH) GetMaxSessions() int64 {
 	return 0
 }
 
+func (x *ScopedRoleSSH) GetHostSudoers() []string {
+	if x != nil {
+		return x.HostSudoers
+	}
+	return nil
+}
+
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
 // over an SSH session. It defaults to allowing the user to download and upload files by default.
 // Currently we only allow roles to have both download and upload set to true or false.
 // We currently do not support only allowing uploads and disallowing downloads, and vice versa.
 type SSHFileCopy struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Allow for remote file downloads.
-	Download *bool `protobuf:"varint,1,opt,name=download,proto3,oneof" json:"download,omitempty"`
-	// Allow for remote file uploads.
-	Upload        *bool `protobuf:"varint,2,opt,name=upload,proto3,oneof" json:"upload,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -443,16 +449,9 @@ func (*SSHFileCopy) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SSHFileCopy) GetDownload() bool {
-	if x != nil && x.Download != nil {
-		return *x.Download
-	}
-	return false
-}
-
-func (x *SSHFileCopy) GetUpload() bool {
-	if x != nil && x.Upload != nil {
-		return *x.Upload
+func (x *SSHFileCopy) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
@@ -740,14 +739,12 @@ func (x *SSHRemotePortForwarding) GetEnabled() bool {
 // CreateHostUser configures what types of host user creation are allowed by a role.
 type CreateHostUser struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// CreateHostUserMode specifies how the host user should be created.
-	CreateHostUserMode string `protobuf:"bytes,1,opt,name=create_host_user_mode,json=createHostUserMode,proto3" json:"create_host_user_mode,omitempty"`
-	// Sudoers is a list of entries to include in a users sudoer file
-	Sudoers []string `protobuf:"bytes,2,rep,name=sudoers,proto3" json:"sudoers,omitempty"`
+	// Mode specifies how the host user should be created.
+	Mode string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// Groups is a list of host groups to add the user to.
-	Groups []string `protobuf:"bytes,3,rep,name=groups,proto3" json:"groups,omitempty"`
+	Groups []string `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
 	// Shell is the shell to set for the user.
-	Shell         string `protobuf:"bytes,4,opt,name=shell,proto3" json:"shell,omitempty"`
+	Shell         string `protobuf:"bytes,3,opt,name=shell,proto3" json:"shell,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -782,18 +779,11 @@ func (*CreateHostUser) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *CreateHostUser) GetCreateHostUserMode() string {
+func (x *CreateHostUser) GetMode() string {
 	if x != nil {
-		return x.CreateHostUserMode
+		return x.Mode
 	}
 	return ""
-}
-
-func (x *CreateHostUser) GetSudoers() []string {
-	if x != nil {
-		return x.Sudoers
-	}
-	return nil
 }
 
 func (x *CreateHostUser) GetGroups() []string {
@@ -830,25 +820,26 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
 	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xd4\x04\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xe9\x04\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
 	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x127\n" +
-	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12J\n" +
-	"\rssh_file_copy\x18\x05 \x01(\v2&.teleport.scopes.access.v1.SSHFileCopyR\vsshFileCopy\x12(\n" +
-	"\rforward_agent\x18\x06 \x01(\bH\x01R\fforwardAgent\x88\x01\x01\x12\\\n" +
-	"\x13ssh_port_forwarding\x18\a \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingR\x11sshPortForwarding\x12W\n" +
+	"\x15permit_x11_forwarding\x18\x04 \x01(\bH\x00R\x13permitX11Forwarding\x88\x01\x01\x12C\n" +
+	"\tfile_copy\x18\x05 \x01(\v2&.teleport.scopes.access.v1.SSHFileCopyR\bfileCopy\x12(\n" +
+	"\rforward_agent\x18\x06 \x01(\bH\x01R\fforwardAgent\x88\x01\x01\x12U\n" +
+	"\x0fport_forwarding\x18\a \x01(\v2,.teleport.scopes.access.v1.SSHPortForwardingR\x0eportForwarding\x12W\n" +
 	"\x12host_user_creation\x18\b \x01(\v2).teleport.scopes.access.v1.CreateHostUserR\x10hostUserCreation\x12&\n" +
-	"\fmax_sessions\x18\t \x01(\x03H\x02R\vmaxSessions\x88\x01\x01B\x18\n" +
+	"\fmax_sessions\x18\t \x01(\x03H\x02R\vmaxSessions\x88\x01\x01\x12!\n" +
+	"\fhost_sudoers\x18\n" +
+	" \x03(\tR\vhostSudoersB\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_forward_agentB\x0f\n" +
-	"\r_max_sessions\"c\n" +
-	"\vSSHFileCopy\x12\x1f\n" +
-	"\bdownload\x18\x01 \x01(\bH\x00R\bdownload\x88\x01\x01\x12\x1b\n" +
-	"\x06upload\x18\x02 \x01(\bH\x01R\x06upload\x88\x01\x01B\v\n" +
-	"\t_downloadB\t\n" +
-	"\a_upload\"\xb1\x01\n" +
+	"\r_max_sessions\"8\n" +
+	"\vSSHFileCopy\x12\x1d\n" +
+	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabled\"\xb1\x01\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
@@ -868,12 +859,11 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x17SSHRemotePortForwarding\x12\x1d\n" +
 	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
 	"\n" +
-	"\b_enabled\"\x8b\x01\n" +
-	"\x0eCreateHostUser\x121\n" +
-	"\x15create_host_user_mode\x18\x01 \x01(\tR\x12createHostUserMode\x12\x18\n" +
-	"\asudoers\x18\x02 \x03(\tR\asudoers\x12\x16\n" +
-	"\x06groups\x18\x03 \x03(\tR\x06groups\x12\x14\n" +
-	"\x05shell\x18\x04 \x01(\tR\x05shellBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\b_enabled\"R\n" +
+	"\x0eCreateHostUser\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x16\n" +
+	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
+	"\x05shell\x18\x03 \x01(\tR\x05shellBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
@@ -911,8 +901,8 @@ var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	5,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
 	12, // 6: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	4,  // 7: teleport.scopes.access.v1.ScopedRoleSSH.ssh_file_copy:type_name -> teleport.scopes.access.v1.SSHFileCopy
-	7,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.ssh_port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	4,  // 7: teleport.scopes.access.v1.ScopedRoleSSH.file_copy:type_name -> teleport.scopes.access.v1.SSHFileCopy
+	7,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
 	10, // 9: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
 	12, // 10: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
 	8,  // 11: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding

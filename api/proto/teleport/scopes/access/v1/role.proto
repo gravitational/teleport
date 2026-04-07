@@ -109,13 +109,13 @@ message ScopedRoleSSH {
 
   // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
   // over an SSH session. It defaults to allowing the user to download and upload files by default.
-  SSHFileCopy ssh_file_copy = 5;
+  SSHFileCopy file_copy = 5;
 
   // ForwardAgent is SSH agent forwarding.
   optional bool forward_agent = 6;
 
   // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
-  SSHPortForwarding ssh_port_forwarding = 7;
+  SSHPortForwarding port_forwarding = 7;
 
   // HostUserCreation configures the creation of host users.
   CreateHostUser host_user_creation = 8;
@@ -123,6 +123,9 @@ message ScopedRoleSSH {
   // MaxSessions defines the maximum number of
   // concurrent sessions per connection.
   optional int64 max_sessions = 9;
+
+  // Sudoers is a list of entries to include in a users sudoer file
+  repeated string host_sudoers = 10;
 }
 
 // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
@@ -130,10 +133,7 @@ message ScopedRoleSSH {
 // Currently we only allow roles to have both download and upload set to true or false.
 // We currently do not support only allowing uploads and disallowing downloads, and vice versa.
 message SSHFileCopy {
-  // Allow for remote file downloads.
-  optional bool download = 1;
-  // Allow for remote file uploads.
-  optional bool upload = 2;
+  optional bool enabled = 1;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -189,15 +189,12 @@ message SSHRemotePortForwarding {
 
 // CreateHostUser configures what types of host user creation are allowed by a role.
 message CreateHostUser {
-  // CreateHostUserMode specifies how the host user should be created.
-  string create_host_user_mode = 1;
-
-  // Sudoers is a list of entries to include in a users sudoer file
-  repeated string sudoers = 2;
+  // Mode specifies how the host user should be created.
+  string mode = 1;
 
   // Groups is a list of host groups to add the user to.
-  repeated string groups = 3;
+  repeated string groups = 2;
 
   // Shell is the shell to set for the user.
-  string shell = 4;
+  string shell = 3;
 }

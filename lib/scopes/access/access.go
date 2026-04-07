@@ -224,17 +224,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// For now, we only support roles when both download and upload are the same values
-	if fileCopy := role.GetSpec().GetSsh().GetSshFileCopy(); fileCopy != nil {
-		if fileCopy.GetDownload() != fileCopy.GetUpload() {
-			return trace.BadParameter("scoped role %q has mismatched ssh_file_copy download and upload values, both must be the same", role.GetMetadata().GetName())
-		}
-	}
-
 	// verify that create_host_user_mode is a recognized value
-	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetCreateHostUserMode(); mode != "" {
+	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
 		var hostUserMode types.CreateHostUserMode
-		if err := hostUserMode.UnmarshalJSON([]byte(`"` + mode + `"`)); err != nil {
+		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
 			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
 		}
 	}

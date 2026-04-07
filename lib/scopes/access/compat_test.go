@@ -290,7 +290,7 @@ func TestSSHPortForwardingNotInClassicRole(t *testing.T) {
 
 	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.SshPortForwarding = &scopedaccessv1.SSHPortForwarding{
+	sr.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
 		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
 		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
 	}
@@ -305,7 +305,7 @@ func TestHostUserCreationNotInClassicRole(t *testing.T) {
 
 	sr := baseScopedRole()
 	sr.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
-		CreateHostUserMode: "keep",
+		Mode: "keep",
 	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
@@ -318,9 +318,8 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 
 	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.SshFileCopy = &scopedaccessv1.SSHFileCopy{
-		Download: boolPtr(false),
-		Upload:   boolPtr(false),
+	sr.Spec.Ssh.FileCopy = &scopedaccessv1.SSHFileCopy{
+		Enabled: boolPtr(false),
 	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
