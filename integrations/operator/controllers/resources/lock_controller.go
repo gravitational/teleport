@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
@@ -57,13 +57,22 @@ func (r lockClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteLock(ctx, name))
 }
 
-// NewLockReconciler instantiates a new Kubernetes controller reconciling lock resources
-func NewLockReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+// Mutate ensures the spec.CreatedAt and spec.CreatedBy properties are persisted
+func (r lockClient) Mutate(_ context.Context, new, existing types.Lock, _ kclient.ObjectKey) error {
+	if existing != nil {
+		new.SetCreatedAt(existing.CreatedAt())
+		new.SetCreatedBy(existing.CreatedBy())
+	}
+	return nil
+}
+
+// NewLockV2Reconciler instantiates a new Kubernetes controller reconciling lock resources
+func NewLockV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	lockClient := &lockClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.Lock, *resourcesv2.TeleportLock](
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.Lock, *resourcesv1.TeleportLockV2](
 		client,
 		lockClient,
 	)

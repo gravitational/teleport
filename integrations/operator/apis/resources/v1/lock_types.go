@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package v2
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,34 +26,34 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportLock{}, &TeleportLockList{})
+	SchemeBuilder.Register(&TeleportLockV2{}, &TeleportLockV2List{})
 }
 
-// TeleportLockSpec defines the desired state of TeleportLock
-type TeleportLockSpec types.LockSpecV2
+// TeleportLockV2Spec defines the desired state of TeleportLockV2
+type TeleportLockV2Spec types.LockSpecV2
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportLock is the Schema for the Lock API
-type TeleportLock struct {
+// TeleportLockV2 is the Schema for the Lock API
+type TeleportLockV2 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportLockSpec  `json:"spec"`
-	Status teleportcr.Status `json:"status"`
+	Spec   TeleportLockV2Spec `json:"spec"`
+	Status teleportcr.Status  `json:"status"`
 }
 
 //+kubebuilder:object:root=true
 
-// TeleportLockList contains a list of TeleportLock
-type TeleportLockList struct {
+// TeleportLockV2List contains a list of TeleportLockV2
+type TeleportLockV2List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	Items           []TeleportLock `json:"items"`
+	Items           []TeleportLockV2 `json:"items"`
 }
 
-func (c TeleportLock) ToTeleport() types.Lock {
+func (c TeleportLockV2) ToTeleport() types.Lock {
 	return &types.LockV2{
 		Kind:    types.KindLock,
 		Version: types.V2,
@@ -68,28 +68,28 @@ func (c TeleportLock) ToTeleport() types.Lock {
 
 // StatusConditions returns a pointer to Status.Conditions slice. This is used
 // by the teleport resource controller to report conditions back to on resource.
-func (c *TeleportLock) StatusConditions() *[]metav1.Condition {
+func (c *TeleportLockV2) StatusConditions() *[]metav1.Condition {
 	return &c.Status.Conditions
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *TeleportLockSpec) Marshal() ([]byte, error) {
+func (spec *TeleportLockV2Spec) Marshal() ([]byte, error) {
 	return (*types.LockSpecV2)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportLockSpec) Unmarshal(data []byte) error {
+func (spec *TeleportLockV2Spec) Unmarshal(data []byte) error {
 	return (*types.LockSpecV2)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one user spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportLockSpec) DeepCopyInto(out *TeleportLockSpec) {
+func (spec *TeleportLockV2Spec) DeepCopyInto(out *TeleportLockV2Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportLockSpec{}
+	*out = TeleportLockV2Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
