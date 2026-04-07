@@ -123,9 +123,8 @@ func (s *BeamService) AppendPutBeamActions(
 	// is unique.
 	if item.Revision == "" {
 		aliasItem := backend.Item{
-			Key:     beamAliasKey(beam.GetStatus().GetAlias()),
-			Value:   []byte(beam.GetMetadata().GetName()),
-			Expires: beam.GetSpec().GetExpires().AsTime(),
+			Key:   beamAliasKey(beam.GetStatus().GetAlias()),
+			Value: []byte(beam.GetMetadata().GetName()),
 		}
 		actions = append(actions, backend.ConditionalAction{
 			Key:       aliasItem.Key,
