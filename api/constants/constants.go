@@ -466,6 +466,12 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+// MaxAuthConnectorNameLength is the maximum allowed length of an authentication connector name.
+// The connector name is used as its backend key. This value is selected to be large enough for
+// all real-world use cases, but small enough to not exceed the key length on Teleport's supported
+// backends.
+const MaxAuthConnectorNameLength = 768
+
 const (
 	// MaxHealthCheckInterval is the minimum interval between resource health
 	// checks.

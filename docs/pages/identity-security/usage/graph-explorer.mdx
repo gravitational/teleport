@@ -72,11 +72,13 @@ Access Graph divides your infrastructure into six main components:
 
 ![Identity Node](../../../img/access-graph/identity-node.png)
 
-Identities are the actors that can access your infrastructure. They can be employees, contractors, machines or bots.
+Identities are the actors that can access your infrastructure. For example, they
+can be AI agents, employees, contractors, machines or bots.
 
-Users are created from Teleport Users.  Local users are imported as soon as they
-are created.  External users (created from authentication connectors for GitHub,
-SAML, etc.) are imported when they log in for the first time.
+Users are created from instances of the Teleport `user` resource. Local users
+are imported as soon as they are created. SSO users (created from authentication
+connectors for GitHub, SAML, etc.) are imported when they log in for the first
+time.
 
 The number on the right hand side shows **standing privileges**. The standing privileges metric indicates the number of
 resources that an identity can access without creating an Access Request.

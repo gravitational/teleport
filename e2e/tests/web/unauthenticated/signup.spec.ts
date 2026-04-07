@@ -19,17 +19,22 @@
 import { signup } from '@gravitational/e2e/helpers/signup';
 import { deleteUser } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
+import { TestInfo } from '@playwright/test';
+
+function username(testInfo: TestInfo) {
+  return `testuser-${testInfo.workerIndex}`;
+}
 
 test('verify that a user can sign up with webauthn and login', async ({
   page,
 }, testInfo) => {
-  const username = `testuser-${testInfo.workerIndex}`;
-
-  await signup(page, username);
+  await signup(page, username(testInfo));
 
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Logout').click();
-  await page.getByRole('textbox', { name: 'Username' }).fill(username);
+  await page
+    .getByRole('textbox', { name: 'Username' })
+    .fill(username(testInfo));
   await page.getByRole('textbox', { name: 'Username' }).press('Tab');
   await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
   await page
@@ -38,6 +43,9 @@ test('verify that a user can sign up with webauthn and login', async ({
     .click();
 
   await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible();
+});
 
-  deleteUser(username);
+// oxlint-disable-next-line no-empty-pattern
+test.afterEach(({}, testInfo) => {
+  deleteUser(username(testInfo));
 });

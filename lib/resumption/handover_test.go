@@ -35,7 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestHandover(t *testing.T) {

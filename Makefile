@@ -492,11 +492,17 @@ bpf-up-to-date: must-start-clean/host bpf-bytecode
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
+RDPCLIENT_SKIP_CARGO ?= 0
+
 .PHONY: rdpclient
 rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
+ifneq ($(RDPCLIENT_SKIP_CARGO),1)
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+else
+	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
+endif
 endif
 
 .PHONY: rdpdecoder
@@ -518,13 +524,20 @@ define ironrdp_package_json
 endef
 export ironrdp_package_json
 
+IRONRDP_SKIP_BUILD ?= 0
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
+ifeq ($(IRONRDP_SKIP_BUILD),1)
+build-ironrdp-wasm:
+	@echo "Skipping ironrdp WASM build (IRONRDP_SKIP_BUILD=1)"
+else
 build-ironrdp-wasm: ensure-wasm-deps
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
+endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
@@ -1230,6 +1243,12 @@ e2e-aws: | $(TEST_LOG_DIR)
 	@echo TEST_KUBE: $(TEST_KUBE) TEST_AWS_DB: $(TEST_AWS_DB)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
+
+# e2e-binaries builds teleport, tctl, and tsh (with webauthnmock) in parallel
+# for use in e2e tests.
+.PHONY: e2e-binaries
+e2e-binaries:
+	build.assets/build-e2e-binaries.sh
 
 #
 # Lint the source code.

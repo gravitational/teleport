@@ -39,12 +39,13 @@ import (
 type reportConfig struct {
 	prNumber  int
 	repo      string
+	sha       string
 	e2eDir    string
 	tracePath string
 }
 
 func runReport(cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(cfg.prNumber, cfg.repo, "playwright-report")
+	tmpDir, err := downloadArtifact(cfg, "playwright-report")
 	if err != nil {
 		return err
 	}
@@ -60,7 +61,7 @@ func runReport(cfg *reportConfig) error {
 }
 
 func runTestResults(cfg *reportConfig) error {
-	tmpDir, err := downloadArtifact(cfg.prNumber, cfg.repo, "test-results")
+	tmpDir, err := downloadArtifact(cfg, "test-results")
 	if err != nil {
 		return err
 	}
@@ -95,23 +96,28 @@ func ghClient(ctx context.Context) (*github.Client, error) {
 	return github.NewClient(oauth2.NewClient(ctx, ts)), nil
 }
 
-func downloadArtifact(prNumber int, repo, artifactName string) (string, error) {
+func downloadArtifact(cfg *reportConfig, artifactName string) (string, error) {
 	ctx := context.Background()
 	client, err := ghClient(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	ghRepo := "gravitational/" + repo
+	ghRepo := "gravitational/" + cfg.repo
 	owner, repoName, _ := strings.Cut(ghRepo, "/")
 
-	pr, _, err := client.PullRequests.Get(ctx, owner, repoName, prNumber)
-	if err != nil {
-		return "", fmt.Errorf("getting PR #%d: %w", prNumber, err)
-	}
+	headSHA := cfg.sha
+	if headSHA == "" {
+		pr, _, err := client.PullRequests.Get(ctx, owner, repoName, cfg.prNumber)
+		if err != nil {
+			return "", fmt.Errorf("getting PR #%d: %w", cfg.prNumber, err)
+		}
 
-	headSHA := pr.GetHead().GetSHA()
-	slog.Debug("resolved PR head SHA", "sha", headSHA)
+		headSHA = pr.GetHead().GetSHA()
+		slog.Debug("resolved PR head SHA", "sha", headSHA)
+	} else {
+		slog.Debug("using provided SHA", "sha", headSHA)
+	}
 
 	opts := &github.ListArtifactsOptions{
 		Name: github.Ptr(artifactName),
@@ -125,7 +131,7 @@ func downloadArtifact(prNumber int, repo, artifactName string) (string, error) {
 		}
 
 		for _, a := range artifacts.Artifacts {
-			if a.GetWorkflowRun().GetHeadSHA() == headSHA {
+			if strings.HasPrefix(a.GetWorkflowRun().GetHeadSHA(), headSHA) {
 				target = a
 
 				break
@@ -231,6 +237,24 @@ func ciPRNumber() int {
 	}
 
 	return 0
+}
+
+func ciShortHeadSHA() string {
+	sha := os.Getenv("E2E_HEAD_SHA")
+	if len(sha) > 8 {
+		sha = sha[:8]
+	}
+
+	return sha
+}
+
+func ciReportCmd(pr int) string {
+	cmd := fmt.Sprintf("e2e/run.sh --report %d", pr)
+	if sha := ciShortHeadSHA(); sha != "" {
+		cmd += " --sha " + sha
+	}
+
+	return cmd
 }
 
 func detectRepo(e2eDir string) string {

@@ -104,6 +104,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -1648,6 +1649,15 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	}
 
 	return resp.GetSession(), nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: publicKey,
+	})
+	return trace.Wrap(err)
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
@@ -6234,4 +6244,10 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+// SubCAClient returns an unadorned Sub CA client, using the underlying Auth
+// gRPC connection.
+func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
+	return subcav1.NewSubCAServiceClient(c.conn)
 }

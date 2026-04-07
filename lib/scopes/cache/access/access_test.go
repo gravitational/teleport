@@ -58,16 +58,14 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// populate roles prior to starting the cache so that we can cover
 	// loading of initial state.
 	var expectedRoleNames []string
-	expectedRoleRevisions := make(map[string]string)
 	for i := 0; i < 10; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
 		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
-		expectedRoleRevisions[name] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// populate assignments prior to starting the cache so that we can cover
@@ -77,9 +75,6 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
 		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-			RoleRevisions: map[string]string{
-				expectedRoleNames[i]: expectedRoleRevisions[expectedRoleNames[i]],
-			},
 		})
 		require.NoError(t, err)
 
@@ -119,13 +114,12 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// perform additional role writes to cover event replication
 	for i := 10; i < 20; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
 		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
-		expectedRoleRevisions[name] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// perform additional assignment writes to cover event replication
@@ -133,9 +127,6 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
 		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-			RoleRevisions: map[string]string{
-				expectedRoleNames[i]: expectedRoleRevisions[expectedRoleNames[i]],
-			},
 		})
 		require.NoError(t, err)
 
@@ -174,12 +165,10 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 		role.Metadata.Labels = map[string]string{"updated": "true"}
 
-		crsp, err := service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
+		_, err := service.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
 			Role: role,
 		})
 		require.NoError(t, err)
-
-		expectedRoleRevisions[role.GetMetadata().GetName()] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	waitForRoleCondition(t, cache, func(roles []*scopedaccessv1.ScopedRole) bool {
@@ -195,7 +184,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle partial deletes for assignments
 	for _, name := range expectedAssignmentNames[0:10] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: name,
+			Name:    name,
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}
@@ -216,7 +206,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle delete of all assignments
 	for _, name := range expectedAssignmentNames[10:] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: name,
+			Name:    name,
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}
@@ -282,16 +273,14 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	// populate roles prior to starting the cache so that we can cover
 	// loading of initial state.
 	var expectedRoleNames []string
-	expectedRoleRevisions := make(map[string]string)
 	for i := 0; i < 10; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
 		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
-		expectedRoleRevisions[name] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// populate assignments prior to starting the cache so that we can cover
@@ -301,9 +290,6 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
 		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-			RoleRevisions: map[string]string{
-				expectedRoleNames[i]: expectedRoleRevisions[expectedRoleNames[i]],
-			},
 		})
 		require.NoError(t, err)
 
@@ -343,13 +329,12 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	// perform additional role writes to cover subsequent ttl-cache image loads
 	for i := 10; i < 20; i++ {
 		name := fmt.Sprintf("role-%d", i)
-		crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: newScopedRole(name),
 		})
 		require.NoError(t, err)
 
 		expectedRoleNames = append(expectedRoleNames, name)
-		expectedRoleRevisions[name] = crsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// perform additional assignment writes to cover ttl-cache image loads
@@ -357,9 +342,6 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 		assignment := newScopedRoleAssignment(expectedRoleNames[i])
 		_, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: assignment,
-			RoleRevisions: map[string]string{
-				expectedRoleNames[i]: expectedRoleRevisions[expectedRoleNames[i]],
-			},
 		})
 		require.NoError(t, err)
 
@@ -409,7 +391,8 @@ func newScopedRole(name string) *scopedaccessv1.ScopedRole {
 
 func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignment {
 	return &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},

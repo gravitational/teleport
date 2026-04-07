@@ -5095,6 +5095,8 @@ message KubernetesClusterV3 {
   ];
   // Status is the resource status.
   KubernetesClusterStatus status = 6;
+  // The scope of the kube cluster.
+  string scope = 7;
 }
 
 // KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
