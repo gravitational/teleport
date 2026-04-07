@@ -60,9 +60,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|roles|[]string|roles are the names of roles to be granted to users.|
 |scoped_roles|[][object](#specgrantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
-|traits|[object](#specgrantstraits)|traits are the traits that are granted to users who are members of the Access List.|
+|traits|[object](#specgrantstraits)|traits are the traits to be granted to users.|
 
 ### spec.grants.scoped_roles items
 
@@ -96,9 +96,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
- |roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|roles|[]string|roles are the names of roles to be granted to users.|
 |scoped_roles|[][object](#specowner_grantsscoped_roles-items)|scoped_roles are scoped roles to be granted to users.|
-|traits|[object](#specowner_grantstraits)|traits are the traits that are granted to users who are members of the Access List.|
+|traits|[object](#specowner_grantstraits)|traits are the traits to be granted to users.|
 
 ### spec.owner_grants.scoped_roles items
 
