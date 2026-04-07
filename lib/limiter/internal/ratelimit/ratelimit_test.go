@@ -31,3 +31,9 @@ func TestLimitExceededError(t *testing.T) {
 	require.ErrorAs(t, err, &le)
 	require.Equal(t, err.Error(), le.Message)
 }
+
+func TestRateSetLenNilReceiver(t *testing.T) {
+	t.Parallel()
+	var rs *RateSet
+	require.Equal(t, 0, rs.Len())
+}
