@@ -1280,7 +1280,7 @@ func TestCheckJoinHealth(t *testing.T) {
 
 		errC := make(chan error, 1)
 		go func() {
-			errC <- inst.checkJoinHealth(context.Background())
+			errC <- inst.checkJoinHealth(t.Context())
 		}()
 
 		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
