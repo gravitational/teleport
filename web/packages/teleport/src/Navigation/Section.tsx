@@ -336,13 +336,11 @@ export function getCategoryStyles(
         background: ${theme.colors.interactive.tonal.primary[2]};
         color: ${theme.colors.interactive.solid.primary.active};
       }
-      ${
-        isExpanded &&
-        `
+      ${isExpanded &&
+      `
         background: ${theme.colors.interactive.tonal.primary[1]};
         color: ${theme.colors.interactive.solid.primary.default};
-      `
-      }
+      `}
     `;
   }
 
@@ -358,13 +356,11 @@ export function getCategoryStyles(
       background: ${theme.colors.interactive.tonal.neutral[1]};
       color: ${theme.colors.text.main};
     }
-    ${
-      isExpanded &&
-      `
+    ${isExpanded &&
+    `
       background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
-      `
-    }
+      `}
   `;
 }
 

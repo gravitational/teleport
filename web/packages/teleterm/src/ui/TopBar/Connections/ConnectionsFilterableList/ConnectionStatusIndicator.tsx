@@ -96,12 +96,10 @@ const StyledStatus = styled(Box)<{
             content: '✕';
             font-size: 12px;
 
-            ${
-              !props.$inline &&
-              `position: absolute;
+            ${!props.$inline &&
+            `position: absolute;
             top: -8px;
-            `
-            }
+            `}
           }
         `;
       }
@@ -111,29 +109,25 @@ const StyledStatus = styled(Box)<{
           &:after {
             content: '⚠';
             font-size: 12px;
-            ${
-              props.$inline &&
-              `
+            ${props.$inline &&
+            `
             // This cuts out a little portion of the icon on the left. This is most clearly visible
             // on Windows. But at least it better aligns with the other statuses.
             //
             // TODO(ravicious): Rewrite this to not use weird characters to represent different
             // statuses so that all statuses properly align together.
             margin: -1px;
-            `
-            }
+            `}
 
-            ${
-              !props.$inline &&
-              `
+            ${!props.$inline &&
+            `
             position: absolute;
             top: -1px;
             // Visually, -1px seems to be better aligned than -2px, especially when looking at
             // VnetWarning story.
             left: -1px;
             line-height: 8px;
-            `
-            }
+            `}
           }
         `;
       }
