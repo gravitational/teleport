@@ -2550,6 +2550,10 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 }
 
 // UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// decoders will not call this method because CreateHostUserMode
+// also implements json.Unmarshaler for json and yaml.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
 func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
 	return h.decode(string(text))
 }
