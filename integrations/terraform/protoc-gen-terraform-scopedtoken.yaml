@@ -72,3 +72,5 @@ validators:
 
 custom_types:
   "ScopedToken.metadata.expires": Timestamp
+  "ScopedToken.spec.bound_keypair.onboarding.must_register_before": Timestamp
+  "ScopedToken.spec.bound_keypair.rotate_after": Timestamp
