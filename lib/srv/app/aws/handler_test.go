@@ -155,7 +155,7 @@ func assumeRoleRequest(requestDuration time.Duration) makeRequest {
 		stsClient := stsutils.NewFromConfig(aws.Config{
 			Credentials:      provider,
 			BaseEndpoint:     &url,
-			Region:           region,
+			Region:           region, //nolint:nostructfieldassign // this is a test.
 			RetryMaxAttempts: 0,
 			HTTPClient: &http.Client{
 				Timeout:   5 * time.Second,
