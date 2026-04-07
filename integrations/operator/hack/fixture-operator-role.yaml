@@ -187,6 +187,11 @@ spec:
           - list
           - create
           - readnosecrets
+          - scoped_role_assignment
+        verbs:
+          - list
+          - create
+          - read
           - update
           - delete
 

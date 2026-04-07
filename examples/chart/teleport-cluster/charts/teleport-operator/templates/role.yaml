@@ -66,6 +66,8 @@ rules:
       - teleportscopedtokensv1/status
       - teleportscopedrolesv1
       - teleportscopedrolesv1/status
+      - teleportscopedroleassignmentsv1
+      - teleportscopedroleassignmentsv1/status
     verbs:
       - get
       - list
