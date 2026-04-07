@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -144,6 +145,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
 				types.NewRule(types.KindSAMLIdPServiceProvider, unrestricted),
 				types.NewRule(types.KindScopedToken, unrestricted),
+				types.NewRule(access.KindScopedRole, unrestricted),
 			},
 		},
 	})
