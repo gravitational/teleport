@@ -147,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -8802,4 +8803,15 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// TODO(tigrato): remove Download* methods once e no longer references them.
+func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	reader, err := s.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	_, err = io.Copy(writer, reader)
+	return trace.Wrap(err)
 }

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
-import cfg from 'teleport/config';
+import cfg, { UrlLauncherParams } from 'teleport/config';
 import api from 'teleport/services/api';
 import service from 'teleport/services/apps';
 
@@ -44,16 +44,18 @@ const launcherPathTestCases: {
     expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar',
   },
   {
-    name: 'no state with other path params (clusterId, publicAddr, publicArn',
-    path: '/some-cluster-id/some-public-addr/arn::123/name',
+    // The ARN is percent-encoded in the URL path so that the slash in
+    // "arn::123/name" does not split it into two path segments.
+    name: 'no state with other path params (clusterId, publicAddr, arn)',
+    path: '/some-cluster-id/some-public-addr/arn%3A%3A123%2Fname',
     expectedPath:
-      'x-teleport-auth?cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
+      'x-teleport-auth?cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123%2Fname',
   },
   {
     name: 'no state with path and with other path params',
-    path: '/some-cluster-id/some-public-addr/arn::123/name?path=%2Ffoo%2Fbar',
+    path: '/some-cluster-id/some-public-addr/arn%3A%3A123%2Fname?path=%2Ffoo%2Fbar',
     expectedPath:
-      'x-teleport-auth?path=%2Ffoo%2Fbar&cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
+      'x-teleport-auth?path=%2Ffoo%2Fbar&cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123%2Fname',
   },
   {
     name: 'with state',
@@ -129,12 +131,23 @@ const appSessionTestCases: {
   expectedArn: string;
 }[] = [
   {
+    // The ARN is percent-encoded in the URL path. React Router's
+    // useParams() auto-decodes the %2F back to /, so the ARN arrives
+    // fully decoded for createAppSession.
     name: 'ARN URL',
-    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess?state=ABC',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport/arn%3Aaws%3Aiam%3A%3Ajoe123%3Arole%2FEC2FullAccess?state=ABC',
     returnedFqdn: 'test-app.test.teleport',
     expectedFqdn: 'test-app.test.teleport',
     expectedPublicAddr: 'test-app.test.teleport',
     expectedArn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+  },
+  {
+    name: 'ARN URL with multi-level path',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport/arn%3Aaws%3Aiam%3A%3Ajoe123%3Arole%2Fpath%2Fto%2FEC2FullAccess?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: 'arn:aws:iam::joe123:role/path/to/EC2FullAccess',
   },
   {
     name: 'uppercase resolved FQDN',
@@ -356,5 +369,47 @@ describe('fqdn is matched', () => {
     await screen.findByText(/access denied/i);
     expect(screen.getByText(/Failed to parse URL:/i)).toBeInTheDocument();
     expect(windowLocation.replace).not.toHaveBeenCalled();
+  });
+});
+
+// Round-trip test: verifies that an ARN with slashes survives the full
+// cycle from URL generation through React Router matching and param
+// decoding.
+describe('ARN round-trips through URL generation and routing', () => {
+  function ArnCapture({ onArn }: { onArn: (arn: string) => void }) {
+    const params = useParams<UrlLauncherParams>();
+    const arn = params.arn ? decodeURIComponent(params.arn) : undefined;
+    if (arn) {
+      onArn(arn);
+    }
+    return <div>captured</div>;
+  }
+
+  test.each([
+    'arn:aws:iam::123456789012:role/my-role',
+    'arn:aws:iam::123456789012:role/path/to/my-role',
+    'arn:aws:iam::123456789012:role/path+with=chars',
+  ])('round-trips ARN: %s', async rawArn => {
+    const url = cfg.getAppLauncherRoute({
+      fqdn: 'app.example.com',
+      clusterId: 'cluster1',
+      publicAddr: 'app.example.com',
+      arn: rawArn,
+    });
+
+    let capturedArn: string | undefined;
+    render(
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route
+            path={`${cfg.routes.appLauncher}/*`}
+            element={<ArnCapture onArn={arn => (capturedArn = arn)} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await screen.findByText('captured');
+    expect(capturedArn).toBe(rawArn);
   });
 });

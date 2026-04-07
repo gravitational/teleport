@@ -34,7 +34,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
@@ -48,6 +48,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -90,8 +91,8 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 			useFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		}
 		awsCfg, err := config.LoadDefaultConfig(ctx,
-			config.WithRegion(cfg.AWSRegion),
-			config.WithUseFIPSEndpoint(useFIPSEndpoint),
+			awsconfig.WithRegion(cfg.AWSRegion),
+			awsconfig.WithUseFIPSEndpoint(useFIPSEndpoint),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "loading default AWS config")

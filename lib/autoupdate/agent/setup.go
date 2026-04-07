@@ -41,10 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate/agent/internal"
 	"github.com/gravitational/teleport/lib/config/systemd"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/selinux"
 	tbotsystemd "github.com/gravitational/teleport/lib/tbot/config/systemd"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/selinux"
 )
 
 // Base paths for constructing namespaced directories.

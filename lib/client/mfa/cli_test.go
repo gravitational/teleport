@@ -186,8 +186,8 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK prefer webauthn over sso",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, SSO]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso> or environment variable TELEPORT_MFA_MODE=<webauthn,sso>.\n\n" +
+				"Available MFA methods [WEBAUTHN, SSO]. Continuing with WEBAUTHN.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso> or environment variable TELEPORT_MFA_MODE=<webauthn,sso>.\r\n\r\n" +
 				"Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -202,9 +202,9 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK prefer webauthn+otp over sso",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\n\n" +
-				"Tap any security key or enter a code from a OTP device\n",
+				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\r\n\r\n" +
+				"Tap any security key or enter a code from a OTP device\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 				TOTP:              &proto.TOTPChallenge{},
@@ -222,8 +222,8 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK prefer sso over otp",
 			expectStdOut: "" +
-				"Available MFA methods [SSO, OTP]. Continuing with SSO.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp> or environment variable TELEPORT_MFA_MODE=<sso,otp>.\n\n",
+				"Available MFA methods [SSO, OTP]. Continuing with SSO.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp> or environment variable TELEPORT_MFA_MODE=<sso,otp>.\r\n\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP:         &proto.TOTPChallenge{},
 				SSOChallenge: &proto.SSOChallenge{},
@@ -240,8 +240,8 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK prefer webauthn over otp when stdin hijack disallowed",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, OTP]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,otp>.\n\n" +
+				"Available MFA methods [WEBAUTHN, OTP]. Continuing with WEBAUTHN.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,otp>.\r\n\r\n" +
 				"Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -256,9 +256,9 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK webauthn or otp with stdin hijack allowed, choose webauthn",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\n\n" +
-				"Tap any security key or enter a code from a OTP device\n",
+				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\r\n\r\n" +
+				"Tap any security key or enter a code from a OTP device\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 				TOTP:              &proto.TOTPChallenge{},
@@ -276,9 +276,9 @@ func TestCLIPrompt(t *testing.T) {
 		{
 			name: "OK webauthn or otp with stdin hijack allowed, choose otp",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\n\n" +
-				"Tap any security key or enter a code from a OTP device\n",
+				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp> or environment variable TELEPORT_MFA_MODE=<webauthn,sso,otp>.\r\n\r\n" +
+				"Tap any security key or enter a code from a OTP device\r\n",
 			stdin: "123456",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -298,7 +298,7 @@ func TestCLIPrompt(t *testing.T) {
 		},
 		{
 			name:         "NOK no webauthn response",
-			expectStdOut: "Tap any security key\nMFA authentication with WEBAUTHN failed, check logs for details\n",
+			expectStdOut: "Tap any security key\nMFA authentication with WEBAUTHN failed, check logs for details\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
@@ -306,7 +306,7 @@ func TestCLIPrompt(t *testing.T) {
 		},
 		{
 			name:         "NOK no sso response",
-			expectStdOut: "MFA authentication with SSO failed, check logs for details\n",
+			expectStdOut: "MFA authentication with SSO failed, check logs for details\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				SSOChallenge: &proto.SSOChallenge{},
 			},
@@ -314,7 +314,7 @@ func TestCLIPrompt(t *testing.T) {
 		},
 		{
 			name:         "NOK no otp response",
-			expectStdOut: "Enter an OTP code from a device:\nMFA authentication with OTP failed, check logs for details\n",
+			expectStdOut: "Enter an OTP code from a device:\nMFA authentication with OTP failed, check logs for details\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP: &proto.TOTPChallenge{},
 			},
@@ -322,7 +322,7 @@ func TestCLIPrompt(t *testing.T) {
 		},
 		{
 			name:         "NOK no webauthn or otp response",
-			expectStdOut: "Tap any security key or enter a code from a OTP device\nMFA authentication with WEBAUTHN failed, check logs for details\n",
+			expectStdOut: "Tap any security key or enter a code from a OTP device\r\nMFA authentication with WEBAUTHN failed, check logs for details\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 				TOTP:              &proto.TOTPChallenge{},
@@ -341,10 +341,9 @@ func TestCLIPrompt(t *testing.T) {
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
 				cfg.AllowStdinHijack = true
 			},
-			expectStdOut: `Tap any security key or enter a code from a OTP device
-Detected security key tap
-Enter your security key PIN:
-`,
+			expectStdOut: "Tap any security key or enter a code from a OTP device\r\n" +
+				"Detected security key tap\n" +
+				"Enter your security key PIN:\n",
 			expectResp: &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: &webauthnpb.CredentialAssertionResponse{
@@ -531,10 +530,10 @@ Enter your security key PIN:
 		{
 			name: "NOK browser fallback skipped on windows when not preferred",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.\n\n" +
+				"Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.\r\n\r\n" +
 				"Tap any security key\n" +
-				"MFA authentication with WEBAUTHN failed, check logs for details\n",
+				"MFA authentication with WEBAUTHN failed, check logs for details\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge:   &webauthnpb.CredentialAssertion{},
 				BrowserMFAChallenge: &proto.BrowserMFAChallenge{},
@@ -564,11 +563,11 @@ Enter your security key PIN:
 		{
 			name: "OK prompt fallback webauthn > SSO > browser MFA",
 			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.\n\n" +
+				"Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.\r\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.\r\n\r\n" +
 				"Tap any security key\n" +
-				"MFA authentication with WEBAUTHN failed, check logs for details\n" +
-				"Attempting MFA authentication with BROWSER\n",
+				"MFA authentication with WEBAUTHN failed, check logs for details\r\n" +
+				"Attempting MFA authentication with BROWSER\r\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge:   &webauthnpb.CredentialAssertion{},
 				BrowserMFAChallenge: &proto.BrowserMFAChallenge{},

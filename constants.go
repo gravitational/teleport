@@ -215,9 +215,6 @@ const (
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
-	// Component pluggable authentication module (PAM)
-	ComponentPAM = "pam"
-
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
 
@@ -597,9 +594,6 @@ const (
 	// credentials.
 	UnexpectedCredentials = 252
 )
-
-// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
-const MaxEnvironmentFileLines = 1000
 
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).

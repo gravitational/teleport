@@ -659,15 +659,20 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
 
+		pageInstancesPerOwnerID := make(map[string][]ec2types.Instance)
+
 		for _, res := range page.Reservations {
-			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-				end := min(i+awsEC2APIChunkSize, len(res.Instances))
-				ownerID := aws.ToString(res.OwnerId)
+			pageInstancesPerOwnerID[aws.ToString(res.OwnerId)] = append(pageInstancesPerOwnerID[aws.ToString(res.OwnerId)], res.Instances...)
+		}
+
+		for ownerID, pageInstances := range pageInstancesPerOwnerID {
+			for i := 0; i < len(pageInstances); i += awsEC2APIChunkSize {
+				end := min(i+awsEC2APIChunkSize, len(pageInstances))
 				inst := &EC2Instances{
 					AccountID:           ownerID,
 					Region:              params.region,
 					DocumentName:        f.Matcher.SSM.DocumentName,
-					Instances:           ToEC2Instances(res.Instances[i:end]),
+					Instances:           ToEC2Instances(pageInstances[i:end]),
 					Parameters:          params.ssmRunParams,
 					Rotation:            params.rotation,
 					Integration:         f.Matcher.Integration,
@@ -676,7 +681,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.Matcher.Params.EnrollMode,
 				}
-				for _, ec2inst := range res.Instances[i:end] {
+				for _, ec2inst := range pageInstances[i:end] {
 					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
 				}
 				instances = append(instances, inst)

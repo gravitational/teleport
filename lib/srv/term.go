@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -193,6 +194,9 @@ func (t *terminal) AddParty(delta int) {
 	t.wg.Add(delta)
 }
 
+// Replace \n with \r\n so the message is correctly aligned.
+var crlfReplacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
+
 // Run will run the terminal. If the shell fails to start due to a [teleport.RemoteCommandFailure],
 // the error will be written to the given error writer.
 func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
@@ -238,7 +242,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 			return
 		}
 
-		if _, err := io.WriteString(errorWriter, childErr); err != nil {
+		if _, err := crlfReplacer.WriteString(errorWriter, childErr); err != nil {
 			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}
 	})

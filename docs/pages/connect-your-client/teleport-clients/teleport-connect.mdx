@@ -49,6 +49,15 @@ To choose the mode explicitly, add `/allusers` (per-machine) or `/currentuser` (
 $ "Teleport Connect Setup-(=teleport.version=).exe" /S /allusers
 ```
 
+<Admonition
+    type="warning"
+    title="Avoid Dual Installations"
+>
+  Having both per-user and per-machine installations may cause the Start Menu shortcut to point to a different instance than expected.
+
+  Before installing the app in a different mode, [uninstall](#uninstalling-teleport-connect) the existing installation.
+</Admonition>
+
 </TabItem>
 </Tabs>
 

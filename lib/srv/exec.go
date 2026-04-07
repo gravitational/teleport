@@ -215,7 +215,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			return
 		}
 
-		if _, err := io.WriteString(channel, childErr); err != nil {
+		if _, err := crlfReplacer.WriteString(channel, childErr); err != nil {
 			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
 		}
 	})

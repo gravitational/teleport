@@ -761,21 +761,19 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 		},
 	}
 
-	roleRevisions := make(map[string]string)
 	for _, role := range scopedRoles {
-		rsp, err := authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err = authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: role,
 		})
 		require.NoError(t, err)
-
-		roleRevisions[role.GetMetadata().GetName()] = rsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// assign both roles to user
 	for _, role := range scopedRoles {
 		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
 				},
@@ -790,9 +788,6 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 					},
 				},
 				Version: types.V1,
-			},
-			RoleRevisions: map[string]string{
-				role.GetMetadata().GetName(): roleRevisions[role.GetMetadata().GetName()],
 			},
 		})
 		require.NoError(t, err)

@@ -14,7 +14,7 @@ locals {
 }
 
 resource "teleport_provision_token" "aws_iam" {
-  count = local.create ? 1 : 0
+  count = local.create && local.uses_ec2 ? 1 : 0
 
   metadata = {
     name        = local.teleport_provision_token_name
