@@ -2733,13 +2733,18 @@ func (set RoleSet) checkAccess(
 
 	// MFA checks can be bypassed if either:
 	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
-	//  2. The legacy out-of-band MFA flow is allowed (see below) AND MFA has already been verified for the session.
+	//  2. Legacy out-of-band MFA has already been verified for the session AND
+	//     a. The legacy out-of-band MFA flow is allowed (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes") OR
+	//     b. The caller doesn't want preconditions returned (state.ReturnPreconditions is false)
 	//
-	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
-	// and MFA has already been verified for this session.
+	// Note: Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing
+	// MFA checks for resources that require per-session MFA. This is because listing resources is a read-only operation
+	// that typically happens before the user has a chance to satisfy any MFA preconditions, and we don't want to block
+	// users from listing resources just because they haven't satisfied MFA preconditions yet.
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	bypassMFAChecks := state.MFARequired == MFARequiredNever || (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified)
+	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
+		(state.MFAVerified && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" || !state.ReturnPreconditions))
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
