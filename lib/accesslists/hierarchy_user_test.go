@@ -425,6 +425,64 @@ func TestGetHierarchyForUser(t *testing.T) {
 	}
 }
 
+func TestExpandOwnerOfValidation(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	svc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: bk,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+
+	// setup root.owners["level1"] -> level1.members["alice"] relation so the alice user is owner of root
+	// via nested ownership hierarchy.
+	testState := state{
+		mustMakeAccessList("root", withOwnerList("level1")): {},
+		mustMakeAccessList("level1"):                        {mustCreateMember("alice")},
+	}
+	require.NoError(t, upsertState(svc, testState))
+
+	level1, err := svc.GetAccessList(ctx, "level1")
+	require.NoError(t, err)
+
+	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
+		AccessListsService: svc,
+		Clock:              clock,
+	})
+	require.NoError(t, err)
+
+	user := makeUser("alice")
+	_, ownerOf, err := h.GetHierarchyForUser(ctx, level1, user)
+	require.NoError(t, err)
+	require.Len(t, ownerOf, 1, "alice should see root in owner hierarchy via level1")
+	require.Equal(t, "root", ownerOf[0].GetName())
+
+	_, err = svc.UpsertAccessList(ctx, mustMakeAccessList("root2"))
+	require.NoError(t, err)
+
+	// Manually add dangling root2 to level1's Status.OwnerOf to simulate stale data
+	// Right now the access list service don't provide a way to introduce invalid reference
+	// so input argument is modified.
+	level1.Status.OwnerOf = append(level1.Status.OwnerOf, "root2")
+
+	_, ownerOf, err = h.GetHierarchyForUser(ctx, level1, user)
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(ownerOf))
+	for _, a := range ownerOf {
+		got = append(got, a.GetName())
+	}
+	require.ElementsMatch(t, []string{"root"}, got,
+		`Should only include "root" (valid relationship), not "root2" (dangling reference)`)
+}
+
 func withOwnerTraitReq(name string) option {
 	return func(opts *options) {
 		opts.ownershipRequire = accesslist.Requires{
