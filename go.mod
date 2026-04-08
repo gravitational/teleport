@@ -62,6 +62,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.21
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.21
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.13
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.1.15
 	github.com/aws/aws-sdk-go-v2/service/account v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.41.14
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.4
@@ -650,9 +651,3 @@ replace (
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
-
-// this package was included in google.golang.org/grpc but because it's still
-// referenced by some dependencies we should exclude it here to avoid problems
-// when evaluating versions; "go get -u ./..." succeeding is a good sign that
-// the problem has been resolved
-exclude google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3
