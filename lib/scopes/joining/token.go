@@ -202,6 +202,10 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("scoped tokens for bots cannot have an assigned_scope")
 	}
 
+	if spec.JoinMethod == string(types.JoinMethodToken) {
+		return trace.BadParameter("scoped bot tokens do not support the `token` join method, `bound_keypair` should be used instead")
+	}
+
 	return nil
 }
 
