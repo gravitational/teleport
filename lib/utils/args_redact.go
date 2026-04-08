@@ -36,9 +36,7 @@ type ArgValueRedactor func(value string) string
 //   - --flag value
 func RedactFlagArgs(args []string, redactors map[string]ArgValueRedactor) []string {
 	redactedArgs := slices.Clone(args)
-	for i := 0; i < len(redactedArgs); i++ {
-		arg := redactedArgs[i]
-
+	for i, arg := range redactedArgs {
 		flag, value, hasInlineValue := strings.Cut(arg, "=")
 		if redactor, ok := redactors[flag]; ok && hasInlineValue {
 			redactedArgs[i] = flag + "=" + redactor(value)
@@ -47,7 +45,6 @@ func RedactFlagArgs(args []string, redactors map[string]ArgValueRedactor) []stri
 
 		if redactor, ok := redactors[arg]; ok && i+1 < len(redactedArgs) {
 			redactedArgs[i+1] = redactor(redactedArgs[i+1])
-			i++
 		}
 	}
 
