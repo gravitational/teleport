@@ -1808,7 +1808,7 @@ type disconnectTestCase struct {
 	options         types.RoleOptions
 	concurrentConns int
 	sessCtlTimeout  time.Duration
-	postFunc        func(context.Context, *testing.T, *helpers.TeleInstance)
+	postFunc        func(context.Context, *testing.T, *helpers.TeleInstance, string)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -1816,6 +1816,62 @@ type disconnectTestCase struct {
 	// itself, as those assertions must run in the main test goroutine, but
 	// verifyError runs in a different goroutine.
 	verifyError errorVerifier
+
+	// These values should be set once the sharedCluster for the test case is prepared.
+	cluster      *sharedCluster
+	teleportUser string
+	login        string
+}
+
+// sharedCluster can be used for subtests with common setup to reduce test setup time.
+//
+// Generally, the sharedCluster's mutex should be held for the duration of a subtest to
+// serialize subtests within a shared cluster, while still letting different clusters run
+// in parallel.
+type sharedCluster struct {
+	mu       sync.Mutex
+	teleport *helpers.TeleInstance
+	cfg      *servicecfg.Config
+}
+
+type sharedClusterKey struct {
+	recordingMode  string
+	sessCtlTimeout time.Duration
+}
+
+type sharedClusters map[sharedClusterKey]*sharedCluster
+
+func (c sharedClusters) Get(t *testing.T, suite *integrationTestSuite, key sharedClusterKey) *sharedCluster {
+	t.Helper()
+
+	cluster, ok := c[key]
+	if ok {
+		return cluster
+	}
+
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		SessionControlTimeout: types.Duration(key.sessCtlTimeout),
+	})
+	require.NoError(t, err)
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: key.recordingMode,
+	})
+	require.NoError(t, err)
+
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.NetworkingConfig = netConfig
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	cluster = &sharedCluster{
+		teleport: suite.NewTeleportInstance(t),
+		cfg:      cfg,
+	}
+	c[key] = cluster
+	return cluster
 }
 
 // repeatingReader is an [io.ReadCloser] that produces the
@@ -1924,7 +1980,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	testCases := []disconnectTestCase{
+	testCases := []*disconnectTestCase{
 		{
 			name:          "client idle timeout node recoding",
 			recordingMode: types.RecordAtNode,
@@ -1991,7 +2047,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			sessCtlTimeout: 2 * time.Second,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
-			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
+			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					filter := types.SemaphoreFilter{
@@ -2005,60 +2061,67 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-				}, 5*time.Second, 200*time.Millisecond)
+				}, 10*time.Second, 200*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
 				// make sure it's us who joined! :)
-				require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
+				require.Equal(t, username, tracker.GetParticipants()[0].User)
 				require.NoError(t, teleport.StopAuth(false))
 			},
 		},
 	}
 
+	// Prepare shared cluster instances synchronously so that sub tests can run in parallel
+	// without fighting over resources that go into starting the cluster instances.
+	clusters := make(sharedClusters)
+	for i, tc := range testCases {
+		cluster := clusters.Get(t, suite, sharedClusterKey{
+			recordingMode:  tc.recordingMode,
+			sessCtlTimeout: tc.sessCtlTimeout,
+		})
+
+		teleportUser := fmt.Sprintf("test-user-%d", i)
+		role, err := types.NewRole(fmt.Sprintf("test-role-%d", i), types.RoleSpecV6{
+			Options: tc.options,
+			Allow: types.RoleConditions{
+				Logins:     []string{suite.Me.Username},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		})
+		require.NoError(t, err)
+		cluster.teleport.AddUserWithRole(teleportUser, role)
+
+		tc.cluster = cluster
+		tc.teleportUser = teleportUser
+		tc.login = suite.Me.Username
+	}
+
+	for _, cluster := range clusters {
+		require.NoError(t, cluster.teleport.CreateEx(t, nil, cluster.cfg))
+		require.NoError(t, cluster.teleport.Start())
+		teleport := cluster.teleport
+		t.Cleanup(func() {
+			require.NoError(t, teleport.StopAll())
+		})
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			runDisconnectTest(t, suite, tc)
+			runDisconnectTest(t, tc)
 		})
 	}
 }
 
-func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+func runDisconnectTest(t *testing.T, tc *disconnectTestCase) {
+	t.Parallel()
+
+	tc.cluster.mu.Lock()
+	t.Cleanup(tc.cluster.mu.Unlock)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	teleport := suite.NewTeleportInstance(t)
-
-	username := suite.Me.Username
-	role, err := types.NewRole("devs", types.RoleSpecV6{
-		Options: tc.options,
-		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(username, role)
-
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		SessionControlTimeout: types.Duration(tc.sessCtlTimeout),
-	})
-	require.NoError(t, err)
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: tc.recordingMode,
-	})
-	require.NoError(t, err)
-
-	cfg := suite.defaultServiceConfig()
-	cfg.Auth.Enabled = true
-	cfg.Auth.NetworkingConfig = netConfig
-	cfg.Auth.SessionRecordingConfig = recConfig
-	cfg.Proxy.Enabled = true
-	cfg.SSH.Enabled = true
-
-	require.NoError(t, teleport.CreateEx(t, nil, cfg))
-	require.NoError(t, teleport.Start())
-	defer teleport.StopAll()
+	cluster := tc.cluster
 
 	if tc.concurrentConns < 1 {
 		// test cases that don't specify concurrentConns are single-connection tests.
@@ -2073,13 +2136,14 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		openSession := func() {
 			defer cancel()
 			cc := helpers.ClientConfig{
-				Login:                username,
+				TeleportUser:         tc.teleportUser,
+				Login:                tc.login,
 				Cluster:              helpers.Site,
 				Host:                 Host,
-				Port:                 helpers.Port(t, teleport.SSH),
+				Port:                 helpers.Port(t, cluster.teleport.SSH),
 				DisableSSHResumption: true,
 			}
-			cl, err := teleport.NewClient(cc)
+			cl, err := cluster.teleport.NewClient(cc)
 			if err != nil {
 				asyncErrors <- err
 				return
@@ -2119,7 +2183,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 	if tc.postFunc != nil {
 		// test case modifies the teleport instance after session start
-		tc.postFunc(ctx, t, teleport)
+		tc.postFunc(ctx, t, cluster.teleport, tc.teleportUser)
 	}
 
 	// Connection timeouts are determined by the last SSH packet sent/received, not the
