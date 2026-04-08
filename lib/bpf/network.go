@@ -46,6 +46,9 @@ var lostNetworkEvents = prometheus.NewCounter(
 type conn struct {
 	objs *networkObjects
 
+	event4Buf *ringbuf.Reader
+	event6Buf *ringbuf.Reader
+
 	event4Chan chan []byte
 	event6Chan chan []byte
 	toClose    []io.Closer
@@ -56,8 +59,8 @@ type conn struct {
 	lostCounter *Counter
 }
 
-func startConn(bufferSize int) (*conn, error) {
-	err := metrics.RegisterPrometheusCollectors(lostNetworkEvents)
+func startConn(bufferSize int) (c *conn, err error) {
+	err = metrics.RegisterPrometheusCollectors(lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,7 +75,16 @@ func startConn(bufferSize int) (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostNetworkEvents)
+	c = &conn{
+		objs: &objs,
+	}
+	defer func() {
+		if err != nil {
+			c.close()
+		}
+	}()
+
+	c.lostCounter, err = NewCounter(c.objs.LostCounter, c.objs.LostDoorbell, lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,11 +95,11 @@ func startConn(bufferSize int) (*conn, error) {
 	}{
 		{
 			symbol: "tcp_v4_connect",
-			prog:   objs.KprobeTcpV4Connect,
+			prog:   c.objs.KprobeTcpV4Connect,
 		},
 		{
 			symbol: "tcp_v6_connect",
-			prog:   objs.KprobeTcpV6Connect,
+			prog:   c.objs.KprobeTcpV6Connect,
 		},
 	}
 
@@ -97,22 +109,22 @@ func startConn(bufferSize int) (*conn, error) {
 	}{
 		{
 			symbol: "tcp_v4_connect",
-			prog:   objs.KretprobeTcpV4Connect,
+			prog:   c.objs.KretprobeTcpV4Connect,
 		},
 		{
 			symbol: "tcp_v6_connect",
-			prog:   objs.KretprobeTcpV6Connect,
+			prog:   c.objs.KretprobeTcpV6Connect,
 		},
 	}
 
-	toClose := make([]io.Closer, 0)
+	c.toClose = make([]io.Closer, 0)
 	for _, kprobe := range kprobes {
 		kp, err := link.Kprobe(kprobe.symbol, kprobe.prog, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		toClose = append(toClose, kp)
+		c.toClose = append(c.toClose, kp)
 	}
 
 	for _, kretprobe := range kretProbes {
@@ -121,31 +133,25 @@ func startConn(bufferSize int) (*conn, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		toClose = append(toClose, kret)
+		c.toClose = append(c.toClose, kret)
 	}
 
-	eventBufV4, err := ringbuf.NewReader(objs.Ipv4Events)
+	c.event4Buf, err = ringbuf.NewReader(c.objs.Ipv4Events)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	eventBufV6, err := ringbuf.NewReader(objs.Ipv6Events)
+	c.event6Buf, err = ringbuf.NewReader(c.objs.Ipv6Events)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bpfv4Events := make(chan []byte, bufferSize)
-	go sendEvents(bpfv4Events, eventBufV4)
+	c.event4Chan = make(chan []byte, bufferSize)
+	go sendEvents(c.event4Chan, c.event4Buf)
 
-	bpfv6Events := make(chan []byte, bufferSize)
-	go sendEvents(bpfv6Events, eventBufV6)
+	c.event6Chan = make(chan []byte, bufferSize)
+	go sendEvents(c.event6Chan, c.event6Buf)
 
-	return &conn{
-		objs:        &objs,
-		event4Chan:  bpfv4Events,
-		event6Chan:  bpfv6Events,
-		toClose:     toClose,
-		lostCounter: lostCtr,
-	}, nil
+	return c, nil
 }
 
 func (c *conn) startSession(auditSessionID uint32) error {
@@ -181,7 +187,10 @@ func (c *conn) endSession(auditSessionID uint32) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
-	// c.lost.Close()
+	if c == nil {
+		return
+	}
+
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -192,17 +201,34 @@ func (c *conn) close() {
 	c.closed = true
 
 	for _, link := range c.toClose {
+		if link == nil {
+			continue
+		}
 		if err := link.Close(); err != nil {
 			logger.WarnContext(context.Background(), "failed to close link", "error", err)
 		}
 	}
 
-	if err := c.objs.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
+	if c.lostCounter != nil {
+		if err := c.lostCounter.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
+		}
 	}
 
-	if err := c.lostCounter.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
+	if c.event4Buf != nil {
+		if err := c.event4Buf.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close v4 event buffer", "error", err)
+		}
+	}
+
+	if c.event6Buf != nil {
+		if err := c.event6Buf.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close v6 event buffer", "error", err)
+		}
+	}
+
+	if err := c.objs.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
 	}
 
 	logger.DebugContext(context.Background(), "Closed network BPF module")

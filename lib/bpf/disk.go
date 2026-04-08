@@ -47,19 +47,20 @@ var lostDiskEvents = prometheus.NewCounter(
 type open struct {
 	objs diskObjects
 
-	eventBuf chan []byte
+	eventBuf *ringbuf.Reader
 	toClose  []io.Closer
 
 	closed bool
 	mtx    sync.Mutex
 
+	bpfEvents   chan []byte
 	lostCounter *Counter
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
-func startOpen(bufferSize int) (*open, error) {
-	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
+func startOpen(bufferSize int) (o *open, err error) {
+	err = metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err, "registering prometheus collectors: %v", err)
 	}
@@ -75,7 +76,16 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err, "loading disk objects: %v", err)
 	}
 
-	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostDiskEvents)
+	o = &open{
+		objs: objs,
+	}
+	defer func() {
+		if err != nil {
+			o.close()
+		}
+	}()
+
+	o.lostCounter, err = NewCounter(o.objs.LostCounter, o.objs.LostDoorbell, lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,19 +96,19 @@ func startOpen(bufferSize int) (*open, error) {
 	}{
 		{
 			name: "sys_enter_openat",
-			prog: objs.TracepointSyscallsSysEnterOpenat,
+			prog: o.objs.TracepointSyscallsSysEnterOpenat,
 		},
 		{
 			name: "sys_exit_openat",
-			prog: objs.TracepointSyscallsSysExitOpenat,
+			prog: o.objs.TracepointSyscallsSysExitOpenat,
 		},
 		{
 			name: "sys_enter_openat2",
-			prog: objs.TracepointSyscallsSysEnterOpenat2,
+			prog: o.objs.TracepointSyscallsSysEnterOpenat2,
 		},
 		{
 			name: "sys_exit_openat2",
-			prog: objs.TracepointSyscallsSysExitOpenat2,
+			prog: o.objs.TracepointSyscallsSysExitOpenat2,
 		},
 	}
 
@@ -110,47 +120,42 @@ func startOpen(bufferSize int) (*open, error) {
 		}{
 			{
 				name: "sys_enter_creat",
-				prog: objs.TracepointSyscallsSysEnterCreat,
+				prog: o.objs.TracepointSyscallsSysEnterCreat,
 			},
 			{
 				name: "sys_exit_creat",
-				prog: objs.TracepointSyscallsSysExitCreat,
+				prog: o.objs.TracepointSyscallsSysExitCreat,
 			},
 			{
 				name: "sys_enter_open",
-				prog: objs.TracepointSyscallsSysEnterOpen,
+				prog: o.objs.TracepointSyscallsSysEnterOpen,
 			},
 			{
 				name: "sys_exit_open",
-				prog: objs.TracepointSyscallsSysExitOpen,
+				prog: o.objs.TracepointSyscallsSysExitOpen,
 			},
 		}...)
 	}
 
-	toClose := make([]io.Closer, 0, len(trs))
+	o.toClose = make([]io.Closer, 0, len(trs))
 	for _, tr := range trs {
 		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
 		if err != nil {
 			return nil, trace.Wrap(err, "linking %q tracepoint: %v", tr.name, err)
 		}
 
-		toClose = append(toClose, tp)
+		o.toClose = append(o.toClose, tp)
 	}
 
-	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
+	o.eventBuf, err = ringbuf.NewReader(o.objs.OpenEvents)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
-	bpfEvents := make(chan []byte, bufferSize)
-	go sendEvents(bpfEvents, eventBuf)
+	o.bpfEvents = make(chan []byte, bufferSize)
+	go sendEvents(o.bpfEvents, o.eventBuf)
 
-	return &open{
-		objs:        objs,
-		eventBuf:    bpfEvents,
-		toClose:     toClose,
-		lostCounter: lostCtr,
-	}, nil
+	return o, nil
 }
 
 func (o *open) startSession(auditSessionID uint32) error {
@@ -186,6 +191,10 @@ func (o *open) endSession(auditSessionID uint32) error {
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (o *open) close() {
+	if o == nil {
+		return
+	}
+
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
@@ -195,9 +204,24 @@ func (o *open) close() {
 
 	o.closed = true
 
-	for _, toClose := range o.toClose {
-		if err := toClose.Close(); err != nil {
+	for _, link := range o.toClose {
+		if link == nil {
+			continue
+		}
+		if err := link.Close(); err != nil {
 			logger.WarnContext(context.Background(), "failed to close link", "error", err)
+		}
+	}
+
+	if o.lostCounter != nil {
+		if err := o.lostCounter.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
+		}
+	}
+
+	if o.eventBuf != nil {
+		if err := o.eventBuf.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close ring buffer reader", "error", err)
 		}
 	}
 
@@ -205,14 +229,10 @@ func (o *open) close() {
 		logger.WarnContext(context.Background(), "failed to close disk objects", "error", err)
 	}
 
-	if err := o.lostCounter.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
-	}
-
 	logger.DebugContext(context.Background(), "Closed disk BPF module")
 }
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
-	return o.eventBuf
+	return o.bpfEvents
 }
