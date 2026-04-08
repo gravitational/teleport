@@ -5423,19 +5423,47 @@ type ProvisionTokenSpecV2GitHub_Rule struct {
 	// Sub also known as Subject is a string that roughly uniquely identifies
 	// the workload. The format of this varies depending on the type of
 	// github action run.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Sub string `protobuf:"bytes,1,opt,name=Sub,proto3" json:"sub,omitempty"`
 	// The repository from where the workflow is running.
 	// This includes the name of the owner e.g `gravitational/teleport`
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Repository string `protobuf:"bytes,2,opt,name=Repository,proto3" json:"repository,omitempty"`
 	// The name of the organization in which the repository is stored.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	RepositoryOwner string `protobuf:"bytes,3,opt,name=RepositoryOwner,proto3" json:"repository_owner,omitempty"`
 	// The name of the workflow.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Workflow string `protobuf:"bytes,4,opt,name=Workflow,proto3" json:"workflow,omitempty"`
 	// The name of the environment used by the job.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Environment string `protobuf:"bytes,5,opt,name=Environment,proto3" json:"environment,omitempty"`
 	// The personal account that initiated the workflow run.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Actor string `protobuf:"bytes,6,opt,name=Actor,proto3" json:"actor,omitempty"`
 	// The git ref that triggered the workflow run.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
 	Ref string `protobuf:"bytes,7,opt,name=Ref,proto3" json:"ref,omitempty"`
 	// The type of ref, for example: "branch".
 	RefType              string   `protobuf:"bytes,8,opt,name=RefType,proto3" json:"ref_type,omitempty"`

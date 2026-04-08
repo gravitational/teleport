@@ -260,14 +260,14 @@ Optional:
 
 Optional:
 
-- `actor` (String) The personal account that initiated the workflow run.
-- `environment` (String) The name of the environment used by the job.
-- `ref` (String) The git ref that triggered the workflow run.
+- `actor` (String) The personal account that initiated the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `environment` (String) The name of the environment used by the job.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref` (String) The git ref that triggered the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `ref_type` (String) The type of ref, for example: "branch".
-- `repository` (String) The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`
-- `repository_owner` (String) The name of the organization in which the repository is stored.
-- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.
-- `workflow` (String) The name of the workflow.
+- `repository` (String) The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `repository_owner` (String) The name of the organization in which the repository is stored.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `workflow` (String) The name of the workflow.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 
 
 
