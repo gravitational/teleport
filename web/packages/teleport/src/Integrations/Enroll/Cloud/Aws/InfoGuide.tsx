@@ -35,8 +35,9 @@ import {
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { useValidation } from 'shared/components/Validation';
 
+import { TerraformCopyButton } from 'teleport/components/TerraformCopyButton';
+
 import LiveTextEditor from '../LiveTextEditor';
-import { CopyTerraformButton } from './DeploymentMethodSection';
 
 export const PANEL_WIDTH = 500;
 
@@ -80,7 +81,7 @@ export function TerraformInfoGuide({
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
       <Box p={3}>
-        <CopyTerraformButton
+        <TerraformCopyButton
           onClick={e => {
             const isValid = validator.validate();
             if (!isValid) {
