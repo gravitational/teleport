@@ -2436,6 +2436,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindBeam,
 }
 
 const (
