@@ -794,6 +794,15 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 			expectedStrongErr: "scoped tokens for bots cannot have an assigned_scope",
 		},
+		{
+			name:      "bot token with token join method",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodToken)
+				tok.Status.Secret = "abc123"
+			},
+			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
+		},
 	}
 
 	for _, c := range cases {
