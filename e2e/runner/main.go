@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -29,6 +30,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"syscall"
 	"time"
 
@@ -354,6 +356,22 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 
 			inst.teleport = teleport
+
+			g.Go(func() error {
+				if err := teleport.start(ctx); err != nil {
+					return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
+				}
+				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
+					return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
+				}
+				if err := seedRecordings(gctx, config.e2eDir, inst.dataDir); err != nil {
+					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
+				}
+				if err := applyResources(gctx, config.e2eDir, config.tctlBin, inst.teleportConfigPath); err != nil {
+					return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
+				}
+				return nil
+			})
 		}
 
 		if fixtures.SSHNode.Enabled {
@@ -409,4 +427,34 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	return pw.run(ctx, mode)
+}
+
+// applyResources applies all YAML resource files from e2eDir/config/resources/ via tctl create.
+// If the directory does not exist, this is a no-op.
+func applyResources(ctx context.Context, e2eDir, tctlBin, teleportConfig string) error {
+	resourcesDir := filepath.Join(e2eDir, "config", "resources")
+	files, err := filepath.Glob(filepath.Join(resourcesDir, "*.yaml"))
+	if err != nil {
+		return fmt.Errorf("globbing resources: %w", err)
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	sort.Strings(files)
+
+	for _, f := range files {
+		slog.Info("applying resource", "file", filepath.Base(f))
+		cmd := exec.CommandContext(ctx, tctlBin, "create", "-c", teleportConfig, "-f", f)
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("tctl create %s: %w\n%s", filepath.Base(f), err, stderr.String())
+		}
+	}
+
+	return nil
 }
