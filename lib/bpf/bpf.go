@@ -360,18 +360,28 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 }
 
 func (s *Service) logLostEvents() {
-	ticker := time.NewTicker(5 * time.Second)
+	const interval = 5 * time.Second
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-timer.C:
 			le := s.LostEvents()
 			newlyLost := le.Delta(s.lostEvents)
 			if !newlyLost.Empty() {
-				logger.WarnContext(s.closeContext, "Lost some events in the last 5 seconds", "command_events", newlyLost.commandEvents, "disk_events", newlyLost.diskEvents, "network_events", newlyLost.networkEvents)
+				logger.WarnContext(s.closeContext, "Lost some Enhanced Session Recording events in the last 5 seconds, consider increasing the buffer sizes; see https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/#create-a-configuration-file for mor information",
+					"command_events",
+					newlyLost.commandEvents,
+					"disk_events",
+					newlyLost.diskEvents,
+					"network_events",
+					newlyLost.networkEvents,
+				)
 			}
 
 			s.lostEvents = le
+			timer.Reset(interval)
 		case <-s.closeContext.Done():
 			return
 		}
