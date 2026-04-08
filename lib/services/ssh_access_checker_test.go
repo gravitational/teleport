@@ -192,9 +192,7 @@ func TestSSHAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 	}
 }
 
-func boolPtr(v bool) *bool { return &v }
-
-func int64Ptr(v int64) *int64 { return &v }
+func ptr[T any](v T) *T { return &v }
 
 func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
 	t.Parallel()
@@ -215,7 +213,7 @@ func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
 			name: "set true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					PermitX11Forwarding: boolPtr(true),
+					PermitX11Forwarding: ptr(true),
 				},
 			},
 			expect: true,
@@ -224,7 +222,7 @@ func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
 			name: "set false",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					PermitX11Forwarding: boolPtr(false),
+					PermitX11Forwarding: ptr(false),
 				},
 			},
 			expect: false,
@@ -259,7 +257,7 @@ func TestSSHAccessCheckerCheckAgentForward(t *testing.T) {
 			name: "set true allows",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					ForwardAgent: boolPtr(true),
+					ForwardAgent: ptr(true),
 				},
 			},
 			expectErr: false,
@@ -268,7 +266,7 @@ func TestSSHAccessCheckerCheckAgentForward(t *testing.T) {
 			name: "set false denies",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					ForwardAgent: boolPtr(false),
+					ForwardAgent: ptr(false),
 				},
 			},
 			expectErr: true,
@@ -310,7 +308,7 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 			name: "true",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					FileCopy: boolPtr(true),
+					FileCopy: ptr(true),
 				},
 			},
 			expect: true,
@@ -319,7 +317,7 @@ func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
 			name: "false",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					FileCopy: boolPtr(false),
+					FileCopy: ptr(false),
 				},
 			},
 			expect: false,
@@ -357,8 +355,8 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					PortForwarding: &scopedaccessv1.SSHPortForwarding{
-						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
-						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(true)},
 					},
 				},
 			},
@@ -369,8 +367,8 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					PortForwarding: &scopedaccessv1.SSHPortForwarding{
-						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
-						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
 					},
 				},
 			},
@@ -381,8 +379,8 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					PortForwarding: &scopedaccessv1.SSHPortForwarding{
-						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(true)},
-						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
 					},
 				},
 			},
@@ -393,8 +391,8 @@ func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
 					PortForwarding: &scopedaccessv1.SSHPortForwarding{
-						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
-						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(true)},
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(true)},
 					},
 				},
 			},
@@ -442,7 +440,7 @@ func TestSSHAccessCheckerMaxSessions(t *testing.T) {
 			name: "set to 5",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					MaxSessions: int64Ptr(5),
+					MaxSessions: ptr(int64(5)),
 				},
 			},
 			expect: 5,
@@ -451,7 +449,7 @@ func TestSSHAccessCheckerMaxSessions(t *testing.T) {
 			name: "set to 0",
 			spec: &scopedaccessv1.ScopedRoleSpec{
 				Ssh: &scopedaccessv1.ScopedRoleSSH{
-					MaxSessions: int64Ptr(0),
+					MaxSessions: ptr(int64(0)),
 				},
 			},
 			expect: 0,

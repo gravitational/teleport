@@ -246,6 +246,8 @@ func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
 	require.NotNil(t, role)
+	// ClientIdleTimeout must be zero in the converted role; it is evaluated at access-check time
+	// via SSHAccessChecker.AdjustClientIdleTimeout reading directly from the scoped role proto.
 	require.Zero(t, role.GetOptions().ClientIdleTimeout.Duration())
 }
 
