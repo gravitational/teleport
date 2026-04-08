@@ -114,7 +114,7 @@ func PatchSessionEnd(ctx context.Context, recording Recording) ([]byte, error) {
 
 // AdjustEventTimestamps reads events.jsonl and shifts timestamps so that sessions appear recent (within the UI's
 // default "today" search window). The relative duration between start and stop is preserved. Multiple sessions are
-// staggered 5 minutes apart.
+// staggered 1 second apart, anchored to the current day.
 func AdjustEventTimestamps(e2eDir string) ([]string, error) {
 	f, err := os.Open(filepath.Join(e2eDir, recordingsDir, eventsFile))
 	if err != nil {
@@ -125,6 +125,7 @@ func AdjustEventTimestamps(e2eDir string) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(f)
 	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
 	for scanner.Scan() {
 		raw := scanner.Bytes()
@@ -137,8 +138,8 @@ func AdjustEventTimestamps(e2eDir string) ([]string, error) {
 			return nil, err
 		}
 
-		offset := time.Hour + time.Duration(len(lines))*5*time.Minute
-		newStop := now.Add(-offset)
+		offset := time.Duration(len(lines)+1) * time.Second
+		newStop := startOfDay.Add(offset)
 
 		if err := adjustSessionTimes(event, newStop); err != nil {
 			return nil, err
