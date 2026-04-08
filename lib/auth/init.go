@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
@@ -478,6 +479,22 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Initialize the unified resource cache before running period checks that rely on it in
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
+			Client:       asrv.Cache,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: asrv,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
