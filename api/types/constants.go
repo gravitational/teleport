@@ -710,6 +710,9 @@ const (
 	// access to a bot or workload, such as an AI Agent.
 	KindDelegationSession = "delegation_session"
 
+	// KindBeam is an ephemeral AI-optimized compute environment.
+	KindBeam = "beam"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
