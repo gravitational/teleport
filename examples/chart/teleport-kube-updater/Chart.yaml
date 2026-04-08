@@ -1,4 +1,4 @@
-.version: &version "18.7.4-dev.disceks.5"
+.version: &version "18.7.4-dev.disceks.6"
 
 name: teleport-kube-updater
 apiVersion: v2
