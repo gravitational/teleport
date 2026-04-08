@@ -30,7 +30,7 @@ import {
   ElectronApplication,
 } from '@playwright/test';
 
-import { connectTshBin, connectAppDir, password, startUrl } from './env';
+import { connectTshBin, connectAppDir, users, startUrl } from './env';
 import { test as fixtureBase } from './fixtures';
 
 export async function launchApp(homeDir: string) {
@@ -75,7 +75,7 @@ export async function login(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 
   await page.getByPlaceholder('Username').fill('bob');
-  await page.getByPlaceholder('Password').fill(password);
+  await page.getByPlaceholder('Password').fill(users['bob'].password);
   await page.getByRole('button', { name: 'Sign In' }).click();
   await expect(page.getByPlaceholder('Search or jump to')).toBeVisible();
 }

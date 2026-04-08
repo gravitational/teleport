@@ -28,9 +28,15 @@ function required(name: string) {
   return value;
 }
 
-export const password = required('E2E_PASSWORD');
-export const webauthnPrivateKey = required('E2E_WEBAUTHN_PRIVATE_KEY');
-export const webauthnCredentialId = required('E2E_WEBAUTHN_CREDENTIAL_ID');
+export type UserCredentials = {
+  password: string;
+  webauthnPrivateKey: string;
+  webauthnCredentialId: string;
+};
+
+export const users: Record<string, UserCredentials> = JSON.parse(
+  required('E2E_USERS_JSON')
+);
 export const tctlBin = required('E2E_TCTL_BIN');
 export const teleportConfig = required('E2E_TELEPORT_CONFIG');
 export const startUrl = required('START_URL');

@@ -26,7 +26,7 @@ import {
 import { Page } from '@playwright/test';
 import { Encoder } from 'cbor-x';
 
-import { webauthnCredentialId, webauthnPrivateKey } from './env';
+import { users } from './env';
 
 declare global {
   function __e2eWebAuthn(json: string): Promise<string>;
@@ -34,14 +34,19 @@ declare global {
 
 // mockWebAuthn sets up a mock for the WebAuthn API in the browser context in a way that
 // is compatible with Chromium, Firefox and WebKit.
-export async function mockWebAuthn(page: Page) {
+export async function mockWebAuthn(page: Page, username = 'bob') {
   if (await page.evaluate(() => '__e2eWebAuthn' in self)) {
     return;
   }
 
-  const credIdBuf = Buffer.from(webauthnCredentialId, 'base64');
+  const creds = users[username];
+  if (!creds) {
+    throw new Error(`no credentials found for user "${username}"`);
+  }
+
+  const credIdBuf = Buffer.from(creds.webauthnCredentialId, 'base64');
   const privateKey = createPrivateKey({
-    key: Buffer.from(webauthnPrivateKey, 'base64'),
+    key: Buffer.from(creds.webauthnPrivateKey, 'base64'),
     format: 'der',
     type: 'pkcs8',
   });

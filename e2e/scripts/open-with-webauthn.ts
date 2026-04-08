@@ -63,7 +63,7 @@ const browserName = (process.env.E2E_BROWSERS || 'chromium').split(',')[0];
 const browserTypes = { chromium, firefox, webkit };
 const browserType =
   browserTypes[browserName as keyof typeof browserTypes] ?? chromium;
-const storageStatePath = join(e2eDir, `.auth/${browserName}-user.json`);
+const storageStatePath = join(e2eDir, `.auth/${browserName}-bob.json`);
 
 info(`launching ${browserName} ${dim(`(mode: ${mode})`)}`);
 

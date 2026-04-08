@@ -18,15 +18,16 @@
 
 import { type Page } from '@playwright/test';
 
-import { password as e2ePassword } from './env';
+import { users } from './env';
 import { expect } from './test';
 import { mockWebAuthn } from './webauthn';
 
-export async function login(
-  page: Page,
-  username = 'bob',
-  password = e2ePassword
-) {
+export async function login(page: Page, username = 'bob') {
+  const password = users[username]?.password;
+  if (!password) {
+    throw new Error(`no credentials found for user "${username}"`);
+  }
+
   await page.addInitScript(() => {
     localStorage.setItem('grv_teleport_license_acknowledged', 'true');
     localStorage.setItem(
@@ -35,7 +36,7 @@ export async function login(
     );
   });
 
-  await mockWebAuthn(page);
+  await mockWebAuthn(page, username);
 
   await page.goto('/');
 
