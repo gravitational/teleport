@@ -90,7 +90,7 @@ func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err err
 	return dbUser, dbName, nil
 }
 
-// hashDBName returns a DNS-safe label for a database resource name. Names that
+// HashDBName returns a DNS-safe label for a database resource name. Names that
 // fit within a single DNS label (<=63 chars) are returned unchanged. Longer
 // names are truncated and suffixed with a hash to stay within DNS limits while
 // remaining deterministic and human-readable.
@@ -98,7 +98,7 @@ func parseDatabaseFQDN(fqdn string, zone string) (dbUser, dbName string, err err
 // Format for hashed names: <prefix>-vnethash-<hash12>
 // where <prefix> is the first portion of the original name and <hash12> is
 // 12 lowercase base32 characters of the SHA1 hash of the full name.
-func hashDBName(name string) string {
+func HashDBName(name string) string {
 	if len(name) <= maxDNSLabelLength {
 		return name
 	}

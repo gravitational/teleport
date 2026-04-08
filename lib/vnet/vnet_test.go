@@ -1321,7 +1321,7 @@ func TestDialFakeDatabase(t *testing.T) {
 		},
 		{
 			name:       "long database name resolved via hash",
-			fqdn:       hashDBName("a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit") + ".db.root1.example.com",
+			fqdn:       HashDBName("a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit") + ".db.root1.example.com",
 			expectCIDR: "192.168.2.0/24",
 			expectRouteToDatabase: proto.RouteToDatabase{
 				ServiceName: "a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit",

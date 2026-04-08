@@ -508,7 +508,7 @@ func (r *fqdnResolver) findDatabaseByHashedName(ctx context.Context, candidate c
 	}
 	for _, server := range resp.Resources {
 		db := server.GetDatabase()
-		if hashDBName(db.GetName()) == hashedName {
+		if HashDBName(db.GetName()) == hashedName {
 			return db, nil
 		}
 	}
@@ -590,7 +590,7 @@ func rootProxyHostFromProfile(profileName string) string {
 // validateDBUserForProtocol checks that the db-user parsed from the FQDN is
 // appropriate for the database protocol
 func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
-	if dbProtocolExtractsUsernameFromWire(protocol) {
+	if DBProtocolExtractsUsernameFromWire(protocol) {
 		if dbUser != "" {
 			return trace.BadParameter("database protocol %q does not support username in domain name, specify the user in the client connection string instead", protocol)
 		}
@@ -602,9 +602,11 @@ func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
 	return nil
 }
 
-// dbProtocolExtractsUsernameFromWire returns true for database protocols where
+// DBProtocolExtractsUsernameFromWire returns true for database protocols where
 // the db_service extracts the database username from the wire protocol
-func dbProtocolExtractsUsernameFromWire(protocol string) bool {
+// (e.g. from the Postgres StartupMessage or MySQL HandshakeResponse), meaning
+// the username should NOT be included in the FQDN.
+func DBProtocolExtractsUsernameFromWire(protocol string) bool {
 	switch protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB,
 		defaults.ProtocolMySQL, defaults.ProtocolSQLServer:
