@@ -45,9 +45,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ArgsCacheSize is the number of args events to store before dropping args
-// events.
-const ArgsCacheSize = len(commandDataT{}.Argv)
+const (
+	// ArgsCacheSize is the number of args events to store before dropping args
+	// events.
+	ArgsCacheSize = len(commandDataT{}.Argv)
+
+	// eventSendTimeout is the maximum time to wait for an event to be sent
+	// to be emitted to the Audit log.
+	eventSendTimeout = 10 * time.Second
+)
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
@@ -306,9 +312,12 @@ func (s *Service) LostEvents() EventCount {
 	}
 }
 
-func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+func sendEvents(eventType string, bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	defer eventBuf.Close()
 	defer close(bpfEvents)
+
+	timer := time.NewTimer(eventSendTimeout)
+	defer timer.Stop()
 
 	for {
 		rec, err := eventBuf.Read()
@@ -321,7 +330,14 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 			return
 		}
 
-		bpfEvents <- rec.RawSample[:]
+		// Avoid blocking on the channel if the buffer is full, this
+		// could prevent the service from shutting down.
+		timer.Reset(eventSendTimeout)
+		select {
+		case bpfEvents <- rec.RawSample[:]:
+		case <-timer.C:
+			logger.WarnContext(context.Background(), "Enhanced session recording event buffer is full, dropping event", "event_type", eventType)
+		}
 	}
 }
 
@@ -336,7 +352,7 @@ func (s *Service) logLostEvents() {
 			le := s.LostEvents()
 			newlyLost := le.Delta(s.lostEvents)
 			if !newlyLost.Empty() {
-				logger.WarnContext(s.closeContext, "Lost some Enhanced Session Recording events in the last 5 seconds, consider increasing the buffer sizes; see https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/#create-a-configuration-file for mor information",
+				logger.WarnContext(s.closeContext, "Lost some Enhanced Session Recording events in the last 5 seconds due to a full eBPF ringbuffer, consider increasing the buffer sizes; see https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/#create-a-configuration-file for more information",
 					"command_events",
 					newlyLost.commandEvents,
 					"disk_events",

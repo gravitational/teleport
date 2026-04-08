@@ -148,10 +148,10 @@ func startConn(bufferSize int) (*conn, error) {
 	}
 
 	c.bpf4Events = make(chan []byte, bufferSize)
-	c.wg.Go(func() { sendEvents(c.bpf4Events, eventBufV4) })
+	c.wg.Go(func() { sendEvents("network", c.bpf4Events, eventBufV4) })
 
 	c.bpf6Events = make(chan []byte, bufferSize)
-	c.wg.Go(func() { sendEvents(c.bpf6Events, eventBufV6) })
+	c.wg.Go(func() { sendEvents("network", c.bpf6Events, eventBufV6) })
 
 	return c, nil
 }

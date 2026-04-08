@@ -152,7 +152,7 @@ func startOpen(bufferSize int) (*open, error) {
 	}
 
 	o.bpfEvents = make(chan []byte, bufferSize)
-	o.wg.Go(func() { sendEvents(o.bpfEvents, eventBuf) })
+	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf) })
 
 	return o, nil
 }

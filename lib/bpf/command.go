@@ -127,7 +127,7 @@ func startExec(bufferSize int) (*exec, error) {
 	}
 
 	e.bpfEvents = make(chan []byte, bufferSize)
-	e.wg.Go(func() { sendEvents(e.bpfEvents, eventBuf) })
+	e.wg.Go(func() { sendEvents("command", e.bpfEvents, eventBuf) })
 
 	return e, nil
 }
