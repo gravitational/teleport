@@ -422,25 +422,18 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	}
 
 	// Query the cluster for a database server matching the parsed name.
-	expr := fmt.Sprintf(`name == "%s"`, dbName)
-	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
-		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: expr,
-		Limit:               1,
-	})
+	db, err := r.findDatabaseByName(ctx, candidate, dbName)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.InfoContext(ctx, "Failed to list database servers", "error", err)
+		log.DebugContext(ctx, "Failed to find matching database server", "error", err)
 		return nil, errNoMatch
 	}
-	if len(resp.Resources) == 0 {
+	if db == nil {
 		log.DebugContext(ctx, "Found no matching database servers")
 		return nil, errNoMatch
 	}
-
-	db := resp.Resources[0].GetDatabase()
 	protocol := db.GetProtocol()
 
 	if err := validateDBUserForProtocol(dbUser, dbName, protocol); err != nil {
@@ -475,6 +468,51 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 			},
 		},
 	}, nil
+}
+
+// findDatabaseByName looks up a database server by name in the given cluster.
+func (r *fqdnResolver) findDatabaseByName(ctx context.Context, candidate clusterResolutionCandidate, dbName string) (types.Database, error) {
+	if isHashedDBName(dbName) {
+		return r.findDatabaseByHashedName(ctx, candidate, dbName)
+	}
+
+	expr := fmt.Sprintf(`name == "%s"`, dbName)
+	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: expr,
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(resp.Resources) == 0 {
+		return nil, nil
+	}
+	return resp.Resources[0].GetDatabase(), nil
+}
+
+// findDatabaseByHashedName resolves a hashed database FQDN label back to the
+// original database resource. It uses the prefix portion of the hashed name to
+// narrow the search with a server-side hasPrefix predicate, then hashes each
+// candidate to find an exact match.
+func (r *fqdnResolver) findDatabaseByHashedName(ctx context.Context, candidate clusterResolutionCandidate, hashedName string) (types.Database, error) {
+	prefix := extractPrefixFromHashedDBName(hashedName)
+	expr := fmt.Sprintf(`hasPrefix(resource.metadata.name, "%s")`, prefix)
+	resp, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: expr,
+		Limit:               100,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, server := range resp.Resources {
+		db := server.GetDatabase()
+		if HashDBName(db.GetName()) == hashedName {
+			return db, nil
+		}
+	}
+	return nil, nil
 }
 
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
@@ -552,7 +590,7 @@ func rootProxyHostFromProfile(profileName string) string {
 // validateDBUserForProtocol checks that the db-user parsed from the FQDN is
 // appropriate for the database protocol
 func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
-	if dbProtocolExtractsUsernameFromWire(protocol) {
+	if DBProtocolExtractsUsernameFromWire(protocol) {
 		if dbUser != "" {
 			return trace.BadParameter("database protocol %q does not support username in domain name, specify the user in the client connection string instead", protocol)
 		}
@@ -564,9 +602,11 @@ func validateDBUserForProtocol(dbUser, dbName, protocol string) error {
 	return nil
 }
 
-// dbProtocolExtractsUsernameFromWire returns true for database protocols where
+// DBProtocolExtractsUsernameFromWire returns true for database protocols where
 // the db_service extracts the database username from the wire protocol
-func dbProtocolExtractsUsernameFromWire(protocol string) bool {
+// (e.g. from the Postgres StartupMessage or MySQL HandshakeResponse), meaning
+// the username should NOT be included in the FQDN.
+func DBProtocolExtractsUsernameFromWire(protocol string) bool {
 	switch protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB,
 		defaults.ProtocolMySQL, defaults.ProtocolSQLServer:

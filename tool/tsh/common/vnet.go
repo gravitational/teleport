@@ -35,23 +35,37 @@ type vnetCLICommand interface {
 	run(cf *CLIConf) error
 }
 
-// vnetCommand implements the `tsh vnet` command to run VNet.
-type vnetCommand struct {
+// vnetCommands holds all `tsh vnet` subcommands.
+type vnetCommands struct {
+	start *vnetStartCommand
+	ls    *vnetLSCommand
+}
+
+func newVnetCommands(app *kingpin.Application) vnetCommands {
+	parent := app.Command("vnet", "Teleport VNet commands. Run without a subcommand to start VNet.")
+	return vnetCommands{
+		start: newVnetStartCommand(parent),
+		ls:    newVnetLSCommand(parent),
+	}
+}
+
+// vnetStartCommand implements the `tsh vnet` / `tsh vnet start` command to run VNet.
+type vnetStartCommand struct {
 	*kingpin.CmdClause
 	// runDiag determines whether to run diagnostics after VNet starts or not. Intended as a "feature
 	// flag" before we start running diagnostics on each start of VNet.
 	runDiag bool
 }
 
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
+func newVnetStartCommand(parent *kingpin.CmdClause) *vnetStartCommand {
+	cmd := &vnetStartCommand{
+		CmdClause: parent.Command("start", "Start Teleport VNet.").Default(),
 	}
 	cmd.Flag("diag", "Run diagnostics after starting VNet.").Hidden().BoolVar(&cmd.runDiag)
 	return cmd
 }
 
-func (c *vnetCommand) run(cf *CLIConf) error {
+func (c *vnetStartCommand) run(cf *CLIConf) error {
 	clientApp, err := newVnetClientApplication(cf)
 	if err != nil {
 		return trace.Wrap(err)

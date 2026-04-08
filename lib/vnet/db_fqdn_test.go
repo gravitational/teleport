@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -195,4 +196,64 @@ func TestValidateDBUserForProtocol(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHashDBName(t *testing.T) {
+	t.Run("short name unchanged", func(t *testing.T) {
+		name := "my-postgres"
+		require.Equal(t, name, HashDBName(name))
+	})
+
+	t.Run("exactly 63 chars unchanged", func(t *testing.T) {
+		name := "a" + strings.Repeat("b", 61) + "c"
+		require.Len(t, name, 63)
+		require.Equal(t, name, HashDBName(name))
+	})
+
+	t.Run("64 chars gets hashed", func(t *testing.T) {
+		name := "a" + strings.Repeat("b", 62) + "c"
+		require.Len(t, name, 64)
+		hashed := HashDBName(name)
+		require.NotEqual(t, name, hashed)
+		require.LessOrEqual(t, len(hashed), 63)
+		require.Contains(t, hashed, "-vnethash-")
+	})
+
+	t.Run("very long name fits in 63 chars", func(t *testing.T) {
+		name := "foo-rds-us-west-1-111111111111-some-very-long-extra-description-that-exceeds-dns-label-limit"
+		require.Greater(t, len(name), 63)
+		hashed := HashDBName(name)
+		require.LessOrEqual(t, len(hashed), 63)
+	})
+
+	t.Run("deterministic", func(t *testing.T) {
+		name := "foo-rds-us-west-1-111111111111-some-very-long-extra-description-that-exceeds-dns-label-limit"
+		require.Equal(t, HashDBName(name), HashDBName(name))
+	})
+
+	t.Run("preserves readable prefix", func(t *testing.T) {
+		name := "foo-rds-us-west-1-111111111111-some-very-long-extra-description-that-exceeds-dns-label-limit"
+		hashed := HashDBName(name)
+		require.True(t, strings.HasPrefix(hashed, "foo-rds-us-west-1"))
+	})
+
+	t.Run("different long names produce different hashes", func(t *testing.T) {
+		name1 := "foo-rds-us-west-1-111111111111-some-very-long-extra-description-variant-a"
+		name2 := "foo-rds-us-west-1-111111111111-some-very-long-extra-description-variant-b"
+		require.NotEqual(t, HashDBName(name1), HashDBName(name2))
+	})
+
+	t.Run("prefix does not end with hyphen", func(t *testing.T) {
+		// Craft a name where character at position 41 boundary falls on a hyphen
+		name := strings.Repeat("a", 40) + "-" + strings.Repeat("b", 30)
+		hashed := HashDBName(name)
+		prefix := extractPrefixFromHashedDBName(hashed)
+		require.False(t, strings.HasSuffix(prefix, "-"))
+	})
+}
+
+func TestIsHashedDBName(t *testing.T) {
+	require.True(t, isHashedDBName("foo-vnethash-abc123abc123"))
+	require.False(t, isHashedDBName("my-postgres"))
+	require.False(t, isHashedDBName(""))
 }

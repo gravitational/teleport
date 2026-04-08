@@ -1252,6 +1252,7 @@ func TestDialFakeDatabase(t *testing.T) {
 					{name: "my-postgres", protocol: "postgres"},
 					{name: "my-mysql", protocol: "mysql"},
 					{name: "my-mongo", protocol: "mongodb"},
+					{name: "a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit", protocol: "postgres"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
@@ -1316,6 +1317,16 @@ func TestDialFakeDatabase(t *testing.T) {
 				ServiceName: "my-mongo",
 				Protocol:    "mongodb",
 				Username:    "admin", // mongodb requires user in cert
+			},
+		},
+		{
+			name:       "long database name resolved via hash",
+			fqdn:       HashDBName("a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit") + ".db.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "a-very-long-database-name-that-exceeds-the-sixty-three-character-dns-label-limit",
+				Protocol:    "postgres",
+				Username:    "",
 			},
 		},
 	}
