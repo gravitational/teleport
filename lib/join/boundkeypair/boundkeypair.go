@@ -537,7 +537,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 			for _, mutator := range mutators {
 				if err := mutator.mutateScopedToken(
 					st.GetSpec().GetBoundKeypair(),
-					t.GetScoped().GetStatus().GetUsage().GetBoundKeypair(),
+					st.GetStatus().GetUsage().GetBoundKeypair(),
 				); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
