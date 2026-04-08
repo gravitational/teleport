@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e2e/runner/teleport"
+	"github.com/gravitational/teleport/e2e/runner/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -247,18 +247,18 @@ func patchSessionEndEvent(sessionID string, event apievents.AuditEvent) error {
 		e.User = user
 		e.Login = defaultE2ELogin
 		e.Participants = []string{user}
-		e.ClusterName = teleport.ClusterName
-		e.UserClusterName = teleport.ClusterName
+		e.ClusterName = testenv.ClusterName
+		e.UserClusterName = testenv.ClusterName
 
 	case *apievents.DatabaseSessionEnd:
 		e.User = user
-		e.ClusterName = teleport.ClusterName
-		e.UserClusterName = teleport.ClusterName
+		e.ClusterName = testenv.ClusterName
+		e.UserClusterName = testenv.ClusterName
 
 	case *apievents.WindowsDesktopSessionEnd:
 		e.User = user
-		e.ClusterName = teleport.ClusterName
-		e.UserClusterName = teleport.ClusterName
+		e.ClusterName = testenv.ClusterName
+		e.UserClusterName = testenv.ClusterName
 
 	default:
 		return fmt.Errorf("unexpected event type %T", event)

@@ -37,7 +37,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
-	"github.com/gravitational/teleport/e2e/runner/teleport"
+	"github.com/gravitational/teleport/e2e/runner/testenv"
 )
 
 var logLevel = new(slog.LevelVar)
@@ -289,7 +289,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		for _, inst := range allInstances {
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
 			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
-				ClusterName:    teleport.ClusterName,
+				ClusterName:    testenv.ClusterName,
 				DataDir:        inst.dataDir,
 				AuthServerPort: inst.authPort,
 				ProxyPort:      inst.proxyPort,
