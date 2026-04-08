@@ -1803,13 +1803,12 @@ func errorContains(text string) errorVerifier {
 }
 
 type disconnectTestCase struct {
-	name              string
-	recordingMode     string
-	options           types.RoleOptions
-	disconnectTimeout time.Duration
-	concurrentConns   int
-	sessCtlTimeout    time.Duration
-	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
+	name            string
+	recordingMode   string
+	options         types.RoleOptions
+	concurrentConns int
+	sessCtlTimeout  time.Duration
+	postFunc        func(context.Context, *testing.T, *helpers.TeleInstance)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -1930,27 +1929,27 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			name:          "client idle timeout node recoding",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(5 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "client idle timeout proxy recording",
 			recordingMode: types.RecordAtProxy,
 			options: types.RoleOptions{
 				ForwardAgent:      types.NewBool(true),
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(5 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "expired cert node recording",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer 10s ttl instead.
+				MaxSessionTTL: types.NewDuration(10 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -1958,9 +1957,11 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				ForwardAgent:          types.NewBool(true),
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer 10s ttl instead.
+				MaxSessionTTL: types.NewDuration(10 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -1968,9 +1969,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "concurrent connection limits exceeded proxy recording",
@@ -1979,9 +1979,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				ForwardAgent:   types.NewBool(true),
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "verify that lost connections to auth server terminate controlled connections",
@@ -1989,8 +1988,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: time.Second,
-			sessCtlTimeout:    500 * time.Millisecond,
+			sessCtlTimeout: 2 * time.Second,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
@@ -2007,7 +2005,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-				}, 2*time.Second, 100*time.Millisecond)
+				}, 5*time.Second, 200*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
 				// make sure it's us who joined! :)
@@ -2124,9 +2122,14 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		tc.postFunc(ctx, t, teleport)
 	}
 
+	// Connection timeouts are determined by the last SSH packet sent/received, not the
+	// last input sent/received by the client. This means that under load, we can't
+	// predict exactly when the timeout will occur, so we just use a conservative
+	// timeout of 1 minute.
+	disconnectTimeout := time.Minute
+
 	select {
-	case <-time.After(tc.disconnectTimeout + time.Second):
-		dumpGoroutineProfile()
+	case <-time.After(disconnectTimeout):
 		require.FailNowf(t, "timeout", "%s timeout waiting for session to exit: %+v", timeNow(), tc)
 
 	case ae := <-asyncErrors:
