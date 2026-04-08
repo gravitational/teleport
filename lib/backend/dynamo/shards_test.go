@@ -27,7 +27,7 @@ import (
 )
 
 // TestShardSplitting is an integration test that simulates a high load scenario on a DynamoDB table to trigger shard splits in DynamoDB Streams.
-// Given this requires putting a substancial write throughput and the nature of the race condition it is made opt in by setting both `TELEPORT_DYNAMODB_SHARD_SPLIT_TEST`
+// Given this requires putting a substantial write throughput and the nature of the race condition it is made opt in by setting both `TELEPORT_DYNAMODB_SHARD_SPLIT_TEST`
 // and `TELEPORT_DYNAMODB_TEST` env vars.
 // Ideally this test should be ran from a ec2 instance in the same region as the DynamoDB table to avoid any throttling or latency issues from hitting the AWS API from a local machine.
 // The test expects a fresh empty table on each run, and each event is written conditionally only once.

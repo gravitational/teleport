@@ -278,8 +278,8 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		case <-ticker.C:
 			// TODO(okraport): for very low values of [PollStreamPeriod], it's possible that [GetRecords] is called
-			// each tick even if previous call returns 0 items. The default poll period of 1000ms is sufficent to mitigate
-			// this but we may wish to change this behaviour to backoff for longer periods of time if no records are returned.
+			// each tick even if previous call returns 0 items. The default poll period of 1000ms is sufficient to mitigate
+			// this but we may wish to change this behavior to backoff for longer periods of time if no records are returned.
 			// This is especially true when there are large number of shards and low writes after a period of high throughput.
 			// Similairly avoiding sleeping when records are returned may also be desirable to improve latency.
 		}
