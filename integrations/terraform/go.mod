@@ -103,7 +103,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/account v1.29.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.41.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.42.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.52.4 // indirect

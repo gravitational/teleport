@@ -44,7 +44,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.42.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/glue v1.132.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.34.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect

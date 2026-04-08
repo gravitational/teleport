@@ -65,7 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/account v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.41.2
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.10
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.42.2
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.4
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.7
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.5
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.52.4

@@ -74,7 +74,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.42.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.265.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.32.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.67.2 // indirect
