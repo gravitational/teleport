@@ -24665,7 +24665,7 @@ var xxx_messageInfo_AccessGraphAWSSync proto.InternalMessageInfo
 type AccessGraphAzureSync struct {
 	// SubscriptionID Is the ID of the Azure subscription to sync resources from
 	SubscriptionID string `protobuf:"bytes,1,opt,name=SubscriptionID,proto3" json:"subscription_id,omitempty"`
-	// Integration is the integration name used to generate credentials to interact with AWS APIs.
+	// Integration is the integration name used to generate credentials to interact with Azure APIs.
 	Integration          string   `protobuf:"bytes,2,opt,name=Integration,proto3" json:"integration,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

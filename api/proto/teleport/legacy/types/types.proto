@@ -9316,7 +9316,7 @@ message AccessGraphAWSSync {
 message AccessGraphAzureSync {
   // SubscriptionID Is the ID of the Azure subscription to sync resources from
   string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
-  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
   string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
