@@ -382,7 +382,6 @@ function SessionSummaryContent({
               px={1}
               py={2}
               style={{ overflowY: 'auto' }}
-              data-scrollbar="default"
             >
               <SessionRecordingTimeline
                 commands={data.enhancedSummary.commands}
@@ -392,13 +391,7 @@ function SessionSummaryContent({
               />
             </Box>
 
-            <Box
-              flex="3"
-              px={3}
-              py={3}
-              style={{ overflowY: 'auto' }}
-              data-scrollbar="default"
-            >
+            <Box flex="3" px={3} py={3} style={{ overflowY: 'auto' }}>
               <MarkdownContainer>
                 <Markdown text={data.enhancedSummary.detailedDescription} />
               </MarkdownContainer>
@@ -409,12 +402,7 @@ function SessionSummaryContent({
     }
 
     return (
-      <Box
-        width="500px"
-        p={3}
-        style={{ overflowY: 'auto' }}
-        data-scrollbar="default"
-      >
+      <Box width="500px" p={3} style={{ overflowY: 'auto' }}>
         <MarkdownContainer>
           <Markdown text={data.content} />
 

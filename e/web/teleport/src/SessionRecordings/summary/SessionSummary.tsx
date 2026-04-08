@@ -109,7 +109,7 @@ export function SessionSummary({
 
     if (data.enhancedSummary) {
       return (
-        <EnhancedSummaryContainer data-scrollbar="default">
+        <EnhancedSummaryContainer>
           <Box px="10px">
             <H3 ml="6px">Session Summary</H3>
 
@@ -130,7 +130,7 @@ export function SessionSummary({
     }
 
     return (
-      <MarkdownContainer data-scrollbar="default">
+      <MarkdownContainer>
         <Markdown text={data.content} />
 
         <SummaryInfo>

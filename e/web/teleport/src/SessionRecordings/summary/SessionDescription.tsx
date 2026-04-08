@@ -119,7 +119,6 @@ export function SessionDescription({
               style={{ overflowY: 'auto' }}
               maxHeight="1200px"
               width="600px"
-              data-scrollbar="default"
             >
               <Markdown text={detailedDescription} />
             </Box>

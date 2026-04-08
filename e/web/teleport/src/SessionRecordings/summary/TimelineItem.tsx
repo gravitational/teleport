@@ -215,7 +215,6 @@ export function TimelineItem({
               style={{ overflowY: 'auto' }}
               maxHeight="700px"
               width="500px"
-              data-scrollbar="default"
             >
               <Flex
                 alignItems="center"
