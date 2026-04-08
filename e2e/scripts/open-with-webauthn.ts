@@ -73,6 +73,7 @@ const browser = await browserType.launch({ headless: false });
 const context = await browser.newContext({
   storageState: storageStatePath,
   ignoreHTTPSErrors: true,
+  viewport: null,
 });
 
 const page = await context.newPage();
