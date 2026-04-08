@@ -779,6 +779,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			TokenName:     info.SafeTokenName,
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
+			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
 	}
