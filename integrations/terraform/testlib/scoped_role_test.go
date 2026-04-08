@@ -37,7 +37,7 @@ func (s *TerraformSuiteOSS) TestScopedRole() {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetScopedRole(ctx, "test-scoped-role")
+		_, err := s.client.ScopedAccessTerraformClient().GetScopedRole(ctx, "test-scoped-role")
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
 		}
@@ -111,11 +111,11 @@ func (s *TerraformSuiteOSS) TestImportScopedRole() {
 		},
 	}
 
-	_, err := s.client.CreateScopedRole(ctx, role)
+	_, err := s.client.ScopedAccessTerraformClient().CreateScopedRole(ctx, role)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.client.GetScopedRole(ctx, id)
+		_, err := s.client.ScopedAccessTerraformClient().GetScopedRole(ctx, id)
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
 
