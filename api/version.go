@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.7.4-dev.disceks.6"
+const Version = "18.7.4-dev.disceks.7"
 
 const VersionMajor = 18
 const VersionMinor = 7
 const VersionPatch = 4
-const VersionPreRelease = "dev.disceks.6"
+const VersionPreRelease = "dev.disceks.7"
 const VersionMetadata = ""
