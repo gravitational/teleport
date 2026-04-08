@@ -153,9 +153,9 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// When nil, a default checker is created in NewAutoDiscoverNodeInstaller.
 	readyzChecker *readyzChecker
 
-	// diagnosticsOverride, when set, replaces gatherServiceDiagnostics.
-	// Used for testing.
-	diagnosticsOverride func(ctx context.Context, serviceName string) string
+	// diagnostics is a function called to retrieve server diagnostics
+	// If undefined, it's set to gatherServiceDiagnostics.
+	diagnostics func(ctx context.Context, serviceName string) string
 
 	// journalOverride, when set, replaces captureJournal.
 	// Used for testing.
