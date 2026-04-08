@@ -125,6 +125,7 @@ func NewDefaultStorage() *Storage {
 	storage.GroupMembers["group3"] = []msgraph.GroupMember{alice, bob, carol}
 
 	storage.GroupOwners["group1"] = []*msgraph.User{alice, bob}
+	// no owners for group2
 	storage.GroupOwners["group3"] = []*msgraph.User{bob, carol}
 
 	storage.Applications[*app1.AppID] = app1

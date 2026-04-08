@@ -535,6 +535,56 @@ func (s *Server) SetGroupOwners(groupID string, users []*msgraph.User) {
 	s.Storage.GroupOwners[groupID] = users
 }
 
+func (s *Server) DeleteGroupOwners(groupID string, owners []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	groupOwners := s.Storage.GroupOwners[groupID]
+	newOwners := []*msgraph.User{}
+	newOwnersDeltas := []msgraph.Delta{}
+	for _, o := range groupOwners {
+		if slices.Contains(owners, *o.GetID()) {
+			// only expecting owner of user type.
+			newOwnersDeltas = append(newOwnersDeltas, msgraph.Delta{
+				DirectoryObject: msgraph.DirectoryObject{
+					ID: o.GetID(),
+				},
+				Removed: &msgraph.RemovedReason{
+					Reason: to.Ptr("changed"),
+				},
+				Type: "#microsoft.graph.user",
+			})
+		} else {
+			newOwners = append(newOwners, o)
+		}
+	}
+	s.Storage.GroupOwners[groupID] = newOwners
+
+	// update delta
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := len(keys)
+
+	group, ok := s.Storage.Groups[groupID]
+	if !ok {
+		// should never happen
+		return
+	}
+
+	// TODO(sshah): check if the group delta already exists for this group
+	// e.g., group membership was updated by DeleteGroupMembers.
+	// below, it replaces the whole group delta for the given groupiD
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], msgraph.ListGroupsDeltaResponse{
+		Group: msgraph.Group{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID:          to.Ptr(groupID),
+				DisplayName: group.DisplayName,
+			},
+		},
+		Owners: newOwnersDeltas,
+	})
+
+}
+
 // SetApplications updates application storage.
 func (s *Server) SetApplications(apps []*msgraph.Application) {
 	s.mu.Lock()
