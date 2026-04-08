@@ -12,27 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package access
+package client
 
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/scopes/access"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 )
 
-// TerraformClient is a wrapper around the scoped access Client that unwraps gRPC
+// AccessClient is a wrapper around the scoped access Client that unwraps gRPC
 // request/response types into the simple signatures expected by terraform provider code generation.
-type TerraformClient struct {
-	client *Client
+type AccessClient struct {
+	client *access.Client
 }
 
-// NewTerraformClient creates a new TerraformClient wrapping the given scoped access Client.
-func NewTerraformClient(client *Client) *TerraformClient {
-	return &TerraformClient{client: client}
+// NewAccessClient creates a new AccessClient wrapping the given scoped access Client.
+func NewAccessClient(client *access.Client) *AccessClient {
+	return &AccessClient{client: client}
 }
 
 // GetScopedRole gets a scoped role by name.
-func (t *TerraformClient) GetScopedRole(ctx context.Context, name string) (*scopedaccessv1.ScopedRole, error) {
+func (t *AccessClient) GetScopedRole(ctx context.Context, name string) (*scopedaccessv1.ScopedRole, error) {
 	res, err := t.client.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
 		Name: name,
 	})
@@ -43,7 +44,7 @@ func (t *TerraformClient) GetScopedRole(ctx context.Context, name string) (*scop
 }
 
 // CreateScopedRole creates a new scoped role.
-func (t *TerraformClient) CreateScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
+func (t *AccessClient) CreateScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
 	res, err := t.client.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
@@ -54,7 +55,7 @@ func (t *TerraformClient) CreateScopedRole(ctx context.Context, role *scopedacce
 }
 
 // UpsertScopedRole creates or updates a scoped role.
-func (t *TerraformClient) UpsertScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
+func (t *AccessClient) UpsertScopedRole(ctx context.Context, role *scopedaccessv1.ScopedRole) (*scopedaccessv1.ScopedRole, error) {
 	res, err := t.client.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
 		Role: role,
 	})
@@ -65,7 +66,7 @@ func (t *TerraformClient) UpsertScopedRole(ctx context.Context, role *scopedacce
 }
 
 // DeleteScopedRole deletes a scoped role by name.
-func (t *TerraformClient) DeleteScopedRole(ctx context.Context, name string) error {
+func (t *AccessClient) DeleteScopedRole(ctx context.Context, name string) error {
 	_, err := t.client.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 		Name: name,
 	})

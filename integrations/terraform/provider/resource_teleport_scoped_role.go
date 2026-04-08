@@ -82,7 +82,7 @@ func (r resourceTeleportScopedRole) Create(ctx context.Context, req tfsdk.Create
 
 	id := scopedRoleResource.Metadata.Name
 
-	_, err = r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, id)
+	_, err = r.p.Client.GetScopedRole(ctx, id)
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("ScopedRole exists in Teleport. Either remove it (tctl rm scoped_role/%v)"+
@@ -96,7 +96,7 @@ func (r resourceTeleportScopedRole) Create(ctx context.Context, req tfsdk.Create
 		return
 	}
 
-	_, err = r.p.Client.ScopedAccessTerraformClient().CreateScopedRole(ctx, scopedRoleResource)
+	_, err = r.p.Client.CreateScopedRole(ctx, scopedRoleResource)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ScopedRole", trace.Wrap(err), "scoped_role"))
 		return
@@ -115,7 +115,7 @@ func (r resourceTeleportScopedRole) Create(ctx context.Context, req tfsdk.Create
 	}
 	for {
 		tries = tries + 1
-		scopedRoleI, err = r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, id)
+		scopedRoleI, err = r.p.Client.GetScopedRole(ctx, id)
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
@@ -173,7 +173,7 @@ func (r resourceTeleportScopedRole) Read(ctx context.Context, req tfsdk.ReadReso
 		return
 	}
 
-	scopedRoleI, err := r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, id.Value)
+	scopedRoleI, err := r.p.Client.GetScopedRole(ctx, id.Value)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -224,13 +224,13 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 	
 	name := scopedRoleResource.Metadata.Name
 
-	scopedRoleBefore, err := r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, name)
+	scopedRoleBefore, err := r.p.Client.GetScopedRole(ctx, name)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", err, "scoped_role"))
 		return
 	}
 
-	_, err = r.p.Client.ScopedAccessTerraformClient().UpsertScopedRole(ctx, scopedRoleResource)
+	_, err = r.p.Client.UpsertScopedRole(ctx, scopedRoleResource)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ScopedRole", err, "scoped_role"))
 		return
@@ -249,7 +249,7 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 	}
 	for {
 		tries = tries + 1
-		scopedRoleI, err = r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, name)
+		scopedRoleI, err = r.p.Client.GetScopedRole(ctx, name)
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", err, "scoped_role"))
 			return
@@ -295,7 +295,7 @@ func (r resourceTeleportScopedRole) Delete(ctx context.Context, req tfsdk.Delete
 		return
 	}
 
-	err := r.p.Client.ScopedAccessTerraformClient().DeleteScopedRole(ctx, id.Value)
+	err := r.p.Client.DeleteScopedRole(ctx, id.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting ScopedRole", trace.Wrap(err), "scoped_role"))
 		return
@@ -306,7 +306,7 @@ func (r resourceTeleportScopedRole) Delete(ctx context.Context, req tfsdk.Delete
 
 // ImportState imports ScopedRole state
 func (r resourceTeleportScopedRole) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	scopedRole, err := r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, req.ID)
+	scopedRole, err := r.p.Client.GetScopedRole(ctx, req.ID)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(err), "scoped_role"))
 		return

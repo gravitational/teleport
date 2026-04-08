@@ -59,7 +59,7 @@ func (r dataSourceTeleportScopedRole) Read(ctx context.Context, req tfsdk.ReadDa
 		return
 	}
 
-	scopedRoleI, err := r.p.Client.ScopedAccessTerraformClient().GetScopedRole(ctx, id.Value)
+	scopedRoleI, err := r.p.Client.GetScopedRole(ctx, id.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(err), "scoped_role"))
 		return

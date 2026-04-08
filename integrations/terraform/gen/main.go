@@ -133,6 +133,8 @@ type payload struct {
 	WithoutImportState bool
 	// StatePoll optionally configures polling for state changes when creating or updating resources.
 	StatePoll *statePoll
+	// ClientOverride sets a different client from main client to use for the resource.
+	ClientOverride string
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -957,11 +959,11 @@ var (
 		Name:                  "ScopedRole",
 		TypeName:              "ScopedRole",
 		VarName:               "scopedRole",
-		GetMethod:             "ScopedAccessTerraformClient().GetScopedRole",
-		CreateMethod:          "ScopedAccessTerraformClient().CreateScopedRole",
-		UpdateMethod:          "ScopedAccessTerraformClient().UpsertScopedRole",
+		GetMethod:             "GetScopedRole",
+		CreateMethod:          "CreateScopedRole",
+		UpdateMethod:          "UpsertScopedRole",
 		UpsertMethodArity:     2,
-		DeleteMethod:          "ScopedAccessTerraformClient().DeleteScopedRole",
+		DeleteMethod:          "DeleteScopedRole",
 		ID:                    "scopedRole.Metadata.Name",
 		Kind:                  "scoped_role",
 		HasStaticID:           false,

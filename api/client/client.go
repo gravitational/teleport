@@ -839,11 +839,6 @@ func (c *Client) ScopedAccessServiceClient() *scopedaccess.Client {
 	return scopedaccess.NewClient(scopedaccessv1.NewScopedAccessServiceClient(c.conn))
 }
 
-// ScopedAccessTerraformClient returns a terraform specific scoped access client.
-func (c *Client) ScopedAccessTerraformClient() *scopedaccess.TerraformClient {
-	return scopedaccess.NewTerraformClient(c.ScopedAccessServiceClient())
-}
-
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
