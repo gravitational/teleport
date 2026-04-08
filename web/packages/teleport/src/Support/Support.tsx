@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useId } from 'react';
 import { Link } from 'react-router';
 import styled from 'styled-components';
 
@@ -70,6 +70,10 @@ export const Support = ({
   useNoMinWidth();
   const docs = getDocUrls(authVersion, isEnterprise);
 
+  const idPrefix = useId();
+  const pagesHeadingId = `${idPrefix}-pages`;
+  const clusterInfoHeadingId = `${idPrefix}-cluster-info`;
+
   return (
     <FeatureBox maxWidth="2000px" p={{ _: 2, small: 6 }}>
       <FeatureHeader>
@@ -84,6 +88,7 @@ export const Support = ({
               grid-column: span 2;
             }
           `}
+          aria-labelledby={pagesHeadingId}
         >
           <Flex
             alignItems={{ _: 'flex-start', small: 'center' }}
@@ -96,7 +101,7 @@ export const Support = ({
               <IconBox>
                 <Icons.Question />
               </IconBox>
-              <H2>Support and Resource Pages</H2>
+              <H2 id={pagesHeadingId}>Support and Resource Pages</H2>
             </Flex>
             <SupportButtonBox>
               {showPremiumSupportCta && (
@@ -176,12 +181,13 @@ export const Support = ({
             }
           `
           }
+          aria-labelledby={clusterInfoHeadingId}
         >
           <Flex alignItems="center" justifyContent="start" mb={3}>
             <IconBox>
               <Icons.Cluster />
             </IconBox>
-            <H2>Cluster Information</H2>
+            <H2 id={clusterInfoHeadingId}>Cluster Information</H2>
           </Flex>
           <Flex flexDirection="column" justifyContent="center">
             <P>Cluster Name: {clusterId}</P>
@@ -215,7 +221,7 @@ const SupportSectionsWrapper = styled(Box)<{ isCloud?: boolean }>`
   }
 `;
 
-export const SupportSectionCard = styled(Card)`
+export const SupportSectionCard = styled(Card).attrs({ as: 'section' })`
   padding: ${props => props.theme.space[4]}px;
   box-shadow: ${props => props.theme.boxShadow[0]};
 

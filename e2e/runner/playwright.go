@@ -31,6 +31,8 @@ import (
 	"strings"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/gravitational/teleport/api"
 )
 
 type playwrightRunner struct {
@@ -266,6 +268,7 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
 	env = append(env, "E2E_TELEPORT_CONFIG="+inst.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
+	env = append(env, "E2E_TELEPORT_VERSION="+api.Version)
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
