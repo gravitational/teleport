@@ -39,6 +39,7 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/subca/v1/cert_authority_override.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
@@ -246,5 +247,7 @@ message Event {
     teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
     // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
     teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
+    // CertAuthorityOverride allows admins to override Teleport CA certificates.
+    teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
   }
 }
