@@ -19,7 +19,6 @@
 package main
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -42,8 +41,8 @@ func TestReadRoleFile(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if cr.Name != "viewer" {
-		t.Errorf("name = %q, want %q", cr.Name, "viewer")
+	if cr.name != "viewer" {
+		t.Errorf("name = %q, want %q", cr.name, "viewer")
 	}
 
 	if cr.YAML != viewerRoleYAML {
@@ -72,19 +71,19 @@ func TestBuildBootstrapState(t *testing.T) {
 	rolesDir := createDir(t, e2eDir, "testdata", "roles")
 	writeFile(t, rolesDir, "viewer.yaml", viewerRoleYAML)
 
-	scannedUsers := []ScannedUser{
+	scannedUsers := []scannedUser{
 		{
-			Name: "alice",
-			Roles: []ScannedRole{
-				{Name: "access"},
-				{File: "viewer.yaml"},
+			name: "alice",
+			roles: []scannedRole{
+				{name: "access"},
+				{file: "viewer.yaml"},
 			},
 		},
 		{
-			Name: "bob",
-			Roles: []ScannedRole{
-				{Name: "access"},
-				{Name: "editor"},
+			name: "bob",
+			roles: []scannedRole{
+				{name: "access"},
+				{name: "editor"},
 			},
 		},
 	}
@@ -104,8 +103,8 @@ func TestBuildBootstrapState(t *testing.T) {
 		t.Fatalf("got %d custom roles, want 1", len(state.CustomRoles))
 	}
 
-	if state.CustomRoles[0].Name != "viewer" {
-		t.Errorf("custom role name = %q, want %q", state.CustomRoles[0].Name, "viewer")
+	if state.CustomRoles[0].name != "viewer" {
+		t.Errorf("custom role name = %q, want %q", state.CustomRoles[0].name, "viewer")
 	}
 
 	// Verify alice has roles ["access", "viewer"].
@@ -166,17 +165,17 @@ func TestBuildBootstrapStateDeduplicatesRoles(t *testing.T) {
 	rolesDir := createDir(t, e2eDir, "testdata", "roles")
 	writeFile(t, rolesDir, "viewer.yaml", viewerRoleYAML)
 
-	scannedUsers := []ScannedUser{
+	scannedUsers := []scannedUser{
 		{
-			Name: "alice",
-			Roles: []ScannedRole{
-				{File: "viewer.yaml"},
+			name: "alice",
+			roles: []scannedRole{
+				{file: "viewer.yaml"},
 			},
 		},
 		{
-			Name: "bob",
-			Roles: []ScannedRole{
-				{File: "viewer.yaml"},
+			name: "bob",
+			roles: []scannedRole{
+				{file: "viewer.yaml"},
 			},
 		},
 	}
@@ -190,46 +189,7 @@ func TestBuildBootstrapStateDeduplicatesRoles(t *testing.T) {
 		t.Fatalf("got %d custom roles, want 1 (deduplication failed)", len(state.CustomRoles))
 	}
 
-	if state.CustomRoles[0].Name != "viewer" {
-		t.Errorf("custom role name = %q, want %q", state.CustomRoles[0].Name, "viewer")
-	}
-}
-
-func TestMarshalCredentialsJSON(t *testing.T) {
-	creds := map[string]*credentials{
-		"alice": {
-			password:              "hunter2",
-			passwordHashBase64:    "aGFzaA==",
-			credentialIDBase64:    "Y3JlZElk",
-			publicKeyCBORBase64:   "cHViS2V5",
-			privateKeyPKCS8Base64: "cHJpdktleQ==",
-		},
-	}
-
-	result, err := marshalCredentialsJSON(creds)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	var parsed map[string]credentialsJSON
-	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
-		t.Fatalf("failed to unmarshal result: %v", err)
-	}
-
-	alice, ok := parsed["alice"]
-	if !ok {
-		t.Fatal("missing alice in parsed JSON")
-	}
-
-	if alice.Password != "hunter2" {
-		t.Errorf("password = %q, want %q", alice.Password, "hunter2")
-	}
-
-	if alice.WebauthnPrivateKey != "cHJpdktleQ==" {
-		t.Errorf("webauthnPrivateKey = %q, want %q", alice.WebauthnPrivateKey, "cHJpdktleQ==")
-	}
-
-	if alice.WebauthnCredentialId != "Y3JlZElk" {
-		t.Errorf("webauthnCredentialId = %q, want %q", alice.WebauthnCredentialId, "Y3JlZElk")
+	if state.CustomRoles[0].name != "viewer" {
+		t.Errorf("custom role name = %q, want %q", state.CustomRoles[0].name, "viewer")
 	}
 }

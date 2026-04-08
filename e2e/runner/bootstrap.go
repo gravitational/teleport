@@ -29,8 +29,8 @@ import (
 // metadataNameRe extracts the role name from a YAML file's metadata.name field.
 var metadataNameRe = regexp.MustCompile(`(?m)^metadata:\s*\n\s+name:\s*(\S+)`)
 
-// BootstrapUser represents a user to be bootstrapped into the Teleport state.
-type BootstrapUser struct {
+// bootstrapUser represents a user to be bootstrapped into the Teleport state.
+type bootstrapUser struct {
 	Name                string
 	Roles               []string
 	Traits              map[string][]string
@@ -39,16 +39,16 @@ type BootstrapUser struct {
 	PublicKeyCBORBase64 string
 }
 
-// CustomRole represents a custom role loaded from a YAML file.
-type CustomRole struct {
-	Name string
+// customRole represents a custom role loaded from a YAML file.
+type customRole struct {
+	name string
 	YAML string
 }
 
-// StateConfig holds the data needed to render the bootstrap state template.
-type StateConfig struct {
-	Users       []BootstrapUser
-	CustomRoles []CustomRole
+// stateConfig holds the data needed to render the bootstrap state template.
+type stateConfig struct {
+	Users       []bootstrapUser
+	CustomRoles []customRole
 }
 
 // credentialsJSON is the JSON-serializable shape for the E2E_USERS_JSON env var.
@@ -59,8 +59,8 @@ type credentialsJSON struct {
 }
 
 // readRoleFile reads a YAML role file from e2eDir/testdata/roles/<filename>,
-// extracts the role name from metadata.name, and returns a CustomRole.
-func readRoleFile(e2eDir, filename string) (*CustomRole, error) {
+// extracts the role name from metadata.name, and returns a customRole.
+func readRoleFile(e2eDir, filename string) (*customRole, error) {
 	path := filepath.Join(e2eDir, "testdata", "roles", filename)
 
 	data, err := os.ReadFile(path)
@@ -75,75 +75,63 @@ func readRoleFile(e2eDir, filename string) (*CustomRole, error) {
 		return nil, fmt.Errorf("role file %s: metadata.name not found", filename)
 	}
 
-	return &CustomRole{
-		Name: match[1],
+	return &customRole{
+		name: match[1],
 		YAML: yaml,
 	}, nil
 }
 
-// buildBootstrapState builds the StateConfig and credential map from scanned users.
+// buildBootstrapState builds the stateConfig and credential map from scanned users.
 // For each user it generates credentials, resolves role references (built-in name
 // or file ref), and collects custom roles (deduplicated by filename).
-func buildBootstrapState(e2eDir string, scannedUsers []ScannedUser) (*StateConfig, map[string]*credentials, error) {
-	state := &StateConfig{}
+func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*stateConfig, map[string]*credentials, error) {
+	state := &stateConfig{}
 	creds := make(map[string]*credentials)
 
 	// Track custom role files already loaded to deduplicate.
-	customRolesByFile := make(map[string]*CustomRole)
+	customRolesByFile := make(map[string]*customRole)
 
 	for _, su := range scannedUsers {
-		userCreds, err := generateUserCredentials()
+		userCredentials, err := generateUserCredentials()
 		if err != nil {
-			return nil, nil, fmt.Errorf("generating credentials for %s: %w", su.Name, err)
+			return nil, nil, fmt.Errorf("generating credentials for %s: %w", su.name, err)
 		}
 
-		creds[su.Name] = userCreds
+		creds[su.name] = userCredentials
 
-		bu := BootstrapUser{
-			Name:                su.Name,
+		bu := bootstrapUser{
+			Name:                su.name,
 			Traits:              map[string][]string{"logins": {"root"}},
-			PasswordHashBase64:  userCreds.passwordHashBase64,
-			CredentialIDBase64:  userCreds.credentialIDBase64,
-			PublicKeyCBORBase64: userCreds.publicKeyCBORBase64,
+			PasswordHashBase64:  userCredentials.passwordHashBase64,
+			CredentialIDBase64:  userCredentials.credentialIDBase64,
+			PublicKeyCBORBase64: userCredentials.publicKeyCBORBase64,
 		}
 
-		for _, role := range su.Roles {
-			if role.File != "" {
-				cr, ok := customRolesByFile[role.File]
+		for _, role := range su.roles {
+			if role.file != "" {
+				cr, ok := customRolesByFile[role.file]
 				if !ok {
-					cr, err = readRoleFile(e2eDir, role.File)
+					cr, err = readRoleFile(e2eDir, role.file)
 					if err != nil {
-						return nil, nil, fmt.Errorf("reading role for user %s: %w", su.Name, err)
+						return nil, nil, fmt.Errorf("reading role for user %s: %w", su.name, err)
 					}
 
-					customRolesByFile[role.File] = cr
+					customRolesByFile[role.file] = cr
+					state.CustomRoles = append(state.CustomRoles, *cr)
 				}
 
-				bu.Roles = append(bu.Roles, cr.Name)
+				bu.Roles = append(bu.Roles, cr.name)
 			} else {
-				bu.Roles = append(bu.Roles, role.Name)
+				bu.Roles = append(bu.Roles, role.name)
 			}
 		}
 
 		state.Users = append(state.Users, bu)
 	}
 
-	// Collect custom roles in a stable order based on first appearance.
-	seen := make(map[string]bool)
-	for _, su := range scannedUsers {
-		for _, role := range su.Roles {
-			if role.File != "" && !seen[role.File] {
-				seen[role.File] = true
-				state.CustomRoles = append(state.CustomRoles, *customRolesByFile[role.File])
-			}
-		}
-	}
-
 	return state, creds, nil
 }
 
-// marshalCredentialsJSON converts a credential map to a JSON string
-// suitable for the E2E_USERS_JSON environment variable.
 func marshalCredentialsJSON(creds map[string]*credentials) (string, error) {
 	m := make(map[string]credentialsJSON, len(creds))
 	for name, c := range creds {

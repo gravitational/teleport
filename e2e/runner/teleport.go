@@ -194,7 +194,7 @@ func resolveDockerHost() (string, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
-func generateStateFile(templatePath string, state *StateConfig) (string, error) {
+func generateStateFile(templatePath string, state *stateConfig) (string, error) {
 	return renderTemplate(templatePath, state)
 }
 

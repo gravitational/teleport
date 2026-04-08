@@ -67,6 +67,48 @@ Available fixtures:
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
 
+### Users and Roles
+
+By default, the runner creates a single user `bob` with the `access` and `editor` roles. Tests that need
+additional users or custom roles can declare them via `test.use()`:
+
+```ts
+test.use({
+  users: [
+    { name: 'restricted-user', roles: ['access'] },
+  ],
+  loginAs: 'restricted-user',
+});
+```
+
+The runner scans test files for these declarations and automatically bootstraps the users with WebAuthn
+credentials before Teleport starts.
+
+**Custom roles from YAML files:**
+
+For roles that don't exist as built-in Teleport roles, reference a YAML file in `e2e/testdata/roles/`:
+
+```ts
+test.use({
+  users: [
+    {
+      name: 'read-only-user',
+      roles: [{ file: '@gravitational/e2e/roles/rbac-read-access.yaml' }],
+    },
+  ],
+  loginAs: 'read-only-user',
+});
+```
+
+The `@gravitational/e2e/roles/` prefix is stripped and the file is loaded from `e2e/testdata/roles/`. The role
+name is extracted from `metadata.name` in the YAML. Custom role files are deduplicated, so multiple users can
+reference the same file.
+
+**`loginAs`:** Sets which user the test authenticates as. When omitted, the test runs as `bob`.
+
+**Scoping:** `test.use()` follows Playwright's normal scoping rules — place it inside a `test.describe()` block
+to limit it to that group, or at the top level of a file to apply to all tests in the file.
+
 ### Session Recordings
 
 The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's

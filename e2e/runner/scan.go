@@ -64,19 +64,19 @@ var rolesBlockRe = regexp.MustCompile(`roles:\s*\[`)
 
 const testUseCallPrefix = "test.use("
 
-// ScannedUser represents a user declaration found in test source code.
-type ScannedUser struct {
-	Name  string
-	Roles []ScannedRole
+// scannedUser represents a user declaration found in test source code.
+type scannedUser struct {
+	name  string
+	roles []scannedRole
 }
 
-// ScannedRole represents a role reference found in a user declaration.
-// Exactly one of Name or File is set.
-type ScannedRole struct {
-	// Name is a built-in role like "access", "editor".
-	Name string
-	// File is a role definition file relative to e2e/testdata/roles/, e.g. "viewer.yaml".
-	File string
+// scannedRole represents a role reference found in a user declaration.
+// Exactly one of name or file is set.
+type scannedRole struct {
+	// name is a built-in role like "access", "editor".
+	name string
+	// file is a role definition file relative to e2e/testdata/roles/, e.g. "viewer.yaml".
+	file string
 }
 
 // scanTarget represents a file to scan with an optional line constraint.
@@ -95,18 +95,14 @@ type callRange struct {
 	start, end int
 }
 
-// scanFixtures scans test files and the helpers they import to discover which fixtures are needed.
-func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
+// resolveTargetsWithHelpers resolves test file targets and appends any helper
+// modules they import, so both fixtures and users declared in helpers are discovered.
+func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget, error) {
 	targets, err := resolveFilesToScan(e2eDir, testFiles)
 	if err != nil {
-		slog.Warn("fixture scan: error resolving files", "error", err)
-
-		return nil
+		return nil, err
 	}
 
-	slog.Debug("fixture scan: resolved targets", "count", len(targets))
-
-	// Helpers can also reference fixtures (such as Connect), so we need to scan them as well.
 	importedHelpers := make(map[string]bool)
 	for _, t := range targets {
 		for _, helper := range parseHelperImports(t.path) {
@@ -114,15 +110,23 @@ func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
 		}
 	}
 
-	// Helpers are always scanned fully (no line targeting).
-	// No existence check needed — scanFile handles missing files gracefully.
 	for helper := range importedHelpers {
 		targets = append(targets, scanTarget{
 			path: filepath.Join(e2eDir, "helpers", helper+".ts"),
 		})
 	}
 
-	slog.Debug("fixture scan: total files to scan", "count", len(targets))
+	return targets, nil
+}
+
+// scanFixtures scans test files and the helpers they import to discover which fixtures are needed.
+func scanFixtures(e2eDir string, testFiles []string) []*fixtures.Fixture {
+	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
+	if err != nil {
+		slog.Warn("fixture scan: error resolving files", "error", err)
+
+		return nil
+	}
 
 	seen := make(map[string]struct{})
 	var result []*fixtures.Fixture
@@ -511,65 +515,65 @@ func fixtureInScope(fixtureLine, targetLine int, blocks []blockRange) bool {
 
 // scanUsers scans all test files for user declarations and returns a deduplicated list.
 // It always includes the implicit bob user with access and editor roles.
-func scanUsers(e2eDir string, testFiles []string) []ScannedUser {
-	targets, err := resolveFilesToScan(e2eDir, testFiles)
+func scanUsers(e2eDir string, testFiles []string) []scannedUser {
+	targets, err := resolveTargetsWithHelpers(e2eDir, testFiles)
 	if err != nil {
 		slog.Warn("user scan: error resolving files", "error", err)
 
 		return defaultUsers()
 	}
 
-	byName := make(map[string]*ScannedUser)
+	byName := make(map[string]*scannedUser)
 
 	for _, t := range targets {
 		for _, u := range scanFileUsers(t.path, t.line) {
-			if existing, ok := byName[u.Name]; ok {
-				existing.Roles = mergeRoles(existing.Roles, u.Roles)
+			if existing, ok := byName[u.name]; ok {
+				existing.roles = mergeRoles(existing.roles, u.roles)
 			} else {
 				clone := u
-				byName[u.Name] = &clone
+				byName[u.name] = &clone
 			}
 		}
 	}
 
 	// Always include implicit bob.
 	for _, u := range defaultUsers() {
-		if existing, ok := byName[u.Name]; ok {
-			existing.Roles = mergeRoles(existing.Roles, u.Roles)
+		if existing, ok := byName[u.name]; ok {
+			existing.roles = mergeRoles(existing.roles, u.roles)
 		} else {
 			clone := u
-			byName[u.Name] = &clone
+			byName[u.name] = &clone
 		}
 	}
 
-	result := make([]ScannedUser, 0, len(byName))
+	result := make([]scannedUser, 0, len(byName))
 	for _, u := range byName {
-		sortRoles(u.Roles)
+		sortRoles(u.roles)
 		result = append(result, *u)
 	}
 
-	slices.SortStableFunc(result, func(a, b ScannedUser) int {
-		return strings.Compare(a.Name, b.Name)
+	slices.SortStableFunc(result, func(a, b scannedUser) int {
+		return strings.Compare(a.name, b.name)
 	})
 
 	return result
 }
 
 // defaultUsers returns the implicit bob user with access and editor roles.
-func defaultUsers() []ScannedUser {
-	return []ScannedUser{
+func defaultUsers() []scannedUser {
+	return []scannedUser{
 		{
-			Name: "bob",
-			Roles: []ScannedRole{
-				{Name: "access"},
-				{Name: "editor"},
+			name: "bob",
+			roles: []scannedRole{
+				{name: "access"},
+				{name: "editor"},
 			},
 		},
 	}
 }
 
 // scanFileUsers extracts user declarations from test.use() calls in a source file.
-func scanFileUsers(path string, targetLine int) []ScannedUser {
+func scanFileUsers(path string, targetLine int) []scannedUser {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -580,7 +584,7 @@ func scanFileUsers(path string, targetLine int) []ScannedUser {
 	blocks := parseBlocks(cleaned)
 	content := strings.Join(cleaned, "\n")
 
-	var result []ScannedUser
+	var result []scannedUser
 	for _, call := range findTestUseCalls(content) {
 		callLine := 1 + strings.Count(content[:call.start], "\n")
 
@@ -607,7 +611,7 @@ func scanFileUsers(path string, targetLine int) []ScannedUser {
 				continue
 			}
 
-			user := ScannedUser{Name: nameMatch[1]}
+			user := scannedUser{name: nameMatch[1]}
 
 			rolesLoc := rolesBlockRe.FindStringIndex(userBlock)
 			if rolesLoc != nil {
@@ -615,18 +619,19 @@ func scanFileUsers(path string, targetLine int) []ScannedUser {
 				if rolesContent != "" {
 					// Extract file roles first.
 					for _, m := range roleFileRe.FindAllStringSubmatch(rolesContent, -1) {
-						user.Roles = append(user.Roles, ScannedRole{File: m[1]})
+						user.roles = append(user.roles, scannedRole{file: m[1]})
 					}
 
 					// Remove file role references, then extract remaining quoted strings as built-in role names.
 					withoutFileRoles := roleFileRe.ReplaceAllString(rolesContent, "")
 					for _, m := range fixtureRefRe.FindAllStringSubmatch(withoutFileRoles, -1) {
-						user.Roles = append(user.Roles, ScannedRole{Name: m[1]})
+						user.roles = append(user.roles, scannedRole{name: m[1]})
 					}
 				}
 			}
 
-			sortRoles(user.Roles)
+			sortRoles(user.roles)
+
 			result = append(result, user)
 		}
 	}
@@ -712,11 +717,11 @@ func extractBraceBlocks(s string) []string {
 
 // sortRoles sorts roles so that built-in names come before file refs,
 // alphabetical within each group.
-func sortRoles(roles []ScannedRole) {
-	slices.SortStableFunc(roles, func(a, b ScannedRole) int {
-		// Built-in names (Name set) come before file refs (File set).
-		aIsName := a.Name != ""
-		bIsName := b.Name != ""
+func sortRoles(roles []scannedRole) {
+	slices.SortStableFunc(roles, func(a, b scannedRole) int {
+		// Built-in names (name set) come before file refs (file set).
+		aIsName := a.name != ""
+		bIsName := b.name != ""
 
 		if aIsName != bIsName {
 			if aIsName {
@@ -727,22 +732,22 @@ func sortRoles(roles []ScannedRole) {
 		}
 
 		if aIsName {
-			return strings.Compare(a.Name, b.Name)
+			return strings.Compare(a.name, b.name)
 		}
 
-		return strings.Compare(a.File, b.File)
+		return strings.Compare(a.file, b.file)
 	})
 }
 
 // mergeRoles deduplicates roles by name or file, returning the union.
-func mergeRoles(a, b []ScannedRole) []ScannedRole {
+func mergeRoles(a, b []scannedRole) []scannedRole {
 	seen := make(map[string]struct{})
-	var result []ScannedRole
+	var result []scannedRole
 
 	for _, r := range a {
-		key := "name:" + r.Name
-		if r.File != "" {
-			key = "file:" + r.File
+		key := "name:" + r.name
+		if r.file != "" {
+			key = "file:" + r.file
 		}
 
 		if _, ok := seen[key]; !ok {
@@ -752,9 +757,9 @@ func mergeRoles(a, b []ScannedRole) []ScannedRole {
 	}
 
 	for _, r := range b {
-		key := "name:" + r.Name
-		if r.File != "" {
-			key = "file:" + r.File
+		key := "name:" + r.name
+		if r.file != "" {
+			key = "file:" + r.file
 		}
 
 		if _, ok := seen[key]; !ok {

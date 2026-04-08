@@ -346,7 +346,7 @@ func TestScanUsers(t *testing.T) {
 	tests := []struct {
 		name      string
 		content   string
-		wantUsers []ScannedUser
+		wantUsers []scannedUser
 	}{
 		{
 			name:      "no users declaration",
@@ -360,12 +360,12 @@ func TestScanUsers(t *testing.T) {
     { name: 'alice', roles: ['access', 'editor'] },
   ],
 });`,
-			wantUsers: []ScannedUser{
+			wantUsers: []scannedUser{
 				{
-					Name: "alice",
-					Roles: []ScannedRole{
-						{Name: "access"},
-						{Name: "editor"},
+					name: "alice",
+					roles: []scannedRole{
+						{name: "access"},
+						{name: "editor"},
 					},
 				},
 			},
@@ -377,11 +377,11 @@ func TestScanUsers(t *testing.T) {
     { name: 'alice', roles: [{ file: '@gravitational/e2e/roles/viewer.yaml' }] },
   ],
 });`,
-			wantUsers: []ScannedUser{
+			wantUsers: []scannedUser{
 				{
-					Name: "alice",
-					Roles: []ScannedRole{
-						{File: "viewer.yaml"},
+					name: "alice",
+					roles: []scannedRole{
+						{file: "viewer.yaml"},
 					},
 				},
 			},
@@ -394,17 +394,17 @@ func TestScanUsers(t *testing.T) {
     { name: 'carol', roles: ['editor'] },
   ],
 });`,
-			wantUsers: []ScannedUser{
+			wantUsers: []scannedUser{
 				{
-					Name: "alice",
-					Roles: []ScannedRole{
-						{Name: "access"},
+					name: "alice",
+					roles: []scannedRole{
+						{name: "access"},
 					},
 				},
 				{
-					Name: "carol",
-					Roles: []ScannedRole{
-						{Name: "editor"},
+					name: "carol",
+					roles: []scannedRole{
+						{name: "editor"},
 					},
 				},
 			},
@@ -422,11 +422,11 @@ func TestScanUsers(t *testing.T) {
     { name: 'alice', roles: ['access'] },
   ],
 });`,
-			wantUsers: []ScannedUser{
+			wantUsers: []scannedUser{
 				{
-					Name: "alice",
-					Roles: []ScannedRole{
-						{Name: "access"},
+					name: "alice",
+					roles: []scannedRole{
+						{name: "access"},
 					},
 				},
 			},
@@ -447,21 +447,21 @@ func TestScanUsers(t *testing.T) {
 
 			for i, u := range got {
 				want := tt.wantUsers[i]
-				if u.Name != want.Name {
-					t.Errorf("user[%d] name = %q, want %q", i, u.Name, want.Name)
+				if u.name != want.name {
+					t.Errorf("user[%d] name = %q, want %q", i, u.name, want.name)
 				}
 
-				if len(u.Roles) != len(want.Roles) {
-					t.Fatalf("user[%d] got %d roles, want %d", i, len(u.Roles), len(want.Roles))
+				if len(u.roles) != len(want.roles) {
+					t.Fatalf("user[%d] got %d roles, want %d", i, len(u.roles), len(want.roles))
 				}
 
-				for j, r := range u.Roles {
-					if r.Name != want.Roles[j].Name {
-						t.Errorf("user[%d] role[%d] name = %q, want %q", i, j, r.Name, want.Roles[j].Name)
+				for j, r := range u.roles {
+					if r.name != want.roles[j].name {
+						t.Errorf("user[%d] role[%d] name = %q, want %q", i, j, r.name, want.roles[j].name)
 					}
 
-					if r.File != want.Roles[j].File {
-						t.Errorf("user[%d] role[%d] file = %q, want %q", i, j, r.File, want.Roles[j].File)
+					if r.file != want.roles[j].file {
+						t.Errorf("user[%d] role[%d] file = %q, want %q", i, j, r.file, want.roles[j].file)
 					}
 				}
 			}
@@ -529,20 +529,20 @@ func TestScanUsersImplicitBob(t *testing.T) {
 		t.Fatalf("expected 1 user, got %d", len(got))
 	}
 
-	if got[0].Name != "bob" {
-		t.Errorf("expected user name 'bob', got %q", got[0].Name)
+	if got[0].name != "bob" {
+		t.Errorf("expected user name 'bob', got %q", got[0].name)
 	}
 
-	if len(got[0].Roles) != 2 {
-		t.Fatalf("expected 2 roles for bob, got %d", len(got[0].Roles))
+	if len(got[0].roles) != 2 {
+		t.Fatalf("expected 2 roles for bob, got %d", len(got[0].roles))
 	}
 
-	if got[0].Roles[0].Name != "access" {
-		t.Errorf("expected first role 'access', got %q", got[0].Roles[0].Name)
+	if got[0].roles[0].name != "access" {
+		t.Errorf("expected first role 'access', got %q", got[0].roles[0].name)
 	}
 
-	if got[0].Roles[1].Name != "editor" {
-		t.Errorf("expected second role 'editor', got %q", got[0].Roles[1].Name)
+	if got[0].roles[1].name != "editor" {
+		t.Errorf("expected second role 'editor', got %q", got[0].roles[1].name)
 	}
 }
 

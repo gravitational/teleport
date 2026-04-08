@@ -22,10 +22,13 @@ import { users } from './env';
 import { expect } from './test';
 import { mockWebAuthn } from './webauthn';
 
-export async function login(page: Page, username = 'bob') {
-  const password = users[username]?.password;
+export async function login(page: Page, username = 'bob', password?: string) {
   if (!password) {
-    throw new Error(`no credentials found for user "${username}"`);
+    password = users[username]?.password;
+
+    if (!password) {
+      throw new Error(`no credentials found for user "${username}"`);
+    }
   }
 
   await page.addInitScript(() => {
