@@ -30,7 +30,8 @@ import {
   ElectronApplication,
 } from '@playwright/test';
 
-import { connectTshBin, connectAppDir, password, startUrl } from './env';
+import { defaultUsername } from './defaultUser';
+import { connectTshBin, connectAppDir, users, startUrl } from './env';
 import { test as fixtureBase } from './fixtures';
 
 export async function launchApp(homeDir: string) {
@@ -74,8 +75,13 @@ export async function login(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
 
-  await page.getByPlaceholder('Username').fill('bob');
-  await page.getByPlaceholder('Password').fill(password);
+  const username = defaultUsername();
+  const creds = users[username];
+  if (!creds) {
+    throw new Error(`no credentials found for default user "${username}"`);
+  }
+  await page.getByPlaceholder('Username').fill(username);
+  await page.getByPlaceholder('Password').fill(creds.password);
   await page.getByRole('button', { name: 'Sign In' }).click();
   await expect(page.getByPlaceholder('Search or jump to')).toBeVisible();
 }

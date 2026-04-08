@@ -97,6 +97,13 @@ jobs:
       - name: Type-check e2e tests
         run: pnpm --filter=@gravitational/e2e type-check
 
+      - name: Verify canonical key parity (TS)
+        run: pnpm --filter=@gravitational/e2e test:canonical-key
+
+      - name: Test e2e runner (Go)
+        working-directory: e2e/runner
+        run: go test ./...
+
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"

@@ -440,6 +440,12 @@
       }
     },
     {
+      "files": ["e2e/tests/web/auth.setup.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
       "files": ["e2e/tests/connect/**/*.ts"],
       "rules": {
         "no-restricted-imports": [

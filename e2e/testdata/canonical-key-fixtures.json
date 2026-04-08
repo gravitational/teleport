@@ -1,0 +1,53 @@
+[
+  {
+    "name": "single built-in role",
+    "input": { "roles": ["access"] },
+    "expected": "{\"roles\":[\"access\"]}"
+  },
+  {
+    "name": "built-in roles sorted",
+    "input": { "roles": ["editor", "access"] },
+    "expected": "{\"roles\":[\"access\",\"editor\"]}"
+  },
+  {
+    "name": "single file role",
+    "input": { "roles": [{ "file": "@gravitational/e2e/roles/viewer.yaml" }] },
+    "expected": "{\"roles\":[\"@file:viewer.yaml\"]}"
+  },
+  {
+    "name": "mixed roles sort by code unit (@ before a)",
+    "input": {
+      "roles": [
+        "access",
+        { "file": "@gravitational/e2e/roles/viewer.yaml" }
+      ]
+    },
+    "expected": "{\"roles\":[\"@file:viewer.yaml\",\"access\"]}"
+  },
+  {
+    "name": "traits sorted by key, values sorted",
+    "input": {
+      "roles": ["access"],
+      "traits": {
+        "kubernetes_groups": ["dev"],
+        "logins": ["root", "alice"]
+      }
+    },
+    "expected": "{\"roles\":[\"access\"],\"traits\":{\"kubernetes_groups\":[\"dev\"],\"logins\":[\"alice\",\"root\"]}}"
+  },
+  {
+    "name": "empty traits map omitted",
+    "input": { "roles": ["access"], "traits": {} },
+    "expected": "{\"roles\":[\"access\"]}"
+  },
+  {
+    "name": "multiple file roles sorted by filename",
+    "input": {
+      "roles": [
+        { "file": "@gravitational/e2e/roles/viewer.yaml" },
+        { "file": "@gravitational/e2e/roles/admin.yaml" }
+      ]
+    },
+    "expected": "{\"roles\":[\"@file:admin.yaml\",\"@file:viewer.yaml\"]}"
+  }
+]

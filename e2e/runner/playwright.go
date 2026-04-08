@@ -255,12 +255,8 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 		env = append(env, "START_URL="+p.startURL(inst))
 	}
 
-	if creds := p.config.creds; creds != nil {
-		env = append(env,
-			"E2E_PASSWORD="+creds.password,
-			"E2E_WEBAUTHN_PRIVATE_KEY="+creds.privateKeyPKCS8Base64,
-			"E2E_WEBAUTHN_CREDENTIAL_ID="+creds.credentialIDBase64,
-		)
+	if p.config.creds != nil {
+		env = append(env, "E2E_USERS_FILE="+filepath.Join(p.config.e2eDir, ".auth", "user-credentials.json"))
 	}
 
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)

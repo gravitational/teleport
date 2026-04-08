@@ -17,11 +17,8 @@
  */
 
 import { expect, test } from '@gravitational/e2e/helpers/test';
-import { mockWebAuthn } from '@gravitational/e2e/helpers/webauthn';
 
 test('verify that a user can create and delete a role', async ({ page }) => {
-  await mockWebAuthn(page);
-
   await page.goto('/');
 
   await page.getByRole('button', { name: 'Zero Trust Access' }).click();

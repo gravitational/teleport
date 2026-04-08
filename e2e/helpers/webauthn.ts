@@ -26,38 +26,150 @@ import {
 import { Page } from '@playwright/test';
 import { Encoder } from 'cbor-x';
 
-import { webauthnCredentialId, webauthnPrivateKey } from './env';
+import { users } from './env';
 
 declare global {
   function __e2eWebAuthn(json: string): Promise<string>;
 }
 
-// mockWebAuthn sets up a mock for the WebAuthn API in the browser context in a way that
-// is compatible with Chromium, Firefox and WebKit.
-export async function mockWebAuthn(page: Page) {
-  if (await page.evaluate(() => '__e2eWebAuthn' in self)) {
-    return;
+// Per-username derived keys; cached because key derivation is relatively expensive.
+type DerivedCreds = {
+  credIdBuf: Buffer;
+  credIdB64: string;
+  privateKey: ReturnType<typeof createPrivateKey>;
+  pubKeyCOSE: Buffer;
+  spkiPublicKeyB64: string;
+};
+
+const derivedCache = new Map<string, DerivedCreds>();
+
+function deriveCreds(username: string): DerivedCreds {
+  const cached = derivedCache.get(username);
+  if (cached) return cached;
+
+  const creds = users[username];
+  if (!creds) {
+    throw new Error(`no credentials found for user "${username}"`);
   }
 
-  const credIdBuf = Buffer.from(webauthnCredentialId, 'base64');
+  const credIdBuf = Buffer.from(creds.webauthnCredentialId, 'base64');
   const privateKey = createPrivateKey({
-    key: Buffer.from(webauthnPrivateKey, 'base64'),
+    key: Buffer.from(creds.webauthnPrivateKey, 'base64'),
     format: 'der',
     type: 'pkcs8',
   });
   const jwk = privateKey.export({ format: 'jwk' });
   const x = Buffer.from(jwk.x!, 'base64url');
   const y = Buffer.from(jwk.y!, 'base64url');
-  const pubKeyCOSE = encodeEC2PublicKeyCOSE(x, y);
-  const spkiPubicKey = createPublicKey(privateKey).export({
-    format: 'der',
-    type: 'spki',
-  });
-  const credIdB64 = credIdBuf.toString('base64');
-  const spkiPublicKeyB64 = spkiPubicKey.toString('base64');
+  const derived: DerivedCreds = {
+    credIdBuf,
+    credIdB64: credIdBuf.toString('base64'),
+    privateKey,
+    pubKeyCOSE: encodeEC2PublicKeyCOSE(x, y),
+    spkiPublicKeyB64: createPublicKey(privateKey)
+      .export({ format: 'der', type: 'spki' })
+      .toString('base64'),
+  };
+
+  derivedCache.set(username, derived);
+
+  return derived;
+}
+
+// WebauthnAssertion is the shape expected by Teleport's /v1/webapi/mfa/login/finishsession
+// (see web/packages/teleport/src/services/mfa/makeMfa.ts:makeWebauthnAssertionResponse).
+export type WebauthnAssertion = {
+  id: string;
+  type: 'public-key';
+  extensions: { appid: boolean };
+  rawId: string;
+  response: {
+    authenticatorData: string;
+    clientDataJSON: string;
+    signature: string;
+    userHandle: string;
+  };
+};
+
+// signWebAuthnAssertion produces a WebAuthn assertion for a login challenge
+// using the stored credentials for `username`. Used to drive the HTTP login
+// flow directly from Node without a browser.
+export function signWebAuthnAssertion(
+  username: string,
+  challengeB64url: string,
+  rpId: string,
+  origin: string
+): WebauthnAssertion {
+  const { credIdBuf, privateKey } = deriveCreds(username);
+
+  const clientDataJSON = Buffer.from(
+    JSON.stringify({
+      type: 'webauthn.get',
+      challenge: challengeB64url,
+      origin,
+      crossOrigin: false,
+    })
+  );
+
+  const rpIdHash = createHash('sha256').update(rpId).digest();
+  const counter = Buffer.alloc(4);
+  counter.writeUInt32BE(1);
+  const authenticatorData = Buffer.concat([
+    rpIdHash,
+    Buffer.from([0x05]), // UP + UV
+    counter,
+  ]);
+
+  const signature = createSign('SHA256')
+    .update(
+      Buffer.concat([
+        authenticatorData,
+        createHash('sha256').update(clientDataJSON).digest(),
+      ])
+    )
+    .sign(privateKey);
+
+  const credIdB64url = credIdBuf.toString('base64url');
+  return {
+    id: credIdB64url,
+    type: 'public-key',
+    extensions: { appid: false },
+    rawId: credIdB64url,
+    response: {
+      authenticatorData: authenticatorData.toString('base64url'),
+      clientDataJSON: clientDataJSON.toString('base64url'),
+      signature: signature.toString('base64url'),
+      userHandle: '',
+    },
+  };
+}
+
+// The exposed __e2eWebAuthn function is attached to a page once; to support
+// switching users mid-test we keep the "active" username per page and re-read
+// it on every WebAuthn call.
+const activeUsernameByPage = new WeakMap<Page, string>();
+
+// mockWebAuthn sets up a mock for the WebAuthn API in the browser context in a way that
+// is compatible with Chromium, Firefox and WebKit. Safe to call multiple times per page:
+// subsequent calls switch the active user without re-exposing the function.
+export async function mockWebAuthn(page: Page, username: string) {
+  // Validate + warm the cache early so errors surface here rather than inside the browser.
+  deriveCreds(username);
+  activeUsernameByPage.set(page, username);
+
+  if (await page.evaluate(() => '__e2eWebAuthn' in self)) {
+    return;
+  }
 
   let signCount = 0;
   await page.exposeFunction('__e2eWebAuthn', async (optionsJSON: string) => {
+    const active = activeUsernameByPage.get(page);
+    if (!active) {
+      throw new Error('no active WebAuthn user for this page');
+    }
+    const { credIdBuf, credIdB64, privateKey, pubKeyCOSE, spkiPublicKeyB64 } =
+      deriveCreds(active);
+
     const opts: WebAuthnRequest = JSON.parse(optionsJSON);
 
     signCount++;
