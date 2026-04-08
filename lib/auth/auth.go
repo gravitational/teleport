@@ -631,14 +631,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
-		Provisioner:                     cfg.Provisioner,
-		Identity:                        cfg.Identity,
-		Access:                          cfg.Access,
+		ProvisionerInternal:             cfg.Provisioner,
+		IdentityInternal:                cfg.Identity,
+		AccessInternal:                  cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Applications:                    cfg.Apps,
+		ApplicationsInternal:            cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -927,13 +927,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.ProvisionerInternal
+	services.IdentityInternal
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Applications
+	services.ApplicationsInternal
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
@@ -1075,7 +1075,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
+	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -5043,7 +5043,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(ctx, req.User, false)
+		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
