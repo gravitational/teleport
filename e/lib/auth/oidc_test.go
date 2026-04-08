@@ -1149,7 +1149,7 @@ func TestMergeUserInfoClaims(t *testing.T) {
 
 			// Only expected if suite.authenticateUser passes.
 			if len(test.expectedGroups) > 0 {
-				user, err := suite.authServer.Identity.GetUser(t.Context(), test.userInfo.resp.Email, false)
+				user, err := suite.authServer.Services.GetUser(t.Context(), test.userInfo.resp.Email, false)
 				require.NoError(t, err)
 				require.ElementsMatch(t, user.GetTraits()["groups"], test.expectedGroups)
 			}

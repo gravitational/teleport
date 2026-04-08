@@ -21,7 +21,7 @@ func TestIdentityCenterResourceCleanup(t *testing.T) {
 		SAMLIdPService:           suite.svc.authServer.SAMLIdPServiceProviders,
 		IntegrationService:       suite.svc.authServer.Integrations,
 		AccessListService:        suite.svc.authServer.AccessListsInternal,
-		RoleService:              suite.svc.authServer.Access,
+		RoleService:              suite.svc.authServer.Services,
 	}
 	testData := ictestenv.NewDeletionData()
 	ictestenv.CreateICResources(t, ctx, icServiceClient, testData, string(identitycenter.IdentityCenterDownstreamID))

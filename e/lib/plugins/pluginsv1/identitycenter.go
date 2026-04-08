@@ -44,7 +44,7 @@ func (s *Service) identityCenterNeedsCleanup(ctx context.Context) ([]*types.Reso
 		out = append(out, &types.ResourceID{Kind: types.KindAccessList, Name: r.GetMetadata().Name})
 	}
 
-	icCreatedRoles, err := identitycenter.ListICOriginatedRoles(ctx, s.authServer.Access)
+	icCreatedRoles, err := identitycenter.ListICOriginatedRoles(ctx, s.authServer.Services)
 	if err != nil {
 		return nil, active, trace.Wrap(err)
 	}
@@ -100,7 +100,7 @@ func (s *Service) cleanupAWSIdentityCenter(ctx context.Context, deletedPlugin *t
 	}
 
 	// delete roles created for permission assignments.
-	if err := deleteIdentityCenterOriginatedRoles(ctx, s.authServer.Access); err != nil {
+	if err := deleteIdentityCenterOriginatedRoles(ctx, s.authServer.Services); err != nil {
 		errs = append(errs, err)
 	}
 

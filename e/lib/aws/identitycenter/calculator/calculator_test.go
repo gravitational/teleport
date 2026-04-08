@@ -1210,7 +1210,7 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 			require.NoError(t, err)
 			accountAssignments[key] = created
 
-			role, err := fixture.Auth.Services.Access.CreateRole(ctx,
+			role, err := fixture.Auth.Services.CreateRole(ctx,
 				ictest.AccountAssignmentRole{
 					Name:             fmt.Sprintf("%s-on-%s", ps.Spec.Name, account.Spec.Name),
 					AccountID:        services.IdentityCenterAccountID(accountID),

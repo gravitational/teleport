@@ -427,7 +427,7 @@ func TestUserSecretsCleanup(t *testing.T) {
 		PasswordHash: hash,
 	})
 
-	_, err = svc.authServer.Identity.CreateUser(ctx, user)
+	_, err = svc.authServer.Services.CreateUser(ctx, user)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		_, err := svc.authServer.GetUser(ctx, "user1", false)

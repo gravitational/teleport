@@ -287,7 +287,7 @@ func buildRedirectBindingURL(providerName string, provider *saml2.SAMLServicePro
 }
 
 func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string, forMFA bool) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
-	connector, err := sas.auth.Identity.GetSAMLConnector(ctx, connectorID, true)
+	connector, err := sas.auth.Services.GetSAMLConnector(ctx, connectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -688,7 +688,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return nil, "", trace.Wrap(err)
 	default:
 		diagCtx.RequestID = requestID
-		request, err = sas.auth.Identity.GetSAMLAuthRequest(ctx, requestID)
+		request, err = sas.auth.Services.GetSAMLAuthRequest(ctx, requestID)
 		if err != nil {
 			return nil, "", trace.Wrap(err, "Failed to get SAML Auth Request")
 		}

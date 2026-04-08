@@ -102,13 +102,13 @@ func TestAWSResourceSyncHandlesRenamedAccounts(t *testing.T) {
 
 			// EXPECT that new roles referencing the updated account name have been created
 			for _, newRole := range newRoles {
-				requireRole(ctx, t, auth.Access, newRole,
+				requireRole(ctx, t, auth.Services, newRole,
 					withRoleSubkind(types.KindIdentityCenter))
 			}
 
 			// EXPECT that the roles referencing the old account name have been deprecated
 			for i, oldRole := range oldRoles {
-				requireRole(ctx, t, auth.Access, oldRole,
+				requireRole(ctx, t, auth.Services, oldRole,
 					withRoleSubkind(""),
 					withRoleLabel("teleport.internal/replaced_with", newRoles[i]))
 			}
@@ -134,14 +134,14 @@ func TestAWSResourceSyncHandlesRenamedAccounts(t *testing.T) {
 			// EXPECT that roles referencing the original account name have been
 			// re-adopted
 			for _, oldRole := range oldRoles {
-				requireRole(ctx, t, auth.Access, oldRole,
+				requireRole(ctx, t, auth.Services, oldRole,
 					withRoleSubkind(types.KindIdentityCenter))
 			}
 
 			// EXPECT that the roles referencing the modified account name have
 			// been deprecated
 			for i, newRole := range newRoles {
-				requireRole(ctx, t, auth.Access, newRole,
+				requireRole(ctx, t, auth.Services, newRole,
 					withRoleSubkind(""),
 					withRoleLabel("teleport.internal/replaced_with", oldRoles[i]))
 			}
@@ -177,13 +177,13 @@ func TestAWSResourceSyncHandlesRenamedPermissionSets(t *testing.T) {
 
 			// EXPECT that new roles referencing the updated account name have been created
 			for _, newRole := range newRoles {
-				requireRole(ctx, t, auth.Access, newRole,
+				requireRole(ctx, t, auth.Services, newRole,
 					withRoleSubkind(types.KindIdentityCenter))
 			}
 
 			// EXPECT that the roles referencing the old account name have been deprecated
 			for i, oldRole := range oldRoles {
-				requireRole(ctx, t, auth.Access, oldRole,
+				requireRole(ctx, t, auth.Services, oldRole,
 					withRoleSubkind(""),
 					withRoleLabel("teleport.internal/replaced_with", newRoles[i]))
 			}
@@ -215,7 +215,7 @@ func TestAWSResourceSyncHandlesDeletedAccounts(t *testing.T) {
 			// EXPECT that the roles referencing the deleted account have been
 			// deprecated
 			for _, role := range roles {
-				requireRole(ctx, t, auth.Access, role,
+				requireRole(ctx, t, auth.Services, role,
 					withRoleSubkind(""),
 					withRoleLabel("teleport.internal/replaced_with", ""))
 			}
@@ -248,7 +248,7 @@ func TestAWSResourceSyncHandlesDeletedPermissionSets(t *testing.T) {
 
 			// EXPECT that the roles referencing the old account name have been deprecated
 			for _, oldRole := range oldRoles {
-				requireRole(ctx, t, auth.Access, oldRole,
+				requireRole(ctx, t, auth.Services, oldRole,
 					withRoleSubkind(""),
 					withRoleLabel("teleport.internal/replaced_with", ""))
 			}

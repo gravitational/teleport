@@ -304,7 +304,7 @@ func TestAccountAssignmentRoleReconciliation(t *testing.T) {
 			updatedRoles, err := icSvc.reconcileAccountAssignmentRoles(ctx, oldRoles, newRoles)
 			test.expectErr(t, err)
 			test.expectResult(t, updatedRoles)
-			test.expectRolesSvc(t, fixture.Auth.Access)
+			test.expectRolesSvc(t, fixture.Auth.Services)
 		})
 	}
 }
