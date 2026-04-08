@@ -191,7 +191,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 						"azure": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"integration": {
-									Description: "Integration is the integration name used to generate credentials to interact with AWS APIs.",
+									Description: "Integration is the integration name used to generate credentials to interact with Azure APIs.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
