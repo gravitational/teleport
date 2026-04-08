@@ -120,7 +120,7 @@ export const Azure = () => {
         value={selectedRegion}
         onChange={setSelectedRegion}
         options={azureRegionOptions}
-        label="Select AWS region"
+        label="Select Azure region"
         placeholder="Select an Azure region..."
         required={true}
         rule={requiredRegion}

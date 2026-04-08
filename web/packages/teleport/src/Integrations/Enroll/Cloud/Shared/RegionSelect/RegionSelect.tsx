@@ -33,10 +33,7 @@ import { Option, Props as SelectProps } from 'shared/components/Select';
 
 import { CloudRegion } from '../types';
 
-function OptionContainer<
-  R extends CloudRegion,
-  IsMulti extends boolean = false,
->(props: OptionProps<Option<R>, IsMulti>) {
+function OptionContainer(props: OptionProps<Option>) {
   return (
     <components.Option {...props}>
       <Flex gap={2} width="100%">
@@ -50,9 +47,7 @@ function OptionContainer<
   );
 }
 
-function MultiValueContainer<R extends CloudRegion>(
-  props: ValueContainerProps<Option<R>>
-) {
+function MultiValueContainer(props: ValueContainerProps) {
   const { children, selectProps } = props;
   const selectedCount = Array.isArray(selectProps.value)
     ? selectProps.value.length
@@ -77,12 +72,10 @@ type BaseProps<R extends CloudRegion, IsMulti extends boolean> = Omit<
 >;
 
 type MultiSelectProps<R extends CloudRegion> = BaseProps<R, true> & {
-  isMulti: true;
   onChange: (options: readonly Option<R>[]) => void;
 };
 
 type SingleSelectProps<R extends CloudRegion> = BaseProps<R, false> & {
-  isMulti: false;
   onChange: (option: Option<R> | null) => void;
 };
 
@@ -94,37 +87,6 @@ const defaultProps = {
   isSearchable: false,
   hideSelectedOptions: false,
 } as const;
-
-function MultiSelect<R extends CloudRegion>(props: MultiSelectProps<R>) {
-  return (
-    <FieldSelect<Option<R>, true>
-      {...props}
-      {...defaultProps}
-      placeholder={props.placeholder ?? 'Select regions...'}
-      closeMenuOnSelect={false}
-      isMulti={true}
-      components={{
-        Option: OptionContainer<R, true>,
-        ValueContainer: MultiValueContainer<R>,
-        MultiValue: () => null,
-      }}
-    />
-  );
-}
-
-function SingleSelect<R extends CloudRegion>(props: SingleSelectProps<R>) {
-  return (
-    <FieldSelect<Option<R>, false>
-      {...props}
-      {...defaultProps}
-      placeholder={props.placeholder ?? 'Select region...'}
-      isMulti={false}
-      components={{
-        Option: OptionContainer<R, false>,
-      }}
-    />
-  );
-}
 
 export function RegionSelect<R extends CloudRegion>(
   props: RegionSelectProps<R>
@@ -139,7 +101,33 @@ export function RegionSelect<R extends CloudRegion>(
   };
 
   if (props.isMulti === true) {
-    return <MultiSelect {...props} stylesConfig={stylesConfig} />;
+    return (
+      <FieldSelect<Option<R>, true>
+        {...props}
+        {...defaultProps}
+        stylesConfig={stylesConfig}
+        placeholder={props.placeholder ?? 'Select regions...'}
+        closeMenuOnSelect={false}
+        isMulti={true}
+        components={{
+          Option: OptionContainer,
+          ValueContainer: MultiValueContainer,
+          MultiValue: () => null,
+        }}
+      />
+    );
   }
-  return <SingleSelect {...props} stylesConfig={stylesConfig} />;
+
+  return (
+    <FieldSelect<Option<R>, false>
+      {...props}
+      {...defaultProps}
+      stylesConfig={stylesConfig}
+      placeholder={props.placeholder ?? 'Select region...'}
+      isMulti={false}
+      components={{
+        Option: OptionContainer,
+      }}
+    />
+  );
 }

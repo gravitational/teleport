@@ -95,16 +95,12 @@ const regions: { name: string; regions: AzureRegion[] }[] = [
   },
 ];
 
-function createAzureRegionOptions() {
-  return regions.map(({ name, regions }) => ({
-    label: name,
-    options: regions
-      .filter(id => id in azureRegionMap)
-      .map(id => ({
-        value: id,
-        label: azureRegionMap[id],
-      })),
-  }));
-}
-
-export const azureRegionOptions = createAzureRegionOptions();
+export const azureRegionOptions = regions.map(({ name, regions }) => ({
+  label: name,
+  options: regions
+    .filter(id => id in azureRegionMap)
+    .map(id => ({
+      value: id,
+      label: azureRegionMap[id],
+    })),
+}));
