@@ -156,12 +156,12 @@ func TestLockMutateExisting(t *testing.T) {
 
 	name := validRandomResourceName("lock-")
 	createdBy := validRandomResourceName("operator-test")
-	time := time.Now()
+	now := time.Now()
 
 	// The lock is created in Teleport.
 	tLock, err := types.NewLock(name, lockSpec)
 	tLock.SetOrigin(types.OriginKubernetes)
-	tLock.SetCreatedAt(time)
+	tLock.SetCreatedAt(now)
 	tLock.SetCreatedBy(createdBy)
 
 	require.NoError(t, setup.TeleportClient.UpsertLock(ctx, tLock))
@@ -211,6 +211,6 @@ func TestLockMutateExisting(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return lock.CreatedAt().Equal(time) && lock.CreatedBy() == createdBy
+		return lock.CreatedAt().Equal(now) && lock.CreatedBy() == createdBy
 	})
 }
