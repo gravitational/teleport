@@ -491,6 +491,12 @@ func (t *Token) GetBotName() string {
 	return t.scoped.GetSpec().GetBotName()
 }
 
+// GetBotScope returns the BotScope field which must be set for bots joining
+// with a scoped token. It is empty for unscoped bots.
+func (t *Token) GetBotScope() string {
+	return t.scoped.GetSpec().GetBotScope()
+}
+
 // GetAssignedScope returns the scope that will be assigned to resources
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
