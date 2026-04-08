@@ -732,6 +732,45 @@ code here
 
       expect(nestedItem).toHaveTextContent('Nested child');
     });
+
+    it('keeps blank-line-separated children in the same nested list', () => {
+      const text = `- Parent
+  - A
+
+  - B`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      expect(outerItems[0]).toHaveTextContent('Parent');
+
+      const nestedList = within(outerItems[0]).getByRole('list');
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('A');
+      expect(nestedItems[1]).toHaveTextContent('B');
+    });
+
+    it('preserves fenced code blocks under a list item', () => {
+      const text = `- Run this
+  \`\`\`bash
+  tsh login
+  \`\`\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByRole('listitem')).toHaveTextContent('Run this');
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element!.tagName === 'CODE' &&
+          element!.textContent!.includes('tsh login')
+      );
+      expect(code).toBeInTheDocument();
+    });
   });
 
   describe('ordered lists', () => {
