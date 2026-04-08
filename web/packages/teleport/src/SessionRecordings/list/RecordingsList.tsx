@@ -333,7 +333,7 @@ export function RecordingsList({
         </Flex>
       </Flex>
 
-      <ScrollContainer data-scrollbar="default" ref={scrollRef}>
+      <ScrollContainer ref={scrollRef}>
         {items.length === 0 ? (
           <Flex
             alignItems="center"
