@@ -53,13 +53,13 @@ import {
 } from 'teleport/types';
 
 import { AccessAutomations } from './AccessAutomations/AccessAutomations';
+import { AccessGraph } from './AccessGraph';
 import { RolesE } from './Roles/RolesE';
 
 // ****************************
 // Resource Features
 // ****************************
 
-const AccessGraph = lazy(() => import('e-teleport/AccessGraph'));
 const Cloud = lazy(() => import('e-teleport/Cloud'));
 
 class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {

@@ -1,2 +1,2 @@
-export { AccessGraph as default } from './AccessGraph';
+export { AccessGraph } from './AccessGraph';
 export { EmptyState } from './EmptyState';
