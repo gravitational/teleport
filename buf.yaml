@@ -75,6 +75,7 @@ lint:
     UNARY_RPC:
       - api/proto/teleport/auditlog/v1/auditlog.proto
       - api/proto/teleport/devicetrust/v1/devicetrust_service.proto
+      - api/proto/teleport/devicetrust/public/v1/devicetrust_service.proto
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/transport/v1/transport_service.proto
       - api/proto/teleport/access_graph/v1/secrets_service.proto

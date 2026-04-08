@@ -1,0 +1,50 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.public.v1;
+
+import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_enroll_token.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1";
+
+// DeviceTrustService provides a version of select endpoints from
+// teleport.devicetrust.v1.DeviceTrustService that are authenticated through
+// other means than a user cert.
+//
+// This enables mobile devices to carry out device enrollment and device auth
+// without having to obtain a user cert through a full login procedure.
+service DeviceTrustService {
+  // CreateMobileDeviceEnrollToken creates a DeviceEnrollToken for a Device. An
+  // enrollment token is required for the enrollment ceremony.
+  rpc CreateMobileDeviceEnrollToken(CreateMobileDeviceEnrollTokenRequest) returns (CreateMobileDeviceEnrollTokenResponse);
+}
+
+// Request for CreateMobileDeviceEnrollToken.
+message CreateMobileDeviceEnrollTokenRequest {
+  // Enroll pairing token passed from the Web UI to the client on the device
+  // that's supposed to be enrolled.
+  string enroll_pairing_token = 1;
+
+  // Device collected data.
+  // Used to authorize issuance of device enrollment token.
+  teleport.devicetrust.v1.DeviceCollectedData device_data = 2;
+}
+
+// Response for CreateMobileDeviceEnrollToken.
+message CreateMobileDeviceEnrollTokenResponse {
+  teleport.devicetrust.v1.DeviceEnrollToken device_enroll_token = 1;
+}
