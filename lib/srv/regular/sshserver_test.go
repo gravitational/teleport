@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // teleportTestUser is additional user used for tests
@@ -101,8 +102,8 @@ var wildcardAllow = types.Labels{
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+	if reexec.IsReexec() {
+		reexec.RunAndExit(os.Args[1])
 		return
 	}
 
@@ -198,7 +199,7 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 func setChildLogConfigForTest() ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
+			ExecLogConfig: reexec.ExecLogConfig{
 				Level: slog.LevelDebug,
 			},
 			Writer: os.Stderr,

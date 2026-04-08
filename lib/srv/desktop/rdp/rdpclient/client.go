@@ -1150,7 +1150,8 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 			Create: &tdpbv1.SharedDirectoryRequest_Create{
-				Path: C.GoString(req.path),
+				Path:     C.GoString(req.path),
+				FileType: req.file_type,
 			},
 		},
 	})

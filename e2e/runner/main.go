@@ -287,6 +287,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		for _, inst := range allInstances {
 			outPath := filepath.Join(e2eDir, "config", inst.browser+"-teleport.yaml")
 			tcfg, err := generateTeleportConfig(config.teleportConfigTemplate, outPath, &TeleportConfig{
+				ClusterName:    clusterName,
 				DataDir:        inst.dataDir,
 				AuthServerPort: inst.authPort,
 				ProxyPort:      inst.proxyPort,
@@ -322,7 +323,10 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 					return fmt.Errorf("failed to start Teleport for %s: %w", inst.browser, err)
 				}
 				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
-					return fmt.Errorf("Teleport for %s failed to become ready: %w", inst.browser, err)
+					return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
+				}
+				if err := seedRecordings(gctx, config.e2eDir, inst.dataDir); err != nil {
+					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 				}
 				return nil
 			})

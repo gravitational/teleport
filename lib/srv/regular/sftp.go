@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 type sftpSubsys struct {
@@ -108,7 +109,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	defer auditPipeIn.Close()
 
 	// Create child process to handle SFTP connection
-	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubCommand)
+	execRequest, err := srv.NewExecRequest(serverCtx, reexecconstants.SFTPSubCommand)
 	if err != nil {
 		return trace.Wrap(err)
 	}
