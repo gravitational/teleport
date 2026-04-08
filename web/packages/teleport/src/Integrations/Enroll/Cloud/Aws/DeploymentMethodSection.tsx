@@ -223,13 +223,3 @@ export function DeploymentMethodSection({
 const AnimatedSpinner = styled(Spinner)`
   animation: ${rotate360} 1.5s linear infinite;
 `;
-
-const DeploymentList = styled.ul`
-  padding-left: 0px;
-  list-style-type: none;
-  margin: 0;
-
-  li > * {
-    margin-bottom: ${p => p.theme.space[2]}px;
-  }
-`;

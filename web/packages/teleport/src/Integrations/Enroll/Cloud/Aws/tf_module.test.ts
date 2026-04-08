@@ -81,7 +81,7 @@ describe('buildTerraformConfig', () => {
       matchers: [{ type: 'eks', regions: [], tags: [] }],
     });
 
-    expect(result).toContain('types   = ["eks"]');
+    expect(result).toContain('types = ["eks"]');
     expect(result).not.toContain('regions');
   });
 
