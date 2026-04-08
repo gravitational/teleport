@@ -54,40 +54,6 @@ type sessionHandler interface {
 	endSession(auditSessionID uint32) error
 }
 
-// EventCount is a simple struct to track the number of events.
-type EventCount struct {
-	commandEvents uint64
-	diskEvents    uint64
-	networkEvents uint64
-}
-
-// Delta returns the number of events that have occurred since the previous
-// EventCount.
-func (e EventCount) Delta(prev EventCount) EventCount {
-	return EventCount{
-		commandEvents: e.commandEvents - prev.commandEvents,
-		diskEvents:    e.diskEvents - prev.diskEvents,
-		networkEvents: e.networkEvents - prev.networkEvents,
-	}
-}
-
-// Empty returns true if there are no events.
-func (e EventCount) Empty() bool {
-	return max(e.commandEvents, e.diskEvents, e.networkEvents) == 0
-}
-
-func (e EventCount) CommandEvents() uint64 {
-	return e.commandEvents
-}
-
-func (e EventCount) DiskEvents() uint64 {
-	return e.diskEvents
-}
-
-func (e EventCount) NetworkEvents() uint64 {
-	return e.networkEvents
-}
-
 // Service manages BPF and control groups orchestration.
 type Service struct {
 	*servicecfg.BPFConfig
