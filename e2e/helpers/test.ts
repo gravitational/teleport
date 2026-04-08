@@ -17,15 +17,35 @@
  */
 
 import { test as base } from './fixtures';
+import { RecordingsPage } from './pages/Recordings';
+import { RolesPage } from './pages/Roles';
+import { SideNavPage } from './pages/SideNav';
+import { TrustedClustersPage } from './pages/TrustedClusters';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 
 export const CLUSTER_NAME = 'teleport-e2e';
 
 export const test = base.extend<{
   unifiedResourcesPage: UnifiedResourcesPage;
+  rolesPage: RolesPage;
+  sideNavPage: SideNavPage;
+  recordingsPage: RecordingsPage;
+  trustedClustersPage: TrustedClustersPage;
 }>({
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
+  },
+  rolesPage: async ({ page }, use) => {
+    await use(new RolesPage(page));
+  },
+  sideNavPage: async ({ page }, use) => {
+    await use(new SideNavPage(page));
+  },
+  recordingsPage: async ({ page }, use) => {
+    await use(new RecordingsPage(page));
+  },
+  trustedClustersPage: async ({ page }, use) => {
+    await use(new TrustedClustersPage(page));
   },
 });
 
