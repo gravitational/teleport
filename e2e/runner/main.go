@@ -141,7 +141,7 @@ type e2eConfig struct {
 	connectAppDir     string
 	connectTshBinPath string
 
-	creds *credentials
+	creds map[string]*credentials
 
 	instances       []*browserInstance
 	connectInstance *browserInstance
@@ -271,14 +271,17 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 		}
 
-		creds, err := generateUserCredentials()
+		scannedUsers := scanUsers(e2eDir, flags.testFiles)
+		slog.Debug("discovered bootstrap users", "count", len(scannedUsers))
+
+		state, credMap, err := buildBootstrapState(e2eDir, scannedUsers)
 		if err != nil {
-			return fmt.Errorf("failed to generate credentials: %w", err)
+			return fmt.Errorf("failed to build bootstrap state: %w", err)
 		}
-		config.creds = creds
+		config.creds = credMap
 
 		// One shared state file used by all instances.
-		stateFile, err := generateStateFile(config.stateTemplate, creds)
+		stateFile, err := generateStateFile(config.stateTemplate, state)
 		if err != nil {
 			return fmt.Errorf("failed to generate state file: %w", err)
 		}

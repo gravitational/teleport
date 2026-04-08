@@ -256,11 +256,11 @@ func (p *playwrightRunner) startEnv(inst *browserInstance) ([]string, error) {
 	}
 
 	if creds := p.config.creds; creds != nil {
-		env = append(env,
-			"E2E_PASSWORD="+creds.password,
-			"E2E_WEBAUTHN_PRIVATE_KEY="+creds.privateKeyPKCS8Base64,
-			"E2E_WEBAUTHN_CREDENTIAL_ID="+creds.credentialIDBase64,
-		)
+		usersJSON, err := marshalCredentialsJSON(creds)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling user credentials: %w", err)
+		}
+		env = append(env, "E2E_USERS_JSON="+usersJSON)
 	}
 
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
