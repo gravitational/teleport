@@ -115,11 +115,10 @@ type RetryConfig struct {
 
 // Provider Teleport Provider
 type Provider struct {
-	configured         bool
-	Client             *TerraformClient
-	ScopedAccessClient *terraformclient.AccessClient
-	RetryConfig        RetryConfig
-	cancel             context.CancelFunc
+	configured  bool
+	Client      *TerraformClient
+	RetryConfig RetryConfig
+	cancel      context.CancelFunc
 }
 
 // providerData provider schema struct
