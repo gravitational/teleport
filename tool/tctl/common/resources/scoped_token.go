@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -117,7 +118,7 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !opts.WithSecrets {
+		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
 			token.GetStatus().Secret = "******"
 		}
 		return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
@@ -134,7 +135,9 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 		}
 		if !opts.WithSecrets {
 			for _, token := range res.GetTokens() {
-				token.GetStatus().Secret = "******"
+				if token.GetStatus().GetSecret() != "" {
+					token.GetStatus().Secret = "******"
+				}
 			}
 		}
 
@@ -160,14 +163,18 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, ref servi
 }
 
 func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
-	table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
-
-	secretFunc := func(t *joiningv1.ScopedToken) string {
-		if withSecrets {
-			return t.GetStatus().GetSecret()
-		}
-		return "******"
+	headers := []string{
+		"Token",
+		"Type",
+		"Scope",
+		"Assigns Scope",
+		"Labels",
+		"Expiry Time (UTC)",
 	}
+	if withSecrets {
+		headers = slices.Insert(headers, 1, "Secret")
+	}
+	table := asciitable.MakeTable(headers)
 
 	now := time.Now()
 	for _, t := range tokens {
@@ -178,7 +185,18 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			expdur := expiresAt.Sub(now).Round(time.Second)
 			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 		}
-		table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), PrintMetadataLabels(t.GetMetadata().Labels), expiry})
+		row := []string{
+			t.GetMetadata().GetName(),
+			strings.Join(t.GetSpec().GetRoles(), ","),
+			t.GetScope(),
+			t.GetSpec().GetAssignedScope(),
+			PrintMetadataLabels(t.GetMetadata().Labels),
+			expiry,
+		}
+		if withSecrets {
+			row = slices.Insert(row, 1, t.GetStatus().GetSecret())
+		}
+		table.AddRow(row)
 	}
 	return table.AsBuffer()
 }

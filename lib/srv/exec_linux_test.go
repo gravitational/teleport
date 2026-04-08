@@ -31,11 +31,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func TestOSCommandPrep(t *testing.T) {
@@ -74,7 +76,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.NoError(t, os.Chown(tempHome, uid, -1))
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(usr.Uid, defaultLoginDefsPath),
+		reexec.GetDefaultEnvPath(usr.Uid),
 		fmt.Sprintf("HOME=%s", usr.HomeDir),
 		fmt.Sprintf("USER=%s", username),
 		"SHELL=/bin/sh",
@@ -92,11 +94,11 @@ func TestOSCommandPrep(t *testing.T) {
 	// Empty command (simple shell).
 	execCmd, err := scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.stdin = os.Stdin
-	execCmd.stdout = os.Stdout
-	execCmd.stderr = os.Stderr
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err := buildCommand(execCmd, usr, nil)
+	cmd, err := reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -110,11 +112,11 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.stdin = os.Stdin
-	execCmd.stdout = os.Stdout
-	execCmd.stderr = os.Stderr
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err = buildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -128,11 +130,11 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("top")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.stdin = os.Stdin
-	execCmd.stdout = os.Stdout
-	execCmd.stderr = os.Stderr
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err = buildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
@@ -145,7 +147,7 @@ func TestOSCommandPrep(t *testing.T) {
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = buildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)
@@ -213,4 +215,14 @@ func TestContinue(t *testing.T) {
 	case err := <-cmdDone:
 		require.NoError(t, err)
 	}
+}
+
+func changeHomeDir(t *testing.T, username, home string) {
+	usermodBin, err := exec.LookPath("usermod")
+	assert.NoError(t, err, "usermod binary must be present")
+
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	_, err = cmd.CombinedOutput()
+	assert.NoError(t, err, "changing home should not error")
+	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -711,6 +712,9 @@ const (
 	// access to a bot or workload, such as an AI Agent.
 	KindDelegationSession = "delegation_session"
 
+	// KindBeam is an ephemeral AI-optimized compute environment.
+	KindBeam = "beam"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -860,14 +864,14 @@ const (
 	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
-	// SubscriptionIDLabel is used to identify virtual machines by Azure
-	// subscription ID found via automatic discovery, to avoid re-running
-	// installation commands on the node.
-	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
-	// VMIDLabel is used to identify virtual machines by ID found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
+	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by subscription ID during auto-discovery.
+	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
+	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
+	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
+	// Azure VMs by VM ID during auto-discovery.
+	// Preserved for backward compatibility; superseded by VMIDLabel.
+	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
 	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
@@ -878,14 +882,14 @@ const (
 	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
 	// and can be used in RBAC checks.
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
-	// RegionLabel is used to identify virtual machines by region found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	RegionLabel = TeleportInternalLabelPrefix + "region"
-	// ResourceGroupLabel is used to identify virtual machines by resource-group found
-	// via automatic discovery, to avoid re-running installation commands
-	// on the node.
-	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// RegionLabelInternal is a hidden label (teleport.internal/) used to
+	// identify Azure VMs by region during auto-discovery.
+	// Preserved for backward compatibility; superseded by RegionLabel.
+	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
+	// to identify Azure VMs by resource group during auto-discovery.
+	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
+	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -894,6 +898,26 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
+
+	// Azure VM labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// SubscriptionIDLabel identifies Azure VMs by subscription ID.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel identifies Azure VMs by VM ID.
+	VMIDLabel = TeleportNamespace + "/vm-id"
+	// RegionLabel identifies Azure VMs by region.
+	RegionLabel = TeleportNamespace + "/region"
+	// ResourceGroupLabel identifies Azure VMs by resource group.
+	ResourceGroupLabel = TeleportNamespace + "/resource-group"
+
+	// GCP VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
+	// Used for RBAC and resource filtering.
+
+	// ZoneLabel is the visible version of ZoneLabelDiscovery.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is the visible version of NameLabelDiscovery.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -1743,18 +1767,28 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
+// TODO(espadolini): delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportDropGroup = "teleport-system"
+	//
+	// Deprecated: use [constants.TeleportDropGroup].
+	//go:fix inline
+	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	TeleportKeepGroup = "teleport-keep"
+	//
+	// Deprecated: use [constants.TeleportKeepGroup].
+	//go:fix inline
+	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportStaticGroup = "teleport-static"
+	//
+	// Deprecated: use [constants.TeleportStaticGroup].
+	//go:fix inline
+	TeleportStaticGroup = constants.TeleportStaticGroup
 )
 
 const (

@@ -94,13 +94,14 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -239,8 +240,8 @@ func handleReexec() {
 	}
 
 	// Re-exec teleport commands. Used to test tsh ssh command.
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+	if reexec.IsReexec() {
+		reexec.RunAndExit(os.Args[1])
 	}
 }
 
@@ -8443,6 +8444,7 @@ func TestReexecErrorPropagation(t *testing.T) {
 		t.Parallel()
 		homePath := userMissingLoginHomePath
 
+		unknownUserReexecError := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
 		for _, tc := range []testCase{sshShell, sshCommand, sshCommandTTY} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -8451,19 +8453,44 @@ func TestReexecErrorPropagation(t *testing.T) {
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
-				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
-
-				expectStdout := fmt.Sprintf("Failed to launch: %v.\r\n", user.UnknownUserError(missingLogin))
+				require.Equal(t, reexecconstants.RemoteCommandFailure, exitCodeErr.Code)
 
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				require.Equal(t, unknownUserReexecError, stdout)
 			})
 		}
+
+		t.Run("sftp", func(t *testing.T) {
+			err := Run(ctx, []string{
+				"scp",
+				"--insecure",
+				"-q",
+				"-d",
+				"--no-resume",
+				fmt.Sprintf("%s@%s:%s", missingLogin, sshHostname, "/placeholder"),
+				t.TempDir(),
+			},
+				setHomePath(homePath),
+				func(conf *CLIConf) error {
+					conf.Relogin = false
+					return nil
+				},
+			)
+			require.Error(t, err)
+			// Check for exact match to catch regressions with new lines.
+			require.Equal(t, strings.ReplaceAll(unknownUserReexecError, "\r\n", "\n"), err.Error())
+		})
 	})
 
 	t.Run("error with host user creation context", func(t *testing.T) {
 		t.Parallel()
 		homePath := userHostUserCreationContextHomePath
+
+		contextualReexecErrorMessage := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
+			user.UnknownUserError(missingLogin),
+			types.KindRole,
+			roleNodeAccessMissingLogin.GetName(),
+		)
 
 		for _, tc := range []testCase{sshCommand} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -8473,17 +8500,32 @@ func TestReexecErrorPropagation(t *testing.T) {
 
 				var exitCodeErr *common.ExitCodeError
 				require.ErrorAs(t, err, &exitCodeErr)
-				require.Equal(t, teleport.RemoteCommandFailure, exitCodeErr.Code)
-
-				expectStdout := fmt.Sprintf("Failed to launch: %s: host user creation denied by the following resources: [%s: %q]\r\n",
-					user.UnknownUserError(missingLogin),
-					types.KindRole,
-					roleNodeAccessMissingLogin.GetName(),
-				)
+				require.Equal(t, reexecconstants.RemoteCommandFailure, exitCodeErr.Code)
 
 				// Check for exact match to catch regressions with new lines.
-				require.Equal(t, expectStdout, stdout)
+				require.Equal(t, contextualReexecErrorMessage, stdout)
 			})
 		}
+
+		t.Run("sftp", func(t *testing.T) {
+			err := Run(ctx, []string{
+				"scp",
+				"--insecure",
+				"-q",
+				"-d",
+				"--no-resume",
+				fmt.Sprintf("%s@%s:%s", missingLogin, sshHostname, "/placeholder"),
+				t.TempDir(),
+			},
+				setHomePath(homePath),
+				func(conf *CLIConf) error {
+					conf.Relogin = false
+					return nil
+				},
+			)
+			require.Error(t, err)
+			// Check for exact match to catch regressions with new lines.
+			require.Equal(t, strings.ReplaceAll(contextualReexecErrorMessage, "\r\n", "\n"), err.Error())
+		})
 	})
 }
