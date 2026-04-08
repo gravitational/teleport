@@ -16,27 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getPlatform } from '@floating-ui/react/utils';
 import styled from 'styled-components';
 
-import { Flex, H2, Text, Toggle } from 'design';
+import { Flex, H2, H3, Text, Toggle } from 'design';
 import { Monitor } from 'design/Icon';
+import { Cog } from 'design/Icon';
+import { Platform } from 'design/platform';
 import { MenuIcon } from 'shared/components/MenuAction';
 
-interface DisplaySettingsProps {
+interface SessionSettingsProps {
   hiDpiEnabled: boolean;
   onToggleHiDpi: () => void;
   screenIsHiDpi: boolean;
   hiDpiSupported: boolean;
 }
 
-export function DisplaySettings({
+export function SessionSettings({
   hiDpiEnabled,
   onToggleHiDpi,
   screenIsHiDpi,
   hiDpiSupported,
-}: DisplaySettingsProps) {
+}: SessionSettingsProps) {
   return (
-    <MenuIcon Icon={Monitor} tooltip="Display Settings">
+    <MenuIcon Icon={Cog} tooltip="Session Settings">
       <Container>
         <Flex
           gap={2}
@@ -46,37 +49,45 @@ export function DisplaySettings({
             e.stopPropagation();
           }}
         >
-          <H2 mb={2}>Display Settings</H2>
+          <H2 mb={2}>Session Settings</H2>
+
+          <Divider />
+
+          <H3 mb={2}>Display</H3>
 
           <Toggle
             isToggled={hiDpiEnabled}
             onToggle={onToggleHiDpi}
             disabled={!hiDpiSupported}
           >
-            <Text ml={2}>Optimize for Retina displays</Text>
+            <Text ml={2}>
+              Optimize for{' '}
+              {getPlatform() === Platform.macOS ? 'Retina' : 'High-DPI'}{' '}
+              displays
+            </Text>
           </Toggle>
 
-          <Text>
+          <Text lineHeight={1.6}>
             Enabling this option will make the session look sharper on
             high-resolution displays, but it may increase CPU usage and reduce
             performance on some systems.
           </Text>
 
           {!hiDpiSupported ? (
-            <Text color="text.muted" fontSize="small">
+            <Text color="text.muted" fontSize="small" lineHeight={1.4}>
               HiDPI is not supported for this session. The version of Teleport
               running on the server may be too old.
             </Text>
           ) : (
             !screenIsHiDpi && (
-              <Text color="text.muted" fontSize="small">
+              <Text color="text.muted" fontSize="small" lineHeight={1.4}>
                 Your screen does not support HiDPI. This option is only
                 effective on HiDPI screens.
               </Text>
             )
           )}
 
-          <Text color="text.muted" fontSize="small">
+          <Text color="text.muted" fontSize="small" lineHeight={1.4}>
             Only recommended for connections to Windows 10, Windows Server 2016,
             and later. This setting will be persisted for future sessions to the
             same host.
@@ -91,4 +102,10 @@ const Container = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
   padding: ${props => props.theme.space[4]}px;
   width: 370px;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
+  margin-bottom: ${props => props.theme.space[2]}px;
 `;

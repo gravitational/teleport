@@ -17,11 +17,12 @@
  */
 
 import { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { DisplaySettings } from 'shared/components/DesktopSession/DisplaySettings';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 
@@ -68,12 +69,6 @@ export default function TopBar(props: Props) {
       {isConnected && (
         <Flex gap={3} alignItems="center">
           {latency && <LatencyDiagnostic latency={latency} />}
-          <DisplaySettings
-            hiDpiEnabled={hiDpiEnabled}
-            onToggleHiDpi={onToggleHiDpi}
-            screenIsHiDpi={screenIsHiDpi}
-            hiDpiSupported={hiDpiSupported}
-          />
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,
@@ -89,6 +84,13 @@ export default function TopBar(props: Props) {
           {!!alerts?.length && (
             <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           )}
+          <Divider />
+          <SessionSettings
+            hiDpiEnabled={hiDpiEnabled}
+            onToggleHiDpi={onToggleHiDpi}
+            screenIsHiDpi={screenIsHiDpi}
+            hiDpiSupported={hiDpiSupported}
+          />
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}
@@ -135,3 +137,10 @@ type Props = {
     server: number;
   };
 };
+
+const Divider = styled.div`
+  width: 1px;
+  height: 24px;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+  margin-right: -${p => p.theme.space[1]}px; // avoid large visual gap between divider and next icon
+`;
