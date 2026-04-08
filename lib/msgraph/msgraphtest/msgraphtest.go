@@ -37,6 +37,10 @@ type Server struct {
 	mu        sync.RWMutex
 	TLSServer *httptest.Server
 	Storage   *Storage
+
+	MonkeyPatch struct {
+		HandleListUsersDelta func(w http.ResponseWriter, r *http.Request)
+	}
 }
 
 // ServerOption is a custom opt for [NewServer].
@@ -96,8 +100,15 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
-	token := r.URL.Query().Get("$deltatoken")
+	if s.MonkeyPatch.HandleListUsersDelta != nil {
+		s.MonkeyPatch.HandleListUsersDelta(w, r)
+		return
+	}
+	s.ListUsersDelta(w, r)
+}
 
+func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("$deltatoken")
 	currentKey := 0
 	var users []msgraph.ListUsersDeltaResponse
 	if token != "" {
@@ -113,6 +124,8 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else {
+		// reset the delta storage
+		s.Storage.UsersDelta = make(map[int][]msgraph.ListUsersDeltaResponse)
 		users = make([]msgraph.ListUsersDeltaResponse, 0, len(s.Storage.Users))
 		for _, user := range s.Storage.Users {
 			users = append(users, msgraph.ListUsersDeltaResponse{User: *user})
@@ -166,6 +179,7 @@ func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// this is the first delta request
+		s.Storage.GroupsDelta = make(map[int][]msgraph.ListGroupsDeltaResponse)
 		groups = make([]msgraph.ListGroupsDeltaResponse, 0, len(s.Storage.Groups))
 		for id, group := range s.Storage.Groups {
 			memberDeltas := make([]msgraph.Delta, 0, len(s.Storage.GroupMembers[id]))

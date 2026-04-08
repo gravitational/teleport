@@ -48,9 +48,9 @@ type iterateConfig struct {
 	header http.Header
 	// count is the $count query param.
 	// https://learn.microsoft.com/en-us/graph/query-parameters?tabs=http#count
-	count      bool
-	deltaToken string
-	useDelta   bool
+	count       bool
+	resyncDelta bool
+	useDelta    bool
 }
 
 func (ic *iterateConfig) query() url.Values {
@@ -67,9 +67,6 @@ func (ic *iterateConfig) query() url.Values {
 	if ic.count {
 		q.Set("$count", "true")
 	}
-	if ic.deltaToken != "" {
-		q.Set("$deltatoken", ic.deltaToken)
-	}
 	return q
 }
 
@@ -85,9 +82,9 @@ type IterateOpt func(*iterateConfig)
 
 // WithFilter sets the $filter query param.
 // https://learn.microsoft.com/en-us/graph/filter-query-parameter?tabs=http
-func WithDelta(d string) IterateOpt {
+func WithNewDelta() IterateOpt {
 	return func(ic *iterateConfig) {
-		ic.deltaToken = d
+		ic.resyncDelta = true
 	}
 }
 
@@ -242,15 +239,17 @@ func (c *Client) iterateSeq(ctx context.Context, endpoint string, iterateOpts ..
 
 	var uriString string
 	if ic.useDelta {
-		uriString = c.deltaCache[endpoint]
-	} else {
+		if deltaURI, ok := c.deltaCache[endpoint]; ok {
+			uriString = deltaURI
+		}
+	}
+	if uriString == "" {
 		uri := *c.baseURL
 		uri.Path = path.Join(uri.Path, endpoint)
-
 		uri.RawQuery = ic.query().Encode()
-
 		uriString = uri.String()
 	}
+
 	return func(yield func(json.RawMessage, error) bool) {
 		var deltaLink string
 
@@ -287,14 +286,13 @@ func (c *Client) iterateSeq(ctx context.Context, endpoint string, iterateOpts ..
 }
 
 // IterateUsersDelta
-func (c *Client) IterateUsersDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListUsersDeltaResponse, error] {
+func (c *Client) IterateUsersDelta(ctx context.Context, forceFullSync bool, opts ...IterateOpt) iter.Seq2[*ListUsersDeltaResponse, error] {
 	// ensure these fields are always included
 	opts = append(opts, WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"))
 
 	endpoint := path.Join("users", "delta")
-	if c.deltaCache[endpoint] != "" {
+	if deltaToken, ok := c.deltaCache[endpoint]; ok && deltaToken != "" && !forceFullSync {
 		opts = append(opts, WithUseDelta(true))
-
 	}
 	return func(yield func(*ListUsersDeltaResponse, error) bool) {
 		for msg, itErr := range c.iterateSeq(ctx, endpoint, opts...) {
@@ -317,14 +315,14 @@ func (c *Client) IterateUsersDelta(ctx context.Context, opts ...IterateOpt) iter
 }
 
 // IterateGroupsDelta
-func (c *Client) IterateGroupsDelta(ctx context.Context, opts ...IterateOpt) iter.Seq2[*ListGroupsDeltaResponse, error] {
+func (c *Client) IterateGroupsDelta(ctx context.Context, forceFullSync bool, opts ...IterateOpt) iter.Seq2[*ListGroupsDeltaResponse, error] {
 	// ensure these fields are always included
 	opts = append(opts, WithSelect("id,displayName,description,members,owners"))
 
 	endpoint := path.Join("groups", "delta")
-	if c.deltaCache[endpoint] != "" {
-		opts = append(opts, WithUseDelta(true))
 
+	if deltaToken, ok := c.deltaCache[endpoint]; ok && deltaToken != "" && !forceFullSync {
+		opts = append(opts, WithUseDelta(true))
 	}
 
 	return func(yield func(*ListGroupsDeltaResponse, error) bool) {

@@ -142,3 +142,11 @@ const (
 	// https://login.microsoftonline.com/error?code=900023
 	DiagCodeInvalidTenantIdentifier = 900023
 )
+
+const (
+	// resyncRequired is returned by the msgraph delta API when a resync is required.
+	ResyncRequired = "resyncRequired"
+	// resyncApplyDifferences is returned by the msgraph delta API when a two-way
+	// resync is required.
+	ResyncApplyDifferences = "resyncApplyDifferences"
+)
