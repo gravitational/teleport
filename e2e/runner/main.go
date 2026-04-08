@@ -327,7 +327,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				if err := teleport.waitReady(gctx, 30*time.Second); err != nil {
 					return fmt.Errorf("Teleport for %s failed to become ready: %w", inst.browser, err)
 				}
-				if err := seedRecordings(config.e2eDir, inst.dataDir); err != nil {
+				if err := seedRecordings(gctx, config.e2eDir, inst.dataDir); err != nil {
 					return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 				}
 				return nil

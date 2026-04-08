@@ -19,11 +19,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gravitational/teleport/e2e/runner/recordings"
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,7 +33,7 @@ import (
 
 // seedRecordings copies session recording .tar files into Teleport's records directory and injects corresponding
 // session.end audit events so that the Web UI's session recordings page shows content immediately after startup.
-func seedRecordings(e2eDir, dataDir string) error {
+func seedRecordings(ctx context.Context, e2eDir, dataDir string) error {
 	recordsDir := filepath.Join(dataDir, "log", "records")
 	if err := os.MkdirAll(recordsDir, 0o755); err != nil {
 		return fmt.Errorf("creating records dir: %w", err)
@@ -72,7 +74,11 @@ func seedRecordings(e2eDir, dataDir string) error {
 	}
 
 	eventsLog := filepath.Join(dataDir, "log", "events.log")
-	f, err := os.OpenFile(eventsLog, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o644)
+	if err := waitForFile(ctx, eventsLog, 30*time.Second); err != nil {
+		return fmt.Errorf("waiting for audit log: %w", err)
+	}
+
+	f, err := os.OpenFile(eventsLog, os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("opening active audit log: %w", err)
 	}
@@ -87,4 +93,24 @@ func seedRecordings(e2eDir, dataDir string) error {
 	slog.Info("seeded session recordings", "total_recordings", len(discovered))
 
 	return nil
+}
+
+// waitForFile polls until the given path exists or the timeout expires.
+func waitForFile(ctx context.Context, path string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for %s", path)
+		case <-ticker.C:
+		}
+	}
 }
