@@ -1046,7 +1046,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		if err := checkerCtx.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			var err error
 			overrideTTL := false
-			groups, users, err = checker.Kube().GetGroupsAndUsers(sessionTTL, overrideTTL, matchers...)
+			groups, users, err = checker.Kube().GetGroupsAndUsers(checker.AdjustSessionTTL(sessionTTL), overrideTTL, matchers...)
 			if err != nil {
 				return trace.Wrap(err)
 			}
