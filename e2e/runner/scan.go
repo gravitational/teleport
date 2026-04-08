@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -46,7 +47,37 @@ var fixtureRefRe = regexp.MustCompile(`['"]([^'"]+)['"]`)
 // e.g. `from '@gravitational/e2e/helpers/connect'` → "connect"
 var helperImportRe = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
 
+// userNameRe extracts the user name from a user object declaration.
+var userNameRe = regexp.MustCompile(`name:\s*['"]([^'"]+)['"]`)
+
+// roleFileRe extracts the role filename from a file role reference.
+var roleFileRe = regexp.MustCompile(`file:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
+
+// loginAsRe extracts the loginAs value from a test.use() call.
+var loginAsRe = regexp.MustCompile(`loginAs:\s*['"]([^'"]+)['"]`)
+
+// usersBlockRe matches the beginning of a users array declaration.
+var usersBlockRe = regexp.MustCompile(`users:\s*\[`)
+
+// rolesBlockRe matches the beginning of a roles array declaration.
+var rolesBlockRe = regexp.MustCompile(`roles:\s*\[`)
+
 const testUseCallPrefix = "test.use("
+
+// ScannedUser represents a user declaration found in test source code.
+type ScannedUser struct {
+	Name  string
+	Roles []ScannedRole
+}
+
+// ScannedRole represents a role reference found in a user declaration.
+// Exactly one of Name or File is set.
+type ScannedRole struct {
+	// Name is a built-in role like "access", "editor".
+	Name string
+	// File is a role definition file relative to e2e/testdata/roles/, e.g. "viewer.yaml".
+	File string
+}
 
 // scanTarget represents a file to scan with an optional line constraint.
 type scanTarget struct {
@@ -476,4 +507,261 @@ func fixtureInScope(fixtureLine, targetLine int, blocks []blockRange) bool {
 	}
 
 	return targetLine >= enclosing.start && targetLine <= enclosing.end
+}
+
+// scanUsers scans all test files for user declarations and returns a deduplicated list.
+// It always includes the implicit bob user with access and editor roles.
+func scanUsers(e2eDir string, testFiles []string) []ScannedUser {
+	targets, err := resolveFilesToScan(e2eDir, testFiles)
+	if err != nil {
+		slog.Warn("user scan: error resolving files", "error", err)
+
+		return defaultUsers()
+	}
+
+	byName := make(map[string]*ScannedUser)
+
+	for _, t := range targets {
+		for _, u := range scanFileUsers(t.path, t.line) {
+			if existing, ok := byName[u.Name]; ok {
+				existing.Roles = mergeRoles(existing.Roles, u.Roles)
+			} else {
+				clone := u
+				byName[u.Name] = &clone
+			}
+		}
+	}
+
+	// Always include implicit bob.
+	for _, u := range defaultUsers() {
+		if existing, ok := byName[u.Name]; ok {
+			existing.Roles = mergeRoles(existing.Roles, u.Roles)
+		} else {
+			clone := u
+			byName[u.Name] = &clone
+		}
+	}
+
+	result := make([]ScannedUser, 0, len(byName))
+	for _, u := range byName {
+		sortRoles(u.Roles)
+		result = append(result, *u)
+	}
+
+	slices.SortStableFunc(result, func(a, b ScannedUser) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	return result
+}
+
+// defaultUsers returns the implicit bob user with access and editor roles.
+func defaultUsers() []ScannedUser {
+	return []ScannedUser{
+		{
+			Name: "bob",
+			Roles: []ScannedRole{
+				{Name: "access"},
+				{Name: "editor"},
+			},
+		},
+	}
+}
+
+// scanFileUsers extracts user declarations from test.use() calls in a source file.
+func scanFileUsers(path string, targetLine int) []ScannedUser {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	cleaned := stripComments(lines)
+	blocks := parseBlocks(cleaned)
+	content := strings.Join(cleaned, "\n")
+
+	var result []ScannedUser
+	for _, call := range findTestUseCalls(content) {
+		callLine := 1 + strings.Count(content[:call.start], "\n")
+
+		if targetLine > 0 && !fixtureInScope(callLine, targetLine, blocks) {
+			continue
+		}
+
+		body := content[call.start:call.end]
+
+		loc := usersBlockRe.FindStringIndex(body)
+		if loc == nil {
+			continue
+		}
+
+		// Extract from after "users: " up to end of body, then get the bracket block.
+		usersContent := extractBracketBlock(body[loc[0]:])
+		if usersContent == "" {
+			continue
+		}
+
+		for _, userBlock := range extractBraceBlocks(usersContent) {
+			nameMatch := userNameRe.FindStringSubmatch(userBlock)
+			if nameMatch == nil {
+				continue
+			}
+
+			user := ScannedUser{Name: nameMatch[1]}
+
+			rolesLoc := rolesBlockRe.FindStringIndex(userBlock)
+			if rolesLoc != nil {
+				rolesContent := extractBracketBlock(userBlock[rolesLoc[0]:])
+				if rolesContent != "" {
+					// Extract file roles first.
+					for _, m := range roleFileRe.FindAllStringSubmatch(rolesContent, -1) {
+						user.Roles = append(user.Roles, ScannedRole{File: m[1]})
+					}
+
+					// Remove file role references, then extract remaining quoted strings as built-in role names.
+					withoutFileRoles := roleFileRe.ReplaceAllString(rolesContent, "")
+					for _, m := range fixtureRefRe.FindAllStringSubmatch(withoutFileRoles, -1) {
+						user.Roles = append(user.Roles, ScannedRole{Name: m[1]})
+					}
+				}
+			}
+
+			sortRoles(user.Roles)
+			result = append(result, user)
+		}
+	}
+
+	return result
+}
+
+// scanFileLoginAs extracts the loginAs value from test.use() calls in a source file.
+func scanFileLoginAs(path string, targetLine int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(data), "\n")
+	cleaned := stripComments(lines)
+	blocks := parseBlocks(cleaned)
+	content := strings.Join(cleaned, "\n")
+
+	for _, call := range findTestUseCalls(content) {
+		callLine := 1 + strings.Count(content[:call.start], "\n")
+
+		if targetLine > 0 && !fixtureInScope(callLine, targetLine, blocks) {
+			continue
+		}
+
+		body := content[call.start:call.end]
+		if m := loginAsRe.FindStringSubmatch(body); m != nil {
+			return m[1]
+		}
+	}
+
+	return ""
+}
+
+// extractBracketBlock returns the content between the first '[' and its matching ']'.
+func extractBracketBlock(s string) string {
+	start := strings.IndexByte(s, '[')
+	if start < 0 {
+		return ""
+	}
+
+	depth := 0
+	for i := start; i < len(s); i++ {
+		switch s[i] {
+		case '[':
+			depth++
+		case ']':
+			depth--
+			if depth == 0 {
+				return s[start+1 : i]
+			}
+		}
+	}
+
+	return ""
+}
+
+// extractBraceBlocks returns each top-level { ... } block from input.
+func extractBraceBlocks(s string) []string {
+	var blocks []string
+	depth := 0
+	start := -1
+
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			depth--
+			if depth == 0 && start >= 0 {
+				blocks = append(blocks, s[start:i+1])
+				start = -1
+			}
+		}
+	}
+
+	return blocks
+}
+
+// sortRoles sorts roles so that built-in names come before file refs,
+// alphabetical within each group.
+func sortRoles(roles []ScannedRole) {
+	slices.SortStableFunc(roles, func(a, b ScannedRole) int {
+		// Built-in names (Name set) come before file refs (File set).
+		aIsName := a.Name != ""
+		bIsName := b.Name != ""
+
+		if aIsName != bIsName {
+			if aIsName {
+				return -1
+			}
+
+			return 1
+		}
+
+		if aIsName {
+			return strings.Compare(a.Name, b.Name)
+		}
+
+		return strings.Compare(a.File, b.File)
+	})
+}
+
+// mergeRoles deduplicates roles by name or file, returning the union.
+func mergeRoles(a, b []ScannedRole) []ScannedRole {
+	seen := make(map[string]struct{})
+	var result []ScannedRole
+
+	for _, r := range a {
+		key := "name:" + r.Name
+		if r.File != "" {
+			key = "file:" + r.File
+		}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			result = append(result, r)
+		}
+	}
+
+	for _, r := range b {
+		key := "name:" + r.Name
+		if r.File != "" {
+			key = "file:" + r.File
+		}
+
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			result = append(result, r)
+		}
+	}
+
+	return result
 }

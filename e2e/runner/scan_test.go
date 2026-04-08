@@ -342,6 +342,210 @@ func TestResolveFilesToScan(t *testing.T) {
 	})
 }
 
+func TestScanUsers(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantUsers []ScannedUser
+	}{
+		{
+			name:      "no users declaration",
+			content:   `test.use({ fixtures: ['ssh-node'] });`,
+			wantUsers: nil,
+		},
+		{
+			name: "single user with built-in roles",
+			content: `test.use({
+  users: [
+    { name: 'alice', roles: ['access', 'editor'] },
+  ],
+});`,
+			wantUsers: []ScannedUser{
+				{
+					Name: "alice",
+					Roles: []ScannedRole{
+						{Name: "access"},
+						{Name: "editor"},
+					},
+				},
+			},
+		},
+		{
+			name: "user with file role",
+			content: `test.use({
+  users: [
+    { name: 'alice', roles: [{ file: '@gravitational/e2e/roles/viewer.yaml' }] },
+  ],
+});`,
+			wantUsers: []ScannedUser{
+				{
+					Name: "alice",
+					Roles: []ScannedRole{
+						{File: "viewer.yaml"},
+					},
+				},
+			},
+		},
+		{
+			name: "multiline users",
+			content: `test.use({
+  users: [
+    { name: 'alice', roles: ['access'] },
+    { name: 'carol', roles: ['editor'] },
+  ],
+});`,
+			wantUsers: []ScannedUser{
+				{
+					Name: "alice",
+					Roles: []ScannedRole{
+						{Name: "access"},
+					},
+				},
+				{
+					Name: "carol",
+					Roles: []ScannedRole{
+						{Name: "editor"},
+					},
+				},
+			},
+		},
+		{
+			name:      "commented out users are ignored",
+			content:   `// test.use({ users: [{ name: 'alice', roles: ['access'] }] });`,
+			wantUsers: nil,
+		},
+		{
+			name: "users alongside fixtures",
+			content: `test.use({
+  fixtures: ['ssh-node'],
+  users: [
+    { name: 'alice', roles: ['access'] },
+  ],
+});`,
+			wantUsers: []ScannedUser{
+				{
+					Name: "alice",
+					Roles: []ScannedRole{
+						{Name: "access"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tmpFile := filepath.Join(dir, "test.spec.ts")
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got := scanFileUsers(tmpFile, 0)
+
+			if len(got) != len(tt.wantUsers) {
+				t.Fatalf("got %d users, want %d", len(got), len(tt.wantUsers))
+			}
+
+			for i, u := range got {
+				want := tt.wantUsers[i]
+				if u.Name != want.Name {
+					t.Errorf("user[%d] name = %q, want %q", i, u.Name, want.Name)
+				}
+
+				if len(u.Roles) != len(want.Roles) {
+					t.Fatalf("user[%d] got %d roles, want %d", i, len(u.Roles), len(want.Roles))
+				}
+
+				for j, r := range u.Roles {
+					if r.Name != want.Roles[j].Name {
+						t.Errorf("user[%d] role[%d] name = %q, want %q", i, j, r.Name, want.Roles[j].Name)
+					}
+
+					if r.File != want.Roles[j].File {
+						t.Errorf("user[%d] role[%d] file = %q, want %q", i, j, r.File, want.Roles[j].File)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestScanLoginAs(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "no loginAs",
+			content: `test.use({ fixtures: ['ssh-node'] });`,
+			want:    "",
+		},
+		{
+			name:    "loginAs with single quotes",
+			content: `test.use({ loginAs: 'alice' });`,
+			want:    "alice",
+		},
+		{
+			name:    "loginAs with double quotes",
+			content: `test.use({ loginAs: "alice" });`,
+			want:    "alice",
+		},
+		{
+			name: "loginAs alongside users",
+			content: `test.use({
+  loginAs: 'alice',
+  users: [
+    { name: 'alice', roles: ['access'] },
+  ],
+});`,
+			want: "alice",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tmpFile := filepath.Join(dir, "test.spec.ts")
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got := scanFileLoginAs(tmpFile, 0)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScanUsersImplicitBob(t *testing.T) {
+	e2eDir := t.TempDir()
+	testsDir := createDir(t, e2eDir, "tests")
+
+	// A spec that declares no users at all.
+	writeFile(t, testsDir, "basic.spec.ts", `test.use({ fixtures: ['ssh-node'] });`)
+
+	got := scanUsers(e2eDir, []string{"tests/basic.spec.ts"})
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(got))
+	}
+
+	if got[0].Name != "bob" {
+		t.Errorf("expected user name 'bob', got %q", got[0].Name)
+	}
+
+	if len(got[0].Roles) != 2 {
+		t.Fatalf("expected 2 roles for bob, got %d", len(got[0].Roles))
+	}
+
+	if got[0].Roles[0].Name != "access" {
+		t.Errorf("expected first role 'access', got %q", got[0].Roles[0].Name)
+	}
+
+	if got[0].Roles[1].Name != "editor" {
+		t.Errorf("expected second role 'editor', got %q", got[0].Roles[1].Name)
+	}
+}
+
 func createDir(t *testing.T, path ...string) string {
 	t.Helper()
 
