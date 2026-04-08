@@ -2166,16 +2166,13 @@ func basicDirCopy(src string, dst string) error {
 
 func TestInitAppsEmptyConfig(t *testing.T) {
 	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	log := logtest.NewLogger()
-	supervisor, err := NewSupervisor("test-initApps", log, clock)
-	require.NoError(t, err)
+	supervisor := NewSupervisor("test-initApps", logrus.StandardLogger())
 	t.Cleanup(func() { supervisor.Wait() })
 	process := &TeleportProcess{
 		Supervisor: supervisor,
-		Clock:      clock,
+		Clock:      clockwork.NewRealClock(),
 		Config:     &servicecfg.Config{Apps: servicecfg.AppsConfig{Enabled: true}},
-		logger:     log,
+		logger:     slog.Default(),
 	}
 
 	process.initApps()
@@ -2187,21 +2184,19 @@ func TestInitAppsEmptyConfig(t *testing.T) {
 
 func TestInitKubernetesUnlicensed(t *testing.T) {
 	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	log := logtest.NewLogger()
-	supervisor, err := NewSupervisor("test-initKube", log, clock)
-	require.NoError(t, err)
+	supervisor := NewSupervisor("test-initKube", logrus.StandardLogger())
+	localSupervisor := supervisor.(*LocalSupervisor)
 	dataDir := t.TempDir()
 	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
 	require.NoError(t, err)
 	t.Cleanup(func() { stor.Close() })
-	t.Cleanup(func() { supervisor.signalExit(); supervisor.Wait() })
+	t.Cleanup(func() { localSupervisor.signalExit(); supervisor.Wait() })
 
 	process := &TeleportProcess{
 		Supervisor:    supervisor,
-		Clock:         clock,
+		Clock:         clockwork.NewRealClock(),
 		Config:        servicecfg.MakeDefaultConfig(),
-		logger:        log,
+		logger:        slog.Default(),
 		storage:       stor,
 		instanceRoles: map[types.SystemRole]string{types.RoleKube: KubeIdentityEvent},
 	}
