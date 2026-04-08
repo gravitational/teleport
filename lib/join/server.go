@@ -284,6 +284,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
+
+		// It's not worth fetching the true bot scope here (via bot user label)
+		// so we'll just include the one embedded in the token.
+		i.BotScope = token.GetBotScope()
 	})
 
 	// Validate that the requested join method matches the join method

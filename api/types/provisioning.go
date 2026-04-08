@@ -178,6 +178,9 @@ type ProvisionToken interface {
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
+	// GetBotScope returns the BotScope field which must be set for bots joining
+	// with a scoped token. It is empty for unscoped bots.
+	GetBotScope() string
 	// IsStatic returns true if the token is statically configured
 	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
@@ -606,6 +609,13 @@ func (p *ProvisionTokenV2) IsStatic() bool {
 // GetBotName returns the BotName field which must be set for joining bots.
 func (p *ProvisionTokenV2) GetBotName() string {
 	return p.Spec.BotName
+}
+
+// GetBotScope returns the BotScope field which must be set for bots joining
+// with a scoped token. It is empty for unscoped bots.
+func (p *ProvisionTokenV2) GetBotScope() string {
+	// Always empty for ProvisionTokenV2
+	return ""
 }
 
 // GetKind returns resource kind

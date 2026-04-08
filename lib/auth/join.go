@@ -136,6 +136,11 @@ func (a *Server) handleJoinFailure(
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
 			botJoinEvent.BotName = pt.GetBotName()
+
+			// We don't want to perform a backend fetch here, so we'll use the
+			// bot scope indicated in the token rather than the one embedded in
+			// the user.
+			botJoinEvent.Scope = pt.GetBotScope()
 		}
 		evt = botJoinEvent
 	} else {
@@ -468,6 +473,8 @@ func (a *Server) GenerateBotCertsForJoin(
 		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
 			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
 		}
+
+		joinEvent.Scope = botScope
 	} else {
 		botScope, ok := user.GetLabel(types.BotScopeLabel)
 		if ok && botScope != "" {
