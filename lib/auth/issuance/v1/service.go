@@ -176,8 +176,7 @@ func (s *Service) IssueScopedBotCerts(
 	requestedScope := currentIdentity.ScopePin.Scope
 	// Sanity check that the requested scope is still descendant or equiv to
 	// botScope - in case bot scope has changed.
-	rel := scopes.Compare(botScope, requestedScope)
-	if rel != scopes.Equivalent && rel != scopes.Descendant {
+	if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(requestedScope) {
 		return nil, trace.AccessDenied(
 			"requested scope %q is not descendant or equivalent to bot's scope %q",
 			requestedScope,
