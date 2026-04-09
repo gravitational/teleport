@@ -21,7 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -284,35 +284,50 @@ func TestDumpConfigFile(t *testing.T) {
 func TestWriteInstallJoinFailureError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("trace error with message prints user message", func(t *testing.T) {
+	t.Run("all fields populated", func(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, &trace.TraceErr{
-			Err:      errors.New("join failure"),
-			Messages: []string{"node did not become ready within 5m"},
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: `systemd service state: ActiveState="failed"`,
+			JournalOutput:      "error: token expired",
 		})
 
-		require.Contains(t, stderr.String(), "ERROR:")
-		require.Contains(t, stderr.String(), "node did not become ready within 5m")
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, `systemd service state: ActiveState="failed"`)
+		require.Contains(t, out, "Journal output:\nerror: token expired\n")
 	})
 
-	t.Run("plain error prints error message", func(t *testing.T) {
+	t.Run("message only", func(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, errors.New("plain failure"))
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message: "node did not become ready (join cluster) within 5m0s",
+		})
 
-		require.Equal(t, "ERROR: plain failure\n", stderr.String())
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
 	})
 
-	t.Run("trace error without messages prints underlying error", func(t *testing.T) {
+	t.Run("no journal output", func(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, &trace.TraceErr{Err: errors.New("join failure")})
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: "systemd service state: unavailable",
+		})
 
-		require.Equal(t, "ERROR: join failure\n", stderr.String())
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, "systemd service state: unavailable\n")
+		require.NotContains(t, out, "Journal output:")
 	})
 }
 

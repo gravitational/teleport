@@ -792,8 +792,9 @@ Examples:
 	case installAutoDiscoverNode.FullCommand():
 		// Join failures use a specific exit code so that SSM can classify the failure for the user task.
 		// The normal utils.FatalError path always exits with code 1, so we handle this case separately.
-		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.Is(err, installer.ErrJoinFailure) {
-			writeInstallJoinFailureError(os.Stderr, err)
+		var joinErr *installer.JoinFailureError
+		if err = onInstallAutoDiscoverNode(installAutoDiscoverNodeFlags); errors.As(err, &joinErr) {
+			writeInstallJoinFailureError(os.Stderr, joinErr)
 			os.Exit(int(installstatus.JoinFailure))
 		}
 	case discoveryBootstrapCmd.FullCommand():
@@ -905,11 +906,21 @@ Examples:
 	return app, command, conf
 }
 
-// writeInstallJoinFailureError writes a user-facing join-failure error message to w.
-// The error typically contains the readyz poll timeout, systemd service
-// diagnostics, and recent journal output from the Teleport service.
-func writeInstallJoinFailureError(w io.Writer, err error) {
-	fmt.Fprintf(w, "ERROR: %s\n", err.Error())
+// writeInstallJoinFailureError writes a user-facing join-failure error
+// message to w, with each diagnostic section on its own line for
+// readability.
+func writeInstallJoinFailureError(w io.Writer, joinErr *installer.JoinFailureError) {
+	fmt.Fprintln(w, "ERROR: agent failed to join the cluster")
+	fmt.Fprintf(w, "%s\n", joinErr.Message)
+	if joinErr.ServiceDiagnostics != "" {
+		fmt.Fprintf(w, "%s\n", joinErr.ServiceDiagnostics)
+	}
+	if joinErr.LastError != "" {
+		fmt.Fprintf(w, "Last readyz error: %s\n", joinErr.LastError)
+	}
+	if joinErr.JournalOutput != "" {
+		fmt.Fprintf(w, "Journal output:\n%s\n", joinErr.JournalOutput)
+	}
 }
 
 // OnStart is the handler for "start" CLI command
