@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -96,6 +97,11 @@ func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken str
 		return nil, "", trace.Wrap(err)
 	}
 	return items, nextKey, nil
+}
+
+// IterateBeams returns a sequence of beams starting from the given pageToken.
+func (s *BeamService) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	return s.svc.Resources(ctx, pageToken, "")
 }
 
 // AppendPutBeamActions adds conditional actions to an atomic write to create

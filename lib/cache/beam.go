@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -112,6 +113,18 @@ func (c *Cache) ListBeams(ctx context.Context, limit int, startKey string) ([]*b
 	}
 	out, next, err := lister.list(ctx, limit, startKey)
 	return out, next, trace.Wrap(err)
+}
+
+// IterateBeams returns a sequence of beams starting from the given pageToken.
+func (c *Cache) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	lister := genericLister[*beamsv1.Beam, beamIndex]{
+		cache:        c,
+		collection:   c.collections.beams,
+		index:        beamNameIndex,
+		upstreamList: c.Config.Beams.ListBeams,
+		nextToken:    keyForBeamNameIndex,
+	}
+	return lister.Range(ctx, pageToken, "")
 }
 
 func keyForBeamNameIndex(beam *beamsv1.Beam) string {
