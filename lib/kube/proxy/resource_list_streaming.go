@@ -313,7 +313,7 @@ func wrapContentEncoding(r io.Reader, w io.Writer, contentEncoding string) (io.R
 		gzWriter.Reset(w)
 		return gzReader, &gzipWrapper{gzWriter}, nil
 	default:
-		return nil, nil, fmt.Errorf("unsupported Content-Encoding: %s", contentEncoding)
+		return nil, nil, trace.BadParameter("unsupported Content-Encoding: %s", contentEncoding)
 	}
 }
 
