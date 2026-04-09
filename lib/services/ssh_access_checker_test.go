@@ -30,6 +30,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/trace"
 )
 
 // newScopedCheckerWithRole is a test helper that builds a minimal ScopedAccessChecker
@@ -515,7 +516,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 		name         string
 		spec         *scopedaccessv1.ScopedRoleSpec
 		traits       wrappers.Traits
-		expectNil    bool
+		expectDenied bool
 		expectErr    bool
 		expectMode   decisionpb.HostUserMode
 		expectGroups []string
@@ -530,7 +531,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 					HostUserCreation: nil,
 				},
 			},
-			expectNil: true,
+			expectDenied: true,
 		},
 		{
 			name: "empty mode string - denied",
@@ -541,7 +542,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 					},
 				},
 			},
-			expectNil: true,
+			expectDenied: true,
 		},
 		{
 			name: "mode off - denied",
@@ -552,7 +553,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 					},
 				},
 			},
-			expectNil: true,
+			expectDenied: true,
 		},
 		{
 			name: "mode keep",
@@ -565,7 +566,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 					},
 				},
 			},
-			expectNil:    false,
+			expectDenied: false,
 			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			expectGroups: []string{"test"},
 			expectShell:  "/bin/bash",
@@ -580,7 +581,7 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 					},
 				},
 			},
-			expectNil:    false,
+			expectDenied: false,
 			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 			expectGroups: []string{"test"},
 		},
@@ -597,10 +598,10 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 				constants.TraitHostUserUID: []string{"1001"},
 				constants.TraitHostUserGID: []string{"1001"},
 			},
-			expectNil:  false,
-			expectMode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-			expectUID:  "1001",
-			expectGID:  "1001",
+			expectDenied: false,
+			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			expectUID:    "1001",
+			expectGID:    "1001",
 		},
 		{
 			name: "invalid mode returns error",
@@ -629,22 +630,18 @@ func TestSSHAccessCheckerHostUsers(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+			if tt.expectDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
 			require.NoError(t, err)
 			require.NotNil(t, decision)
 
-			if tt.expectNil {
-				require.Nil(t, decision.Info)
-				require.NotEmpty(t, decision.DeniedBy)
-				return
-			}
-
-			require.NotNil(t, decision.Info, "expected Info to be non-nil (allowed)")
-			require.NotEmpty(t, decision.AllowedBy, "expected AllowedBy to be populated")
-			require.Equal(t, tt.expectMode, decision.Info.Mode)
-			require.Equal(t, tt.expectGroups, decision.Info.Groups)
-			require.Equal(t, tt.expectShell, decision.Info.Shell)
-			require.Equal(t, tt.expectUID, decision.Info.Uid)
-			require.Equal(t, tt.expectGID, decision.Info.Gid)
+			require.Equal(t, tt.expectMode, decision.Mode)
+			require.Equal(t, tt.expectGroups, decision.Groups)
+			require.Equal(t, tt.expectShell, decision.Shell)
+			require.Equal(t, tt.expectUID, decision.Uid)
+			require.Equal(t, tt.expectGID, decision.Gid)
 		})
 	}
 }

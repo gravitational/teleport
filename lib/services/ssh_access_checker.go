@@ -178,16 +178,10 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInf
 		return nil, trace.Wrap(err)
 	}
 
-	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
+	// If mode is OFF or UNSPECIFIED, host user creation is disabled.
 	if hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
 		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
-		return &HostUsersDecision{
-			Info: nil,
-			DeniedBy: []*decisionpb.Determinant{{
-				Kind: c.checker.role.GetKind(),
-				Name: c.checker.role.GetMetadata().GetName(),
-			}},
-		}, nil
+		return nil, trace.AccessDenied("role %q prevents creating host users", c.checker.role.GetMetadata().GetName())
 	}
 
 	// Convert to decision
@@ -210,18 +204,12 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInf
 		gid = gidL[0]
 	}
 
-	return &HostUsersDecision{
-		Info: &decisionpb.HostUsersInfo{
-			Groups: createHostUser.GetGroups(),
-			Mode:   decisionMode,
-			Uid:    uid,
-			Gid:    gid,
-			Shell:  createHostUser.GetShell(),
-		},
-		AllowedBy: []*decisionpb.Determinant{{
-			Kind: c.checker.role.GetKind(),
-			Name: c.checker.role.GetMetadata().GetName(),
-		}},
+	return &decisionpb.HostUsersInfo{
+		Groups: createHostUser.GetGroups(),
+		Mode:   decisionMode,
+		Uid:    uid,
+		Gid:    gid,
+		Shell:  createHostUser.GetShell(),
 	}, nil
 }
 
