@@ -17,7 +17,7 @@ export const MOCK_FAILED_COMMAND: CommandAnalysis = {
     'Command analysis failed: temporary fake error for UI testing',
   detailedDescription:
     'The inference provider failed to analyze this command: temporary fake error for UI testing',
-  errorMessages: [],
+  errorMessages: ['temporary fake error for UI testing'],
   suspiciousFlags: [],
   sensitiveItems: [],
   suspiciousPatterns: [],

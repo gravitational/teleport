@@ -11,7 +11,7 @@ import (
 type CommandAnalysis struct {
 	// Core identification
 	Command  string `json:"command" jsonschema:"required" jsonschema_description:"The exact command that was executed"`
-	Category string `json:"category" jsonschema:"required,enum=file_operation,enum=network,enum=process,enum=system_config,enum=data_access,enum=authentication,enum=other" jsonschema_description:"Primary category of the command operation"`
+	Category string `json:"category" jsonschema:"required,enum=file_operation,enum=network,enum=process,enum=system_config,enum=data_access,enum=authentication,enum=other,enum=package_management,enum=container,enum=source_control,enum=scheduling,enum=monitoring,enum=user_management,enum=transfer,enum=development" jsonschema_description:"Primary category of the command operation"`
 	Success  bool   `json:"success" jsonschema:"required" jsonschema_description:"True if command completed successfully. False if canceled (^C in input), failed, or interrupted. Note: ^C in output is normal output, not cancellation"`
 
 	// Risk assessment

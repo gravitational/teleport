@@ -20,10 +20,17 @@ import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import { Button, ButtonText } from 'design/Button';
 import Flex from 'design/Flex';
-import { ChevronRight, Cross, WarningCircle } from 'design/Icon';
+import {
+  ArrowUpRight,
+  ChevronRight,
+  Cross,
+  Flag,
+  WarningCircle,
+} from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import Modal from 'design/Modal';
 import { StyledPopover } from 'design/Popover';
+import Text from 'design/Text';
 import { Markdown } from 'shared/components/Markdown/Markdown';
 
 import {
@@ -40,6 +47,8 @@ import {
 } from 'e-teleport/SessionRecordings/summary/RiskLevel';
 import { RiskLevel as RiskLevelValue } from 'teleport/services/recordings/types';
 
+import lookup from './mitre-lookup.json';
+import { MitreAttackLogo } from './MitreAttackLogo';
 import { RiskScore } from './RiskScore';
 
 interface TimelineItemProps {
@@ -211,7 +220,7 @@ export function TimelineItem({
             />
 
             <Box
-              pb={1}
+              pb={onPlay ? 1 : 3}
               style={{ overflowY: 'auto' }}
               maxHeight="700px"
               width="500px"
@@ -306,6 +315,23 @@ export function TimelineItem({
                 </>
               )}
 
+              {command.suspiciousFlags &&
+                command.suspiciousFlags.length > 0 && (
+                  <>
+                    <Divider my={3} />
+
+                    <SuspiciousFlagsList flags={command.suspiciousFlags} />
+                  </>
+                )}
+
+              {command.mitreAttackIds && (
+                <>
+                  <Divider my={3} />
+
+                  <MitreAttackList mitreAttackIds={command.mitreAttackIds} />
+                </>
+              )}
+
               {onPlay && (
                 <Flex justifyContent="flex-end" mt={3} pr={1}>
                   <ButtonText px={2} onClick={handlePlay}>
@@ -319,6 +345,72 @@ export function TimelineItem({
         </Modal>
       )}
     </>
+  );
+}
+
+interface MitreAttackListProps {
+  mitreAttackIds: string[];
+}
+
+function getMitreAttackUrl(id: string) {
+  const formattedId = id.replace(/\./g, '/');
+
+  return `https://attack.mitre.org/techniques/${formattedId}`;
+}
+
+function MitreAttackList({ mitreAttackIds }: MitreAttackListProps) {
+  const items = mitreAttackIds.map(id => (
+    <MitreAttackEntry key={id} href={getMitreAttackUrl(id)} target="_blank">
+      {lookup[id] ? `${id} - ${lookup[id]}` : id}
+      <ArrowUpRight size="small" />
+    </MitreAttackEntry>
+  ));
+
+  return (
+    <Flex
+      width="100%"
+      flexDirection="column"
+      alignItems="flex-start"
+      gap={2}
+      px={3}
+    >
+      <MitreAttackLogo />
+
+      <Text color="text.slightlyMuted" fontSize="small">
+        Attack techniques contributing to the risk score
+      </Text>
+
+      <Flex flexWrap="wrap" gap={2}>
+        {items}
+      </Flex>
+    </Flex>
+  );
+}
+
+interface SuspiciousFlagsListProps {
+  flags: string[];
+}
+
+function SuspiciousFlagsList({ flags }: SuspiciousFlagsListProps) {
+  const items = flags.map(flag => (
+    <Flex key={flag} alignItems="flex-start" gap={2}>
+      <ChevronRight size="small" color="text.muted" mt={1} />
+      <Markdown text={flag} />
+    </Flex>
+  ));
+
+  return (
+    <MarkdownContainer px={3}>
+      <Flex alignItems="center" mb={2} gap={2} color="text.slightlyMuted">
+        <Flag size="small" />
+
+        <Text fontWeight="500">Suspicious flags</Text>
+      </Flex>
+
+      <Flex flexDirection="column" gap={1}>
+        {items}
+      </Flex>
+    </MarkdownContainer>
   );
 }
 
@@ -371,6 +463,22 @@ const MarkdownContainer = styled(Box)`
     background-color: ${p => p.theme.colors.spotBackground[1]};
     padding: 2px ${p => p.theme.space[1]}px;
     border-radius: 4px;
+  }
+`;
+
+const MitreAttackEntry = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: ${p => p.theme.space[1]}px ${p => p.theme.space[2]}px;
+  border: 1px solid ${p => p.theme.colors.spotBackground[2]};
+  border-radius: ${p => p.theme.radii[3]}px;
+  color: ${p => p.theme.colors.text.main};
+  text-decoration: none;
+  line-height: 1.4;
+
+  &:hover {
+    background-color: ${p => p.theme.colors.spotBackground[1]};
   }
 `;
 

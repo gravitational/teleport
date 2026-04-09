@@ -9,8 +9,7 @@ import {
   useInteractions,
 } from '@floating-ui/react';
 import { useState } from 'react';
-import styled from 'styled-components';
-import { useTheme } from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import { Button } from 'design/Button';

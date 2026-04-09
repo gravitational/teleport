@@ -22,6 +22,22 @@ func commandCategoryToProto(category string) summarizerv1pb.CommandCategory {
 		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_AUTHENTICATION
 	case "other":
 		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_OTHER
+	case "package_management":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_PACKAGE_MANAGEMENT
+	case "container":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_CONTAINER
+	case "source_control":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_SOURCE_CONTROL
+	case "scheduling":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_SCHEDULING
+	case "monitoring":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_MONITORING
+	case "user_management":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_USER_MANAGEMENT
+	case "transfer":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_TRANSFER
+	case "development":
+		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_DEVELOPMENT
 	default:
 		return summarizerv1pb.CommandCategory_COMMAND_CATEGORY_UNSPECIFIED
 	}

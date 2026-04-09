@@ -3,22 +3,30 @@ import type { ComponentType } from 'react';
 import {
   Archive,
   ArrowFatLinesUp,
+  Clock,
+  Code,
   Database,
+  Download,
   Ellipsis,
   FlowArrow,
   FolderShared,
+  Git,
+  Graph,
   Key,
   KeyHole,
+  Kubernetes,
   Magnifier,
   Network as NetworkIcon,
   Play,
   PushPin,
   Question,
   Scan,
+  Share,
   ShieldCheck,
   ShieldWarning,
   Terminal,
   Upload,
+  User,
   Warning,
   Wrench,
 } from 'design/Icon';
@@ -84,6 +92,14 @@ export enum CommandCategory {
   DataAccess = 'COMMAND_CATEGORY_DATA_ACCESS',
   Authentication = 'COMMAND_CATEGORY_AUTHENTICATION',
   Other = 'COMMAND_CATEGORY_OTHER',
+  PackageManagement = 'COMMAND_CATEGORY_PACKAGE_MANAGEMENT',
+  Container = 'COMMAND_CATEGORY_CONTAINER',
+  SourceControl = 'COMMAND_CATEGORY_SOURCE_CONTROL',
+  Scheduling = 'COMMAND_CATEGORY_SCHEDULING',
+  Monitoring = 'COMMAND_CATEGORY_MONITORING',
+  UserManagement = 'COMMAND_CATEGORY_USER_MANAGEMENT',
+  Transfer = 'COMMAND_CATEGORY_TRANSFER',
+  Development = 'COMMAND_CATEGORY_DEVELOPMENT',
 }
 
 const commandCategoryLabels: Record<CommandCategory, string> = {
@@ -95,30 +111,18 @@ const commandCategoryLabels: Record<CommandCategory, string> = {
   [CommandCategory.DataAccess]: 'Data Access',
   [CommandCategory.Authentication]: 'Authentication',
   [CommandCategory.Other]: 'Other',
+  [CommandCategory.PackageManagement]: 'Package Management',
+  [CommandCategory.Container]: 'Container',
+  [CommandCategory.SourceControl]: 'Source Control',
+  [CommandCategory.Scheduling]: 'Scheduling',
+  [CommandCategory.Monitoring]: 'Monitoring',
+  [CommandCategory.UserManagement]: 'User Management',
+  [CommandCategory.Transfer]: 'Transfer',
+  [CommandCategory.Development]: 'Development',
 };
 
 export function formatCommandCategory(category: CommandCategory): string {
   return commandCategoryLabels[category] ?? category;
-}
-
-const commandCategoryIcons: Record<
-  CommandCategory,
-  ComponentType<IconProps>
-> = {
-  [CommandCategory.Unspecified]: Question,
-  [CommandCategory.FileOperation]: FolderShared,
-  [CommandCategory.Network]: NetworkIcon,
-  [CommandCategory.Process]: Terminal,
-  [CommandCategory.SystemConfiguration]: Wrench,
-  [CommandCategory.DataAccess]: Database,
-  [CommandCategory.Authentication]: Key,
-  [CommandCategory.Other]: Ellipsis,
-};
-
-export function getCommandCategoryIcon(
-  category: CommandCategory
-): ComponentType<IconProps> {
-  return commandCategoryIcons[category] ?? Question;
 }
 
 export enum ThreatCategory {
@@ -155,6 +159,34 @@ const threatCategoryLabels: Record<ThreatCategory, string> = {
 
 export function formatThreatCategory(category: ThreatCategory): string {
   return threatCategoryLabels[category] ?? category;
+}
+
+const commandCategoryIcons: Record<
+  CommandCategory,
+  ComponentType<IconProps>
+> = {
+  [CommandCategory.Unspecified]: Question,
+  [CommandCategory.FileOperation]: FolderShared,
+  [CommandCategory.Network]: NetworkIcon,
+  [CommandCategory.Process]: Terminal,
+  [CommandCategory.SystemConfiguration]: Wrench,
+  [CommandCategory.DataAccess]: Database,
+  [CommandCategory.Authentication]: Key,
+  [CommandCategory.Other]: Ellipsis,
+  [CommandCategory.PackageManagement]: Download,
+  [CommandCategory.Container]: Kubernetes,
+  [CommandCategory.SourceControl]: Git,
+  [CommandCategory.Scheduling]: Clock,
+  [CommandCategory.Monitoring]: Graph,
+  [CommandCategory.UserManagement]: User,
+  [CommandCategory.Transfer]: Share,
+  [CommandCategory.Development]: Code,
+};
+
+export function getCommandCategoryIcon(
+  category: CommandCategory
+): ComponentType<IconProps> {
+  return commandCategoryIcons[category] ?? Question;
 }
 
 const threatCategoryIcons: Record<ThreatCategory, ComponentType<IconProps>> = {
@@ -201,5 +233,6 @@ export interface CommandAnalysis {
   persistence: boolean;
   startOffset: number;
   endOffset: number;
+  mitreAttackIds?: string[];
   inferenceErrorMessage?: string;
 }
