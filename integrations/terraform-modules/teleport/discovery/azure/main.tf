@@ -13,6 +13,10 @@ locals {
   apply_teleport_resource_labels = merge(var.apply_teleport_resource_labels, {
     "teleport.dev/iac-tool" = "terraform",
   })
+  apply_teleport_integration_labels = merge(local.apply_teleport_resource_labels, {
+    "teleport.dev/azure-managed-identity-region"         = var.azure_managed_identity_location
+    "teleport.dev/azure-managed-identity-resource-group" = var.azure_resource_group_name
+  })
 
   teleport_cluster_name         = local.teleport_ping.cluster_name
   teleport_ping                 = jsondecode(data.http.teleport_ping.response_body)

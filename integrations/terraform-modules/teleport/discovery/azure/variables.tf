@@ -31,8 +31,80 @@ variable "teleport_proxy_public_addr" {
   }
 
   validation {
-    condition     = var.teleport_proxy_public_addr == "" || strcontains(var.teleport_proxy_public_addr, ":")
+    condition     = strcontains(var.teleport_proxy_public_addr, ":")
     error_message = "The address must be in the form <host:port>."
+  }
+}
+
+variable "azure_matchers" {
+  description = <<-EOT
+    Azure resource discovery matchers. Each matcher specifies resource types to discover and matching criteria.
+
+    - types: Resource types to discover. Currently only "vm" is supported.
+    - subscriptions: Azure subscription IDs (UUID format) to discover resources in.
+    - resource_groups: Resource groups to search within each subscription. Defaults to ["*"] (all resource groups).
+    - regions: Azure regions to search. Defaults to ["*"] (all regions).
+    - tags: Azure resource tags to match, in the form { "key" = ["value1", "value2"] }. Defaults to { "*" = ["*"] } (match all tags).
+  EOT
+  type = list(object({
+    types           = list(string)
+    subscriptions   = list(string)
+    resource_groups = optional(list(string), ["*"])
+    regions         = optional(list(string), ["*"])
+    tags            = optional(map(list(string)), { "*" : ["*"] })
+  }))
+  nullable = false
+
+  validation {
+    condition     = length(var.azure_matchers) > 0
+    error_message = "At least one azure_matcher must be provided."
+  }
+
+  validation {
+    condition = alltrue([
+      for matcher in var.azure_matchers :
+      length(matcher.types) > 0
+    ])
+    error_message = "Each azure_matcher must have at least one type set."
+  }
+
+  validation {
+    condition = alltrue([
+      for matcher in var.azure_matchers :
+      length(matcher.subscriptions) > 0
+    ])
+    error_message = "Each azure_matcher must have at least one subscription."
+  }
+
+  validation {
+    condition = alltrue([
+      for matcher in var.azure_matchers :
+      !contains(matcher.subscriptions, "*") || length(matcher.subscriptions) == 1
+    ])
+    error_message = "Wildcard ('*') must be the only entry in a matcher's subscriptions list."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for matcher in var.azure_matchers : [
+        for rt in matcher.types :
+        contains([
+          # TODO: add module support for all resource types
+          "vm",
+          # "aks",
+          # "mysql",
+          # "postgres",
+          # "redis",
+          # "sqlserver",
+        ], rt)
+      ]
+    ]))
+    error_message = format(
+      "Allowed values for azure_matchers.types are: %s.",
+      join(", ", [
+        "vm",
+      ])
+    )
   }
 }
 
@@ -68,16 +140,9 @@ variable "azure_managed_identity_name" {
   nullable    = false
 }
 
-variable "azure_role_assignable_scopes" {
-  default     = []
-  description = "The scopes at which the Azure discovery role will be assignable. Defaults to the current subscription."
-  nullable    = false
-  type        = list(string)
-}
-
 variable "azure_role_assignment_scopes" {
   default     = []
-  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID like /providers/Microsoft.Management/managementGroups/<name> to support wildcard ('*') Azure subscription discovery. Defaults to the subscription of the azurerm provider."
+  description = "The scopes at which the Azure discovery role will be assigned. Must be a management group ID like /providers/Microsoft.Management/managementGroups/<name> to support wildcard ('*') Azure subscription discovery. By default, a role definition and assignment is created for each subscription in azure_matchers."
   nullable    = false
   type        = list(string)
 }
@@ -94,36 +159,6 @@ variable "create" {
   type        = bool
   default     = true
   nullable    = false
-}
-
-variable "match_azure_regions" {
-  type        = list(string)
-  description = "Azure regions to discover. Defaults to [\"*\"] which matches all regions. Region names should be the programmatic region name, e.g., \"westus\"."
-  default     = ["*"]
-  nullable    = false
-}
-
-variable "match_azure_resource_groups" {
-  type        = list(string)
-  description = "Azure resource groups to scan for VMs. Defaults to [\"*\"] which matches all resource groups."
-  default     = ["*"]
-  nullable    = false
-}
-
-variable "match_azure_subscriptions" {
-  type        = list(string)
-  description = "Azure subscriptions to scan for VMs. Defaults to [\"*\"] which matches all subscriptions."
-  default     = ["*"]
-  nullable    = false
-}
-
-variable "match_azure_tags" {
-  type        = map(list(string))
-  description = "Tag filters for VM discovery; matches VMs with these tags. Defaults to {\"*\" = [\"*\"]} which matches all tags."
-  default = {
-    "*" = ["*"]
-  }
-  nullable = false
 }
 
 variable "teleport_discovery_config_name" {
