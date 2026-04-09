@@ -1517,7 +1517,8 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: createResp.GetAssignment().GetMetadata().GetName(),
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -2603,7 +2604,8 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: createResp.GetAssignment().GetMetadata().GetName(),
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
