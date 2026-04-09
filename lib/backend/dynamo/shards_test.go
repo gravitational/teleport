@@ -436,6 +436,7 @@ func (w *eventWriter) writeBatch(ctx context.Context, partition, writer, numEven
 
 		if err := w.writeWithRetry(ctx, item, partition); err != nil {
 			// Skip events that fail to write after retries.
+			w.t.Logf("Failed to write item %q after retries: %v, skipping", item.Key.String(), err)
 			continue
 		}
 
@@ -494,7 +495,8 @@ func (w *eventWriter) writeWithRetry(ctx context.Context, item backend.Item, par
 			}
 
 			if trace.IsCompareFailed(err) {
-				return nil // Skip retries and consider this item as successfully written.
+				// Already exists, retrying would not help, skip this item.
+				return err
 			}
 
 			// When heavily throttled this operation can return [types.InternalServerError] with "Internal Server Error" message.
@@ -542,8 +544,8 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	defer tracker.receiveMu.Unlock()
 	defer tracker.writeMu.Unlock()
 
+	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
 	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
 	require.Empty(t, missingRecived, "Missing %d events that were successfully written. Missing event keys: %v", len(missingRecived), missingRecived)
 	require.Empty(t, unexpectedReceived, "Received %d unexpected events that were not written. Unexpected event keys: %v", len(unexpectedReceived), unexpectedReceived)
-	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
 }
