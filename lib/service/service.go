@@ -6104,8 +6104,7 @@ func (process *TeleportProcess) initApps() {
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {
-		process.logger.InfoContext(process.ExitContext(),
-			"App service is enabled but has no static apps, debug app, MCP demo server, or resource matchers configured, it will not proxy anything.")
+		process.logger.InfoContext(process.ExitContext(), "App service is enabled but has no static apps, debug app, or resource matchers configured, it will not proxy anything.")
 		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
 		return
 	}
