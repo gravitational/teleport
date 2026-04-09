@@ -25,7 +25,6 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"net/url"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -1092,8 +1091,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
-	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -4949,8 +4947,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 }
 
 func TestListResources_KindKubernetesCluster(t *testing.T) {
-	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
