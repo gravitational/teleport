@@ -144,11 +144,12 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
-	// If the user has no device registered that would allow per-session MFA,
-	// prompt them to register and then re-generate the challenge. TOTP devices
+	// If this is a per-session MFA prompt and the user has no eligible device,
+	// offer to register one and then re-generate the challenge. TOTP devices
 	// don't count as eligible, so even if we do have one, don't offer.
+	isPerSessionMFA := req != nil && req.ChallengeExtensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 	noPerSessionMFADevices := chal.WebauthnChallenge == nil && chal.SSOChallenge == nil
-	if noPerSessionMFADevices && c.CreateRegisterChallenge != nil && c.AddMFADevice != nil && !c.isRegistering {
+	if isPerSessionMFA && noPerSessionMFADevices && c.CreateRegisterChallenge != nil && c.AddMFADevice != nil && !c.isRegistering {
 		reason := RegistrationReasonSessionMFANoDevices
 		if chal.TOTP != nil {
 			// The user has some MFA devices, but still no eligible one.
@@ -161,7 +162,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 			return nil, trace.Wrap(err)
 		}
 		if !added {
-			return nil, &ErrNoMFADevices
+			return &proto.MFAAuthenticateResponse{}, nil
 		}
 
 		chal, err = c.CreateAuthenticateChallenge(ctx, req)
@@ -230,7 +231,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		c.isRegistering = false
 	}()
 
-	regPrompt := c.PromptConstructor(func(cfg *PromptConfig) { cfg.MFACeremony = c })
+	regPrompt := c.PromptConstructor()
 
 	promptConfig := RegistrationPromptConfig{
 		RegistrationCeremonyConfig: config,
@@ -239,6 +240,9 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
 		// This is undesirable to do during flag setup, but we can do it here.
+		if c.Ping == nil {
+			return false, trace.BadParameter("mfa ceremony must have Ping set in order to prompt for a device type")
+		}
 		pingResp, err := c.Ping(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -247,12 +251,45 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 	}
 
 	// Attempt the actual interactive registration.
-	result, err := regPrompt.AskRegister(ctx, promptConfig)
+	promptConfigPtr, err := regPrompt.AskRegister(ctx, promptConfig)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if promptConfigPtr == nil {
+		// No device has been registered.
+		return false, nil
+	}
+	promptConfig = *promptConfigPtr
+
+	devTypePB := registrationDeviceTypeProto(promptConfig.DeviceType)
+	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		return false, trace.BadParameter("unexpected device type: %q", promptConfig.DeviceType)
+	}
+
+	mfaResp, err := c.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+		},
+	}, WithPromptDeviceType(DeviceDescriptorRegistered))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	regChal, err := c.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: mfaResp,
+		DeviceType:          devTypePB,
+		DeviceUsage:         promptConfig.DeviceUsage,
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	runPrompt := c.PromptConstructor(WithPromptDeviceType(DeviceDescriptorNew))
+	result, err := runPrompt.RunRegister(ctx, promptConfig, regChal)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	if result == nil {
-		// No device has been registered.
 		return false, nil
 	}
 
@@ -265,8 +302,16 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	regPrompt.NotifyRegistrationSuccess(ctx, result.Config)
+	runPrompt.NotifyRegistrationSuccess(ctx, result.Config)
 	return true, nil
+}
+
+func registrationDeviceTypeProto(deviceType MFADeviceType) proto.DeviceType {
+	return map[MFADeviceType]proto.DeviceType{
+		MFADeviceTypeTOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		MFADeviceTypeWebauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		MFADeviceTypeTouchID:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	}[deviceType]
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

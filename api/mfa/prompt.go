@@ -45,7 +45,7 @@ type RegistrationCallbacks interface {
 	Confirm() error
 }
 
-// RegistrationResult contains the result of a [Prompt.AskRegister] call.
+// RegistrationResult contains the result of a [Prompt.RunRegister] call.
 type RegistrationResult struct {
 	// Config is the registration ceremony config, potentially updated with user
 	// input (device name, type, and usage) if not provided upfront.
@@ -72,9 +72,10 @@ type RegistrationPromptConfig struct {
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	// AskRegister prompts user for device details and registers a new MFA
-	// device.
-	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationResult, error)
+	// AskRegister prompts the user for device details for a new MFA device.
+	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error)
+	// RunRegister prompts the user to complete a registration challenge.
+	RunRegister(ctx context.Context, config RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error)
 	// NotifyRegistrationSuccess notifies the user that the device registration
 	// was successful.
 	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
@@ -88,8 +89,13 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return f(ctx, chal)
 }
 
-// AskRegister prompts user for device details and registers a new MFA device.
-func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationResult, error) {
+// AskRegister prompts the user for device details for a new MFA device.
+func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// RunRegister prompts the user to complete a registration challenge.
+func (f PromptFunc) RunRegister(ctx context.Context, config RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 
@@ -117,9 +123,6 @@ type PromptConfig struct {
 	Extensions *mfav1.ChallengeExtensions
 	// CallbackCeremony is an SSO or Browser MFA ceremony.
 	CallbackCeremony CallbackCeremony
-	// MFACeremony is an MFA ceremony. Used when the prompt is used for
-	// registering a new MFA device.
-	MFACeremony *Ceremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".
@@ -127,6 +130,9 @@ type DeviceDescriptor string
 
 // DeviceDescriptorRegistered is a registered device.
 const DeviceDescriptorRegistered = "registered"
+
+// DeviceDescriptorNew is a new device being registered.
+const DeviceDescriptorNew = "new"
 
 // PromptOpt applies configuration options to a prompt.
 type PromptOpt func(*PromptConfig)

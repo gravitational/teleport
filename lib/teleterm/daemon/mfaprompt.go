@@ -168,8 +168,13 @@ func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFA
 	return resp, trace.Wrap(err)
 }
 
-// AskRegister prompts user for device details and registers a new MFA device.
-func (f *mfaPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationResult, error) {
+// AskRegister prompts user for device details for a new MFA device.
+func (f *mfaPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// RunRegister prompts the user to complete a registration challenge.
+func (f *mfaPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 

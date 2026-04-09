@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 )
@@ -243,6 +244,235 @@ func TestMFACeremony_BrowserMFA(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, testMFAResponse, resp)
+}
+
+func TestMFACeremony_DoesNotOfferRegistrationOutsideSessionMFA(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var askedRegister bool
+	ceremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			return &proto.MFAAuthenticateChallenge{}, nil
+		},
+		CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+			t.Fatal("unexpected registration challenge")
+			return nil, nil
+		},
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+			t.Fatal("unexpected AddMFADevice")
+			return nil
+		},
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return &mockPrompt{
+				run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					return &proto.MFAAuthenticateResponse{}, nil
+				},
+				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+					askedRegister = true
+					return nil, nil
+				},
+			}
+		},
+	}
+
+	resp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &proto.MFAAuthenticateResponse{}, resp)
+	require.False(t, askedRegister)
+}
+
+func TestMFACeremony_DeclinedRegistrationReturnsNoop(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	ceremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			return &proto.MFAAuthenticateChallenge{}, nil
+		},
+		Ping: func(ctx context.Context) (*webclient.PingResponse, error) {
+			return &webclient.PingResponse{}, nil
+		},
+		CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+			return &proto.MFARegisterChallenge{}, nil
+		},
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+			t.Fatal("unexpected AddMFADevice")
+			return nil
+		},
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return &mockPrompt{
+				run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					t.Fatal("unexpected MFA prompt after registration declined")
+					return nil, nil
+				},
+				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+					return nil, nil
+				},
+			}
+		},
+	}
+
+	resp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &proto.MFAAuthenticateResponse{}, resp)
+}
+
+func TestMFACeremony_Register(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	authResp := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: "123456"},
+		},
+	}
+	registerResp := &proto.MFARegisterResponse{
+		Response: &proto.MFARegisterResponse_TOTP{
+			TOTP: &proto.TOTPRegisterResponse{Code: "654321", ID: "reg-id"},
+		},
+	}
+	registerChal := &proto.MFARegisterChallenge{
+		Request: &proto.MFARegisterChallenge_TOTP{
+			TOTP: &proto.TOTPRegisterChallenge{Digits: 6},
+		},
+	}
+
+	var promptDescriptors []mfa.DeviceDescriptor
+	callbacks := &mockRegistrationCallbacks{}
+	var notified bool
+
+	ceremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			require.NotNil(t, req)
+			require.Equal(t, mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES, req.ChallengeExtensions.GetScope())
+			return &proto.MFAAuthenticateChallenge{TOTP: &proto.TOTPChallenge{}}, nil
+		},
+		CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+			require.Equal(t, authResp, req.ExistingMFAResponse)
+			require.Equal(t, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, req.DeviceType)
+			require.Equal(t, proto.DeviceUsage_DEVICE_USAGE_MFA, req.DeviceUsage)
+			return registerChal, nil
+		},
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+			require.Equal(t, registerResp, req)
+			require.Equal(t, "new-device", config.DeviceName)
+			require.Equal(t, mfa.MFADeviceTypeWebauthn, config.DeviceType)
+			require.Equal(t, proto.DeviceUsage_DEVICE_USAGE_MFA, config.DeviceUsage)
+			return nil
+		},
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			cfg := new(mfa.PromptConfig)
+			for _, opt := range opts {
+				opt(cfg)
+			}
+			promptDescriptors = append(promptDescriptors, cfg.DeviceType)
+
+			switch cfg.DeviceType {
+			case "":
+				return &mockPrompt{
+					askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+						return &config, nil
+					},
+				}
+			case mfa.DeviceDescriptorRegistered:
+				return &mockPrompt{
+					run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						require.NotNil(t, chal.GetTOTP())
+						return authResp, nil
+					},
+				}
+			case mfa.DeviceDescriptorNew:
+				return &mockPrompt{
+					runRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+						require.Equal(t, registerChal, chal)
+						return &mfa.RegistrationResult{
+							Config:    config,
+							Response:  registerResp,
+							Callbacks: callbacks,
+						}, nil
+					},
+					notifyRegistrationSuccess: func(ctx context.Context, config mfa.RegistrationPromptConfig) error {
+						notified = true
+						return nil
+					},
+				}
+			default:
+				t.Fatalf("unexpected device descriptor %q", cfg.DeviceType)
+				return nil
+			}
+		},
+	}
+
+	added, err := ceremony.Register(ctx, mfa.RegistrationCeremonyConfig{
+		DeviceName:  "new-device",
+		DeviceType:  mfa.MFADeviceTypeWebauthn,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+	})
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, []mfa.DeviceDescriptor{"", mfa.DeviceDescriptorRegistered, mfa.DeviceDescriptorNew}, promptDescriptors)
+	require.True(t, callbacks.confirmed)
+	require.False(t, callbacks.rolledBack)
+	require.True(t, notified)
+}
+
+type mockPrompt struct {
+	run                       func(context.Context, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	askRegister               func(context.Context, mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error)
+	runRegister               func(context.Context, mfa.RegistrationPromptConfig, *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error)
+	notifyRegistrationSuccess func(context.Context, mfa.RegistrationPromptConfig) error
+}
+
+func (m *mockPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if m.run == nil {
+		return nil, trace.NotImplemented("not supported")
+	}
+	return m.run(ctx, chal)
+}
+
+func (m *mockPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+	if m.askRegister == nil {
+		return nil, trace.NotImplemented("not supported")
+	}
+	return m.askRegister(ctx, config)
+}
+
+func (m *mockPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+	if m.runRegister == nil {
+		return nil, trace.NotImplemented("not supported")
+	}
+	return m.runRegister(ctx, config, chal)
+}
+
+func (m *mockPrompt) NotifyRegistrationSuccess(ctx context.Context, config mfa.RegistrationPromptConfig) error {
+	if m.notifyRegistrationSuccess == nil {
+		return nil
+	}
+	return m.notifyRegistrationSuccess(ctx, config)
+}
+
+type mockRegistrationCallbacks struct {
+	confirmed  bool
+	rolledBack bool
+}
+
+func (m *mockRegistrationCallbacks) Rollback() error {
+	m.rolledBack = true
+	return nil
+}
+
+func (m *mockRegistrationCallbacks) Confirm() error {
+	m.confirmed = true
+	return nil
 }
 
 type mockMFACeremony struct {

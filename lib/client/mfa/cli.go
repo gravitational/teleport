@@ -238,6 +238,9 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	resetPlatformPrompt := c.setPlatformPromptMessage()
+	defer resetPlatformPrompt()
+
 	if c.cfg.PromptReason != "" {
 		fmt.Fprintf(c.writer(), "%s\r\n", c.cfg.PromptReason)
 	}
@@ -567,6 +570,26 @@ func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateCh
 	return resp, trace.Wrap(err)
 }
 
+func (c *CLIPrompt) setPlatformPromptMessage() func() {
+	var message string
+	switch c.cfg.DeviceType {
+	case mfa.DeviceDescriptorRegistered:
+		message = "Using platform authentication for *registered* device, follow the OS dialogs"
+	case mfa.DeviceDescriptorNew:
+		message = "Using platform authentication for *new* device, follow the OS dialogs"
+	default:
+		return func() {}
+	}
+
+	prevTouchIDMessage := touchid.PromptPlatformMessage
+	touchid.PromptPlatformMessage = message
+	webauthnwin.SetPromptPlatformMessage(message)
+	return func() {
+		touchid.PromptPlatformMessage = prevTouchIDMessage
+		webauthnwin.ResetPromptPlatformMessage()
+	}
+}
+
 func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	// MFACeremony.Run can handle either SSO or Browser MFA. It defaults to SSO MFA,
 	// so remove copy and remove the SSO challenge so Browser MFA is used.
@@ -576,9 +599,9 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 	return resp, trace.Wrap(err)
 }
 
-// AskRegister registers a new MFA device using the supplied configuration. The
-// user will be asked for the configuration bits that are missing, if any.
-func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationResult, error) {
+// AskRegister prompts the user for the registration bits that are missing, if
+// any, and returns the resulting config.
+func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
 	confirmation := ""
 	switch config.Reason {
 	case mfa.RegistrationReasonSessionMFANoDevices:
@@ -613,13 +636,9 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 			return nil, trace.Wrap(err)
 		}
 	}
-	devTypePB := map[mfa.MFADeviceType]proto.DeviceType{
-		mfa.MFADeviceTypeTOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
-		mfa.MFADeviceTypeWebauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		mfa.MFADeviceTypeTouchID:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-	}[config.DeviceType]
-	// Sanity check.
-	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+	switch config.DeviceType {
+	case mfa.MFADeviceTypeTOTP, mfa.MFADeviceTypeWebauthn, mfa.MFADeviceTypeTouchID:
+	default:
 		return nil, trace.BadParameter("unexpected device type: %q", config.DeviceType)
 	}
 
@@ -655,37 +674,15 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	}
 	slog.DebugContext(ctx, "Determined usage for newly registered MFA device", "usage", config.DeviceUsage.String())
 
-	// Tweak Windows platform messages so it's clear we whether we are prompting
-	// for the *registered* or *new* device.
-	// We do it here, preemptively, because it's the simpler solution (instead
-	// of finding out whether it is a Windows prompt or not).
-	const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
-	const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
-	webauthnwin.SetPromptPlatformMessage(registeredMsg)
-	defer webauthnwin.ResetPromptPlatformMessage()
+	return &config, nil
+}
 
-	ceremony := c.cfg.MFACeremony
-	mfaResp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// RunRegister prompts the user to complete a registration challenge.
+func (c *CLIPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+	resetPlatformPrompt := c.setPlatformPromptMessage()
+	defer resetPlatformPrompt()
 
-	regChal, err := ceremony.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		ExistingMFAResponse: mfaResp,
-		DeviceType:          devTypePB,
-		DeviceUsage:         config.DeviceUsage,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Prompt for registration.
-	webauthnwin.SetPromptPlatformMessage(newMsg)
-	resp, callback, err := c.promptRegisterChallenge(ctx, c.cfg.ProxyAddress, config.DeviceType, regChal)
+	resp, callback, err := c.promptRegisterChallenge(ctx, config.DeviceType, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -744,7 +741,7 @@ func (n noopRegisterCallback) Confirm() error {
 }
 
 func (c *CLIPrompt) promptRegisterChallenge(
-	ctx context.Context, proxyAddr string, devType mfa.MFADeviceType, rc *proto.MFARegisterChallenge,
+	ctx context.Context, devType mfa.MFADeviceType, rc *proto.MFARegisterChallenge,
 ) (*proto.MFARegisterResponse, mfa.RegistrationCallbacks, error) {
 	switch rc.Request.(type) {
 	case *proto.MFARegisterChallenge_TOTP:
@@ -752,17 +749,13 @@ func (c *CLIPrompt) promptRegisterChallenge(
 		return resp, noopRegisterCallback{}, err
 
 	case *proto.MFARegisterChallenge_Webauthn:
-		origin := proxyAddr
-		if !strings.HasPrefix(proxyAddr, "https://") {
-			origin = "https://" + origin
-		}
 		cc := wantypes.CredentialCreationFromProto(rc.GetWebauthn())
 
 		if devType == mfa.MFADeviceTypeTouchID {
-			return c.promptTouchIDRegisterChallenge(origin, cc)
+			return c.promptTouchIDRegisterChallenge(c.cfg.GetWebauthnOrigin(), cc)
 		}
 
-		resp, err := c.promptWebauthnRegisterChallenge(ctx, origin, cc)
+		resp, err := c.promptWebauthnRegisterChallenge(ctx, c.cfg.GetWebauthnOrigin(), cc)
 		return resp, noopRegisterCallback{}, err
 
 	default:
