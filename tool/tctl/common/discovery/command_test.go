@@ -48,7 +48,7 @@ func (m *mockUserTasks) ListUserTasks(_ context.Context, _ int64, _ string, _ *u
 // mockClient implements discoveryClient for testing.
 type mockClient struct {
 	events    []apievents.AuditEvent
-	nodes     []types.Server
+	nodes     []*types.ServerV2
 	userTasks []*usertasksv1.UserTask
 }
 
@@ -61,12 +61,11 @@ func (m *mockClient) UserTasksClient() services.UserTasks {
 }
 
 func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	resources := make([]*proto.PaginatedResource, len(m.nodes))
-	for i, n := range m.nodes {
-		sv2, _ := n.(*types.ServerV2)
-		resources[i] = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_Node{Node: sv2},
-		}
+	var resources []*proto.PaginatedResource
+	for _, node := range m.nodes {
+		resources = append(resources, &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_Node{Node: node},
+		})
 	}
 	return &proto.ListResourcesResponse{
 		Resources: resources,
@@ -152,7 +151,7 @@ AWS   222     us-west-2 i-success   2026-01-15... Installed ...
 				events: []apievents.AuditEvent{
 					makeSSMRun("i-online1", "111", "us-east-1", "Failed", 1, "err", now),
 				},
-				nodes: []types.Server{makeNode("node-1", "i-online1", "111", "us-east-1", time.Time{})},
+				nodes: []*types.ServerV2{makeNode("node-1", "i-online1", "111", "us-east-1", time.Time{})},
 			},
 			wantText: `Cloud Account Region    Instance ID Time          Status        Details       
 ----- ------- --------- ----------- ------------- ------------- ------------- 

@@ -55,7 +55,7 @@ func makeSSMRun(instanceID, accountID, region, status string, exitCode int64, ou
 }
 
 // makeNode creates a types.Server with the given name, AWS instance ID, account, region, and expiry.
-func makeNode(name, awsInstanceID, accountID, region string, expiry time.Time) types.Server {
+func makeNode(name, awsInstanceID, accountID, region string, expiry time.Time) *types.ServerV2 {
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
