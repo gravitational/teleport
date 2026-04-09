@@ -51,6 +51,10 @@ const (
 	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
 	SubKindMaterialized = "materialized"
 
+	// CreatorKindAccessList indicates that the creator is an access list, for
+	// scoped role assignments materialized from access list membership.
+	CreatorKindAccessList = "access_list"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
