@@ -40,6 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
+// ClockSkewAllowance is the leeway we allow when generating certificates for
+// apparently expired delegation sessions that are still in the backend, to
+// account for clock drift between auth server instances.
+const ClockSkewAllowance = 30 * time.Second
+
 // ErrDelegationUnauthorized is returned from the GenerateCerts handler when
 // a given delegation either doesn't exist, has expired, or the user is not
 // authorized to use it. We return the same error in all cases to avoid leaking
@@ -73,7 +78,11 @@ func (s *SessionService) GenerateCerts(
 
 	// Explicitly check the expiry in case the backend hasn't purged expired
 	// items yet.
-	if session.GetMetadata().GetExpires().AsTime().Before(time.Now()) {
+	if session.GetMetadata().GetExpires().AsTime().Add(ClockSkewAllowance).Before(time.Now()) {
+		s.logger.DebugContext(ctx,
+			"Expired delegation session still present in backend; refusing to generate certificates",
+			"delegation_session_id", session.GetMetadata().GetName(),
+		)
 		return nil, ErrDelegationUnauthorized
 	}
 

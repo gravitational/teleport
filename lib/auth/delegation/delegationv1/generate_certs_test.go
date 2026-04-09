@@ -336,7 +336,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			})
 
 			// This won't actually sleep, thanks to synctest!
-			time.Sleep(time.Until(session.GetMetadata().GetExpires().AsTime()))
+			time.Sleep(time.Until(session.GetMetadata().GetExpires().AsTime().Add(delegationv1.ClockSkewAllowance)))
 
 			_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),
