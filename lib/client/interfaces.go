@@ -377,6 +377,7 @@ func (k *KeyRing) proxyClientTLSConfig(cipherSuites []uint16, cred TLSCredential
 	}
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.Certificates = append(tlsConfig.Certificates, accessTlsCert)
+	tlsConfig.ServerName = k.ProxyHost
 	tlsConfig.MinVersion = tls.VersionTLS12
 	return tlsConfig, nil
 }

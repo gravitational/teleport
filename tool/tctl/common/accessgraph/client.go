@@ -20,16 +20,17 @@ package accessgraph
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	accessgraph "github.com/gravitational/access-graph/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/trace"
 )
 
@@ -41,6 +42,12 @@ type AccessGraphError struct {
 type AccessGraphResponse interface {
 	StatusCode() int
 	GetBody() []byte
+}
+
+type teleportErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
 }
 
 func (e *AccessGraphError) Error() string {
@@ -63,58 +70,72 @@ func doRequest[T AccessGraphResponse](resp T, err error) (T, error) {
 func checkResponse(statusCode int, body []byte) error {
 	if statusCode >= 400 {
 		var badReq accessgraph.BadRequest
-		if err := json.Unmarshal(body, &badReq); err != nil {
-			return fmt.Errorf("request failed with status %d", statusCode)
+		if err := json.Unmarshal(body, &badReq); err == nil && badReq.Message != "" {
+			return &AccessGraphError{
+				StatusCode: statusCode,
+				Message:    badReq.Message,
+			}
 		}
+
+		var teleportErr teleportErrorResponse
+		if err := json.Unmarshal(body, &teleportErr); err == nil && teleportErr.Error.Message != "" {
+			return &AccessGraphError{
+				StatusCode: statusCode,
+				Message:    teleportErr.Error.Message,
+			}
+		}
+
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			message = fmt.Sprintf("request failed with status %d", statusCode)
+		}
+
 		return &AccessGraphError{
 			StatusCode: statusCode,
-			Message:    badReq.Message,
+			Message:    message,
 		}
 	}
 	return nil
 }
 
-func newAccessGraphHTTPClient(ctx context.Context, client *authclient.Client) (*accessgraph.ClientWithResponses, error) {
-	pingResp, err := client.Ping(ctx)
+func (c *AccessGraphCommand) generateAccessGraphClient(ctx context.Context, proxyAddr string) (*accessgraph.ClientWithResponses, error) {
+	if len(c.ccf.AuthServerAddr) != 0 {
+		proxyAddr = c.ccf.AuthServerAddr[0]
+	}
 
+	hwks := libhwk.NewService(ctx, nil /* prompt */)
+	clientStore := client.NewFSClientStore(c.config.TeleportHome, client.WithHardwareKeyService(hwks))
+	if c.ccf.IdentityFilePath != "" {
+		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
+		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, c.ccf.IdentityFilePath, proxyAddr, ""); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	profile, err := clientStore.ReadProfileStatus(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if profile.IsExpired(time.Now()) {
+		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
+	}
+
+	idx := client.KeyRingIndex{ProxyHost: profile.Name, Username: profile.Username}
+	keyRing, err := clientStore.GetKeyRing(idx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if pingResp.GetProxyPublicAddr() == "" {
-		return nil, trace.NotFound("proxy public address is not configured")
+	client, err := newAccessGraphHTTPClient(proxyAddr, keyRing)
+	return client, nil
+}
+
+func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*accessgraph.ClientWithResponses, error) {
+	if keyRing == nil {
+		return nil, trace.BadParameter("missing key ring")
 	}
 
-	currentUser, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	existingTLSConfig := client.HTTPClient.TLSConfig()
-	if existingTLSConfig == nil {
-		return nil, trace.BadParameter("missing auth client TLS config")
-	}
-
-	signer, err := existingTLSSigner(existingTLSConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPEM, certs, err := generateAccessGraphUserCerts(ctx, client, signer, currentUser.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientCert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyHost, _, err := webclient.ParseHostPort(pingResp.GetProxyPublicAddr())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	baseTLSConfig, err := newAccessGraphTLSConfig(proxyHost, clientCert)
+	baseTLSConfig, err := keyRing.AccessGraphClientTLSConfig(nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,12 +148,13 @@ func newAccessGraphHTTPClient(ctx context.Context, client *authclient.Client) (*
 		Timeout: 30 * time.Second,
 	}
 
-	slog.DebugContext(ctx, "Initialized Access Graph HTTP client", "proxyAddr", pingResp.GetProxyPublicAddr(), "username", currentUser.GetName())
+	slog.Debug("Initialized Access Graph HTTP client with TLS config from keyring", "proxyAddr", proxyAddr)
 
 	accessGraphClient, err := accessgraph.NewClientWithResponses(
-		pingResp.GetProxyPublicAddr(),
+		fmt.Sprintf("https://%s/v1/enterprise/accessgraph/", proxyAddr),
 		accessgraph.WithHTTPClient(&httpClient),
 	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

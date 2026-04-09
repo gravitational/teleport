@@ -28,8 +28,10 @@ import (
 	"github.com/gravitational/trace"
 
 	accessclient "github.com/gravitational/access-graph/api/client"
+	accessgraph "github.com/gravitational/access-graph/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -42,17 +44,23 @@ type AccessGraphCommand struct {
 	access   *kingpin.CmdClause
 	accessLS *kingpin.CmdClause
 
-	query string
+	ccf       *tctlcfg.GlobalCLIFlags
+	config    *servicecfg.Config
+	proxyAddr string
+	query     string
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
-func (c *AccessGraphCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	_ = config
+func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	c.ccf = cliFlags
+	c.config = config
 	c.access = app.Command("access", "Experimental Access Graph commands.")
 	c.accessLS = c.access.Command("ls", "List Access Graph resources using the query API.")
 	c.accessLS.Flag("query", "SQL query to send to the Access Graph query API.").
 		Default(defaultAccessGraphListQuery).
 		StringVar(&c.query)
+	c.accessLS.Flag("proxy", "Public proxy URL used to reach the Access Graph API. Defaults to the current tsh profile proxy.").
+		StringVar(&c.proxyAddr)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -64,27 +72,32 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 	}
 
 	client, closeFn, err := clientFunc(ctx)
+	defer closeFn(ctx)
+
+	pingResp, err := client.Ping(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer closeFn(ctx)
+	proxyAddr := pingResp.GetProxyPublicAddr()
+	if proxyAddr == "" {
+		return false, trace.NotFound("proxy public address is not configured")
+	}
 
-	return true, trace.Wrap(c.list(ctx, client))
+	accessClient, err := c.generateAccessGraphClient(ctx, proxyAddr)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return true, trace.Wrap(c.list(ctx, accessClient))
 }
 
-func (c *AccessGraphCommand) list(ctx context.Context, authClient *authclient.Client) error {
-	client, err := newAccessGraphHTTPClient(ctx, authClient)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (c *AccessGraphCommand) list(ctx context.Context, client *accessgraph.ClientWithResponses) error {
 	resp, err := doRequest(client.ExecuteQueryV1WithResponse(ctx, &accessclient.ExecuteQueryV1Params{
 		Query: c.query,
 	}))
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return trace.Wrap(renderAccessGraphQueryResponse(os.Stdout, resp.JSON200))
 }
 
@@ -95,18 +108,32 @@ func renderAccessGraphQueryResponse(w io.Writer, graph *accessclient.Graph) erro
 		_, err := fmt.Fprintln(w, "No Access Graph resources returned.")
 		return trace.Wrap(err)
 	}
-	t := asciitable.MakeTable([]string{"Kind", "Subkind", "Name", "ID"})
+	var rows [][]string
 	for _, node := range *graph.Nodes {
-		t.AddRow([]string{
+		rows = append(rows, []string{
 			string(node.Kind),
 			string(node.SubKind),
 			string(node.Name),
 			node.Id.String(),
 		})
 	}
+	t := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Subkind", "Name", "ID"}, rows, "Name")
 
 	if _, err := t.AsBuffer().WriteTo(w); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func isAccessGraphLicensedAndEnabled(pingResp proto.PingResponse) bool {
+	features := pingResp.GetServerFeatures()
+	entitlement := features.GetEntitlements()[string(entitlements.Policy)]
+	licensed := entitlement != nil && entitlement.GetEnabled()
+	if !licensed && features.GetPolicy() != nil {
+		licensed = features.GetPolicy().GetEnabled()
+	}
+	if !licensed {
+		return false
+	}
+	return features.GetAccessGraph()
 }

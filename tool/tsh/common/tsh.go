@@ -2683,6 +2683,8 @@ func issueAccessGraphCertOnLogin(ctx context.Context, keyRing *client.KeyRing, r
 		return trace.Wrap(err)
 	}
 
+	// We'll set the expiry of the access graph to the same as the TLS cert
+	// to make rotation a little simpler.
 	certs, err := rootAuthClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: tlsPublicKey,
 		Username:     keyRing.Username,
