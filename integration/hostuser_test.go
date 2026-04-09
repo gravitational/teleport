@@ -201,7 +201,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		t.Cleanup(func() {
 			os.RemoveAll(testHome)
 		})
-		require.ErrorIs(t, err, os.ErrExist)
+		require.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists, got %v", err)
 		require.NoFileExists(t, "/tmp/ignoreme")
 	})
 }
