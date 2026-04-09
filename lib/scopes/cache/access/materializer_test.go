@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/utils"
@@ -1223,7 +1224,7 @@ initializing acl cache: %v`, t1.Sub(t0), t2.Sub(t1), t3.Sub(t2))
 				// for each benchmark loop.
 				for b.Loop() {
 					state.assignments = assignments.NewAssignmentCache(assignments.AssignmentCacheConfig{})
-					materializer := newMaterializer(aclCache)
+					materializer := newMaterializer(aclCache, tracing.NoopTracer("test"))
 					require.NoError(b, materializer.Init(b.Context(), state))
 				}
 			})
