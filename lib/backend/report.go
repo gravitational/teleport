@@ -121,6 +121,39 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		topRequestsCache:    cache,
 		slowRangeLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 12),
 	}
+
+	// Initialize all component-labeled metrics so they exist with a zero value
+	// from startup. Without this, counters like backend_read_requests_failed_total
+	// don't appear until the first failure, making Grafana dashboards harder to
+	// work with (rate() on a non-existent series returns nothing, not 0).
+	// backend_requests (backendmetrics.Requests) is excluded because it has
+	// additional label dimensions (key, range) that aren't known at init time.
+	backendmetrics.ReadRequests.WithLabelValues(r.Component)
+	backendmetrics.ReadRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.Reads.WithLabelValues(r.Component)
+	backendmetrics.ReadLatencies.WithLabelValues(r.Component)
+	backendmetrics.BatchReadRequests.WithLabelValues(r.Component)
+	backendmetrics.BatchReadRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.BatchReadLatencies.WithLabelValues(r.Component)
+	backendmetrics.WriteRequests.WithLabelValues(r.Component)
+	backendmetrics.WriteRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.WriteRequestsFailedPrecondition.WithLabelValues(r.Component)
+	backendmetrics.Writes.WithLabelValues(r.Component)
+	backendmetrics.WriteLatencies.WithLabelValues(r.Component)
+	backendmetrics.BatchWriteRequests.WithLabelValues(r.Component)
+	backendmetrics.BatchWriteRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.BatchWriteLatencies.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteRequests.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteConditionFailed.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteLatencies.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteSize.WithLabelValues(r.Component)
+	backendmetrics.AtomicWriteContention.WithLabelValues(r.Component)
+	backendmetrics.StreamingRequests.WithLabelValues(r.Component)
+	backendmetrics.StreamingRequestsFailed.WithLabelValues(r.Component)
+	backendmetrics.Watchers.WithLabelValues(r.Component)
+	backendmetrics.WatcherQueues.WithLabelValues(r.Component)
+
 	return r, nil
 }
 
