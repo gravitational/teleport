@@ -16,7 +16,7 @@ resource "teleport_integration" "azure_oidc" {
 
   metadata = {
     description = "Azure OIDC integration for Azure discovery."
-    labels      = local.apply_teleport_resource_labels
+    labels      = local.apply_teleport_integration_labels
     name        = local.teleport_integration_name
   }
   spec = {
