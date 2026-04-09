@@ -3,7 +3,7 @@ module github.com/gravitational/teleport-ami-update
 go 1.24
 
 require (
-	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
+	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.296.1

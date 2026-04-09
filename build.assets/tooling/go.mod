@@ -5,13 +5,13 @@ go 1.25.9
 require (
 	buf.build/go/bufplugin v0.9.0
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
+	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/awalterschulze/goderive v0.5.1
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-github/v41 v41.0.0
-	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
+	github.com/gravitational/teleport v0.0.0
 	github.com/gravitational/trace v1.5.1
 	github.com/stretchr/testify v1.11.1
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
@@ -298,10 +298,12 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+replace (
+	github.com/gravitational/teleport => ../..
+	github.com/gravitational/teleport/api => ../../api
+)
 
-replace github.com/gravitational/teleport => ../..
-
-replace github.com/gravitational/teleport/api => ../../api
-
-replace github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
+replace (
+	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
+)

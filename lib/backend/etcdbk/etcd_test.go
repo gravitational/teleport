@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"maps"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/server/v3/embed"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
@@ -47,13 +49,42 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func requireEmbedEtcd(t testing.TB) (etcdEndpoint string) {
+	etcdCfg := embed.NewConfig()
+	etcdCfg.Dir = t.TempDir()
+	etcdCfg.ClientTLSInfo.CertFile = "../../../fixtures/etcdcerts/server-cert.pem"
+	etcdCfg.ClientTLSInfo.KeyFile = "../../../fixtures/etcdcerts/server-key.pem"
+	etcdCfg.ClientTLSInfo.TrustedCAFile = "../../../fixtures/etcdcerts/ca-cert.pem"
+	etcdCfg.ClientTLSInfo.ClientCertAuth = true
+	etcdCfg.ListenClientUrls = []url.URL{{Scheme: "https", Host: "127.0.0.1:0"}}
+	etcdCfg.ListenPeerUrls = []url.URL{{Scheme: "http", Host: "127.0.0.1:0"}}
+	require.NoError(t, etcdCfg.Validate())
+	e, err := embed.StartEtcd(etcdCfg)
+	require.NoError(t, err)
+	t.Cleanup(e.Close)
+	<-e.Server.ReadyNotify()
+	return (&url.URL{Scheme: "https", Host: e.Clients[0].Addr().String()}).String()
+}
+
+func requireSerializedExternalEtcdOrParallelEmbedEtcd(t *testing.T) (etcdEndpoint string) {
+	etcdEndpoint = os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if etcdEndpoint != "" {
+		return etcdEndpoint
+	} else {
+		t.Parallel()
+		return requireEmbedEtcd(t)
+	}
+}
+
 // commonEtcdParams holds the common etcd configuration for all tests.
-var commonEtcdParams = backend.Params{
-	"peers":         []string{etcdTestEndpoint()},
-	"prefix":        examplePrefix,
-	"tls_key_file":  "../../../fixtures/etcdcerts/client-key.pem",
-	"tls_cert_file": "../../../fixtures/etcdcerts/client-cert.pem",
-	"tls_ca_file":   "../../../fixtures/etcdcerts/ca-cert.pem",
+func commonEtcdParams(etcdEndpoint string) backend.Params {
+	return backend.Params{
+		"peers":         []string{etcdEndpoint},
+		"prefix":        examplePrefix,
+		"tls_key_file":  "../../../fixtures/etcdcerts/client-key.pem",
+		"tls_cert_file": "../../../fixtures/etcdcerts/client-cert.pem",
+		"tls_ca_file":   "../../../fixtures/etcdcerts/ca-cert.pem",
+	}
 }
 
 var commonEtcdOptions = []Option{
@@ -61,9 +92,7 @@ var commonEtcdOptions = []Option{
 }
 
 func TestEtcd(t *testing.T) {
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 
 	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		opts, err := test.ApplyOptions(options)
@@ -78,7 +107,7 @@ func TestEtcd(t *testing.T) {
 		// No need to check target backend - all Etcd backends create by this test
 		// point to the same datastore.
 
-		bk, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+		bk, err := New(context.Background(), commonEtcdParams(etcdEndpoint), commonEtcdOptions...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -95,20 +124,18 @@ func TestEtcd(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 
 	ctx := context.Background()
 
 	// Given an etcd backend with a minimal configuration...
-	unprefixedUut, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
+	unprefixedUut, err := New(context.Background(), commonEtcdParams(etcdEndpoint), commonEtcdOptions...)
 	require.NoError(t, err)
 	defer unprefixedUut.Close()
 
 	// ...and an etcd backend configured to use a custom prefix
 	cfg := make(backend.Params)
-	maps.Copy(cfg, commonEtcdParams)
+	maps.Copy(cfg, commonEtcdParams(etcdEndpoint))
 	cfg["prefix"] = customPrefix
 
 	prefixedUut, err := New(context.Background(), cfg, commonEtcdOptions...)
@@ -170,13 +197,11 @@ func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val stri
 // error message if client sends a message exceeding the configured size maximum
 // See https://github.com/gravitational/teleport/issues/4786
 func TestCompareAndSwapOversizedValue(t *testing.T) {
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
-		"peers":                          []string{etcdTestEndpoint()},
+		"peers":                          []string{etcdEndpoint},
 		"prefix":                         "/teleport",
 		"tls_key_file":                   "../../../fixtures/etcdcerts/client-key.pem",
 		"tls_cert_file":                  "../../../fixtures/etcdcerts/client-cert.pem",
@@ -203,9 +228,7 @@ func TestLeaseBucketing(t *testing.T) {
 	const pfx = "lease-bucket-test"
 	const count = 40
 
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 
 	ctx := t.Context()
 
@@ -213,7 +236,7 @@ func TestLeaseBucketing(t *testing.T) {
 	opts = append(opts, commonEtcdOptions...)
 	opts = append(opts, LeaseBucket(time.Second*2))
 
-	bk, err := New(ctx, commonEtcdParams, opts...)
+	bk, err := New(ctx, commonEtcdParams(etcdEndpoint), opts...)
 	require.NoError(t, err)
 	defer bk.Close()
 
@@ -246,20 +269,8 @@ func TestLeaseBucketing(t *testing.T) {
 	require.Less(t, len(buckets), count/2)
 }
 
-func etcdTestEnabled() bool {
-	return os.Getenv("TELEPORT_ETCD_TEST") != ""
-}
-
-// Returns etcd host used in tests
-func etcdTestEndpoint() string {
-	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
-	if host != "" {
-		return host
-	}
-	return "https://127.0.0.1:2379"
-}
-
 func TestKeyPrefix(t *testing.T) {
+	t.Parallel()
 	prefixes := []string{"teleport", "/teleport", "/teleport/"}
 
 	for _, prefix := range prefixes {
