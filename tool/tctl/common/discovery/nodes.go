@@ -144,7 +144,7 @@ func (inst instanceInfo) details() string {
 		return title
 	}
 
-	if out := inst.runOutput(); out == "" {
+	if out := inst.runOutput(); out != "" {
 		return "Script output: " + out
 	}
 
