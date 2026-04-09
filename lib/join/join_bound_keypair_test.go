@@ -1873,7 +1873,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.EqualValues(t, 2, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
 
 	// Try once more - should hit a limit.
-	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: scopedToken.GetMetadata().GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
