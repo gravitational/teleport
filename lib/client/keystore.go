@@ -219,8 +219,10 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	// Store Access Graph cert.
 	// TODO: This cert uses the same private key as the TLS cert, so we might want to save
 	// as a single op to avoid race condition (see writeTLSCredential) for file lock
-	if err := fs.writeBytes(keyRing.AccesssGraphTLSCert, fs.accessTlsCertPath(keyRing.KeyRingIndex)); err != nil {
-		return trace.Wrap(err)
+	if len(keyRing.AccesssGraphTLSCert) > 0 {
+		if err := fs.writeBytes(keyRing.AccesssGraphTLSCert, fs.accessTlsCertPath(keyRing.KeyRingIndex)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Store SSH private and public key.
@@ -452,7 +454,10 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	}
 	var deleteErrs []error
 	for _, fn := range files {
-		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
+		err := trace.ConvertSystemError(utils.RemoveSecure(fn))
+		if err != nil && !trace.IsNotFound(err) {
+			deleteErrs = append(deleteErrs, err)
+		}
 	}
 	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
@@ -578,7 +583,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	}
 
 	accessTlsCred, err := os.ReadFile(fs.accessTlsCertPath(idx))
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -590,7 +595,9 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
 	keyRing.KeyRingIndex = idx
 	keyRing.TLSCert = tlsCred.Cert
-	keyRing.AccesssGraphTLSCert = accessTlsCred
+	if len(accessTlsCred) > 0 {
+		keyRing.AccesssGraphTLSCert = accessTlsCred
+	}
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
