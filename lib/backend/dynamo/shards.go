@@ -253,6 +253,9 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.ToString(shard.ShardId)
+
+	checker := make(map[string]struct{})
+
 	for {
 		out, err := b.streams.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
 			ShardIterator: iterator,
@@ -270,6 +273,11 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 				if err != nil {
 					return trace.Wrap(err)
 				}
+
+				if _, ok := checker[(*event).Item.Key.String()]; ok {
+					b.logger.WarnContext(ctx, "Duplicate event found in shard records, skipping. This should never happen and may indicate a bug.", "shard_id", shardID, "event_key", event.Item.Key)
+				}
+				checker[(*event).Item.Key.String()] = struct{}{}
 				events = append(events, *event)
 			}
 			select {
