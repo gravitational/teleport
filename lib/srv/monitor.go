@@ -167,9 +167,11 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
+	var cancel context.CancelCauseFunc
 	tconn, ok := getTrackingReadConn(conn)
 	if !ok {
-		tctx, cancel := context.WithCancelCause(ctx)
+		var tctx context.Context
+		tctx, cancel = context.WithCancelCause(ctx)
 		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
 			Conn:    conn,
 			Clock:   c.cfg.Clock,
@@ -177,6 +179,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 			Cancel:  cancel,
 		})
 		if err != nil {
+			cancel(nil)
 			return ctx, conn, trace.Wrap(err)
 		}
 	}
@@ -201,6 +204,9 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
 	}); err != nil {
+		if cancel != nil {
+			cancel(nil)
+		}
 		return ctx, conn, trace.Wrap(err)
 	}
 
