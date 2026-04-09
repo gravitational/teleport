@@ -143,11 +143,12 @@ func (inst instanceInfo) details() string {
 		}
 		return title
 	}
-	out := inst.runOutput()
-	if out == "" {
-		return ""
+
+	if out := inst.runOutput(); out == "" {
+		return "Script output: " + out
 	}
-	return "Script output: " + out
+
+	return ""
 }
 
 // status returns a human-readable status combining online state and run result.
