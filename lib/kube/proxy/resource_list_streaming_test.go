@@ -710,9 +710,8 @@ func Test_jsonStreamFilter_roundTrip(t *testing.T) {
 			require.NoError(t, json.Unmarshal(streamOut.Bytes(), &streamParsed))
 
 			var streamNames []string
-			if items, ok := streamParsed["items"]; ok {
+			if _, ok := streamParsed["items"]; ok {
 				streamNames = itemNames(t, streamParsed, "items")
-				_ = items
 			} else if _, ok := streamParsed["rows"]; ok {
 				streamNames = itemNames(t, streamParsed, "rows")
 			}
