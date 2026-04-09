@@ -162,6 +162,16 @@ func generateResource(
 		[]string{resourceType, resourceName},
 	)
 
+	// Add the terraform depends_on meta-argument to the resource block.
+	if opts.dependsOn != "" {
+		resourceBlock.Body().SetAttributeRaw("depends_on", hclwrite.Tokens{
+			{Type: hclsyntax.TokenOBrack, Bytes: []byte("[")},
+			{Type: hclsyntax.TokenIdent, Bytes: []byte(opts.dependsOn)},
+			{Type: hclsyntax.TokenCBrack, Bytes: []byte("]")},
+		})
+		resourceBlock.Body().AppendNewline()
+	}
+
 	msg, err := reflectMessage(resource)
 	if err != nil {
 		return trace.Wrap(err)
