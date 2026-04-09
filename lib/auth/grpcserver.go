@@ -6348,7 +6348,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	if !cfg.DisableJoinV1 {
 		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-			Authorizer:         cfg.Authorizer,
+			ScopedAuthorizer:   cfg.ScopedAuthorizer,
 			AuthService:        cfg.AuthServer,
 			FIPS:               cfg.AuthServer.fips,
 			OracleHTTPClient:   cfg.OracleHTTPClient,
