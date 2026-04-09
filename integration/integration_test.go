@@ -1980,7 +1980,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			name:          "client idle timeout node recoding",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
-				ClientIdleTimeout: types.NewDuration(5 * time.Second),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
 		},
 		{
@@ -1988,7 +1988,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			recordingMode: types.RecordAtProxy,
 			options: types.RoleOptions{
 				ForwardAgent:      types.NewBool(true),
-				ClientIdleTimeout: types.NewDuration(5 * time.Second),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
 		},
 		{
@@ -1999,7 +1999,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				// With a MaxSessionTTL of just a few seconds, certificate expiry
 				// can natually race with the establishment of a session, so we
 				// use a longer 10s ttl instead.
-				MaxSessionTTL: types.NewDuration(10 * time.Second),
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
 		},
 		{
@@ -2011,7 +2011,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				// With a MaxSessionTTL of just a few seconds, certificate expiry
 				// can natually race with the establishment of a session, so we
 				// use a longer 10s ttl instead.
-				MaxSessionTTL: types.NewDuration(10 * time.Second),
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
 		},
 		{
