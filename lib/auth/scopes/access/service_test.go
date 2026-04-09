@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -140,10 +141,17 @@ func newBackendPack(t *testing.T) *backendPack {
 	service := local.NewScopedAccessService(backend)
 	classicService := local.NewAccessService(backend)
 	events := local.NewEventsService(backend)
+	aclService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
 
 	cache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
-		Events: events,
-		Reader: service,
+		Events:           events,
+		Reader:           service,
+		AccessListEvents: events,
+		AccessListReader: aclService,
 	})
 	require.NoError(t, err)
 
