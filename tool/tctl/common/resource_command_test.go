@@ -340,6 +340,7 @@ spec:
 version: v1
 `
 	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+sub_kind: dynamic
 scope: "/"
 spec:
   user: "bob"
@@ -424,7 +425,19 @@ version: v1
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// now that a role exists, test commands for assignment creation
+
+	// Can't create an assignment without a subkind.
 	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(
+		scopedRoleAssignmentYAMLPath,
+		[]byte(strings.ReplaceAll(scopedRoleAssignmentYAML, "sub_kind: dynamic\n", "")),
+		0644,
+	))
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.ErrorContains(t, err, "has empty sub_kind")
+
+	// Create the valid scoped role assignment
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
 
 	// Create the scoped role assignment
@@ -462,10 +475,33 @@ version: v1
 	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
 	require.NoError(t, err)
 	require.Len(t, as, 1)
+	assignmentName = as[0].GetMetadata().GetName()
+
+	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Ensure that retrieving the scoped role assignment by name with default sub_kind works.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+	require.NoError(t, err)
+	var asByName []*scopedaccessv1.ScopedRoleAssignment
+	err = json.Unmarshal(buff.Bytes(), &asByName)
+	require.NoError(t, err)
+	require.Len(t, asByName, 1)
+	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
+
+	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	require.NoError(t, err)
+	err = json.Unmarshal(buff.Bytes(), &asByName)
+	require.NoError(t, err)
+	require.Len(t, asByName, 1)
+	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
 	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: assignmentName,
 		},
@@ -485,7 +521,7 @@ version: v1
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic/" + assignmentName})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation

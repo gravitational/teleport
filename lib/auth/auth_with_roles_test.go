@@ -10259,7 +10259,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	_ = getNextEvent() // drain the role create event
 
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -10291,7 +10292,8 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment.Metadata.Name,
+		Name:    assignment.Metadata.Name,
+		SubKind: assignment.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -10299,7 +10301,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},

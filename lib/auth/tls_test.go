@@ -1499,6 +1499,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -1516,7 +1517,8 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: createResp.GetAssignment().GetMetadata().GetName(),
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -2584,6 +2586,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.NewString(),
@@ -2601,7 +2604,8 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name: createResp.GetAssignment().GetMetadata().GetName(),
+			Name:    createResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
