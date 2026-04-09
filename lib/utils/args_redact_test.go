@@ -67,6 +67,58 @@ func TestRedactFlagArgs(t *testing.T) {
 	}, original)
 }
 
+func TestRedactFlagArgsMalformed(t *testing.T) {
+	t.Parallel()
+
+	mask := func(v string) string {
+		return strings.Repeat("*", len(v))
+	}
+
+	t.Run("empty value after equals", func(t *testing.T) {
+		t.Parallel()
+
+		got := RedactFlagArgs(
+			[]string{"--token=", "--password=1234"},
+			map[string]ArgValueRedactor{"--token": mask, "--password": mask},
+		)
+
+		require.Equal(t, []string{"--token=", "--password=****"}, got)
+	})
+
+	t.Run("equals sign in value", func(t *testing.T) {
+		t.Parallel()
+
+		got := RedactFlagArgs(
+			[]string{"--token=abc=def"},
+			map[string]ArgValueRedactor{"--token": mask},
+		)
+
+		require.Equal(t, []string{"--token=*******"}, got)
+	})
+
+	t.Run("space-joined flags in single arg", func(t *testing.T) {
+		t.Parallel()
+
+		got := RedactFlagArgs(
+			[]string{"--token= --password=1234"},
+			map[string]ArgValueRedactor{"--token": mask, "--password": mask},
+		)
+
+		// The entire string after the first "=" is treated as the
+		// token value, so "--password=1234" is masked as part of
+		// the token. The password redactor never fires independently.
+		require.Equal(t, []string{"--token=****************"}, got)
+	})
+
+	t.Run("empty args", func(t *testing.T) {
+		t.Parallel()
+
+		got := RedactFlagArgs(nil, map[string]ArgValueRedactor{"--token": mask})
+
+		require.Empty(t, got)
+	})
+}
+
 func TestRedactFlagArgsMissingFlagValue(t *testing.T) {
 	t.Parallel()
 

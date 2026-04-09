@@ -32,21 +32,44 @@ type ArgValueRedactor func(value string) string
 // EC2 auto-discovery), so that structured log output does not leak credentials.
 //
 // Supported formats:
-//   - --flag=value
-//   - --flag value
+//   - --flag=value / -flag=value
+//   - --flag value / -flag value
+//
+// Both single-dash and double-dash prefixes are matched against the
+// redactor map. A registration of "--token" also covers "-token" and
+// vice versa, so callers do not need to register both variants.
 func RedactFlagArgs(args []string, redactors map[string]ArgValueRedactor) []string {
 	redactedArgs := slices.Clone(args)
 	for i, arg := range redactedArgs {
 		flag, value, hasInlineValue := strings.Cut(arg, "=")
-		if redactor, ok := redactors[flag]; ok && hasInlineValue {
+		if redactor, ok := lookupRedactor(redactors, flag); ok && hasInlineValue {
 			redactedArgs[i] = flag + "=" + redactor(value)
 			continue
 		}
 
-		if redactor, ok := redactors[arg]; ok && i+1 < len(redactedArgs) {
+		if redactor, ok := lookupRedactor(redactors, arg); ok && i+1 < len(redactedArgs) {
 			redactedArgs[i+1] = redactor(redactedArgs[i+1])
 		}
 	}
 
 	return redactedArgs
+}
+
+// lookupRedactor returns the redactor for flag, trying an exact match
+// first and then the alternate dash prefix (--flag ↔ -flag).
+func lookupRedactor(redactors map[string]ArgValueRedactor, flag string) (ArgValueRedactor, bool) {
+	if r, ok := redactors[flag]; ok {
+		return r, true
+	}
+
+	switch {
+	case strings.HasPrefix(flag, "--"):
+		r, ok := redactors["-"+flag[2:]]
+		return r, ok
+	case strings.HasPrefix(flag, "-"):
+		r, ok := redactors["--"+flag[1:]]
+		return r, ok
+	default:
+		return nil, false
+	}
 }
