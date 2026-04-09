@@ -636,7 +636,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := c.getConnectionInfo(c.closeContext, tc)
+	tlsConn, user, app, err := c.getConnectionInfo(ctx, tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
