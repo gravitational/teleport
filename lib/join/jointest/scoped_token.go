@@ -20,6 +20,7 @@ import (
 	"cmp"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -53,6 +54,8 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			JoinMethod:    cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
 			Roles:         roles,
 			UsageMode:     override.GetSpec().GetUsageMode(),
+			BotName:       override.GetSpec().GetBotName(),
+			BotScope:      override.GetSpec().GetBotScope(),
 		},
 	}
 
@@ -141,6 +144,37 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		scopedToken.Spec.Oracle = &joiningv1.Oracle{
 			Allow: allow,
 		}
+	case types.JoinMethodBoundKeypair:
+		if base.BoundKeypair == nil {
+			return nil, trace.BadParameter("bound_keypair configuration must be defined for bound_keypair join method")
+		}
+
+		var onboarding *joiningv1.BoundKeypairSpec_OnboardingSpec
+		if base.BoundKeypair.Onboarding != nil {
+			onboarding = &joiningv1.BoundKeypairSpec_OnboardingSpec{
+				InitialPublicKey:   base.BoundKeypair.Onboarding.InitialPublicKey,
+				RegistrationSecret: base.BoundKeypair.Onboarding.RegistrationSecret,
+			}
+			if base.BoundKeypair.Onboarding.MustRegisterBefore != nil {
+				onboarding.MustRegisterBefore = timestamppb.New(*base.BoundKeypair.Onboarding.MustRegisterBefore)
+			}
+		}
+
+		var recovery *joiningv1.BoundKeypairSpec_RecoverySpec
+		if base.BoundKeypair.Recovery != nil {
+			recovery = &joiningv1.BoundKeypairSpec_RecoverySpec{
+				Limit: base.BoundKeypair.Recovery.Limit,
+				Mode:  base.BoundKeypair.Recovery.Mode,
+			}
+		}
+
+		scopedToken.Spec.BoundKeypair = &joiningv1.BoundKeypairSpec{
+			Onboarding: onboarding,
+			Recovery:   recovery,
+		}
+		if base.BoundKeypair.RotateAfter != nil {
+			scopedToken.Spec.BoundKeypair.RotateAfter = timestamppb.New(*base.BoundKeypair.RotateAfter)
+		}
 	case types.JoinMethodKubernetes:
 		if base.Kubernetes == nil {
 			return nil, trace.BadParameter("kubernetes configuration must be defined for kubernetes join method")
@@ -178,4 +212,27 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 	}
 
 	return scopedToken, nil
+}
+
+// BoundKeypairStatusFromProvisionToken converts the bound keypair status fields from a
+// [types.ProvisionTokenStatusV2BoundKeypair] into a [joiningv1.BoundKeypairStatus] suitable
+// for use in a scoped token's UsageStatus.
+func BoundKeypairStatusFromProvisionToken(status *types.ProvisionTokenStatusV2BoundKeypair) *joiningv1.BoundKeypairStatus {
+	if status == nil {
+		return nil
+	}
+	bkStatus := &joiningv1.BoundKeypairStatus{
+		RegistrationSecret: status.RegistrationSecret,
+		BoundPublicKey:     status.BoundPublicKey,
+		BoundBotInstanceId: status.BoundBotInstanceID,
+		BoundHostId:        status.BoundHostID,
+		RecoveryCount:      status.RecoveryCount,
+	}
+	if status.LastRecoveredAt != nil {
+		bkStatus.LastRecoveredAt = timestamppb.New(*status.LastRecoveredAt)
+	}
+	if status.LastRotatedAt != nil {
+		bkStatus.LastRotatedAt = timestamppb.New(*status.LastRotatedAt)
+	}
+	return bkStatus
 }

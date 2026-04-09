@@ -695,6 +695,7 @@ func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypai
 		RegistrationSecret: spec.GetRegistrationSecret(),
 		BoundPublicKey:     spec.GetBoundPublicKey(),
 		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
+		BoundHostID:        spec.GetBoundHostId(),
 		RecoveryCount:      spec.GetRecoveryCount(),
 		LastRecoveredAt:    lastRecoveredAt,
 		LastRotatedAt:      lastRotatedAt,
