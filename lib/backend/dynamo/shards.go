@@ -150,10 +150,6 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					delete(set, aws.ToString(shard.ShardId))
 				}
 
-				if _, ok := set[aws.ToString(shard.ShardId)]; ok {
-					return shard, false
-				}
-
 				// Only include if active and not already known.
 				return shard, active && !known
 			},
