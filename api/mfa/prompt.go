@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
 // Prompt is an MFA prompt.
@@ -76,9 +75,9 @@ type PromptConfig struct {
 	DeviceType DeviceDescriptor
 	// Quiet suppresses users prompts.
 	Quiet bool
-	// Extensions are the challenge extensions used to create the prompt's challenge.
-	// Used to enrich certain prompts.
-	Extensions *mfav1.ChallengeExtensions
+	// PerSessionMFA indicates that the prompt is being used for a per-session
+	// MFA ceremony. It is used only for prompt presentation and local UX.
+	PerSessionMFA bool
 	// CallbackCeremony is an SSO or Browser MFA ceremony.
 	CallbackCeremony CallbackCeremony
 }
@@ -154,15 +153,7 @@ func WithPromptReasonAdminAction() PromptOpt {
 func WithPromptReasonSessionMFA(serviceType, serviceName string) PromptOpt {
 	return func(cfg *PromptConfig) {
 		cfg.PromptReason = fmt.Sprintf("MFA is required to access %s %q", serviceType, serviceName)
-
-		// Set the extensions to scope USER_SESSION, which we know is true, but
-		// don't override any explicitly-set extensions (as they are likely more
-		// complete).
-		if cfg.Extensions == nil {
-			cfg.Extensions = &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-			}
-		}
+		cfg.PerSessionMFA = true
 	}
 }
 
@@ -180,16 +171,6 @@ const (
 func WithPromptDeviceType(deviceType DeviceDescriptor) PromptOpt {
 	return func(cfg *PromptConfig) {
 		cfg.DeviceType = deviceType
-	}
-}
-
-// WithPromptChallengeExtensions sets the challenge extensions used to create
-// the prompt's challenge.
-// While not mandatory, informing the prompt of the extensions used allows for
-// better user messaging.
-func WithPromptChallengeExtensions(exts *mfav1.ChallengeExtensions) PromptOpt {
-	return func(cfg *PromptConfig) {
-		cfg.Extensions = exts
 	}
 }
 

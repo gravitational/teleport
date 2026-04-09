@@ -657,13 +657,6 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 					challenge.SSOChallenge.ChannelID = channelID
 				}
 
-				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					if chal.TOTP != nil {
-						return nil, trace.Wrap(&mfa.ErrNoEligibleMFADevices)
-					}
-					return nil, trace.Wrap(&mfa.ErrNoMFADevices)
-				}
-
 				var codec protobufMFACodec
 				if err := stream.WriteChallenge(&challenge, codec); err != nil {
 					return nil, trace.Wrap(err)

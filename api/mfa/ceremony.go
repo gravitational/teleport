@@ -85,15 +85,20 @@ type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
 // the user to register their first MFA device.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	resp, runErr := c.Authenticate(ctx, req, promptOpts...)
-	if !errors.Is(runErr, &ErrNoMFADevices) {
+	regReason, ok := registrationReasonForError(req, runErr)
+	if !ok {
 		return resp, trace.Wrap(runErr)
 	}
 
 	cfg := RegistrationPromptConfig{
-		Reason: RegistrationReasonSessionMFANoDevices,
+		Reason: regReason,
 	}
-	if added, regErr := c.Register(ctx, cfg); regErr != nil || !added {
-		return nil, trace.NewAggregate(runErr, regErr)
+	added, regErr := c.Register(ctx, cfg)
+	if regErr != nil {
+		return nil, trace.Wrap(regErr)
+	}
+	if !added {
+		return nil, trace.Wrap(runErr)
 	}
 
 	return c.Authenticate(ctx, req, promptOpts...)
@@ -153,14 +158,39 @@ func (c *Ceremony) Authenticate(ctx context.Context, req *proto.CreateAuthentica
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
-	// Set challenge extensions in the prompt, if present, but set it first so the
-	// caller can still override it.
-	if req != nil && req.ChallengeExtensions != nil {
-		promptOpts = slices.Insert(promptOpts, 0, WithPromptChallengeExtensions(req.ChallengeExtensions))
+	hasOTP := chal.TOTP != nil
+	hasWebauthn := chal.WebauthnChallenge != nil
+	hasSSO := chal.SSOChallenge != nil
+	hasBrowserMfa := chal.BrowserMFAChallenge != nil
+	isPerSessionMFA := isPerSessionMFARequest(req)
+	switch {
+	case !hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa:
+		return nil, &ErrNoMFADevices
+	case isPerSessionMFA && hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa:
+		return nil, &ErrNoEligibleMFADevices
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
 	return resp, trace.Wrap(err)
+}
+
+func registrationReasonForError(req *proto.CreateAuthenticateChallengeRequest, err error) (RegistrationReason, bool) {
+	if !isPerSessionMFARequest(req) {
+		return "", false
+	}
+
+	switch {
+	case errors.Is(err, &ErrNoMFADevices):
+		return RegistrationReasonSessionMFANoDevices, true
+	case errors.Is(err, &ErrNoEligibleMFADevices):
+		return RegistrationReasonSessionMFANoEligibleDevices, true
+	default:
+		return "", false
+	}
+}
+
+func isPerSessionMFARequest(req *proto.CreateAuthenticateChallengeRequest) bool {
+	return req != nil && req.ChallengeExtensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
 }
 
 type RegistrationReason string
@@ -194,7 +224,7 @@ func (c *Ceremony) Register(ctx context.Context, cfg RegistrationPromptConfig) (
 
 	regPrompt := c.PromptConstructor(WithPromptDeviceType(DeviceDescriptorNew))
 
-	if len(cfg.DeviceTypeOptions) == 0 {
+	if cfg.DeviceType == "" && len(cfg.DeviceTypeOptions) == 0 {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
 		// This is undesirable to do during flag setup, but we can do it here.

@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -222,7 +221,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptBrowser:  chal.BrowserMFAChallenge != nil,
 	}
 
-	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	isPerSessionMFA := c.cfg.PerSessionMFA
 
 	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA.
 	if c.cfg.PreferOTP && state.promptOTP && isPerSessionMFA {

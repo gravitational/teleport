@@ -71,19 +71,6 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	hasOTP := chal.TOTP != nil
-	hasWebauthn := chal.WebauthnChallenge != nil
-	hasSSO := chal.SSOChallenge != nil
-	hasBrowserMfa := chal.BrowserMFAChallenge != nil
-	scope := p.cfg.Extensions.GetScope()
-
-	if !hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa {
-		return nil, trace.Wrap(&mfa.ErrNoMFADevices)
-	}
-	if scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION && hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa {
-		return nil, trace.Wrap(&mfa.ErrNoEligibleMFADevices)
-	}
-
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -108,7 +95,6 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
 	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
 	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
-	scope := p.cfg.Extensions.GetScope()
 	var ssoChallenge *api.SSOChallenge
 	if promptSSO {
 		ssoChallenge = &api.SSOChallenge{
@@ -133,7 +119,7 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		Webauthn:      promptWebauthn,
 		Sso:           ssoChallenge,
 		Browser:       browserMfaChallenge,
-		PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		PerSessionMfa: p.cfg.PerSessionMFA,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -171,17 +157,17 @@ func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFA
 }
 
 // AskRegister prompts user for device details for a new MFA device.
-func (f *mfaPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
-	return nil, trace.NotImplemented("not supported")
+func (f *mfaPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
+	return mfa.RegisterConfig{}, trace.NotImplemented("not supported")
 }
 
 // RunRegister prompts the user to complete a registration challenge.
-func (f *mfaPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+func (f *mfaPrompt) RunRegister(ctx context.Context, config mfa.RegisterConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 
 // NotifyRegistrationSuccess notifies the user that the device registration was
 // successful.
-func (f *mfaPrompt) NotifyRegistrationSuccess(_ context.Context, _ mfa.RegistrationPromptConfig) error {
+func (f *mfaPrompt) NotifyRegistrationSuccess(_ context.Context, _ mfa.RegisterConfig) error {
 	return trace.NotImplemented("not supported")
 }

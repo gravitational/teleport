@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	apimfa "github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -444,16 +443,14 @@ Enter your security key PIN:
 			expectErr: trace.BadParameter("client does not support any available MFA methods [WEBAUTHN, SSO], see debug logs for details"),
 		},
 		{
-			name: "NOK otp with per-session MFA",
+			name: "NOK otp-only prompt with per-session MFA",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP: &proto.TOTPChallenge{},
 			},
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.Extensions = &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				}
+				cfg.PerSessionMFA = true
 			},
-			expectErr: &apimfa.ErrNoEligibleMFADevices,
+			expectErr: &apimfa.ErrNoMFADevices,
 		},
 		{
 			name: "NOK prefer otp with per-session MFA",
@@ -461,9 +458,7 @@ Enter your security key PIN:
 				TOTP: &proto.TOTPChallenge{},
 			},
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.Extensions = &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				}
+				cfg.PerSessionMFA = true
 				cfg.PreferOTP = true
 			},
 			expectErr: trace.AccessDenied("only WebAuthn, SSO MFA, and Browser MFA methods are supported with per-session MFA, cannot specify --mfa-mode=otp"),
@@ -476,9 +471,7 @@ Enter your security key PIN:
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.Extensions = &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				}
+				cfg.PerSessionMFA = true
 				cfg.AllowStdinHijack = true
 			},
 			// expect to go down normal webauthn path instead of promptWebauthnAndOTP
@@ -495,9 +488,7 @@ Enter your security key PIN:
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.Extensions = &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				}
+				cfg.PerSessionMFA = true
 				cfg.AllowStdinHijack = true
 			},
 			// expect to go down normal webauthn path instead of promptWebauthnAndOTP
@@ -514,9 +505,7 @@ Enter your security key PIN:
 				SSOChallenge: &proto.SSOChallenge{},
 			},
 			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.Extensions = &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				}
+				cfg.PerSessionMFA = true
 				cfg.AllowStdinHijack = true
 			},
 			expectResp: &proto.MFAAuthenticateResponse{

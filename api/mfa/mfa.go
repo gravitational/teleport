@@ -52,6 +52,11 @@ var (
 	ErrNoMFADevices = trace.AccessDeniedError{
 		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
+	// ErrNoEligibleMFADevices is returned when an MFA ceremony is performed but
+	// none of the user's MFA devices are eligible for that specific ceremony.
+	ErrNoEligibleMFADevices = trace.AccessDeniedError{
+		Message: "Multi-factor authentication (MFA) is required to access this resource but none of the current user's MFA devices are eligible; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
+	}
 
 	// ErrExpiredReusableMFAResponse is returned by Auth APIs like
 	// GenerateUserCerts when an expired reusable MFA response is provided.
@@ -59,7 +64,8 @@ var (
 		Message: "Reusable MFA response validation failed and possibly expired",
 	}
 
-	// ErrDeniedRegister
+	// ErrDeniedRegister is returned when the user refuses to register an MFA
+	// device after being offered the option.
 	ErrDeniedRegister = trace.BadParameterError{Message: "user refused to register an MFA device"}
 )
 

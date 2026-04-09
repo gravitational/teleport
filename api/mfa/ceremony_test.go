@@ -259,7 +259,7 @@ func TestMFACeremony_DoesNotOfferRegistrationOutsideSessionMFA(t *testing.T) {
 			t.Fatal("unexpected registration challenge")
 			return nil, nil
 		},
-		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegisterConfig) error {
 			t.Fatal("unexpected AddMFADevice")
 			return nil
 		},
@@ -268,9 +268,9 @@ func TestMFACeremony_DoesNotOfferRegistrationOutsideSessionMFA(t *testing.T) {
 				run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 					return nil, &mfa.ErrNoMFADevices
 				},
-				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
 					askedRegister = true
-					return nil, nil
+					return mfa.RegisterConfig{}, nil
 				},
 			}
 		},
@@ -300,7 +300,7 @@ func TestMFACeremony_DeclinedRegistrationReturnsErrNoMFADevices(t *testing.T) {
 		CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 			return &proto.MFARegisterChallenge{}, nil
 		},
-		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegisterConfig) error {
 			t.Fatal("unexpected AddMFADevice")
 			return nil
 		},
@@ -309,8 +309,8 @@ func TestMFACeremony_DeclinedRegistrationReturnsErrNoMFADevices(t *testing.T) {
 				run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 					return nil, &mfa.ErrNoMFADevices
 				},
-				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
-					return nil, nil
+				askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
+					return mfa.RegisterConfig{}, &mfa.ErrDeniedRegister
 				},
 			}
 		},
@@ -323,6 +323,35 @@ func TestMFACeremony_DeclinedRegistrationReturnsErrNoMFADevices(t *testing.T) {
 	})
 	require.ErrorIs(t, err, &mfa.ErrNoMFADevices)
 	require.Nil(t, resp)
+}
+
+func TestMFACeremony_AuthenticateReturnsErrNoEligibleMFADevicesForSessionOTPOnly(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	var prompted bool
+	ceremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			return &proto.MFAAuthenticateChallenge{
+				TOTP: &proto.TOTPChallenge{},
+			}, nil
+		},
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			prompted = true
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return nil, trace.BadParameter("prompt should not be called")
+			})
+		},
+	}
+
+	resp, err := ceremony.Authenticate(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+	})
+	require.ErrorIs(t, err, &mfa.ErrNoEligibleMFADevices)
+	require.Nil(t, resp)
+	require.False(t, prompted)
 }
 
 func TestMFACeremony_RegisterAllowsFirstDeviceWithoutExistingMFA(t *testing.T) {
@@ -351,7 +380,7 @@ func TestMFACeremony_RegisterAllowsFirstDeviceWithoutExistingMFA(t *testing.T) {
 			require.Equal(t, &proto.MFAAuthenticateResponse{}, req.ExistingMFAResponse)
 			return registerChal, nil
 		},
-		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegisterConfig) error {
 			require.Equal(t, registerResp, req)
 			return nil
 		},
@@ -361,12 +390,6 @@ func TestMFACeremony_RegisterAllowsFirstDeviceWithoutExistingMFA(t *testing.T) {
 				opt(cfg)
 			}
 			switch cfg.DeviceType {
-			case "":
-				return &mockPrompt{
-					askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
-						return &config, nil
-					},
-				}
 			case mfa.DeviceDescriptorRegistered:
 				return &mockPrompt{
 					run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -375,9 +398,11 @@ func TestMFACeremony_RegisterAllowsFirstDeviceWithoutExistingMFA(t *testing.T) {
 				}
 			case mfa.DeviceDescriptorNew:
 				return &mockPrompt{
-					runRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+					askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
+						return config.RegisterConfig, nil
+					},
+					runRegister: func(ctx context.Context, config mfa.RegisterConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 						return &mfa.RegistrationResult{
-							Config:    config,
 							Response:  registerResp,
 							Callbacks: &mockRegistrationCallbacks{},
 						}, nil
@@ -390,9 +415,11 @@ func TestMFACeremony_RegisterAllowsFirstDeviceWithoutExistingMFA(t *testing.T) {
 		},
 	}
 
-	added, err := ceremony.Register(ctx, mfa.RegistrationCeremonyConfig{
-		DeviceName: "new-device",
-		DeviceType: mfa.MFADeviceTypeTOTP,
+	added, err := ceremony.Register(ctx, mfa.RegistrationPromptConfig{
+		RegisterConfig: mfa.RegisterConfig{
+			DeviceName: "new-device",
+			DeviceType: mfa.MFADeviceTypeTOTP,
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, added)
@@ -435,7 +462,7 @@ func TestMFACeremony_Register(t *testing.T) {
 			require.Equal(t, proto.DeviceUsage_DEVICE_USAGE_MFA, req.DeviceUsage)
 			return registerChal, nil
 		},
-		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegisterConfig) error {
 			require.Equal(t, registerResp, req)
 			require.Equal(t, "new-device", config.DeviceName)
 			require.Equal(t, mfa.MFADeviceTypeWebauthn, config.DeviceType)
@@ -450,12 +477,6 @@ func TestMFACeremony_Register(t *testing.T) {
 			promptDescriptors = append(promptDescriptors, cfg.DeviceType)
 
 			switch cfg.DeviceType {
-			case "":
-				return &mockPrompt{
-					askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
-						return &config, nil
-					},
-				}
 			case mfa.DeviceDescriptorRegistered:
 				return &mockPrompt{
 					run: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -465,15 +486,17 @@ func TestMFACeremony_Register(t *testing.T) {
 				}
 			case mfa.DeviceDescriptorNew:
 				return &mockPrompt{
-					runRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+					askRegister: func(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
+						return config.RegisterConfig, nil
+					},
+					runRegister: func(ctx context.Context, config mfa.RegisterConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 						require.Equal(t, registerChal, chal)
 						return &mfa.RegistrationResult{
-							Config:    config,
 							Response:  registerResp,
 							Callbacks: callbacks,
 						}, nil
 					},
-					notifyRegistrationSuccess: func(ctx context.Context, config mfa.RegistrationPromptConfig) error {
+					notifyRegistrationSuccess: func(ctx context.Context, config mfa.RegisterConfig) error {
 						notified = true
 						return nil
 					},
@@ -485,14 +508,16 @@ func TestMFACeremony_Register(t *testing.T) {
 		},
 	}
 
-	added, err := ceremony.Register(ctx, mfa.RegistrationCeremonyConfig{
-		DeviceName:  "new-device",
-		DeviceType:  mfa.MFADeviceTypeWebauthn,
-		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+	added, err := ceremony.Register(ctx, mfa.RegistrationPromptConfig{
+		RegisterConfig: mfa.RegisterConfig{
+			DeviceName:  "new-device",
+			DeviceType:  mfa.MFADeviceTypeWebauthn,
+			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, added)
-	require.Equal(t, []mfa.DeviceDescriptor{"", mfa.DeviceDescriptorRegistered, mfa.DeviceDescriptorNew}, promptDescriptors)
+	require.Equal(t, []mfa.DeviceDescriptor{mfa.DeviceDescriptorNew, mfa.DeviceDescriptorRegistered}, promptDescriptors)
 	require.True(t, callbacks.confirmed)
 	require.False(t, callbacks.rolledBack)
 	require.True(t, notified)
@@ -500,9 +525,9 @@ func TestMFACeremony_Register(t *testing.T) {
 
 type mockPrompt struct {
 	run                       func(context.Context, *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	askRegister               func(context.Context, mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error)
-	runRegister               func(context.Context, mfa.RegistrationPromptConfig, *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error)
-	notifyRegistrationSuccess func(context.Context, mfa.RegistrationPromptConfig) error
+	askRegister               func(context.Context, mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error)
+	runRegister               func(context.Context, mfa.RegisterConfig, *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error)
+	notifyRegistrationSuccess func(context.Context, mfa.RegisterConfig) error
 }
 
 func (m *mockPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -512,21 +537,21 @@ func (m *mockPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallen
 	return m.run(ctx, chal)
 }
 
-func (m *mockPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+func (m *mockPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
 	if m.askRegister == nil {
-		return nil, trace.NotImplemented("not supported")
+		return mfa.RegisterConfig{}, trace.NotImplemented("not supported")
 	}
 	return m.askRegister(ctx, config)
 }
 
-func (m *mockPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+func (m *mockPrompt) RunRegister(ctx context.Context, config mfa.RegisterConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 	if m.runRegister == nil {
 		return nil, trace.NotImplemented("not supported")
 	}
 	return m.runRegister(ctx, config, chal)
 }
 
-func (m *mockPrompt) NotifyRegistrationSuccess(ctx context.Context, config mfa.RegistrationPromptConfig) error {
+func (m *mockPrompt) NotifyRegistrationSuccess(ctx context.Context, config mfa.RegisterConfig) error {
 	if m.notifyRegistrationSuccess == nil {
 		return nil
 	}
