@@ -647,9 +647,6 @@ var (
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
-	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
-	// identifier of the Delegation Session this certificate was created for.
-	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
 
 	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
 	// web session ID associated with this identity, if any.
@@ -658,6 +655,10 @@ var (
 	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
 	// are for a bot internal identity, rather than an output certificate.
 	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
+
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
