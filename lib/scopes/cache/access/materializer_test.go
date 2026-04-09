@@ -1408,6 +1408,12 @@ func expectedScopedRoleAssignment(userName, listName string, assignments []*scop
 			User:        userName,
 			Assignments: assignments,
 		},
+		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
+			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: listName,
+			},
+		},
 	}
 }
 
