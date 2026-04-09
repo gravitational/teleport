@@ -21,7 +21,6 @@ package proxy
 import (
 	"compress/gzip"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
