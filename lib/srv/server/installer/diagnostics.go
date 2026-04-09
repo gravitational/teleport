@@ -30,6 +30,36 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// JoinFailureError is returned when the Teleport agent is installed but fails to join
+// the cluster. It carries structured diagnostics so callers can extract individual fields via [errors.As].
+type JoinFailureError struct {
+	// Message describes what went wrong at a high level, e.g.
+	// "node did not become ready (join cluster) within 5m0s".
+	Message string
+	// ServiceDiagnostics contains the systemd unit snapshot (ActiveState, SubState, Result).
+	ServiceDiagnostics string
+	// JournalOutput contains recent journalctl lines for the Teleport service.
+	JournalOutput string
+	// LastError is the last unexpected error from the readyz endpoint, if any.
+	// It surfaces errors that would otherwise be lost when the poll loop times out.
+	LastError string
+}
+
+// Error returns the formatted join-failure diagnostics.
+func (e *JoinFailureError) Error() string {
+	parts := []string{e.Message}
+	if e.ServiceDiagnostics != "" {
+		parts = append(parts, e.ServiceDiagnostics)
+	}
+	if e.LastError != "" {
+		parts = append(parts, "last readyz error: "+e.LastError)
+	}
+	if e.JournalOutput != "" {
+		parts = append(parts, "\nJournal output:\n"+e.JournalOutput)
+	}
+	return strings.Join(parts, "; ") + ": agent failed to join the cluster"
+}
+
 const (
 	// maxJournalLines is the number of recent journalctl lines to capture.
 	maxJournalLines = 50
@@ -38,9 +68,6 @@ const (
 	// be retrieved while preparing a join-failure error.
 	defaultServiceDiagnosticsUnavailable = "systemd service state: unavailable"
 )
-
-// ErrJoinFailure is returned when the Teleport agent is installed but fails to join the cluster.
-var ErrJoinFailure = errors.New("agent failed to join the cluster")
 
 // gatherServiceDiagnostics returns a one-shot best-effort systemd snapshot (ActiveState,
 // SubState, and Result) for join-failure diagnostics. It never returns an error.

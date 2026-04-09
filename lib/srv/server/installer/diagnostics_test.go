@@ -32,6 +32,62 @@ import (
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
+func TestJoinFailureErrorString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      *JoinFailureError
+		contains []string
+	}{
+		{
+			name: "all fields populated",
+			err: &JoinFailureError{
+				Message:            "node did not become ready (join cluster) within 10s",
+				ServiceDiagnostics: `systemd service state: ActiveState="failed", SubState="exited", Result="exit-code"`,
+				JournalOutput:      "error: token expired",
+			},
+			contains: []string{
+				"node did not become ready (join cluster) within 10s",
+				`ActiveState="failed"`,
+				"Journal output:\nerror: token expired",
+				"agent failed to join the cluster",
+			},
+		},
+		{
+			name: "no journal output",
+			err: &JoinFailureError{
+				Message:            "node did not become ready (join cluster) within 5m0s",
+				ServiceDiagnostics: "systemd service state: unavailable",
+			},
+			contains: []string{
+				"node did not become ready (join cluster) within 5m0s",
+				"systemd service state: unavailable",
+				"agent failed to join the cluster",
+			},
+		},
+		{
+			name: "message only",
+			err: &JoinFailureError{
+				Message: "node did not become ready (join cluster) within 10s",
+			},
+			contains: []string{
+				"node did not become ready (join cluster) within 10s",
+				"agent failed to join the cluster",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.Error()
+			for _, want := range tt.contains {
+				require.Contains(t, got, want)
+			}
+		})
+	}
+}
+
 func newBintestMock(t *testing.T, name string) *bintest.Mock {
 	t.Helper()
 
