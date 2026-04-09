@@ -25,6 +25,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type accessArgs struct {
+	cmd    *kingpin.CmdClause
+	ls     accessListArgs
+	whoCan accessWhoCanArgs
+	query  accessQueryArgs
+}
+
+type accessWhoCanArgs struct {
+	cmd      *kingpin.CmdClause
+	resource string
+}
+
+type accessQueryArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+}
+
 func (c *AccessGraphCommand) initAccess(app *kingpin.Application) {
 	c.access.cmd = app.Command("access", "Analyze who has access to what.").Hidden()
 

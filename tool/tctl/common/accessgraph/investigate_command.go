@@ -25,6 +25,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type investigateArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+	days  int
+}
+
 func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 	c.investigate.cmd = app.Command("investigate", "Investigate identity or resource activity.")
 	c.investigate.cmd.Arg("query", "The identity or resource to investigate.").StringVar(&c.investigate.query)

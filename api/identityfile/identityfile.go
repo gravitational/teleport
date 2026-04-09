@@ -218,7 +218,8 @@ func encodeIdentityFile(w io.Writer, idFile *IdentityFile) error {
 	if err := writeWithNewline(w, idFile.Certs.TLS); err != nil {
 		return trace.Wrap(err)
 	}
-	// append access graph tls cert:
+	// TODO: I don't think we shouldappend access graph tls cert,
+	// since that breaks backwards compatbility.
 	if err := writeWithNewline(w, idFile.Certs.AccessGraphTLS); err != nil {
 		return trace.Wrap(err)
 	}

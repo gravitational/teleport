@@ -25,6 +25,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type accessChangesArgs struct {
+	cmd *kingpin.CmdClause
+	ls  accessChangesListArgs
+}
+
+type accessChangesListArgs struct {
+	cmd *kingpin.CmdClause
+}
+
 func (c *AccessGraphCommand) initAccessChanges(app *kingpin.Application) {
 	c.accessChanges.cmd = app.Command("access-changes", "Monitor access path changes to crown jewels.").Hidden()
 	c.initAccessChangesList(c.accessChanges.cmd)

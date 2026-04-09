@@ -32,6 +32,11 @@ import (
 
 const defaultAccessGraphListQuery = "SELECT * FROM nodes"
 
+type accessListArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+}
+
 func (c *AccessGraphCommand) initAccessList(parent *kingpin.CmdClause) {
 	c.access.ls.cmd = parent.Command("ls", "List Access Graph resources using the query API.")
 	c.access.ls.cmd.Flag("query", "SQL query to send to the Access Graph query API.").

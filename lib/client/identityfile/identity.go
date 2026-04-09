@@ -762,6 +762,8 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 	keyRing := client.NewKeyRing(priv, priv)
 	keyRing.Cert = ident.Certs.SSH
 	keyRing.TLSCert = ident.Certs.TLS
+	// TODO We might not want to have identity file handle this cert at all, instead
+	// we can just have the keyring add it in when it is neededj
 	keyRing.AccesssGraphTLSCert = ident.Certs.AccessGraphTLS
 	keyRing.KeyRingIndex = client.KeyRingIndex{
 		ProxyHost:   proxyHost,

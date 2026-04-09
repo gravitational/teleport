@@ -38,61 +38,6 @@ type accessGraphServices struct {
 	accessGraph *accessgraphclient.ClientWithResponses
 }
 
-type accessArgs struct {
-	cmd    *kingpin.CmdClause
-	ls     accessListArgs
-	whoCan accessWhoCanArgs
-	query  accessQueryArgs
-}
-
-type accessListArgs struct {
-	cmd   *kingpin.CmdClause
-	query string
-}
-
-type accessWhoCanArgs struct {
-	cmd      *kingpin.CmdClause
-	resource string
-}
-
-type accessQueryArgs struct {
-	cmd   *kingpin.CmdClause
-	query string
-}
-
-type detectionsArgs struct {
-	cmd *kingpin.CmdClause
-	ls  detectionsListArgs
-}
-
-type detectionsListArgs struct {
-	cmd *kingpin.CmdClause
-}
-
-type accessRequestsArgs struct {
-	cmd *kingpin.CmdClause
-	ls  accessRequestsListArgs
-}
-
-type accessRequestsListArgs struct {
-	cmd *kingpin.CmdClause
-}
-
-type accessChangesArgs struct {
-	cmd *kingpin.CmdClause
-	ls  accessChangesListArgs
-}
-
-type accessChangesListArgs struct {
-	cmd *kingpin.CmdClause
-}
-
-type investigateArgs struct {
-	cmd   *kingpin.CmdClause
-	query string
-	days  int
-}
-
 // AccessGraphCommand implements experimental Access Graph commands.
 type AccessGraphCommand struct {
 	ccf    *tctlcfg.GlobalCLIFlags

@@ -25,6 +25,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type detectionsArgs struct {
+	cmd *kingpin.CmdClause
+	ls  detectionsListArgs
+}
+
+type detectionsListArgs struct {
+	cmd *kingpin.CmdClause
+}
+
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
 	c.detections.cmd = app.Command("detections", "Investigate security detections and anomalies.").Hidden()
 	c.initDetectionsList(c.detections.cmd)

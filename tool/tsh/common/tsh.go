@@ -2672,6 +2672,9 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	return nil
 }
 
+// TODO: We might want to do this ad-hoc when the command is called instead of here mostly,
+// since the actual login does not return this by defualt and there are a lot of flows that
+// might short circuit before we get here.
 func issueAccessGraphCertOnLogin(ctx context.Context, keyRing *client.KeyRing, rootAuthClient authclient.ClientI) error {
 	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.TLSPrivateKey.Public())
 	if err != nil {
