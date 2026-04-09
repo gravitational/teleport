@@ -240,7 +240,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 		return
 	}
 
-	if err := m.addMemberAssignment(ctx, state, list, userName); err != nil {
+	if err := m.addMemberRelationshipAndMaterialize(ctx, state, list, userName); err != nil {
 		m.logger.WarnContext(ctx, "Failed to materialize assignment",
 			"error", err,
 			"user", userName,
@@ -257,7 +257,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 	// As a member of this list, the user shares the list's relationship with
 	// all of its ancestors, make sure assignments are materialized.
 	for _, ancestor := range ancestors {
-		if err := m.mergeAncestorAssignment(ctx, state, ancestor.list, ancestor.relation, userName); err != nil {
+		if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, userName); err != nil {
 			m.logger.WarnContext(ctx, "Failed to materialize assignment",
 				"error", err,
 				"user", userName,
@@ -340,7 +340,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		}
 
 		// User is now a member of the parent list, materialize an assignment.
-		if err := m.addMemberAssignment(ctx, state, parentList, member.GetName()); err != nil {
+		if err := m.addMemberRelationshipAndMaterialize(ctx, state, parentList, member.GetName()); err != nil {
 			m.logger.WarnContext(ctx, "Failed to materialize assignment",
 				"error", err,
 				"user", member.GetName(),
@@ -351,7 +351,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		// list's relationship with all of its ancestors, make sure assignments
 		// are materialized.
 		for _, ancestor := range ancestors {
-			if err := m.mergeAncestorAssignment(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
+			if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -364,17 +364,20 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 func (m *materializer) handleAccessListMemberDelete(ctx context.Context, state state, listName, memberName string) {
 	// We don't get enough info from the event to know if the deleted member
 	// was a user or a list. Luckily member names are unique, so we know that
-	// if this membership is present in the ancestor cache then the deleted
-	// member is a list.
+	// if this membership is present in the ancestor cache as a list, then this
+	// member was last observed as a list. If it is not present in the ancestor
+	// cache, then it was last observed as a user (or not observed at all) and
+	// we handle it as a user member delete.
 	if m.ancestorCache.children.Get(listName).Contains(memberName) {
 		m.handleListMemberDelete(ctx, state, listName, memberName)
+		return
 	}
 	m.handleUserMemberDeleteOrExpired(ctx, state, listName, memberName)
 }
 
 // handleListMemberDelete handles delete events for nested access list memberships.
 func (m *materializer) handleListMemberDelete(ctx context.Context, state state, parentListName, memberListName string) {
-	// First and foremost, always keep the ancestor cache up to date will all
+	// First and foremost, always keep the ancestor cache up to date with all
 	// direct list->list memberships.
 	m.ancestorCache.removeMembership(parentListName, memberListName)
 
@@ -559,7 +562,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 
 		if hasMemberGrants {
 			// This user is a confirmed member, make sure a member assignment is materialized.
-			if err := m.addMemberAssignment(ctx, state, list, member.GetName()); err != nil {
+			if err := m.addMemberRelationshipAndMaterialize(ctx, state, list, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -570,7 +573,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 		// As a member of this list, the user shares the list's relationship
 		// with all of its ancestors, make sure assignments are materialized.
 		for _, ancestor := range ancestors {
-			if err := m.mergeAncestorAssignment(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
+			if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -601,7 +604,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 			// This user is a confirmed direct owner, make sure an owner
 			// assignment is materialized.
 			seenUsers.Add(owner.Name)
-			if err := m.addOwnerAssignment(ctx, state, list, owner.Name); err != nil {
+			if err := m.addOwnerRelationshipAndMaterialize(ctx, state, list, owner.Name); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", owner.Name,
@@ -635,7 +638,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 				// member lists, but it may not be done, so continue the loop.
 				continue
 			}
-			if err := m.addOwnerAssignment(ctx, state, list, member.GetName()); err != nil {
+			if err := m.addOwnerRelationshipAndMaterialize(ctx, state, list, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -686,27 +689,31 @@ func (m *materializer) handleAccessListDelete(ctx context.Context, state state, 
 	}
 }
 
-// addMemberAssignment adds the given user as a member of list, additively merges
-// with any existing materialized assignment for the user in case the user is
-// already a known owner of the list, and materializes an assignment.
-func (m *materializer) addMemberAssignment(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
+// addMemberRelationshipAndMaterialize adds the given user as a member of list,
+// additively merges with any existing materialized assignment for the user in
+// case the user is already a known owner of the list, and materializes an
+// assignment.
+func (m *materializer) addMemberRelationshipAndMaterialize(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
 	relation := ancestorRelation{isMember: true}
-	return m.mergeAncestorAssignment(ctx, state, list, relation, userName)
+	return m.updateRelationshipAndMaterialize(ctx, state, list, relation, userName)
 }
 
-// addOwnerAssignment adds the given user as an owner of list, additively
-// merges with any existing materialized assignment for the user in case the
-// user is already a known member of the list, and materializes an assignment.
-func (m *materializer) addOwnerAssignment(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
+// addOwnerRelationshipAndMaterialize adds the given user as an owner of list,
+// additively merges with any existing materialized assignment for the user in
+// case the user is already a known member of the list, and materializes an
+// assignment.
+func (m *materializer) addOwnerRelationshipAndMaterialize(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
 	relation := ancestorRelation{isOwner: true}
-	return m.mergeAncestorAssignment(ctx, state, list, relation, userName)
+	return m.updateRelationshipAndMaterialize(ctx, state, list, relation, userName)
 }
 
-// mergeAncestorAssignment adds list as an ancestor of the user and additively
-// merges the given relation with the current relation of any existing
-// materialized assignment for the user. It materializes an assignment for the
-// (user, list) pair.
-func (m *materializer) mergeAncestorAssignment(
+// updateRelationshipAndMaterialize additively updates our knowledge about a
+// given user's relationship (owner and/or member) to a given list, without
+// clearing previously set relationships. Ensures the corresponding materialized
+// assignment is created or updated as-needed. This function is called both for
+// direct relationships, and to record the transitive relationships implied by
+// nested lists.
+func (m *materializer) updateRelationshipAndMaterialize(
 	ctx context.Context,
 	state state,
 	list *accesslist.AccessList,
