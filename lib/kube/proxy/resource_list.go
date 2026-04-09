@@ -146,8 +146,8 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		defer pipeWriter.Close()
 		sess.forwarder.ServeHTTP(hc, req)
-		pipeWriter.Close()
 	}()
 	defer func() {
 		pipeReader.Close()
