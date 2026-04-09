@@ -578,6 +578,7 @@ func (a *accessChecker) blockedInDelegationSession(kind, verb string) bool {
 		types.KindApp:               []string{types.KindAppServer},
 		types.KindDatabase:          []string{types.KindDatabaseServer},
 		types.KindKubernetesCluster: []string{types.KindKubeServer},
+		types.KindWindowsDesktop:    []string{types.KindWindowsDesktopService},
 	}
 	for parent, children := range impliedKinds {
 		if allowedKinds.Contains(parent) {

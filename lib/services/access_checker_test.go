@@ -1635,6 +1635,17 @@ func TestDelegationSessionResourceRestrictions(t *testing.T) {
 			verb:         types.VerbList,
 			assertAccess: require.NoError,
 		},
+		{
+			name: "windows desktop implies windows desktop service",
+			allowedResource: types.ResourceID{
+				ClusterName: "cluster",
+				Kind:        types.KindWindowsDesktop,
+				Name:        "dev-kube",
+			},
+			resource:     types.KindWindowsDesktopService,
+			verb:         types.VerbList,
+			assertAccess: require.NoError,
+		},
 	}
 
 	for _, tc := range tests {
