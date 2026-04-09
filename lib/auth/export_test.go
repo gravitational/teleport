@@ -83,14 +83,6 @@ var (
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
 
-func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
-	remoteClusterRefreshLimit = limit
-}
-
-func (a *Server) RemoteClusterRefreshBuckets(buckets int) {
-	remoteClusterRefreshBuckets = buckets
-}
-
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	return a.verifyRecoveryCode(ctx, username, recoveryCode)
 }
@@ -196,7 +188,7 @@ func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBou
 	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessCheckerContext, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 

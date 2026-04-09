@@ -2205,7 +2205,7 @@ func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
 }
 
 func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
+	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
 	var rows [][]string
 
 	for _, item := range c.items {
@@ -2215,6 +2215,7 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 		}
 
 		rows = append(rows, []string{
+			item.GetSubKind(),
 			item.GetScope(),
 			item.GetMetadata().GetName(),
 			item.GetSpec().GetUser(),
@@ -2255,14 +2256,18 @@ func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
 }
 
 func scopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
-	table := asciitable.MakeTable([]string{"Token", "Secret", "Type", "Scope", "Assigns Scope", "Labels", "Expiry Time (UTC)"})
-
-	secretFunc := func(t *joiningv1.ScopedToken) string {
-		if withSecrets {
-			return t.GetStatus().GetSecret()
-		}
-		return "******"
+	headers := []string{
+		"Token",
+		"Type",
+		"Scope",
+		"Assigns Scope",
+		"Labels",
+		"Expiry Time (UTC)",
 	}
+	if withSecrets {
+		headers = slices.Insert(headers, 1, "Secret")
+	}
+	table := asciitable.MakeTable(headers)
 
 	now := time.Now()
 	for _, t := range tokens {
@@ -2273,7 +2278,18 @@ func scopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			expdur := expiresAt.Sub(now).Round(time.Second)
 			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 		}
-		table.AddRow([]string{t.GetMetadata().GetName(), secretFunc(t), strings.Join(t.GetSpec().GetRoles(), ","), t.GetScope(), t.GetSpec().GetAssignedScope(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+		row := []string{
+			t.GetMetadata().GetName(),
+			strings.Join(t.GetSpec().GetRoles(), ","),
+			t.GetScope(),
+			t.GetSpec().GetAssignedScope(),
+			printMetadataLabels(t.GetMetadata().Labels),
+			expiry,
+		}
+		if withSecrets {
+			row = slices.Insert(row, 1, t.GetStatus().GetSecret())
+		}
+		table.AddRow(row)
 	}
 	return table.AsBuffer()
 }

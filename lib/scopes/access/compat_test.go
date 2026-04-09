@@ -50,25 +50,30 @@ func TestEmptyRoleConverts(t *testing.T) {
 	require.Equal(t, "test@/foo/bar", role.GetName())
 }
 
-// TestSSHConversion verifies the various SSH-related scoped role rule conversion scenarios.
+// TestSSHConversion verifies the various SSH-related scoped role conversion scenarios.
 func TestSSHConversion(t *testing.T) {
 	t.Parallel()
 
 	tts := []struct {
-		name       string
-		conditions *scopedaccessv1.ScopedRoleConditions
-		expect     types.RoleConditions
+		name   string
+		ssh    *scopedaccessv1.ScopedRoleSSH
+		expect types.RoleConditions
 	}{
 		{
-			name:       "empty conditions",
-			conditions: &scopedaccessv1.ScopedRoleConditions{},
-			expect:     types.RoleConditions{},
+			name:   "nil ssh block",
+			ssh:    nil,
+			expect: types.RoleConditions{},
+		},
+		{
+			name:   "empty ssh block",
+			ssh:    &scopedaccessv1.ScopedRoleSSH{},
+			expect: types.RoleConditions{},
 		},
 		{
 			name: "sparse",
-			conditions: &scopedaccessv1.ScopedRoleConditions{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root"},
-				NodeLabels: []*labelv1.Label{
+				Labels: []*labelv1.Label{
 					{
 						Name:   "team",
 						Values: []string{"red"},
@@ -84,9 +89,9 @@ func TestSSHConversion(t *testing.T) {
 		},
 		{
 			name: "full",
-			conditions: &scopedaccessv1.ScopedRoleConditions{
+			ssh: &scopedaccessv1.ScopedRoleSSH{
 				Logins: []string{"root", "admin"},
-				NodeLabels: []*labelv1.Label{
+				Labels: []*labelv1.Label{
 					{
 						Name:   "env",
 						Values: []string{"prod", "staging"},
@@ -117,7 +122,7 @@ func TestSSHConversion(t *testing.T) {
 				Scope: "/foo",
 				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
-					Allow:            tt.conditions,
+					Ssh:              tt.ssh,
 				},
 				Version: types.V1,
 			}, "/foo/bar")
@@ -206,9 +211,7 @@ func TestRulesConversion(t *testing.T) {
 				Scope: "/foo",
 				Spec: &scopedaccessv1.ScopedRoleSpec{
 					AssignableScopes: []string{"/foo/bar"},
-					Allow: &scopedaccessv1.ScopedRoleConditions{
-						Rules: tt.rules,
-					},
+					Rules:            tt.rules,
 				},
 				Version: types.V1,
 			}, "/foo/bar")
@@ -216,4 +219,31 @@ func TestRulesConversion(t *testing.T) {
 			require.Empty(t, cmp.Diff(tt.expect, role.GetRules(types.Allow)))
 		})
 	}
+}
+
+// TestClientIdleTimeoutNotInClassicRole verifies that ScopedRoleToRole does not populate ClientIdleTimeout
+// in the classic role options. Per the scoped role design, client_idle_timeout is read directly from the
+// appropriate protocol block on the scoped role, which does not have a direct classic role equivalent.
+func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
+		Kind: KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "test",
+		},
+		Scope: "/foo",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo/bar"},
+			Ssh: &scopedaccessv1.ScopedRoleSSH{
+				ClientIdleTimeout: "30m",
+			},
+		},
+		Version: types.V1,
+	}, "/foo/bar")
+	require.NoError(t, err)
+	require.NotNil(t, role)
+	// ClientIdleTimeout must be zero in the converted role; it is evaluated at access-check time
+	// via SSHAccessChecker.AdjustClientIdleTimeout reading directly from the scoped role proto.
+	require.Zero(t, role.GetOptions().ClientIdleTimeout.Duration())
 }

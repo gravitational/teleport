@@ -19,6 +19,7 @@ package access
 import (
 	"iter"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -43,6 +44,12 @@ const (
 
 	// KindScopedToken is the kind of a scoped token resource.
 	KindScopedToken = "scoped_token"
+
+	// SubKindDynamic is the sub kind of a scoped role assignment created via the API.
+	SubKindDynamic = "dynamic"
+
+	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
+	SubKindMaterialized = "materialized"
 
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
@@ -163,7 +170,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	}
 
 	// verify that all rules are allowed for scoped roles
-	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+	for _, rule := range role.GetSpec().GetRules() {
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
@@ -176,8 +183,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that logins are well-formed
-	for _, login := range role.GetSpec().GetAllow().GetLogins() {
+	// verify that ssh logins are well-formed
+	for _, login := range role.GetSpec().GetSsh().GetLogins() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// logins. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
@@ -186,8 +193,8 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that node labels are well-formed
-	for _, label := range role.GetSpec().GetAllow().GetNodeLabels() {
+	// verify that ssh node labels are well-formed
+	for _, label := range role.GetSpec().GetSsh().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// node labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
@@ -199,6 +206,18 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			if strings.ContainsAny(value, "{}^$") {
 				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 			}
+		}
+	}
+
+	// verify that client_idle_timeout fields are valid Go duration strings
+	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
 		}
 	}
 
@@ -308,6 +327,14 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.Wrap(err)
 	}
 
+	switch assignment.GetSubKind() {
+	case SubKindDynamic, SubKindMaterialized:
+	case "":
+		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
+	default:
+		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
+	}
+
 	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
 		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
 	}
@@ -356,10 +383,6 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetKind() != KindScopedRoleAssignment {
 		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
-	}
-
-	if assignment.GetSubKind() != "" {
-		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
 	if assignment.GetVersion() == "" {

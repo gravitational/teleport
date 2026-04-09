@@ -67,7 +67,7 @@ func newFakeScopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, read
 					Name: accessInfo.Username,
 				},
 			},
-			CheckerContext: services.NewScopedSplitAccessCheckerContext(scopedCtx),
+			CheckerContext: scopedCtx,
 		},
 	}
 }
@@ -88,7 +88,7 @@ func newFakeUnscopedAuthorizer(t *testing.T, accessInfo *services.AccessInfo, re
 					Name: accessInfo.Username,
 				},
 			},
-			CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+			CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		},
 	}
 }
@@ -166,9 +166,7 @@ func newBackendPack(t *testing.T) *backendPack {
 func TestRoleBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := t.Context()
 	bk := newBackendPack(t)
 	defer bk.Close()
 
@@ -181,12 +179,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -200,12 +196,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -272,12 +266,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 					},
 				},
 			},
@@ -302,12 +294,10 @@ func TestRoleBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 					},
 				},
 			},
@@ -426,8 +416,7 @@ func TestRoleBasics(t *testing.T) {
 func TestAssignmentBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk := newBackendPack(t)
 	defer bk.Close()
@@ -441,12 +430,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Scope: "/staging",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/staging"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -460,12 +447,10 @@ func TestAssignmentBasics(t *testing.T) {
 			Scope: "/prod",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/prod"},
-				Allow: &scopedaccessv1.ScopedRoleConditions{
-					Rules: []*scopedaccessv1.ScopedRule{
-						{
-							Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
-							Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
-						},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
 					},
 				},
 			},
@@ -520,7 +505,8 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected successful read
 	rasp, err := srv.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: initialAssignments[0].GetMetadata().GetName(),
+		Name:    initialAssignments[0].GetMetadata().GetName(),
+		SubKind: initialAssignments[0].GetSubKind(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, initialAssignments[0].GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -528,7 +514,8 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected denied read
 	rasp, err = srv.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: initialAssignments[1].GetMetadata().GetName(),
+		Name:    initialAssignments[1].GetMetadata().GetName(),
+		SubKind: initialAssignments[1].GetSubKind(),
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -566,7 +553,8 @@ func TestAssignmentBasics(t *testing.T) {
 	// verify that denied create really didn't create the assignment (requires using backend service
 	// directly to avoid false positive due to cache replication)
 	garsp, err := bk.service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: a2.GetMetadata().GetName(),
+		Name:    a2.GetMetadata().GetName(),
+		SubKind: a2.GetSubKind(),
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected not found error, got: %v", err)
@@ -574,7 +562,8 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected successful delete
 	_, err = srv.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: a1.GetMetadata().GetName(),
+		Name:    a1.GetMetadata().GetName(),
+		SubKind: a1.GetSubKind(),
 	})
 	require.NoError(t, err)
 
@@ -590,7 +579,8 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected denied delete (out of scope)
 	_, err = srv.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: initialAssignments[1].GetMetadata().GetName(),
+		Name:    initialAssignments[1].GetMetadata().GetName(),
+		SubKind: initialAssignments[1].GetSubKind(),
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -598,7 +588,8 @@ func TestAssignmentBasics(t *testing.T) {
 	// verify that denied delete really didn't delete the assignment (requires using backend service
 	// directly to avoid false positive due to cache replication)
 	rasp, err = bk.service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: initialAssignments[1].GetMetadata().GetName(),
+		Name:    initialAssignments[1].GetMetadata().GetName(),
+		SubKind: initialAssignments[1].GetSubKind(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, initialAssignments[1].GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -606,7 +597,8 @@ func TestAssignmentBasics(t *testing.T) {
 
 func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccessv1.ScopedRoleAssignment {
 	return &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -628,9 +620,7 @@ func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccess
 func TestUnscopedBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := t.Context()
 	bk := newBackendPack(t)
 	defer bk.Close()
 
@@ -755,7 +745,8 @@ func TestUnscopedBasics(t *testing.T) {
 	// verify that admin can create an assignment
 	acrsp, err := srvAlice.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.New().String(),
 			},
@@ -782,7 +773,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that admin can read the assignment
 	rasp, err := srvAlice.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: acrsp.GetAssignment().GetMetadata().GetName(),
+		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
+		SubKind: acrsp.GetAssignment().GetSubKind(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -797,7 +789,8 @@ func TestUnscopedBasics(t *testing.T) {
 	// verify that auditor cannot create an assignment
 	_, err = srvBob.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Metadata: &headerv1.Metadata{
 				Name: uuid.New().String(),
 			},
@@ -819,7 +812,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that auditor can read the admin-created assignment
 	rasp, err = srvBob.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: acrsp.GetAssignment().GetMetadata().GetName(),
+		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
+		SubKind: acrsp.GetAssignment().GetSubKind(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -867,14 +861,16 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that auditor cannot delete assignments
 	_, err = srvBob.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: acrsp.GetAssignment().GetMetadata().GetName(),
+		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
+		SubKind: acrsp.GetAssignment().GetSubKind(),
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 
 	// verify that admin can delete assignments
 	_, err = srvAlice.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: acrsp.GetAssignment().GetMetadata().GetName(),
+		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
+		SubKind: acrsp.GetAssignment().GetSubKind(),
 	})
 	require.NoError(t, err)
 

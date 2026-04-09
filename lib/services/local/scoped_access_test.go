@@ -21,28 +21,33 @@ package local
 import (
 	"context"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestScopedRoleEvents verifies the expected behavior of backend events for the ScopedRole family of types.
 func TestScopedRoleEvents(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, testScopedRoleEvents)
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func testScopedRoleEvents(t *testing.T) {
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -69,13 +74,15 @@ func TestScopedRoleEvents(t *testing.T) {
 	defer watcher.Close()
 
 	getNextEvent := func() types.Event {
+		t.Helper()
+		synctest.Wait()
 		select {
 		case event := <-watcher.Events():
 			return event
 		case <-watcher.Done():
 			require.FailNow(t, "Watcher exited with error", watcher.Error())
-		case <-time.After(time.Second * 5):
-			require.FailNow(t, "Timeout waiting for event", watcher.Error())
+		default:
+			require.FailNow(t, "No event ready, synctest bubble is durably blocked")
 		}
 
 		panic("unreachable")
@@ -133,7 +140,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	_ = getNextEvent() // drain the role create event
 
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -165,7 +173,8 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment.Metadata.Name,
+		Name:    assignment.Metadata.Name,
+		SubKind: assignment.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -173,11 +182,27 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+
+	// Assert that any materialized assignments put into the backend (possibly
+	// by an auth service on a later version) don't make it into the event
+	// stream. Use the backend directly to skip subkind validation.
+	assignment.SubKind = scopedaccess.SubKindMaterialized
+	item, err := scopedRoleAssignmentToItem(assignment)
+	require.NoError(t, err)
+	_, err = service.bk.Put(ctx, item)
+	require.NoError(t, err)
+	synctest.Wait()
+	select {
+	case evt := <-watcher.Events():
+		t.Fatalf("expected no event, got %v", evt)
+	default:
+	}
 }
 
 // TestScopedRoleBasicCRUD tests the basic CRUD operations of the ScopedAccessService, excluding the more non-trivial
@@ -428,7 +453,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	// basic root assignment to test standard CRD operations with (initially invalid,
 	// will be modified later to be valid)
 	assignment01 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -478,7 +504,41 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
+	// check that otherwise valid assignment fails if subkind is unset.
+	assignment01.SubKind = ""
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+		RoleRevisions: map[string]string{
+			"role-01": roleRevisions[0],
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// check that otherwise valid assignment fails if subkind is materialized.
+	assignment01.SubKind = scopedaccess.SubKindMaterialized
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+		RoleRevisions: map[string]string{
+			"role-01": roleRevisions[0],
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// check that otherwise valid assignment fails if subkind is unknown.
+	assignment01.SubKind = "unknown"
+	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: assignment01,
+		RoleRevisions: map[string]string{
+			"role-01": roleRevisions[0],
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
 	// check that assignment of correct role with correct revision works
+	assignment01.SubKind = scopedaccess.SubKindDynamic
 	crsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment01,
 		RoleRevisions: map[string]string{
@@ -489,12 +549,21 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.NotEmpty(t, crsp.Assignment.Metadata.Revision)
 	require.Empty(t, cmp.Diff(crsp.Assignment, assignment01, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// Check that the assignment can be retrieved.
+	// check that the assignment can be retrieved.
 	grsp, err := service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment01.Metadata.Name,
+		Name:    assignment01.Metadata.Name,
+		SubKind: scopedaccess.SubKindDynamic,
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// verify that getting a materialized assignment from the backend is an error.
+	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    assignment01.Metadata.Name,
+		SubKind: scopedaccess.SubKindMaterialized,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
 	// verify that create fails if the assignment already exists
 	_, err = service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -510,27 +579,49 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: roleRevisions[0],
+		SubKind:  crsp.Assignment.SubKind,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify that delete of assignment with materialized subkind fails
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+		Name:     assignment01.Metadata.Name,
+		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  scopedaccess.SubKindMaterialized,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// verify that delete of assignment with unknown subkind fails
+	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+		Name:     assignment01.Metadata.Name,
+		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  "unknown",
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
 	// verify that delete of assignment with correct revision works
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  crsp.Assignment.SubKind,
 	})
 	require.NoError(t, err)
 
 	// verify that the assignment is gone
 	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment01.Metadata.Name,
+		Name:    assignment01.Metadata.Name,
+		SubKind: assignment01.SubKind,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// set up a more non-trivial assignment with multiple sub-assignments
 	assignment02 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -604,7 +695,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 
 	// Check that the assignment can be retrieved
 	grsp, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name: assignment02.Metadata.Name,
+		Name:    assignment02.Metadata.Name,
+		SubKind: assignment02.SubKind,
 	})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
@@ -613,7 +705,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	// bug where original impl would construct invalid conditional actions when multiple sub-assignments
 	// are made for the same role).
 	assignment03 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -645,7 +738,8 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 
 	// verify that deletion of assignment works
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment03.Metadata.Name,
+		Name:    assignment03.Metadata.Name,
+		SubKind: assignment03.SubKind,
 	})
 	require.NoError(t, err)
 }
@@ -728,7 +822,8 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 
 	// set up a non-trivial assignment with multiple sub-assignments
 	assignment01 := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -802,6 +897,7 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
+		SubKind:  assignment01.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -822,4 +918,98 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+}
+
+// TestScopedRoleInteractionWithAccessListGrants verifies the expected
+// interaction between access list grants and scoped role writes. Namely:
+//   - scoped roles cannot update their assignable scopes if that would
+//     invalidate an assignment from an access list
+//   - scoped roles cannot be deleted if they are assigned from an access list
+func TestScopedRoleInteractionWithAccessListGrants(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{Context: ctx, Clock: clock})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	accessListService := newAccessListService(t, bk, modulestest.EnterpriseModules())
+	scopedAccessService := NewScopedAccessService(bk)
+
+	// Create a base scoped role to update.
+	role := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "testrole",
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{
+				"/test/member",
+				"/test/owner",
+			},
+		},
+		Version: types.V1,
+	}
+	createRoleResp, err := scopedAccessService.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{Role: role})
+	require.NoError(t, err)
+
+	// Create an access list that grants the scoped role.
+	al := newAccessList(t, "testlist", clock, withOwnerRequires(accesslist.Requires{}), withMemberRequires(accesslist.Requires{}))
+	al.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "testrole",
+			Scope: "/test/member",
+		},
+	}
+	al.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{
+			Role:  "testrole",
+			Scope: "/test/owner",
+		},
+	}
+	_, err = accessListService.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+
+	alm := newAccessListMember(t, "testlist", "alice")
+	_, err = accessListService.UpsertAccessListMember(ctx, alm)
+	require.NoError(t, err)
+
+	// Cannot update the scoped role if it would invalidate the existing member grant.
+	updatedRole := apiutils.CloneProtoMsg(createRoleResp.GetRole())
+	updatedRole.Spec.AssignableScopes = []string{"/test/owner"}
+	_, err = scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, `would invalidate access list "testlist" spec.grants`)
+
+	// Cannot update the scoped role if it would invalidate the existing owner grant.
+	updatedRole = apiutils.CloneProtoMsg(createRoleResp.GetRole())
+	updatedRole.Spec.AssignableScopes = []string{"/test/member"}
+	_, err = scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	require.ErrorContains(t, err, `would invalidate access list "testlist" spec.owner_grants`)
+
+	// Cannot delete a scoped role granted by an access list.
+	_, err = scopedAccessService.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+		Name:     "testrole",
+		Revision: createRoleResp.GetRole().GetMetadata().GetRevision(),
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, new(*trace.CompareFailedError))
+	require.ErrorContains(t, err, `while access list "testlist"`)
+
+	// After deleting the access list, the scoped role can be updated or deleted.
+	err = accessListService.DeleteAccessList(ctx, al.GetName())
+	require.NoError(t, err)
+	updateRoleResp, err := scopedAccessService.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{Role: updatedRole})
+	require.NoError(t, err)
+	_, err = scopedAccessService.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+		Name:     "testrole",
+		Revision: updateRoleResp.GetRole().GetMetadata().GetRevision(),
+	})
+	require.NoError(t, err)
 }

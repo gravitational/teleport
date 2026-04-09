@@ -64,7 +64,7 @@ export const ExternalAuditStorageCta = (props: BoxProps) => {
       css={`
         grid-column: span 2;
         @media screen and (max-width: ${props =>
-          props.theme.breakpoints.mobile}) {
+            props.theme.breakpoints.mobile}) {
           grid-column: auto;
         }
       `}
@@ -73,7 +73,7 @@ export const ExternalAuditStorageCta = (props: BoxProps) => {
         justifyContent="space-between"
         css={`
           @media screen and (max-width: ${props =>
-            props.theme.breakpoints.mobile}) {
+              props.theme.breakpoints.mobile}) {
             flex-direction: column;
             gap: ${props => props.theme.space[3]}px;
           }

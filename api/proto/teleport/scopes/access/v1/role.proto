@@ -44,30 +44,66 @@ message ScopedRole {
   ScopedRoleSpec spec = 6;
 }
 
-// ScopedRoleSpec is the specification of a scoped role.
+// ScopedRoleSpec is the specification of a scoped role. Note that this type and all of its
+// members are required to have presence enabled for all non-sequence fields (enforced by unit
+// tests in lib/scopes/access). In practice, this means that scalar values should be declared
+// as optional. This policy exists because fields that default to a value that looks potentially
+// meaningful (e.g. false for bools) can cause difficulties when trying to determine if a field
+// was intentionally set to that value or just left unset. For scoped roles we generally want to
+// defer to global configuration for any policy not explicitly set in the role, so it's important
+// to always be able to distinguish presence. We also enforce that new top-level spec fields
+// must be proto messages rather than bare values. The intent of the scoped role spec layout is
+// to minimize top-level keys and promote grouping of related controls together in sub-blocks,
+// typically organized by the access protocol they relate to.
 message ScopedRoleSpec {
+  // allow/options are reserved to avoid problematic collisions with early unstable/preview builds
+  // in scopes, but were never part of any stable api and can likely be "un-reserved" in the future.
+  reserved 2, 3;
+  reserved "allow", "options";
+
   // AssignableScopes is a list of scopes to which this role can be assigned.
   repeated string assignable_scopes = 1;
 
-  // Allow specifies the permissions granted by this role.
-  ScopedRoleConditions allow = 2;
+  // Defaults specifies default values for controls common across multiple protocols. If the same control
+  // specified in defaults is also specified in a protocol block, the value in the protocol block takes
+  // precedence.
+  ScopedRoleDefaults defaults = 5;
+
+  // Rules describes basic resource:verb permissions (e.g. scoped_role:read).
+  repeated ScopedRule rules = 6;
+
+  // Ssh specifies controls that govern SSH access.
+  ScopedRoleSSH ssh = 7;
 }
 
-// ScopedRoleConditions describes a role's allow block.
-message ScopedRoleConditions {
-  // Rules describe basic resource:verb permissions.
-  repeated ScopedRule rules = 1;
-
-  // Logins is the list of host logins this role allows.
-  repeated string logins = 2;
-
-  // NodeLabels is a map of node labels (used to dynamically grant access to
-  // nodes).
-  repeated teleport.label.v1.Label node_labels = 3;
+// ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
+// A control in a protocol-specific block takes precedence over the value specified here.
+message ScopedRoleDefaults {
+  // ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
+  // that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+  string client_idle_timeout = 1;
 }
 
-// Rule maps resources to verbs. This is the underlying type used to describe
-// permissions like 'node:read' or 'role:create'.
+// ScopedRoleSSH groups all scoped role fields relevant to SSH access. Fields within the SSH block
+// encompass selection criteria and preconditions for access, as well as the controls to be applied in
+// cases where access is permitted. An SSH block is the primary source of truth for controls to be applied
+// to the SSH access it permits, but defaults and global or scope-bound controls may also affect the nature of
+// the resulting access.
+message ScopedRoleSSH {
+  // Logins is the list of OS logins this role permits on matching nodes.
+  repeated string logins = 1;
+
+  // Labels is the set of node labels used to dynamically select which nodes this role applies to.
+  repeated teleport.label.v1.Label labels = 2;
+
+  // ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions.
+  // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+  // (or global default) applies.
+  string client_idle_timeout = 3;
+}
+
+// ScopedRule maps resources to verbs. This is the underlying type used to describe
+// permissions like 'scoped_role:read' or 'scoped_role_assignment:create'.
 message ScopedRule {
   // Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.
   repeated string resources = 1;
