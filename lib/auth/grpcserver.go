@@ -679,7 +679,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	}
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		// Single-use certs require current user.
-		if err := auth.currentUserAction(req.Username); err != nil {
+		if err := auth.currentUserAction(ctx, req.Username); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

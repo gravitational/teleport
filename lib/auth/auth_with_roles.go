@@ -177,21 +177,25 @@ func (a *ServerWithRoles) authorizeScopedAction(ctx context.Context, resource st
 // currentUserAction is a special checker that allows certain actions for users
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
-func (a *ServerWithRoles) currentUserAction(username string) error {
-	authCtx := &a.context
+func (a *ServerWithRoles) currentUserAction(ctx context.Context, username string) error {
 	if a.scopedContext != nil {
-		var isUnscoped bool
-		authCtx, isUnscoped = a.scopedContext.UnscopedContext()
-		if !isUnscoped {
-			return trace.AccessDenied("current user actions not allowed for scoped identities")
+		if authz.ScopedIsCurrentUser(a.scopedContext, username) {
+			return nil
+		}
+		ruleCtx := a.scopedContext.RuleContext()
+		ruleCtx.User = a.getUser()
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindUser, types.VerbCreate)
+		}); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	// TODO(eriktate): see if this can be converted to using a scoped context
-	if authz.IsCurrentUser(*authCtx, username) {
+	if authz.IsCurrentUser(a.context, username) {
 		return nil
 	}
-	return authCtx.Checker.CheckAccessToRule(&services.Context{User: authCtx.User},
+
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.getUser()},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
@@ -1258,7 +1262,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 		}
 
 		// Users can watch their own access requests.
-		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+		if filter.User != "" && a.currentUserAction(ctx, filter.User) == nil {
 			return nil
 		}
 	case types.KindWebSession:
@@ -1277,7 +1281,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 		}
 
 		// Users can watch their own web sessions without secrets.
-		if filter.User != "" && !kind.LoadSecrets && a.currentUserAction(filter.User) == nil {
+		if filter.User != "" && !kind.LoadSecrets && a.currentUserAction(ctx, filter.User) == nil {
 			return nil
 		}
 	case types.KindHeadlessAuthentication:
@@ -2951,7 +2955,7 @@ func (a *ServerWithRoles) ChangePassword(
 	ctx context.Context,
 	req *proto.ChangePasswordRequest,
 ) error {
-	if err := a.currentUserAction(req.User); err != nil {
+	if err := a.currentUserAction(ctx, req.User); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.ChangePassword(ctx, req)
@@ -2959,7 +2963,7 @@ func (a *ServerWithRoles) ChangePassword(
 
 // CreateWebSession creates a new web session for the specified user
 func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.CreateWebSession(ctx, user)
@@ -2969,7 +2973,7 @@ func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (ty
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
 func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req authclient.WebSessionReq) (types.WebSession, error) {
-	if err := a.currentUserAction(req.User); err != nil {
+	if err := a.currentUserAction(ctx, req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.ExtendWebSession(ctx, req, a.context.Identity.GetIdentity())
@@ -2979,7 +2983,7 @@ func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req authclient.W
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
 func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+	if err := a.currentUserAction(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetWebSessionInfo(ctx, user, sessionID)
@@ -3029,7 +3033,7 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session types.WebSessio
 
 // Delete removes the web session specified with req.
 func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
-	if err := r.c.canDeleteWebSession(req.User); err != nil {
+	if err := r.c.canDeleteWebSession(ctx, req.User); err != nil {
 		return trace.Wrap(err)
 	}
 	return r.ws.Delete(ctx, req)
@@ -3053,7 +3057,7 @@ type webSessionsWithRoles struct {
 
 // GetWebToken returns the web token specified with req.
 func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	if err := a.currentUserAction(req.User); err != nil {
+	if err := a.currentUserAction(ctx, req.User); err != nil {
 		if err := a.authorizeAction(types.KindWebToken, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3097,7 +3101,7 @@ func (a *ServerWithRoles) ListWebTokens(ctx context.Context, limit int, start st
 
 // DeleteWebToken removes the web token specified with req.
 func (a *ServerWithRoles) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
-	if err := a.currentUserAction(req.User); err != nil {
+	if err := a.currentUserAction(ctx, req.User); err != nil {
 		if err := a.authorizeAction(types.KindWebToken, types.VerbDelete); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3120,8 +3124,8 @@ func (a *ServerWithRoles) DeleteAllWebTokens(ctx context.Context) error {
 
 type accessChecker interface {
 	authorizeAction(resource string, verb string, extraVerbs ...string) error
-	currentUserAction(user string) error
-	canDeleteWebSession(username string) error
+	currentUserAction(ctx context.Context, user string) error
+	canDeleteWebSession(ctx context.Context, username string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
@@ -3175,7 +3179,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
-	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
+	if req.Filter.User != "" && a.currentUserAction(ctx, req.Filter.User) == nil {
 		return a.authServer.ListAccessRequests(ctx, req)
 	}
 
@@ -3234,7 +3238,7 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 	if err := a.authorizeAction(types.KindAccessRequest, types.VerbCreate); err != nil {
 		// An exception is made to allow users to create *pending* access requests
 		// for themselves unless the create verb was explicitly denied.
-		if services.IsAccessExplicitlyDenied(err) || !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
+		if services.IsAccessExplicitlyDenied(err) || !req.GetState().IsPending() || a.currentUserAction(ctx, req.GetUser()) != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3360,7 +3364,7 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	}
 
 	// all users can check their own capabilities
-	if a.currentUserAction(req.User) != nil {
+	if a.currentUserAction(ctx, req.User) != nil {
 		if err := a.authorizeAction(types.KindUser, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6299,7 +6303,7 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 	}
 
 	// Users can fetch their own app sessions without secrets.
-	if err := a.currentUserAction(session.GetUser()); err == nil {
+	if err := a.currentUserAction(ctx, session.GetUser()); err == nil {
 		return session.WithoutSecrets(), nil
 	}
 
@@ -6318,7 +6322,7 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
 		// Users can only fetch their own web sessions.
-		if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.currentUserAction(ctx, session.GetUser()); err != nil {
 			if err := a.authorizeAction(types.KindWebSession, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -6373,7 +6377,7 @@ func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, 
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error) {
-	if err := a.currentUserAction(req.Username); err != nil {
+	if err := a.currentUserAction(ctx, req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6389,7 +6393,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
-		if err := a.currentUserAction(req.Username); err != nil {
+		if err := a.currentUserAction(ctx, req.Username); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6408,7 +6412,7 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.Delete
 		return trace.Wrap(err)
 	}
 	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
+	if err := a.canDeleteWebSession(ctx, session.GetUser()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
@@ -6463,7 +6467,7 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 	}
 	// Check if user can delete this web session.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
-		if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
+		if err := a.canDeleteWebSession(ctx, snowflakeSession.GetUser()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -6502,7 +6506,7 @@ func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
 // DeleteUserAppSessions deletes all user’s application sessions.
 func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	// First, check if the current user can delete the request user sessions.
-	if err := a.canDeleteWebSession(req.Username); err != nil {
+	if err := a.canDeleteWebSession(ctx, req.Username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6515,8 +6519,8 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 
 // canDeleteWebSession checks if the current user can delete
 // WebSessions from the provided `username`.
-func (a *ServerWithRoles) canDeleteWebSession(username string) error {
-	if err := a.currentUserAction(username); err != nil {
+func (a *ServerWithRoles) canDeleteWebSession(ctx context.Context, username string) error {
+	if err := a.currentUserAction(ctx, username); err != nil {
 		if err := a.authorizeAction(types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
 			return trace.Wrap(err)
 		}
