@@ -209,8 +209,10 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 	userName := member.GetName()
 
 	if m.ancestorCache.children.Get(listName).Contains(userName) {
-		// This access list member must have had membership kind list before,
-		// and was updated to membership kind user.
+		// Due to presence in the ancestor cache, this access list member must
+		// have been observed with membership kind list before, and now has
+		// membership kind user. Process a list member delete first, and then
+		// carry on to handle the user member put.
 		m.handleListMemberDelete(ctx, state, listName, userName)
 	}
 
