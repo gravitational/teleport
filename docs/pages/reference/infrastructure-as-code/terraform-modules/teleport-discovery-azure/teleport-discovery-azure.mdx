@@ -1,3 +1,17 @@
+---
+title: Reference for the teleport-discovery-azure Terraform module
+sidebar_label: teleport-discovery-azure
+description: This page describes the Terraform module for discovering resources in AZURE.
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit integrations/terraform-modules/teleport/discovery/azure/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/azure](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/discovery/azure)
 # Azure Discovery Terraform module
 
 This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure virtual machines:
@@ -24,7 +38,7 @@ If you're having trouble, check out our [GitHub Discussions](https://github.com/
 
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 
-<!-- BEGIN_TF_DOCS -->
+{/* BEGIN_TF_DOCS */}
 ## Requirements
 
 | Name | Version |
@@ -93,4 +107,4 @@ No modules.
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_integration\_name | Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an Azure managed identity for discovery using Azure OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'. |
 | teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using Azure credentials. Token details can be viewed with `tctl get token/<name>`. |
-<!-- END_TF_DOCS -->
+{/* END_TF_DOCS */}

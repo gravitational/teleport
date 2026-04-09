@@ -3,18 +3,32 @@ locals {
   apply_teleport_resource_labels = { origin = "example" }
 }
 
+data "azurerm_client_config" "current" {}
+
 module "azure_discovery" {
   source = "../.."
 
-  azure_managed_identity_location = azurerm_resource_group.example.location
-  azure_resource_group_name       = azurerm_resource_group.example.name
-  teleport_discovery_group_name   = "cloud-discovery-group"
-  teleport_proxy_public_addr      = "example.teleport.sh:443"
+  teleport_discovery_group_name = "cloud-discovery-group"
+  teleport_proxy_public_addr    = "example.teleport.sh:443"
 
-  # optional
-  match_azure_regions         = ["westus", "eastus"] // discover VMs in these US west and east regions.
-  match_azure_resource_groups = ["*"]                // discover VMs in all resource groups
-  match_azure_tags            = { "env" = ["example"] }
+  # Name of an existing Azure Resource Group where Azure resources will be created."
+  azure_resource_group_name = azurerm_resource_group.example.name
+  # Region where Azure managed identity will be created (westus)
+  azure_managed_identity_location = azurerm_resource_group.example.location
+
+  # Discover Azure VMs across all resource groups in the current subscription
+  # and matching the specified tags.
+  azure_matchers = [
+    {
+      types           = ["vm"]
+      subscriptions   = [data.azurerm_client_config.current.subscription_id]
+      resource_groups = ["*"]
+      regions         = ["westus", "eastus"]
+      tags = {
+        env = ["example"]
+      }
+    }
+  ]
   # Apply the additional Azure tag "origin=example" to all Azure resources created by this module
   apply_azure_tags = local.apply_azure_tags
   # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
@@ -25,7 +39,7 @@ module "azure_discovery" {
 
 resource "azurerm_resource_group" "example" {
   name     = "example-resources"
-  location = "West US"
+  location = "westus"
   tags     = local.apply_azure_tags
 }
 
@@ -67,8 +81,6 @@ TELEPORT_BINARY=/usr/local/bin/teleport
 [ -z "$${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/$${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
 sudo -E "$TELEPORT_BINARY" install autodiscover-node --public-proxy-addr={{.PublicProxyAddr}} --teleport-package={{.TeleportPackage}} --repo-channel={{.RepoChannel}} --auto-upgrade={{.AutomaticUpgrades}} --azure-client-id={{.AzureClientID}} $@
-  }
-}
 EOF
   }
 }

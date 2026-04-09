@@ -2,6 +2,14 @@
 # Teleport cluster provision token for Azure
 ################################################################################
 
+locals {
+  teleport_provision_token_name = (
+    var.teleport_provision_token_use_name_prefix
+    ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
+    : var.teleport_provision_token_name
+  )
+}
+
 # Teleport provision token for Azure join
 resource "teleport_provision_token" "azure" {
   count = local.create ? 1 : 0
@@ -9,16 +17,12 @@ resource "teleport_provision_token" "azure" {
   metadata = {
     description = "Allow Teleport nodes to join the cluster using Azure credentials."
     labels      = local.apply_teleport_resource_labels
-    name = (
-      var.teleport_provision_token_use_name_prefix
-      ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
-      : var.teleport_provision_token_name
-    )
+    name        = local.teleport_provision_token_name
   }
   spec = {
     azure = {
-      allow = [{
-        subscription = local.azure_subscription_id
+      allow = [for sub in local.azure_matcher_subscriptions : {
+        subscription = sub
       }]
     }
     join_method = "azure"
