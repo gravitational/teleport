@@ -37,63 +37,63 @@ func SFTPEventToProto(ev *sftputils.SFTPEvent) (*apievents.SFTP, error) {
 	}
 
 	switch ev.Method {
-	case MethodOpen, MethodGet, MethodPut:
+	case sftputils.MethodOpen, sftputils.MethodGet, sftputils.MethodPut:
 		if ev.Error == "" {
 			event.Code = events.SFTPOpenCode
 		} else {
 			event.Code = events.SFTPOpenFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPEN
-	case MethodSetStat:
+	case sftputils.MethodSetStat:
 		if ev.Error == "" {
 			event.Code = events.SFTPSetstatCode
 		} else {
 			event.Code = events.SFTPSetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_SETSTAT
-	case MethodList:
+	case sftputils.MethodList:
 		if ev.Error == "" {
 			event.Code = events.SFTPReaddirCode
 		} else {
 			event.Code = events.SFTPReaddirFailureCode
 		}
 		event.Action = apievents.SFTPAction_READDIR
-	case MethodRemove:
+	case sftputils.MethodRemove:
 		if ev.Error == "" {
 			event.Code = events.SFTPRemoveCode
 		} else {
 			event.Code = events.SFTPRemoveFailureCode
 		}
 		event.Action = apievents.SFTPAction_REMOVE
-	case MethodMkdir:
+	case sftputils.MethodMkdir:
 		if ev.Error == "" {
 			event.Code = events.SFTPMkdirCode
 		} else {
 			event.Code = events.SFTPMkdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_MKDIR
-	case MethodRmdir:
+	case sftputils.MethodRmdir:
 		if ev.Error == "" {
 			event.Code = events.SFTPRmdirCode
 		} else {
 			event.Code = events.SFTPRmdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_RMDIR
-	case MethodRename:
+	case sftputils.MethodRename:
 		if ev.Error == "" {
 			event.Code = events.SFTPRenameCode
 		} else {
 			event.Code = events.SFTPRenameFailureCode
 		}
 		event.Action = apievents.SFTPAction_RENAME
-	case MethodSymlink:
+	case sftputils.MethodSymlink:
 		if ev.Error == "" {
 			event.Code = events.SFTPSymlinkCode
 		} else {
 			event.Code = events.SFTPSymlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_SYMLINK
-	case MethodLink:
+	case sftputils.MethodLink:
 		if ev.Error == "" {
 			event.Code = events.SFTPLinkCode
 		} else {

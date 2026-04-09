@@ -1853,11 +1853,8 @@ func (s *session) checkPresence(ctx context.Context) error {
 	return nil
 }
 
-//go:fix inline
-type FileTransferRequest = reexecsftp.FileTransferRequest
-
 type fileTransferRequestWithApprovers struct {
-	FileTransferRequest
+	reexecsftp.FileTransferRequest
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
@@ -1904,7 +1901,7 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	}
 
 	s.fileTransferReq = &fileTransferRequestWithApprovers{
-		FileTransferRequest: FileTransferRequest{
+		FileTransferRequest: reexecsftp.FileTransferRequest{
 			ID:        uuid.New().String(),
 			Requester: params.Requester,
 			Location:  params.Location,
