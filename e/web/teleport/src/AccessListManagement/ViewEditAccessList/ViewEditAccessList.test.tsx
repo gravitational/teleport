@@ -186,6 +186,35 @@ test('viewing a SCIM access list as admin', async () => {
   expect(button).toBeDisabled();
 });
 
+test('renders scoped role grants for members, owners, and inherited access', async () => {
+  jest.spyOn(accessManagementService, 'fetchAccessList').mockResolvedValue({
+    ...accessList,
+    grants: {
+      roles: ['member-role'],
+      traits: {},
+      scopedRoles: [{ role: 'db-reader', scope: '/prod' }],
+    },
+    ownerGrants: {
+      roles: ['owner-role'],
+      traits: {},
+      scopedRoles: [{ role: 'kube-admin', scope: '/root' }],
+    },
+    inheritedMemberGrants: {
+      roles: [],
+      traits: {},
+      scopedRoles: [{ role: 'app-access', scope: '/staging' }],
+    },
+  });
+
+  render(<Provider />);
+
+  await screen.findByText(/db-reader \(\/prod\)/i);
+  expect(screen.getByText(/app-access \(\/staging\)/i)).toBeInTheDocument();
+
+  await userEvent.click(screen.getByText(/owners \(1\)/i));
+  expect(screen.getByText(/kube-admin \(\/root\)/i)).toBeInTheDocument();
+});
+
 type TestAs =
   | 'admin'
   | 'owner-no-rbac'

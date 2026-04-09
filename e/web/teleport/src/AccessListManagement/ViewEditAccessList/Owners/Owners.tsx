@@ -62,6 +62,7 @@ export function Owners(props: OwnersProps) {
 
             <RoleAndTraitLabels
               roles={ownerGrants.roles}
+              scopedRoles={ownerGrants.scopedRoles}
               traits={ownerGrants.traitList}
               accessKind="grants"
               toolTipContent={getActionForbiddenInfo({

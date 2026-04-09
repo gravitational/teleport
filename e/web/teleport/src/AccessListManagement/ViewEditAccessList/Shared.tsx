@@ -19,6 +19,7 @@ import {
   AccessListMember,
   AccessListOwner,
   AccessListRequires,
+  ScopedRoleGrant,
 } from 'e-teleport/services/accessmanagement';
 import type { Access } from 'teleport/services/user';
 
@@ -226,18 +227,25 @@ const TextNoEllipsis = styled(Box)`
   ${p => p.theme.typography.body3}
 `;
 
+const labelPrefixes = {
+  trait: '[Trait]',
+  role: '[Role]',
+  scopedRole: '[Scoped Role]',
+} as const;
+
 const renderTruncatingLabels = (
   labels: string[] = [],
-  labekKind: 'trait' | 'role'
+  labelKind: 'trait' | 'role' | 'scopedRole'
 ) => {
-  const forRole = labekKind === 'role';
+  const forRole = labelKind !== 'trait';
+  const labelPrefix = labelPrefixes[labelKind];
   return (
     <>
       {labels.map((label, index) => (
         <TruncatingLabel
           key={`${label}${index}`}
           kind="secondary"
-          title={`${forRole ? '[Role]' : '[Trait]'} ${label}`}
+          title={`${labelPrefix} ${label}`}
           labelForRole={forRole}
         >
           {forRole ? (
@@ -252,8 +260,13 @@ const renderTruncatingLabels = (
   );
 };
 
+const formatScopedRoleLabel = ({ role, scope }: ScopedRoleGrant) => {
+  return `${role} (${scope})`;
+};
+
 export const RoleAndTraitLabels = ({
   roles,
+  scopedRoles,
   traits,
   accessKind,
   editDisabled,
@@ -262,6 +275,7 @@ export const RoleAndTraitLabels = ({
   userKind,
 }: {
   roles: string[];
+  scopedRoles?: ScopedRoleGrant[];
   traits: string[];
   required?: boolean;
   accessKind: 'requirements' | 'grants' | 'inherited';
@@ -305,6 +319,10 @@ export const RoleAndTraitLabels = ({
       </HoverTooltip>
       <Flex alignItems="center" gap={1} flexWrap="wrap">
         {renderTruncatingLabels(roles, 'role')}
+        {renderTruncatingLabels(
+          scopedRoles?.map(formatScopedRoleLabel),
+          'scopedRole'
+        )}
         {renderTruncatingLabels(traits, 'trait')}
         {onEdit && (
           <HoverTooltip tipContent={toolTipContent}>

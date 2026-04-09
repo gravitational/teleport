@@ -26,7 +26,6 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
-	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/accesslist/preset"
 	"github.com/gravitational/teleport/lib/accesslists"
@@ -734,10 +733,7 @@ func (s *Service) GetInheritedGrants(ctx context.Context, req *accesslistv1.GetI
 	}
 
 	return &accesslistv1.GetInheritedGrantsResponse{
-		Grants: &accesslistv1.AccessListGrants{
-			Roles:  grants.Roles,
-			Traits: traitv1.ToProto(grants.Traits),
-		},
+		Grants: conv.ConvertGrantsToProto(*grants),
 	}, nil
 }
 

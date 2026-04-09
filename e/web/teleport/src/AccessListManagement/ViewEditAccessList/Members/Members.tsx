@@ -54,6 +54,7 @@ export function Members(props: MembersProps) {
   const [editPermKind, setEditPermKind] = useState<EditKind>();
 
   const inheritedMemberRoles = inheritedMemberGrants.roles;
+  const inheritedMemberScopedRoles = inheritedMemberGrants.scopedRoles;
   const inheritedMemberTraits = convertToTraitConvenience(
     inheritedMemberGrants.traits
   ).traitList;
@@ -83,6 +84,7 @@ export function Members(props: MembersProps) {
 
             <RoleAndTraitLabels
               roles={grants.roles}
+              scopedRoles={grants.scopedRoles}
               traits={grants.traitList}
               accessKind="grants"
               toolTipContent={getActionForbiddenInfo({
@@ -100,9 +102,11 @@ export function Members(props: MembersProps) {
 
             {/* inherited  permissions from nested access list */}
             {(inheritedMemberRoles?.length > 0 ||
+              inheritedMemberScopedRoles?.length > 0 ||
               inheritedMemberTraits?.length > 0) && (
               <RoleAndTraitLabels
                 roles={inheritedMemberRoles}
+                scopedRoles={inheritedMemberScopedRoles}
                 traits={inheritedMemberTraits}
                 required
                 accessKind="inherited"
