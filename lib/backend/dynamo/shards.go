@@ -21,6 +21,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"iter"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -90,7 +92,8 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 	b.logger.DebugContext(ctx, "Found latest event stream", "stream_arn", aws.ToString(streamArn))
 
-	set := make(map[string]struct{})
+	// turn this into a tombstone
+	set := make(map[string]bool)
 	eventsC := make(chan shardEvent)
 
 	shouldStartPoll := func(shard streamtypes.Shard) bool {
@@ -108,7 +111,19 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 
 	refreshShards := func(init bool) error {
-		shards, err := b.collectActiveShards(ctx, streamArn)
+		shards, err := iterstream.Collect(iterstream.FilterMap(
+			b.fetchShards(ctx, streamArn),
+			func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
+				// First do cleanup of any tombstoned shards.
+				if processed, ok := set[aws.ToString(shard.ShardId)]; ok && processed {
+					b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
+					delete(set, aws.ToString(shard.ShardId))
+				}
+
+				// Only include if active.
+				return shard, shard.SequenceNumberRange.EndingSequenceNumber == nil
+			},
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -127,7 +142,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			}
 			shardID := aws.ToString(shards[i].ShardId)
 			b.logger.DebugContext(ctx, "Adding active shard", "shard_id", shardID)
-			set[shardID] = struct{}{}
+			set[shardID] = false
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
 		}
@@ -170,7 +185,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					b.logger.WarnContext(ctx, "Forcing watch system reset due to empty shard ID on error (this is a bug)", "error", err)
 					return trace.BadParameter("empty shard ID")
 				}
-				delete(set, event.shardID)
+				set[event.shardID] = true // mark ready for deletion.
 				if !errors.Is(event.err, shardClosedError{}) {
 					b.logger.DebugContext(ctx, "Shard closed with error, resetting buffers.", "shard_id", event.shardID, "error", event.err)
 					return trace.Wrap(event.err)
@@ -307,41 +322,76 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 	}
 }
 
+func (b *Backend) fetchShards(ctx context.Context, streamArn *string) iter.Seq2[streamtypes.Shard, error] {
+	return func(yield func(streamtypes.Shard, error) bool) {
+		input := &dynamodbstreams.DescribeStreamInput{
+			StreamArn: streamArn,
+		}
+		for {
+			streamInfo, err := b.streams.DescribeStream(ctx, input)
+			if err != nil {
+				yield(*new(streamtypes.Shard), trace.Wrap(convertError(err)))
+				return
+			}
+
+			for _, shard := range streamInfo.StreamDescription.Shards {
+				if !yield(shard, nil) {
+					return
+				}
+			}
+
+			input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+			if input.ExclusiveStartShardId == nil {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				// let the next call deal with the context error
+			case <-time.After(200 * time.Millisecond):
+				// 10 calls per second with two auths, with ample margin
+			}
+		}
+
+	}
+
+}
+
 // collectActiveShards collects shards
-func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]streamtypes.Shard, error) {
-	var out []streamtypes.Shard
+// func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]streamtypes.Shard, error) {
+// 	var out []streamtypes.Shard
 
-	input := &dynamodbstreams.DescribeStreamInput{
-		StreamArn: streamArn,
-	}
-	for {
-		streamInfo, err := b.streams.DescribeStream(ctx, input)
-		if err != nil {
-			return nil, convertError(err)
-		}
-		out = append(out, streamInfo.StreamDescription.Shards...)
-		if streamInfo.StreamDescription.LastEvaluatedShardId == nil {
-			return filterActiveShards(out), nil
-		}
-		input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
-		select {
-		case <-ctx.Done():
-			// let the next call deal with the context error
-		case <-time.After(200 * time.Millisecond):
-			// 10 calls per second with two auths, with ample margin
-		}
-	}
-}
+// 	input := &dynamodbstreams.DescribeStreamInput{
+// 		StreamArn: streamArn,
+// 	}
+// 	for {
+// 		streamInfo, err := b.streams.DescribeStream(ctx, input)
+// 		if err != nil {
+// 			return nil, convertError(err)
+// 		}
+// 		out = append(out, streamInfo.StreamDescription.Shards...)
+// 		if streamInfo.StreamDescription.LastEvaluatedShardId == nil {
+// 			return filterActiveShards(out), nil
+// 		}
+// 		input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+// 		select {
+// 		case <-ctx.Done():
+// 			// let the next call deal with the context error
+// 		case <-time.After(200 * time.Millisecond):
+// 			// 10 calls per second with two auths, with ample margin
+// 		}
+// 	}
+// }
 
-func filterActiveShards(shards []streamtypes.Shard) []streamtypes.Shard {
-	var active []streamtypes.Shard
-	for i := range shards {
-		if shards[i].SequenceNumberRange.EndingSequenceNumber == nil {
-			active = append(active, shards[i])
-		}
-	}
-	return active
-}
+// func filterActiveShards(shards []streamtypes.Shard) []streamtypes.Shard {
+// 	var active []streamtypes.Shard
+// 	for i := range shards {
+// 		if shards[i].SequenceNumberRange.EndingSequenceNumber == nil {
+// 			active = append(active, shards[i])
+// 		}
+// 	}
+// 	return active
+// }
 
 func toOpType(rec streamtypes.Record) (types.OpType, error) {
 	switch rec.EventName {
