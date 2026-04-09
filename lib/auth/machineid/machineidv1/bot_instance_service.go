@@ -19,7 +19,6 @@
 package machineidv1
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
 	"os"
@@ -34,7 +33,6 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -139,7 +137,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	ruleCtx.Resource153 = instance
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		cmp.Or(instance.Scope, scopes.Root),
+		instance.Scope,
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -192,7 +190,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	ruleCtx.Resource153 = res
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		cmp.Or(res.Scope, scopes.Root),
+		res.Scope,
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -271,7 +269,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		ruleCtx.Resource153 = botInstance
 		if err := authCtx.CheckerContext.Decision(
 			ctx,
-			cmp.Or(botInstance.Scope, scopes.Root),
+			botInstance.Scope,
 			func(checker *services.ScopedAccessChecker) error {
 				return checker.CheckAccessToRules(
 					&ruleCtx,
