@@ -1824,12 +1824,7 @@ type disconnectTestCase struct {
 }
 
 // sharedCluster can be used for subtests with common setup to reduce test setup time.
-//
-// Generally, the sharedCluster's mutex should be held for the duration of a subtest to
-// serialize subtests within a shared cluster, while still letting different clusters run
-// in parallel.
 type sharedCluster struct {
-	mu       sync.Mutex
 	teleport *helpers.TeleInstance
 	cfg      *servicecfg.Config
 }
@@ -2114,9 +2109,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 
 func runDisconnectTest(t *testing.T, tc *disconnectTestCase) {
 	t.Parallel()
-
-	tc.cluster.mu.Lock()
-	t.Cleanup(tc.cluster.mu.Unlock)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
