@@ -178,13 +178,13 @@ func (c *Client) DeleteAllOktaAssignments(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// UpdateOktaAssignmentCAS updates an existing Okta assignment resource using CAS operation.
-func (c *Client) UpdateOktaAssignmentCAS(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+func (c *Client) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	assignmentV1, ok := assignment.(*types.OktaAssignmentV1)
 	if !ok {
 		return nil, trace.BadParameter("expected to be OktaAssignmentV1, got %T", assignment)
 	}
-	resp, err := c.grpcClient.UpdateOktaAssignmentCAS(ctx, &oktapb.UpdateOktaAssignmentCASRequest{
+	resp, err := c.grpcClient.ConditionalUpdateOktaAssignment(ctx, &oktapb.ConditionalUpdateOktaAssignmentRequest{
 		Assignment: assignmentV1,
 	})
 	if err != nil {

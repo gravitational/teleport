@@ -161,7 +161,7 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	updated, err := o.assignmentSvc.UpdateResource(ctx, assignment)
+	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
 }
 
@@ -171,9 +171,8 @@ func (o *OktaService) UpsertOktaAssignment(ctx context.Context, assignment types
 	return upserted, trace.Wrap(err)
 }
 
-// UpdateOktaAssignmentCAS updates nd preform the CAS revision check for an existing Okta assignment resource.
-// TODO(smallinsky) Rename to UpdateOktaAssignment after the old UpdateOktaAssignment usage is aligned.
-func (o *OktaService) UpdateOktaAssignmentCAS(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
 }

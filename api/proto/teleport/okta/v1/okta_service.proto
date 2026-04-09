@@ -51,8 +51,8 @@ service OktaService {
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
   // DeleteAllOktaAssignments removes all Okta assignments.
   rpc DeleteAllOktaAssignments(DeleteAllOktaAssignmentsRequest) returns (google.protobuf.Empty);
-  // UpdateOktaAssignmentCAS updates an Okta assignment resource with a CAS-like behavior.
-  rpc UpdateOktaAssignmentCAS(UpdateOktaAssignmentCASRequest) returns (UpdateOktaAssignmentCASResponse);
+  // ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+  rpc ConditionalUpdateOktaAssignment(ConditionalUpdateOktaAssignmentRequest) returns (ConditionalUpdateOktaAssignmentResponse);
   // UpsertOktaAssignment upserts an Okta assignment resource.
   rpc UpsertOktaAssignment(UpsertOktaAssignmentRequest) returns (UpsertOktaAssignmentResponse);
   // ValidateClientCredentials checks if the provided client credentials are valid.
@@ -67,13 +67,13 @@ service OktaService {
   rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
 }
 
-// UpdateOktaAssignmentCASRequest is a request for upserting an Okta assignment resource with a CAS-like behavior.
-message UpdateOktaAssignmentCASRequest {
+// ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
+message ConditionalUpdateOktaAssignmentRequest {
   types.OktaAssignmentV1 assignment = 1;
 }
 
-// UpdateOktaAssignmentCASResponse is a response for upserting an Okta assignment resource with a CAS-like behavior.
-message UpdateOktaAssignmentCASResponse {
+// ConditionalUpdateOktaAssignmentResponse is a response for updating an Okta assignment resource, protected by optimistic locking.
+message ConditionalUpdateOktaAssignmentResponse {
   types.OktaAssignmentV1 assignment = 1;
 }
 

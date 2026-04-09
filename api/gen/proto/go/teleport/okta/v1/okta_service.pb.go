@@ -38,28 +38,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// UpdateOktaAssignmentCASRequest is a request for upserting an Okta assignment resource with a CAS-like behavior.
-type UpdateOktaAssignmentCASRequest struct {
+// ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
+type ConditionalUpdateOktaAssignmentRequest struct {
 	state         protoimpl.MessageState  `protogen:"open.v1"`
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateOktaAssignmentCASRequest) Reset() {
-	*x = UpdateOktaAssignmentCASRequest{}
+func (x *ConditionalUpdateOktaAssignmentRequest) Reset() {
+	*x = ConditionalUpdateOktaAssignmentRequest{}
 	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateOktaAssignmentCASRequest) String() string {
+func (x *ConditionalUpdateOktaAssignmentRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateOktaAssignmentCASRequest) ProtoMessage() {}
+func (*ConditionalUpdateOktaAssignmentRequest) ProtoMessage() {}
 
-func (x *UpdateOktaAssignmentCASRequest) ProtoReflect() protoreflect.Message {
+func (x *ConditionalUpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -71,40 +71,40 @@ func (x *UpdateOktaAssignmentCASRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateOktaAssignmentCASRequest.ProtoReflect.Descriptor instead.
-func (*UpdateOktaAssignmentCASRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConditionalUpdateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
+func (*ConditionalUpdateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *UpdateOktaAssignmentCASRequest) GetAssignment() *types.OktaAssignmentV1 {
+func (x *ConditionalUpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
 	}
 	return nil
 }
 
-// UpdateOktaAssignmentCASResponse is a response for upserting an Okta assignment resource with a CAS-like behavior.
-type UpdateOktaAssignmentCASResponse struct {
+// ConditionalUpdateOktaAssignmentResponse is a response for updating an Okta assignment resource, protected by optimistic locking.
+type ConditionalUpdateOktaAssignmentResponse struct {
 	state         protoimpl.MessageState  `protogen:"open.v1"`
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdateOktaAssignmentCASResponse) Reset() {
-	*x = UpdateOktaAssignmentCASResponse{}
+func (x *ConditionalUpdateOktaAssignmentResponse) Reset() {
+	*x = ConditionalUpdateOktaAssignmentResponse{}
 	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdateOktaAssignmentCASResponse) String() string {
+func (x *ConditionalUpdateOktaAssignmentResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdateOktaAssignmentCASResponse) ProtoMessage() {}
+func (*ConditionalUpdateOktaAssignmentResponse) ProtoMessage() {}
 
-func (x *UpdateOktaAssignmentCASResponse) ProtoReflect() protoreflect.Message {
+func (x *ConditionalUpdateOktaAssignmentResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -116,12 +116,12 @@ func (x *UpdateOktaAssignmentCASResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateOktaAssignmentCASResponse.ProtoReflect.Descriptor instead.
-func (*UpdateOktaAssignmentCASResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConditionalUpdateOktaAssignmentResponse.ProtoReflect.Descriptor instead.
+func (*ConditionalUpdateOktaAssignmentResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *UpdateOktaAssignmentCASResponse) GetAssignment() *types.OktaAssignmentV1 {
+func (x *ConditionalUpdateOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
 	}
@@ -1995,12 +1995,12 @@ var File_teleport_okta_v1_okta_service_proto protoreflect.FileDescriptor
 
 const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\n" +
-	"#teleport/okta/v1/okta_service.proto\x12\x10teleport.okta.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"Y\n" +
-	"\x1eUpdateOktaAssignmentCASRequest\x127\n" +
+	"#teleport/okta/v1/okta_service.proto\x12\x10teleport.okta.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"a\n" +
+	"&ConditionalUpdateOktaAssignmentRequest\x127\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
-	"assignment\"Z\n" +
-	"\x1fUpdateOktaAssignmentCASResponse\x127\n" +
+	"assignment\"b\n" +
+	"'ConditionalUpdateOktaAssignmentResponse\x127\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
 	"assignment\"W\n" +
@@ -2125,7 +2125,7 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x0ftime_has_passed\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rtimeHasPassed\"1\n" +
 	"\x1bDeleteOktaAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"!\n" +
-	"\x1fDeleteAllOktaAssignmentsRequest2\xa0\x10\n" +
+	"\x1fDeleteAllOktaAssignmentsRequest2\xb9\x10\n" +
 	"\vOktaService\x12r\n" +
 	"\x13ListOktaImportRules\x12,.teleport.okta.v1.ListOktaImportRulesRequest\x1a-.teleport.okta.v1.ListOktaImportRulesResponse\x12X\n" +
 	"\x11GetOktaImportRule\x12*.teleport.okta.v1.GetOktaImportRuleRequest\x1a\x17.types.OktaImportRuleV1\x12^\n" +
@@ -2139,8 +2139,8 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x14UpdateOktaAssignment\x12-.teleport.okta.v1.UpdateOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12i\n" +
 	"\x1aUpdateOktaAssignmentStatus\x123.teleport.okta.v1.UpdateOktaAssignmentStatusRequest\x1a\x16.google.protobuf.Empty\x12]\n" +
 	"\x14DeleteOktaAssignment\x12-.teleport.okta.v1.DeleteOktaAssignmentRequest\x1a\x16.google.protobuf.Empty\x12e\n" +
-	"\x18DeleteAllOktaAssignments\x121.teleport.okta.v1.DeleteAllOktaAssignmentsRequest\x1a\x16.google.protobuf.Empty\x12~\n" +
-	"\x17UpdateOktaAssignmentCAS\x120.teleport.okta.v1.UpdateOktaAssignmentCASRequest\x1a1.teleport.okta.v1.UpdateOktaAssignmentCASResponse\x12u\n" +
+	"\x18DeleteAllOktaAssignments\x121.teleport.okta.v1.DeleteAllOktaAssignmentsRequest\x1a\x16.google.protobuf.Empty\x12\x96\x01\n" +
+	"\x1fConditionalUpdateOktaAssignment\x128.teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest\x1a9.teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse\x12u\n" +
 	"\x14UpsertOktaAssignment\x12-.teleport.okta.v1.UpsertOktaAssignmentRequest\x1a..teleport.okta.v1.UpsertOktaAssignmentResponse\x12\x84\x01\n" +
 	"\x19ValidateClientCredentials\x122.teleport.okta.v1.ValidateClientCredentialsRequest\x1a3.teleport.okta.v1.ValidateClientCredentialsResponse\x12l\n" +
 	"\x11CreateIntegration\x12*.teleport.okta.v1.CreateIntegrationRequest\x1a+.teleport.okta.v1.CreateIntegrationResponse\x12l\n" +
@@ -2162,8 +2162,8 @@ func file_teleport_okta_v1_okta_service_proto_rawDescGZIP() []byte {
 
 var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_teleport_okta_v1_okta_service_proto_goTypes = []any{
-	(*UpdateOktaAssignmentCASRequest)(nil),               // 0: teleport.okta.v1.UpdateOktaAssignmentCASRequest
-	(*UpdateOktaAssignmentCASResponse)(nil),              // 1: teleport.okta.v1.UpdateOktaAssignmentCASResponse
+	(*ConditionalUpdateOktaAssignmentRequest)(nil),       // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
+	(*ConditionalUpdateOktaAssignmentResponse)(nil),      // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
 	(*UpsertOktaAssignmentResponse)(nil),                 // 2: teleport.okta.v1.UpsertOktaAssignmentResponse
 	(*UpsertOktaAssignmentRequest)(nil),                  // 3: teleport.okta.v1.UpsertOktaAssignmentRequest
 	(*GetAppsRequest)(nil),                               // 4: teleport.okta.v1.GetAppsRequest
@@ -2204,8 +2204,8 @@ var file_teleport_okta_v1_okta_service_proto_goTypes = []any{
 	(*emptypb.Empty)(nil),                                // 39: google.protobuf.Empty
 }
 var file_teleport_okta_v1_okta_service_proto_depIdxs = []int32{
-	34, // 0: teleport.okta.v1.UpdateOktaAssignmentCASRequest.assignment:type_name -> types.OktaAssignmentV1
-	34, // 1: teleport.okta.v1.UpdateOktaAssignmentCASResponse.assignment:type_name -> types.OktaAssignmentV1
+	34, // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	34, // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
 	34, // 2: teleport.okta.v1.UpsertOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
 	34, // 3: teleport.okta.v1.UpsertOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
 	11, // 4: teleport.okta.v1.GetAppsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
@@ -2244,7 +2244,7 @@ var file_teleport_okta_v1_okta_service_proto_depIdxs = []int32{
 	29, // 37: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:input_type -> teleport.okta.v1.UpdateOktaAssignmentStatusRequest
 	30, // 38: teleport.okta.v1.OktaService.DeleteOktaAssignment:input_type -> teleport.okta.v1.DeleteOktaAssignmentRequest
 	31, // 39: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:input_type -> teleport.okta.v1.DeleteAllOktaAssignmentsRequest
-	0,  // 40: teleport.okta.v1.OktaService.UpdateOktaAssignmentCAS:input_type -> teleport.okta.v1.UpdateOktaAssignmentCASRequest
+	0,  // 40: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:input_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
 	3,  // 41: teleport.okta.v1.OktaService.UpsertOktaAssignment:input_type -> teleport.okta.v1.UpsertOktaAssignmentRequest
 	15, // 42: teleport.okta.v1.OktaService.ValidateClientCredentials:input_type -> teleport.okta.v1.ValidateClientCredentialsRequest
 	8,  // 43: teleport.okta.v1.OktaService.CreateIntegration:input_type -> teleport.okta.v1.CreateIntegrationRequest
@@ -2264,7 +2264,7 @@ var file_teleport_okta_v1_okta_service_proto_depIdxs = []int32{
 	39, // 57: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:output_type -> google.protobuf.Empty
 	39, // 58: teleport.okta.v1.OktaService.DeleteOktaAssignment:output_type -> google.protobuf.Empty
 	39, // 59: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:output_type -> google.protobuf.Empty
-	1,  // 60: teleport.okta.v1.OktaService.UpdateOktaAssignmentCAS:output_type -> teleport.okta.v1.UpdateOktaAssignmentCASResponse
+	1,  // 60: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:output_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
 	2,  // 61: teleport.okta.v1.OktaService.UpsertOktaAssignment:output_type -> teleport.okta.v1.UpsertOktaAssignmentResponse
 	16, // 62: teleport.okta.v1.OktaService.ValidateClientCredentials:output_type -> teleport.okta.v1.ValidateClientCredentialsResponse
 	12, // 63: teleport.okta.v1.OktaService.CreateIntegration:output_type -> teleport.okta.v1.CreateIntegrationResponse
