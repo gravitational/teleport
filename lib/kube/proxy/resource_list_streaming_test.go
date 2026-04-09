@@ -412,8 +412,8 @@ func Test_extractItemMeta(t *testing.T) {
 	}{
 		{"valid", `{"metadata":{"name":"nginx","namespace":"default"}}`, "nginx", "default", false},
 		{"missing namespace", `{"metadata":{"name":"nginx"}}`, "nginx", "", false},
-		{"missing metadata", `{"kind":"Pod"}`, "", "", false},
-		{"empty object", `{}`, "", "", false},
+		{"missing metadata", `{"kind":"Pod"}`, "", "", true},
+		{"empty object", `{}`, "", "", true},
 		{"invalid JSON", `not-json`, "", "", true},
 	}
 	for _, tt := range tests {

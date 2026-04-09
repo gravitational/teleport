@@ -214,6 +214,9 @@ func extractItemMeta(item json.RawMessage) (name, namespace string, err error) {
 	if err := json.Unmarshal(item, &env); err != nil {
 		return "", "", trace.Wrap(err)
 	}
+	if env.Metadata.Name == "" {
+		return "", "", trace.BadParameter("item has no name")
+	}
 	return env.Metadata.Name, env.Metadata.Namespace, nil
 }
 
