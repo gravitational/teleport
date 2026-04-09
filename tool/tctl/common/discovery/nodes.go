@@ -136,6 +136,7 @@ func (inst instanceInfo) runOutput() string {
 // Full, non-combined details are always available in JSON output.
 func (inst instanceInfo) details() string {
 	if inst.UserTaskIssue != "" {
+		// keep title, ignore description, it is fairly long.
 		title, _ := usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
 		if title == "" {
 			title = inst.UserTaskIssue
