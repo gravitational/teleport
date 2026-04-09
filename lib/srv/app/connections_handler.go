@@ -347,6 +347,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	waitConn := utils.NewWaitConn(conn)
 
 	ctx, cancel := context.WithCancelCause(c.closeContext)
+	defer cancel(nil)
 
 	cleanup, err := c.handleConnection(ctx, cancel, waitConn)
 	// Make sure that the cleanup function is run
@@ -600,6 +601,12 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
+	defer func() {
+		if cancel != nil {
+			cancel(nil)
+		}
+	}()
+
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   c.cfg.Clock,
@@ -684,9 +691,12 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	default:
 		// Transfer release ownership to the cleanup function so
-		// the deferred release above becomes a no-op.
+		// the deferred calls above become no-ops. The caller
+		// (HandleConnection) cancels the context after the
+		// connection closes.
 		releaseConn := release
 		release = nil
+		cancel = nil
 		cleanup := func() {
 			if releaseConn != nil {
 				releaseConn()
