@@ -520,7 +520,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 			// Apply all mutators. Individual mutators may make additional
 			// assertions to ensure invariants haven't changed.
 			for _, mutator := range mutators {
-				if err := mutator.mutateStandardToken(t.GetBoundKeypair(), t.GetBoundKeypairStatus()); err != nil {
+				if err := mutator.mutateStandardToken(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus()); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
 			}
