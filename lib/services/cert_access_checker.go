@@ -227,7 +227,7 @@ func (c *CertificateParameterContext) GetKubeGroupsAndUsersForTTL(ctx context.Co
 		}
 
 		groups, users, err := checker.Kube().GetGroupsAndUsers(ttl, overrideTTL, matchers...)
-		if err != nil {
+		if trace.IsNotFound(err) {
 			continue
 		}
 
