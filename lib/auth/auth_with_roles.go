@@ -3718,7 +3718,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
-	unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+	// NOTE (eriktate): there shouldn't be any remaining cases where a.scopedContext is nil, but
+	// just in case we do all of that book keeping here.
+	unscopedCtx := &a.context
+	isUnscoped := true
+	if a.scopedContext != nil {
+		unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext()
+	}
 
 	hasAdminRole := isUnscoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin))
 	// only unscoped identities can impersonate
@@ -4050,9 +4056,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		webSessionID = wsSession.GetName()
 	}
 
-	checkerCtx := a.scopedContext.CheckerContext
+	var checkerCtx *services.ScopedAccessCheckerContext
 	if isUnscoped {
 		checkerCtx = services.NewScopedAccessCheckerContextFromUnscoped(checker)
+	} else {
+		checkerCtx = a.scopedContext.CheckerContext
 	}
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
@@ -7172,7 +7180,12 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-		return nil, "", trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, "", trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
 
 	return generic.CollectPageAndCursor(
