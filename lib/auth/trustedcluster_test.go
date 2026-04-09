@@ -163,8 +163,6 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			require.LessOrEqual(t, tt.clustersNeedUpdate, tt.clustersTotal)
 
 			a := newTestAuthServer(ctx, t)
-			a.SetRemoteClusterRefreshLimit(10)
-			a.RemoteClusterRefreshBuckets(5)
 
 			allClusters := make(map[string]types.RemoteCluster)
 			for i := 0; i < tt.clustersTotal; i++ {
@@ -438,12 +436,14 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 	})
 	require.NoError(t, err)
 	authConfig := &auth.InitConfig{
-		ClusterName:            clusterNameRes,
-		Backend:                bk,
-		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
-		SkipPeriodicOperations: true,
-		HostUUID:               uuid.NewString(),
+		ClusterName:                 clusterNameRes,
+		Backend:                     bk,
+		VersionStorage:              authtest.NewFakeTeleportVersion(),
+		Authority:                   authority.New(),
+		SkipPeriodicOperations:      true,
+		HostUUID:                    uuid.NewString(),
+		RemoteClusterRefreshLimit:   10,
+		RemoteClusterRefreshBuckets: 5,
 	}
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
