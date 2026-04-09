@@ -20,109 +20,196 @@ package accessgraph
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	accessgraphclient "github.com/gravitational/access-graph/api/client"
 	"github.com/gravitational/trace"
 
-	accessclient "github.com/gravitational/access-graph/api/client"
-	accessgraph "github.com/gravitational/access-graph/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-const defaultAccessGraphListQuery = "SELECT * FROM nodes"
+type accessGraphServices struct {
+	accessGraph *accessgraphclient.ClientWithResponses
+}
+
+type accessArgs struct {
+	cmd    *kingpin.CmdClause
+	ls     accessListArgs
+	whoCan accessWhoCanArgs
+	query  accessQueryArgs
+}
+
+type accessListArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+}
+
+type accessWhoCanArgs struct {
+	cmd      *kingpin.CmdClause
+	resource string
+}
+
+type accessQueryArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+}
+
+type detectionsArgs struct {
+	cmd *kingpin.CmdClause
+	ls  detectionsListArgs
+}
+
+type detectionsListArgs struct {
+	cmd *kingpin.CmdClause
+}
+
+type accessRequestsArgs struct {
+	cmd *kingpin.CmdClause
+	ls  accessRequestsListArgs
+}
+
+type accessRequestsListArgs struct {
+	cmd *kingpin.CmdClause
+}
+
+type accessChangesArgs struct {
+	cmd *kingpin.CmdClause
+	ls  accessChangesListArgs
+}
+
+type accessChangesListArgs struct {
+	cmd *kingpin.CmdClause
+}
+
+type investigateArgs struct {
+	cmd   *kingpin.CmdClause
+	query string
+	days  int
+}
 
 // AccessGraphCommand implements experimental Access Graph commands.
 type AccessGraphCommand struct {
-	access   *kingpin.CmdClause
-	accessLS *kingpin.CmdClause
+	ccf    *tctlcfg.GlobalCLIFlags
+	config *servicecfg.Config
+	stdout io.Writer
 
-	ccf       *tctlcfg.GlobalCLIFlags
-	config    *servicecfg.Config
-	proxyAddr string
-	query     string
+	investigate    investigateArgs
+	access         accessArgs
+	detections     detectionsArgs
+	accessRequests accessRequestsArgs
+	accessChanges  accessChangesArgs
 }
+
+/*
+pctl is a command-line tool for Teleport Identity Security.
+
+Investigate who can access resources, review security detections,
+analyze access requests, and monitor access path changes.
+
+  pctl investigate benarent --days=7      What did an identity do?
+  pctl detections ls                      List security detections
+  pctl access who-can <resource>          Show who can access a resource
+  pctl access ls --kind=db                List all databases
+  pctl access query "SELECT ..."          Run a graph query
+  pctl access-requests ls                 List access requests
+  pctl access-changes ls                  List access path changes
+
+Usage:
+  pctl [command]
+
+Available Commands:
+  access          Analyze who has access to what
+  access-changes  Monitor access path changes to crown jewels
+  access-requests Review access requests and approvals
+  completion      Generate the autocompletion script for the specified shell
+  detections      Investigate security detections and anomalies
+  help            Help about any command
+  investigate     Investigate identity or resource activity
+
+Flags:
+  -f, --format string   Output format: text, json, csv, names (default "text")
+  -h, --help            help for pctl
+      --proxy string    Teleport proxy address (default "teleport-18-ent.teleport.town:443")
+
+Use "pctl [command] --help" for more information about a command.
+*/
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
 func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.ccf = cliFlags
 	c.config = config
-	c.access = app.Command("access", "Experimental Access Graph commands.")
-	c.accessLS = c.access.Command("ls", "List Access Graph resources using the query API.")
-	c.accessLS.Flag("query", "SQL query to send to the Access Graph query API.").
-		Default(defaultAccessGraphListQuery).
-		StringVar(&c.query)
-	c.accessLS.Flag("proxy", "Public proxy URL used to reach the Access Graph API. Defaults to the current tsh profile proxy.").
-		StringVar(&c.proxyAddr)
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
+
+	c.initInvestigate(app)
+	c.initAccess(app)
+	c.initDetections(app)
+	c.initAccessRequests(app)
+	c.initAccessChanges(app)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(context.Context, accessGraphServices) error
+	var proxyAddr string
+
 	switch cmd {
-	case c.accessLS.FullCommand():
+	case c.investigate.cmd.FullCommand():
+		commandFunc = c.Investigate
+	case c.access.ls.cmd.FullCommand():
+		commandFunc = c.AccessList
+	case c.access.whoCan.cmd.FullCommand():
+		commandFunc = c.AccessWhoCan
+	case c.access.query.cmd.FullCommand():
+		commandFunc = c.AccessQuery
+	case c.detections.ls.cmd.FullCommand():
+		commandFunc = c.DetectionsList
+	case c.accessRequests.ls.cmd.FullCommand():
+		commandFunc = c.AccessRequestsList
+	case c.accessChanges.ls.cmd.FullCommand():
+		commandFunc = c.AccessChangesList
 	default:
 		return false, nil
 	}
 
 	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	defer closeFn(ctx)
 
 	pingResp, err := client.Ping(ctx)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
-	proxyAddr := pingResp.GetProxyPublicAddr()
+	if !isAccessGraphLicensedAndEnabled(pingResp) {
+		return true, trace.AccessDenied("Access Graph requires a Teleport Enterprise Auth Server with Access Graph enabled")
+	}
+
 	if proxyAddr == "" {
-		return false, trace.NotFound("proxy public address is not configured")
+		proxyAddr = pingResp.GetProxyPublicAddr()
+	}
+	if proxyAddr == "" {
+		return true, trace.NotFound("proxy public address is not configured")
 	}
 
-	accessClient, err := c.generateAccessGraphClient(ctx, proxyAddr)
+	accessGraphClient, err := c.newAccessGraphClient(ctx, proxyAddr)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 
-	return true, trace.Wrap(c.list(ctx, accessClient))
-}
+	args := accessGraphServices{
+		accessGraph: accessGraphClient,
+	}
 
-func (c *AccessGraphCommand) list(ctx context.Context, client *accessgraph.ClientWithResponses) error {
-	resp, err := doRequest(client.ExecuteQueryV1WithResponse(ctx, &accessclient.ExecuteQueryV1Params{
-		Query: c.query,
-	}))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(renderAccessGraphQueryResponse(os.Stdout, resp.JSON200))
-}
-
-// renderAccessGraphQueryResponse prints a small tabular view of returned nodes
-// and falls back to JSON for edge data until a dedicated renderer exists.
-func renderAccessGraphQueryResponse(w io.Writer, graph *accessclient.Graph) error {
-	if len(*graph.Nodes) == 0 {
-		_, err := fmt.Fprintln(w, "No Access Graph resources returned.")
-		return trace.Wrap(err)
-	}
-	var rows [][]string
-	for _, node := range *graph.Nodes {
-		rows = append(rows, []string{
-			string(node.Kind),
-			string(node.SubKind),
-			string(node.Name),
-			node.Id.String(),
-		})
-	}
-	t := asciitable.MakeTableWithTruncatedColumn([]string{"Kind", "Subkind", "Name", "ID"}, rows, "Name")
-
-	if _, err := t.AsBuffer().WriteTo(w); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return true, trace.Wrap(commandFunc(ctx, args))
 }
 
 func isAccessGraphLicensedAndEnabled(pingResp proto.PingResponse) bool {
@@ -135,5 +222,6 @@ func isAccessGraphLicensedAndEnabled(pingResp proto.PingResponse) bool {
 	if !licensed {
 		return false
 	}
+
 	return features.GetAccessGraph()
 }

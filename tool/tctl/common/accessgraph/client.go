@@ -98,7 +98,7 @@ func checkResponse(statusCode int, body []byte) error {
 	return nil
 }
 
-func (c *AccessGraphCommand) generateAccessGraphClient(ctx context.Context, proxyAddr string) (*accessgraph.ClientWithResponses, error) {
+func (c *AccessGraphCommand) newAccessGraphClient(ctx context.Context, proxyAddr string) (*accessgraph.ClientWithResponses, error) {
 	if len(c.ccf.AuthServerAddr) != 0 {
 		proxyAddr = c.ccf.AuthServerAddr[0]
 	}
@@ -126,11 +126,23 @@ func (c *AccessGraphCommand) generateAccessGraphClient(ctx context.Context, prox
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := newAccessGraphHTTPClient(proxyAddr, keyRing)
-	return client, nil
+	httpClient, err := newAccessGraphHTTPClient(proxyAddr, keyRing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessGraphClient, err := accessgraph.NewClientWithResponses(
+		fmt.Sprintf("https://%s/v1/enterprise/accessgraph/", proxyAddr),
+		accessgraph.WithHTTPClient(httpClient),
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accessGraphClient, nil
 }
 
-func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*accessgraph.ClientWithResponses, error) {
+func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*http.Client, error) {
 	if keyRing == nil {
 		return nil, trace.BadParameter("missing key ring")
 	}
@@ -140,7 +152,7 @@ func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*acces
 		return nil, trace.Wrap(err)
 	}
 
-	httpClient := http.Client{
+	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: baseTLSConfig,
 			Proxy:           http.ProxyFromEnvironment,
@@ -149,15 +161,6 @@ func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*acces
 	}
 
 	slog.Debug("Initialized Access Graph HTTP client with TLS config from keyring", "proxyAddr", proxyAddr)
+	return httpClient, nil
 
-	accessGraphClient, err := accessgraph.NewClientWithResponses(
-		fmt.Sprintf("https://%s/v1/enterprise/accessgraph/", proxyAddr),
-		accessgraph.WithHTTPClient(&httpClient),
-	)
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return accessGraphClient, nil
 }
