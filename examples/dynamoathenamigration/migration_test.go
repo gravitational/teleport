@@ -153,7 +153,7 @@ type fakeDownloader struct {
 	dataObjects map[string]string
 }
 
-func (f *fakeDownloader) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
+func (f *fakeDownloader) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) { //nolint:staticcheck // TODO(tigrato)
 	data, ok := f.dataObjects[*input.Key]
 	if !ok {
 		return 0, errors.New("object does not exists")
