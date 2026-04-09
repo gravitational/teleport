@@ -2605,6 +2605,42 @@ export const formatters: Formatters = {
     format: ({ sid, session_type, model_name }) =>
       `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
   },
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
+    type: 'cert_auth_override.create',
+    desc: 'Certificate Authority Override Created',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] created a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
+    type: 'cert_auth_override.update',
+    desc: 'Certificate Authority Override Updated',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] updated a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
+    type: 'cert_auth_override.upsert',
+    desc: 'Certificate Authority Override Upserted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
+    type: 'cert_auth_override.delete',
+    desc: 'Certificate Authority Override Deleted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
+    },
+  },
 };
 
 const unknownFormatter = {
