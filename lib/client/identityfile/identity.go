@@ -241,8 +241,9 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		idFile := &identityfile.IdentityFile{
 			PrivateKey: cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(),
 			Certs: identityfile.Certs{
-				SSH: cfg.KeyRing.Cert,
-				TLS: cfg.KeyRing.TLSCert,
+				SSH:            cfg.KeyRing.Cert,
+				TLS:            cfg.KeyRing.TLSCert,
+				AccessGraphTLS: cfg.KeyRing.AccesssGraphTLSCert,
 			},
 		}
 		// append trusted host certificate authorities
@@ -761,6 +762,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 	keyRing := client.NewKeyRing(priv, priv)
 	keyRing.Cert = ident.Certs.SSH
 	keyRing.TLSCert = ident.Certs.TLS
+	keyRing.AccesssGraphTLSCert = ident.Certs.AccessGraphTLS
 	keyRing.KeyRingIndex = client.KeyRingIndex{
 		ProxyHost:   proxyHost,
 		ClusterName: clusterName,

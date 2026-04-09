@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -125,6 +126,8 @@ func newAccessGraphHTTPClient(ctx context.Context, client *authclient.Client) (*
 		},
 		Timeout: 30 * time.Second,
 	}
+
+	slog.DebugContext(ctx, "Initialized Access Graph HTTP client", "proxyAddr", pingResp.GetProxyPublicAddr(), "username", currentUser.GetName())
 
 	accessGraphClient, err := accessgraph.NewClientWithResponses(
 		pingResp.GetProxyPublicAddr(),

@@ -102,6 +102,7 @@ const (
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
 //    │   ├── foo.key                  --> TLS Private Key for user "foo"
 //    │   ├── foo.crt                  --> TLS client certificate for Auth Server
+//    │   ├── foo-access-graph.crt     --> TLS client certificate for Access Graph (direct proxy communication)
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
@@ -213,6 +214,14 @@ func UserTLSKeyPath(baseDir, proxy, username string) string {
 // <baseDir>/keys/<proxy>/<username>.crt
 func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCert)
+}
+
+// AccessGraphTLSCertPath returns the path to the TLS certificate
+// for the given proxy.
+//
+// <baseDir>/keys/<proxy>/<username>-access-graph.crt
+func AccessGraphTLSCertPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+"-access-graph"+FileExtTLSCert)
 }
 
 // TLSCertPathLegacy returns the legacy path used in Teleport 16.x and older to the

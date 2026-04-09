@@ -65,6 +65,8 @@ type Certs struct {
 	SSH []byte
 	// TLS is a cert used for TLS.
 	TLS []byte
+	// AccessGraphTLS is a cert used for TLS authentication directly to the proxy for Access Graph API queries.
+	AccessGraphTLS []byte
 }
 
 // CACerts contains PEM encoded CA certificates.
@@ -216,6 +218,10 @@ func encodeIdentityFile(w io.Writer, idFile *IdentityFile) error {
 	if err := writeWithNewline(w, idFile.Certs.TLS); err != nil {
 		return trace.Wrap(err)
 	}
+	// append access graph tls cert:
+	if err := writeWithNewline(w, idFile.Certs.AccessGraphTLS); err != nil {
+		return trace.Wrap(err)
+	}
 	// append ssh ca certificates
 	for _, caCert := range idFile.CACerts.SSH {
 		if err := writeWithNewline(w, caCert); err != nil {
@@ -304,6 +310,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 				ident.PrivateKey = pemBlock
 			case ident.Certs.TLS == nil:
 				ident.Certs.TLS = pemBlock
+			// TODO: This is not backwards compatible. We need
+			// to come up with a better solution.
+			case ident.Certs.AccessGraphTLS == nil:
+				ident.Certs.AccessGraphTLS = pemBlock
 			default:
 				ident.CACerts.TLS = append(ident.CACerts.TLS, pemBlock)
 			}

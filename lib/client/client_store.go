@@ -205,6 +205,14 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 		return nil, trace.Wrap(err)
 	}
 
+	// if the key ring has a Access Graph TLS certificate, verify it as well
+	if keyRing.AccesssGraphTLSCert != nil {
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
 		if err := keyRing.CheckCert(); err != nil {

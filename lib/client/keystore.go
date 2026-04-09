@@ -139,6 +139,11 @@ func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// accessTlsCertPath returns the Access Graph TLS certificate given KeyRingIndex.
+func (fs *FSKeyStore) accessTlsCertPath(idx KeyRingIndex) string {
+	return keypaths.AccessGraphTLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
 // tlsCertPathLegacy returns the legacy TLS certificate path used in Teleport v16 and
 // older given KeyRingIndex.
 func (fs *FSKeyStore) tlsCertPathLegacy(idx KeyRingIndex) string {
@@ -208,6 +213,13 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		PrivateKey: keyRing.TLSPrivateKey,
 		Cert:       keyRing.TLSCert,
 	}, fs.userTLSKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Store Access Graph cert.
+	// TODO: This cert uses the same private key as the TLS cert, so we might want to save
+	// as a single op to avoid race condition (see writeTLSCredential) for file lock
+	if err := fs.writeBytes(keyRing.AccesssGraphTLSCert, fs.accessTlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -436,6 +448,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		fs.userTLSKeyPath(idx),
 		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
+		fs.accessTlsCertPath(idx),
 	}
 	var deleteErrs []error
 	for _, fn := range files {
@@ -564,6 +577,11 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err)
 	}
 
+	accessTlsCred, err := os.ReadFile(fs.accessTlsCertPath(idx))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.contextualKeyInfo()))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -572,6 +590,7 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
 	keyRing.KeyRingIndex = idx
 	keyRing.TLSCert = tlsCred.Cert
+	keyRing.AccesssGraphTLSCert = accessTlsCred
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
