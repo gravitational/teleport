@@ -561,7 +561,6 @@ linters:
           - forbidigo
         path: ^api/ssh/
         text: tracessh.NewClientConnWithTimeout
-
     paths:
       - (^|/)node_modules/
       - ^api/gen/
