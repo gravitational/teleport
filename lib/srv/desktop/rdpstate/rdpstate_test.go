@@ -35,12 +35,16 @@ import (
 // Tests that process actual FastPath PDUs and verify decoded image content are in rdpstate_rdp_test.go (build-tagged).
 
 func TestHandleMessage_EmptyEvent(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 	require.NoError(t, s.HandleMessage(&events.DesktopRecording{}))
 	require.Nil(t, s.decoder)
 }
 
 func TestHandleMessage_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name string
 		evt  *events.DesktopRecording
@@ -49,12 +53,16 @@ func TestHandleMessage_InvalidData(t *testing.T) {
 		{"truncated legacy", rdpstatetest.LegacyEvent([]byte{29})}, // RDPFastPathPDU type with no payload
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			require.Error(t, New().HandleMessage(tt.evt))
 		})
 	}
 }
 
 func TestServerHello_NoOp(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name string
 		evt  *events.DesktopRecording
@@ -65,6 +73,8 @@ func TestServerHello_NoOp(t *testing.T) {
 		{"legacy zero height", legacyConnectionActivated(t, 800, 0)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s := New()
 
 			require.NoError(t, s.HandleMessage(tt.evt))
@@ -74,6 +84,8 @@ func TestServerHello_NoOp(t *testing.T) {
 }
 
 func TestFastPathPDU_BeforeServerHello(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 	err := s.HandleMessage(encodeTDPBFastPathPDU(t, []byte{0xDE, 0xAD}))
 
@@ -81,6 +93,8 @@ func TestFastPathPDU_BeforeServerHello(t *testing.T) {
 }
 
 func TestFastPathPDU_EmptyPDU(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBFastPathPDU(t, nil)))
@@ -88,6 +102,8 @@ func TestFastPathPDU_EmptyPDU(t *testing.T) {
 }
 
 func TestUnknownMessage_Ignored(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	// Encode a SyncKeys message (not handled by RDPState) as a TDPB envelope.

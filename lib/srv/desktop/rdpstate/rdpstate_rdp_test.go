@@ -31,6 +31,8 @@ import (
 )
 
 func TestServerHello_CreatesDecoder(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
@@ -44,6 +46,8 @@ func TestServerHello_CreatesDecoder(t *testing.T) {
 }
 
 func TestServerHello_Resize(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
@@ -56,6 +60,8 @@ func TestServerHello_Resize(t *testing.T) {
 }
 
 func TestFastPathPDU_UpdatesImage(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -82,6 +88,8 @@ func TestFastPathPDU_UpdatesImage(t *testing.T) {
 }
 
 func TestFastPathPDU_MultipleBitmaps(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -107,6 +115,8 @@ func TestFastPathPDU_MultipleBitmaps(t *testing.T) {
 }
 
 func TestFastPathPDU_AfterResize(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -140,6 +150,8 @@ func TestFastPathPDU_AfterResize(t *testing.T) {
 }
 
 func TestLegacyTDP_ConnectionActivated(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	data := legacyConnectionActivated(t, 1024, 768)
@@ -154,6 +166,8 @@ func TestLegacyTDP_ConnectionActivated(t *testing.T) {
 }
 
 func TestLegacyTDP_Resize(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 800, 600)))
@@ -169,6 +183,8 @@ func TestLegacyTDP_Resize(t *testing.T) {
 }
 
 func TestCursorState_DefaultHidden(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
@@ -180,6 +196,8 @@ func TestCursorState_DefaultHidden(t *testing.T) {
 }
 
 func TestCursorState_BeforeServerHello(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	cs := s.CursorState()
@@ -189,6 +207,8 @@ func TestCursorState_BeforeServerHello(t *testing.T) {
 }
 
 func TestCursorState_PointerPosition(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -201,6 +221,8 @@ func TestCursorState_PointerPosition(t *testing.T) {
 }
 
 func TestCursorState_PointerHidden(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -213,6 +235,8 @@ func TestCursorState_PointerHidden(t *testing.T) {
 }
 
 func TestCursorState_PointerDefaultRestoresVisibility(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
@@ -226,6 +250,8 @@ func TestCursorState_PointerDefaultRestoresVisibility(t *testing.T) {
 }
 
 func TestLegacyCursorState_PointerPosition(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
@@ -238,6 +264,8 @@ func TestLegacyCursorState_PointerPosition(t *testing.T) {
 }
 
 func TestLegacyCursorState_PointerHidden(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
@@ -250,6 +278,8 @@ func TestLegacyCursorState_PointerHidden(t *testing.T) {
 }
 
 func TestLegacyCursorState_PointerDefaultRestoresVisibility(t *testing.T) {
+	t.Parallel()
+
 	s := New()
 
 	require.NoError(t, s.HandleMessage(legacyConnectionActivated(t, 100, 100)))
