@@ -126,7 +126,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				continue
 			}
 			shardID := aws.ToString(shards[i].ShardId)
-			b.logger.Log(ctx, logutils.TraceLevel, "Adding active shard", "shard_id", shardID)
+			b.logger.DebugContext(ctx, "Adding active shard", "shard_id", shardID)
 			set[shardID] = struct{}{}
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
@@ -262,7 +262,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		}
 
 		if len(out.Records) > 0 {
-			b.logger.Log(ctx, logutils.TraceLevel, "Got new stream shard records.", "shard_id", shardID, "num_records", len(out.Records))
+			b.logger.DebugContext(ctx, "Got new stream shard records.", "shard_id", shardID, "num_records", len(out.Records))
 
 			events := make([]backend.Event, 0, len(out.Records))
 			for i := range out.Records {
@@ -282,7 +282,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		iterator = out.NextShardIterator
 		if iterator == nil {
 			// Fast exit if the shard is closed.
-			b.logger.Log(ctx, logutils.TraceLevel, "Shard is closed", "shard_id", shardID)
+			b.logger.DebugContext(ctx, "Shard is closed", "shard_id", shardID)
 			return shardClosedError{}
 		}
 
