@@ -131,9 +131,9 @@ func (inst instanceInfo) runOutput() string {
 	return fmt.Sprintf("%q", out)
 }
 
-// details returns a combined column: user task description if present, otherwise
-// the run output prefixed with its source for clarity.
-// Full details are always available in JSON output.
+// details returns a column combining available information. If the user task is present, it will return the title of this task.
+// Otherwise, if non-empty script output is available, we'll return it instead.
+// Full, non-combined details are always available in JSON output.
 func (inst instanceInfo) details() string {
 	if inst.UserTaskIssue != "" {
 		title, _ := usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
