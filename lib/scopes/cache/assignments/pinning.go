@@ -145,8 +145,9 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 // botScope should be the scope at which the bot in question is defined. This
 // must have already been validated to ensure this matches join token.
 //
-// TODO: Noah - Speak to Forrest and determine if this should be merged w/
-// the function above? or if separate is clearer.
+// TODO(noah/scopes): When we loosen restrictions on scope of effect being above
+// scope of bot origin, we can merge this function back into
+// PopulatePinnedAssignmentsForUser with some minor adjustments.
 //
 // This deviates from the user implementation in the following way:
 // 1) Filters out assignments for users - i.e that don't specify bot_name and bot_scope.
@@ -182,9 +183,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 
 	// Ensure the scope we are pinning to is descendant or equiv to the bot scope.
 	// nb: This restriction may be relaxed w/ introduction of cross-scope privilege.
-	// TODO(strideynet): For forrest, is there a more appropriate helper to use here?
-	rel := scopes.Compare(botScope, pin.GetScope())
-	if rel != scopes.Equivalent && rel != scopes.Descendant {
+	if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(pin.GetScope()) {
 		return trace.BadParameter(
 			"pinned scope %q is not subject to bot scope %q in assignment population request for bot %q",
 			pin.GetScope(), botScope, botName,
@@ -232,8 +231,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 				// Skip assignments where scope of effect is above the Bot as
 				// per the RFD.
 				// nb: we may eventually loosen up this restriction.
-				rel := scopes.Compare(botScope, scopeOfEffect)
-				if rel != scopes.Equivalent && rel != scopes.Descendant {
+				if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(scopeOfEffect) {
 					continue
 				}
 

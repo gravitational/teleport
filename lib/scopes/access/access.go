@@ -467,12 +467,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		// assignments. Bot's can only be assigned privileges in scopes
 		// equivalent or descendent to their scope.
 		if botSet {
-			// TODO(strideynet): For Forrest, is it appropriate to use:
-			// > scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope)??
-			// or is another helper more appropriate? or new helper needed?
 			assignmentScope := subAssignment.GetScope()
-			rel := scopes.Compare(botScope, assignmentScope)
-			if rel != scopes.Equivalent && rel != scopes.Descendant {
+			if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope) {
 				return trace.BadParameter(
 					"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
 					assignment.GetMetadata().GetName(),
