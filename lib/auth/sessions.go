@@ -417,7 +417,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		MFAVerified:       verifiedMFADeviceID,
 		AppName:           req.AppName,
 		AppURI:            req.URI,
-		DeviceExtensions:  tlsca.DeviceExtensions(identity.DeviceExtensions),
+		DeviceExtensions:  identity.DeviceExtensions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -447,9 +447,9 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:                 req.User,
-		Roles:                    req.Roles,
-		Traits:                   req.Traits,
+		Username: req.User,
+		Roles:    req.Roles,
+		Traits:   req.Traits,
 		// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
 		// doesn't fall back to role-based checks alone if resource-level restrictions
 		// are present on caller's identity.
@@ -515,7 +515,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		AzureIdentity:     req.AzureIdentity,
 		GCPServiceAccount: req.GCPServiceAccount,
 		// Pass along device extensions from the user.
-		DeviceExtensions: tlsca.DeviceExtensions(req.DeviceExtensions),
+		DeviceExtensions: req.DeviceExtensions,
 		MFAVerified:      req.MFAVerified,
 		// Pass along bot details to ensure audit logs are correct.
 		BotName:             req.BotName,

@@ -142,6 +142,7 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 		}),
 		Logger: logtest.NewLogger(),
 	})
+	require.NoError(t, err)
 
 	return service, pack
 }
@@ -158,18 +159,6 @@ type sessionTestPack struct {
 
 	onCreateAppSession func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
-}
-
-func (p *sessionTestPack) authenticateUser(
-	t *testing.T,
-	name string,
-	mfaState authz.AdminActionAuthState,
-	roleSpec types.RoleSpecV6,
-) {
-	t.Helper()
-
-	p.user = p.createUser(t, name, roleSpec)
-	p.adminActionAuthState = mfaState
 }
 
 func (p *sessionTestPack) createUser(
