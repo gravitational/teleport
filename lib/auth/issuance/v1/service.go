@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	v1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	"github.com/gravitational/teleport/lib/authz"
@@ -57,7 +57,7 @@ type authServer interface {
 //     CA information, we MUST ensure that different CA types are not
 //     intermingled - it must be explicit what CA is being returned.
 type Service struct {
-	v1pb.UnimplementedIssuanceServiceServer
+	issuancev1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       authServer
 }
@@ -91,8 +91,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 // the current TTL of the identity.
 func (s *Service) IssueScopedBotCerts(
 	ctx context.Context,
-	req *v1pb.IssueScopedBotCertsRequest,
-) (*v1pb.IssueScopedBotCertsResponse, error) {
+	req *issuancev1pb.IssueScopedBotCertsRequest,
+) (*issuancev1pb.IssueScopedBotCertsResponse, error) {
 	// Temporarily, we need to check that Scopes is enabled to derisk
 	// introduction of this RPC.
 	if err := scopes.AssertFeatureEnabled(); err != nil {
@@ -122,7 +122,7 @@ func (s *Service) IssueScopedBotCerts(
 	}
 
 	switch req.GetUsage().(type) {
-	case *v1pb.IssueScopedBotCertsRequest_Identity:
+	case *issuancev1pb.IssueScopedBotCertsRequest_Identity:
 	// no special handling.
 	default:
 		return nil, trace.BadParameter(
@@ -228,8 +228,8 @@ func (s *Service) IssueScopedBotCerts(
 	// We do not return any CAs. The Bot already has an internal identity and
 	// the ability to fetch/watch CAs. Returning CAs here would create confusion
 	// around where to correctly source CAs.
-	return &v1pb.IssueScopedBotCertsResponse{
-		Certs: &v1pb.Certs{
+	return &issuancev1pb.IssueScopedBotCertsResponse{
+		Certs: &issuancev1pb.Certs{
 			Tls: certs.TLS,
 			Ssh: certs.SSH,
 		},
