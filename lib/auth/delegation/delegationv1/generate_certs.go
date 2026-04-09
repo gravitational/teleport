@@ -98,8 +98,11 @@ func (s *SessionService) GenerateCerts(
 	if req.GetExpires() == nil {
 		return nil, trace.BadParameter("expires: is required")
 	}
-	if !time.Now().Before(req.GetExpires().AsTime()) {
-		return nil, trace.BadParameter("expires: must be in the future")
+
+	expires := req.GetExpires().AsTime()
+	now := time.Now()
+	if !now.Before(expires) {
+		return nil, trace.BadParameter("expires: must be in the future (expires=%s, current_time=%s)", expires, now)
 	}
 
 	// Read user login state from the backend to get current roles, traits, and
