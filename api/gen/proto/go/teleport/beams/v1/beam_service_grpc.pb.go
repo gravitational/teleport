@@ -66,9 +66,8 @@ type BeamServiceClient interface {
 	DeleteBeam(ctx context.Context, in *DeleteBeamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetBeam reads a beam by its UUID name or human-friendly alias.
 	GetBeam(ctx context.Context, in *GetBeamRequest, opts ...grpc.CallOption) (*GetBeamResponse, error)
-	// ListBeams returns a list of the authenticated user's beams, or optionally
-	// all beams, authorized by the `beam_labels` and `beam_labels_expression`
-	// role options.
+	// ListBeams returns a list of beams, authorized by the `beam_labels` and
+	// `beam_labels_expression` role options.
 	ListBeams(ctx context.Context, in *ListBeamsRequest, opts ...grpc.CallOption) (*ListBeamsResponse, error)
 }
 
@@ -155,9 +154,8 @@ type BeamServiceServer interface {
 	DeleteBeam(context.Context, *DeleteBeamRequest) (*emptypb.Empty, error)
 	// GetBeam reads a beam by its UUID name or human-friendly alias.
 	GetBeam(context.Context, *GetBeamRequest) (*GetBeamResponse, error)
-	// ListBeams returns a list of the authenticated user's beams, or optionally
-	// all beams, authorized by the `beam_labels` and `beam_labels_expression`
-	// role options.
+	// ListBeams returns a list of beams, authorized by the `beam_labels` and
+	// `beam_labels_expression` role options.
 	ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error)
 	mustEmbedUnimplementedBeamServiceServer()
 }

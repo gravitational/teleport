@@ -46,9 +46,8 @@ service BeamService {
   // GetBeam reads a beam by its UUID name or human-friendly alias.
   rpc GetBeam(GetBeamRequest) returns (GetBeamResponse);
 
-  // ListBeams returns a list of the authenticated user's beams, or optionally
-  // all beams, authorized by the `beam_labels` and `beam_labels_expression`
-  // role options.
+  // ListBeams returns a list of beams, authorized by the `beam_labels` and
+  // `beam_labels_expression` role options.
   rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
 }
 
@@ -113,22 +112,14 @@ message ListBeamsRequest {
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
 
-  // ListType determines which beams will be returned.
-  BeamsListType list_type = 3;
+  // Filters that will be applied to filter the list of results.
+  Filters filters = 3;
 
-  // BeamsListType determines which beams will be returned.
-  enum BeamsListType {
-    // BEAMS_LIST_TYPE_UNSPECIFIED is the enum zero value, it is equivalent to
-    // providing BEAMS_LIST_TYPE_MINE.
-    BEAMS_LIST_TYPE_UNSPECIFIED = 0;
-
-    // BEAMS_LIST_TYPE_MINE returns just the authenticated user's beams.
-    BEAMS_LIST_TYPE_MINE = 1;
-
-    // BEAMS_LIST_TYPE_ALL returns all beams to which the authenticated user
-    // has access, depending on the `beam_labels` and `beam_labels_expression`
-    // role options.
-    BEAMS_LIST_TYPE_ALL = 2;
+  // Filters contains fields that will be used to filter the results.
+  message Filters {
+    // Users filters the list of beams to those belonging only to the given
+    // users.
+    repeated string users = 1;
   }
 }
 

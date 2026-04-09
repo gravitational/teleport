@@ -36,62 +36,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// BeamsListType determines which beams will be returned.
-type ListBeamsRequest_BeamsListType int32
-
-const (
-	// BEAMS_LIST_TYPE_UNSPECIFIED is the enum zero value, it is equivalent to
-	// providing BEAMS_LIST_TYPE_MINE.
-	ListBeamsRequest_BEAMS_LIST_TYPE_UNSPECIFIED ListBeamsRequest_BeamsListType = 0
-	// BEAMS_LIST_TYPE_MINE returns just the authenticated user's beams.
-	ListBeamsRequest_BEAMS_LIST_TYPE_MINE ListBeamsRequest_BeamsListType = 1
-	// BEAMS_LIST_TYPE_ALL returns all beams to which the authenticated user
-	// has access, depending on the `beam_labels` and `beam_labels_expression`
-	// role options.
-	ListBeamsRequest_BEAMS_LIST_TYPE_ALL ListBeamsRequest_BeamsListType = 2
-)
-
-// Enum value maps for ListBeamsRequest_BeamsListType.
-var (
-	ListBeamsRequest_BeamsListType_name = map[int32]string{
-		0: "BEAMS_LIST_TYPE_UNSPECIFIED",
-		1: "BEAMS_LIST_TYPE_MINE",
-		2: "BEAMS_LIST_TYPE_ALL",
-	}
-	ListBeamsRequest_BeamsListType_value = map[string]int32{
-		"BEAMS_LIST_TYPE_UNSPECIFIED": 0,
-		"BEAMS_LIST_TYPE_MINE":        1,
-		"BEAMS_LIST_TYPE_ALL":         2,
-	}
-)
-
-func (x ListBeamsRequest_BeamsListType) Enum() *ListBeamsRequest_BeamsListType {
-	p := new(ListBeamsRequest_BeamsListType)
-	*p = x
-	return p
-}
-
-func (x ListBeamsRequest_BeamsListType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ListBeamsRequest_BeamsListType) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_beams_v1_beam_service_proto_enumTypes[0].Descriptor()
-}
-
-func (ListBeamsRequest_BeamsListType) Type() protoreflect.EnumType {
-	return &file_teleport_beams_v1_beam_service_proto_enumTypes[0]
-}
-
-func (x ListBeamsRequest_BeamsListType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ListBeamsRequest_BeamsListType.Descriptor instead.
-func (ListBeamsRequest_BeamsListType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7, 0}
-}
-
 // CreateBeamRequest contains the parameters to the CreateBeam RPC.
 type CreateBeamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -472,8 +416,8 @@ type ListBeamsRequest struct {
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// ListType determines which beams will be returned.
-	ListType      ListBeamsRequest_BeamsListType `protobuf:"varint,3,opt,name=list_type,json=listType,proto3,enum=teleport.beams.v1.ListBeamsRequest_BeamsListType" json:"list_type,omitempty"`
+	// Filters that will be applied to filter the list of results.
+	Filters       *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -522,11 +466,11 @@ func (x *ListBeamsRequest) GetPageToken() string {
 	return ""
 }
 
-func (x *ListBeamsRequest) GetListType() ListBeamsRequest_BeamsListType {
+func (x *ListBeamsRequest) GetFilters() *ListBeamsRequest_Filters {
 	if x != nil {
-		return x.ListType
+		return x.Filters
 	}
-	return ListBeamsRequest_BEAMS_LIST_TYPE_UNSPECIFIED
+	return nil
 }
 
 // ListBeamsResponse contains the results of the ListBeams RPC.
@@ -585,6 +529,53 @@ func (x *ListBeamsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Filters contains fields that will be used to filter the results.
+type ListBeamsRequest_Filters struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Users filters the list of beams to those belonging only to the given
+	// users.
+	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBeamsRequest_Filters) Reset() {
+	*x = ListBeamsRequest_Filters{}
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBeamsRequest_Filters) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBeamsRequest_Filters) ProtoMessage() {}
+
+func (x *ListBeamsRequest_Filters) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBeamsRequest_Filters.ProtoReflect.Descriptor instead.
+func (*ListBeamsRequest_Filters) Descriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7, 0}
+}
+
+func (x *ListBeamsRequest_Filters) GetUsers() []string {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
 var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
@@ -606,16 +597,14 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05alias\x18\x02 \x01(\tH\x00R\x05aliasB\x04\n" +
 	"\x02id\">\n" +
 	"\x0fGetBeamResponse\x12+\n" +
-	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\x83\x02\n" +
+	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb6\x01\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12N\n" +
-	"\tlist_type\x18\x03 \x01(\x0e21.teleport.beams.v1.ListBeamsRequest.BeamsListTypeR\blistType\"c\n" +
-	"\rBeamsListType\x12\x1f\n" +
-	"\x1bBEAMS_LIST_TYPE_UNSPECIFIED\x10\x00\x12\x18\n" +
-	"\x14BEAMS_LIST_TYPE_MINE\x10\x01\x12\x17\n" +
-	"\x13BEAMS_LIST_TYPE_ALL\x10\x02\"j\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12E\n" +
+	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x1a\x1f\n" +
+	"\aFilters\x12\x14\n" +
+	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +
 	"\x05beams\x18\x01 \x03(\v2\x17.teleport.beams.v1.BeamR\x05beams\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb9\x03\n" +
@@ -641,22 +630,21 @@ func file_teleport_beams_v1_beam_service_proto_rawDescGZIP() []byte {
 	return file_teleport_beams_v1_beam_service_proto_rawDescData
 }
 
-var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
-	(ListBeamsRequest_BeamsListType)(0), // 0: teleport.beams.v1.ListBeamsRequest.BeamsListType
-	(*CreateBeamRequest)(nil),           // 1: teleport.beams.v1.CreateBeamRequest
-	(*CreateBeamResponse)(nil),          // 2: teleport.beams.v1.CreateBeamResponse
-	(*UpdateBeamRequest)(nil),           // 3: teleport.beams.v1.UpdateBeamRequest
-	(*UpdateBeamResponse)(nil),          // 4: teleport.beams.v1.UpdateBeamResponse
-	(*DeleteBeamRequest)(nil),           // 5: teleport.beams.v1.DeleteBeamRequest
-	(*GetBeamRequest)(nil),              // 6: teleport.beams.v1.GetBeamRequest
-	(*GetBeamResponse)(nil),             // 7: teleport.beams.v1.GetBeamResponse
-	(*ListBeamsRequest)(nil),            // 8: teleport.beams.v1.ListBeamsRequest
-	(*ListBeamsResponse)(nil),           // 9: teleport.beams.v1.ListBeamsResponse
-	(EgressMode)(0),                     // 10: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                        // 11: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),               // 12: google.protobuf.Empty
+	(*CreateBeamRequest)(nil),        // 0: teleport.beams.v1.CreateBeamRequest
+	(*CreateBeamResponse)(nil),       // 1: teleport.beams.v1.CreateBeamResponse
+	(*UpdateBeamRequest)(nil),        // 2: teleport.beams.v1.UpdateBeamRequest
+	(*UpdateBeamResponse)(nil),       // 3: teleport.beams.v1.UpdateBeamResponse
+	(*DeleteBeamRequest)(nil),        // 4: teleport.beams.v1.DeleteBeamRequest
+	(*GetBeamRequest)(nil),           // 5: teleport.beams.v1.GetBeamRequest
+	(*GetBeamResponse)(nil),          // 6: teleport.beams.v1.GetBeamResponse
+	(*ListBeamsRequest)(nil),         // 7: teleport.beams.v1.ListBeamsRequest
+	(*ListBeamsResponse)(nil),        // 8: teleport.beams.v1.ListBeamsResponse
+	(*ListBeamsRequest_Filters)(nil), // 9: teleport.beams.v1.ListBeamsRequest.Filters
+	(EgressMode)(0),                  // 10: teleport.beams.v1.EgressMode
+	(*Beam)(nil),                     // 11: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),            // 12: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
 	10, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
@@ -664,18 +652,18 @@ var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
 	11, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
 	11, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
 	11, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	0,  // 5: teleport.beams.v1.ListBeamsRequest.list_type:type_name -> teleport.beams.v1.ListBeamsRequest.BeamsListType
+	9,  // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
 	11, // 6: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
-	1,  // 7: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	3,  // 8: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
-	5,  // 9: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
-	6,  // 10: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
-	8,  // 11: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	2,  // 12: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	4,  // 13: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	0,  // 7: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
+	2,  // 8: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
+	4,  // 9: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
+	5,  // 10: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
+	7,  // 11: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
+	1,  // 12: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	3,  // 13: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
 	12, // 14: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	7,  // 15: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	9,  // 16: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	6,  // 15: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	8,  // 16: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
 	12, // [12:17] is the sub-list for method output_type
 	7,  // [7:12] is the sub-list for method input_type
 	7,  // [7:7] is the sub-list for extension type_name
@@ -698,14 +686,13 @@ func file_teleport_beams_v1_beam_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      0,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_beams_v1_beam_service_proto_goTypes,
 		DependencyIndexes: file_teleport_beams_v1_beam_service_proto_depIdxs,
-		EnumInfos:         file_teleport_beams_v1_beam_service_proto_enumTypes,
 		MessageInfos:      file_teleport_beams_v1_beam_service_proto_msgTypes,
 	}.Build()
 	File_teleport_beams_v1_beam_service_proto = out.File
