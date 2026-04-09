@@ -138,7 +138,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 
 	refreshShards := func(init bool) error {
-		activeShards, err := iterstream.Collect(iterstream.FilterMap(
+		newUnknownShards, err := iterstream.Collect(iterstream.FilterMap(
 			b.fetchShards(ctx, streamArn),
 			func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
 				active := shard.SequenceNumberRange.EndingSequenceNumber == nil
@@ -160,7 +160,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 
 		// In the case where both a parent and child shard are present in the list of active shards
 		// we want to ignore the child because the set marker may not be set yet for the parent shard.
-		shards := b.deleteShardsWithParents(ctx, activeShards)
+		shards := b.deleteShardsWithParents(ctx, newUnknownShards)
 
 		var initC chan error
 		if init {
