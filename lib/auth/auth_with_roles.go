@@ -1306,9 +1306,7 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 // DeleteAllNodes deletes all nodes in a given namespace
 func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbDelete); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
