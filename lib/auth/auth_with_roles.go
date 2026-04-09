@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -126,19 +127,23 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, resource stri
 }
 
 func (a *ServerWithRoles) actionNamespace(namespace, resource string, verb string, extraVerbs ...string) error {
+	unscopedCtx := &a.context
 	if a.scopedContext != nil {
-		ruleCtx := a.scopedContext.RuleContext()
-		return a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, resource, slices.Concat([]string{verb}, extraVerbs)...)
+		// paths that support scoped identities should call authorizeScopedAction in response to
+		// receiving services.ErrScopedIdentity
+		var isUnscoped bool
+		if unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext(); !isUnscoped {
+			return trace.Wrap(services.ErrScopedIdentity)
+		}
 	}
-
 	var errs []error
 
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+	if err := unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: a.getUser()}, namespace, resource, verb); err != nil {
 		errs = append(errs, err)
 	}
 
 	for _, verb := range extraVerbs {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+		if err := unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: a.getUser()}, namespace, resource, verb); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -156,6 +161,17 @@ func (a *ServerWithRoles) authorizeActionWithOrigin(resourceKind string, origin 
 
 func (a *ServerWithRoles) authorizeAction(resource string, verb string, extraVerbs ...string) error {
 	return a.actionNamespace(apidefaults.Namespace, resource, verb, extraVerbs...)
+}
+
+func (a *ServerWithRoles) authorizeScopedAction(ctx context.Context, resource string, verbs ...string) error {
+	if a.scopedContext == nil {
+		return trace.AccessDenied("cannot authorize scoped action for unscoped context")
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, "", func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, resource, verbs...)
+	})
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -1288,7 +1304,12 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 // DeleteAllNodes deletes all nodes in a given namespace
 func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
@@ -1304,7 +1325,12 @@ func (a *ServerWithRoles) DeleteNode(ctx context.Context, namespace, node string
 // GetNode gets a node by name and namespace.
 func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	node, err := a.authServer.GetNode(ctx, namespace, name)
 	if err != nil {
@@ -1816,7 +1842,12 @@ func (a *ServerWithRoles) filterICPermissionSets(ctx context.Context, r *proto.P
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	if err := a.actionNamespace(namespace, types.KindNode, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Fetch full list of nodes in the backend.
@@ -6716,7 +6747,13 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster 
 // GetKubernetesServers returns all registered kubernetes servers.
 func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	if err := a.authorizeAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
+		if a.authorizeScopedAction(ctx, types.KindKubeServer, types.VerbList, types.VerbRead) != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	servers, err := a.authServer.GetKubernetesServers(ctx)
@@ -7218,7 +7255,12 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// Don't allow users create clusters they wouldn't have access to (e.g.
 	// non-matching labels).
@@ -7235,7 +7277,12 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
@@ -7259,8 +7306,14 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 // GetKubernetesCluster returns specified kubernetes cluster resource.
 func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7274,8 +7327,14 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
 	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
 			a.authServer.RangeKubernetesClusters(ctx, "", ""),
