@@ -88,14 +88,6 @@ var (
 	AWSRSA2048CertBytes = awsRSA2048CertBytes
 )
 
-func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
-	remoteClusterRefreshLimit = limit
-}
-
-func (a *Server) RemoteClusterRefreshBuckets(buckets int) {
-	remoteClusterRefreshBuckets = buckets
-}
-
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	return a.verifyRecoveryCode(ctx, username, recoveryCode)
 }

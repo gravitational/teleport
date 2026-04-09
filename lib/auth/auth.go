@@ -581,28 +581,30 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	as := Server{
-		bk:                      cfg.Backend,
-		clock:                   cfg.Clock,
-		fakePasswordHash:        cfg.FakePasswordHash,
-		fakeRecoveryCodeHash:    cfg.FakeRecoveryCodeHash,
-		limiter:                 limiter,
-		Authority:               cfg.Authority,
-		AuthServiceName:         cfg.AuthServiceName,
-		ServerID:                cfg.HostUUID,
-		cancelFunc:              cancelFunc,
-		closeCtx:                closeCtx,
-		emitter:                 cfg.Emitter,
-		Streamer:                cfg.Streamer,
-		Unstable:                local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                services,
-		Cache:                   services,
-		keyStore:                keyStore,
-		traceClient:             cfg.TraceClient,
-		fips:                    cfg.FIPS,
-		loadAllCAs:              cfg.LoadAllCAs,
-		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
-		logger:                  cfg.Logger,
+		bk:                          cfg.Backend,
+		clock:                       cfg.Clock,
+		fakePasswordHash:            cfg.FakePasswordHash,
+		fakeRecoveryCodeHash:        cfg.FakeRecoveryCodeHash,
+		limiter:                     limiter,
+		Authority:                   cfg.Authority,
+		AuthServiceName:             cfg.AuthServiceName,
+		ServerID:                    cfg.HostUUID,
+		cancelFunc:                  cancelFunc,
+		closeCtx:                    closeCtx,
+		emitter:                     cfg.Emitter,
+		Streamer:                    cfg.Streamer,
+		Unstable:                    local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                    services,
+		Cache:                       services,
+		keyStore:                    keyStore,
+		traceClient:                 cfg.TraceClient,
+		fips:                        cfg.FIPS,
+		loadAllCAs:                  cfg.LoadAllCAs,
+		httpClientForAWSSTS:         cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:     cfg.AccessMonitoringEnabled,
+		logger:                      cfg.Logger,
+		remoteClusterRefreshLimit:   cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
+		remoteClusterRefreshBuckets: cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1268,6 +1270,13 @@ type Server struct {
 	// BotInstanceVersionReporter is called periodically to generate a report of
 	// the number of bot instances by version and update group.
 	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
+
+	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	remoteClusterRefreshLimit int
+	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
+	remoteClusterRefreshBuckets int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2087,14 +2096,14 @@ func (a *Server) updateBotInstanceMetrics() {
 	}
 }
 
-var (
-	// remoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+const (
+	// defaultRemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
 	// during periodic remote cluster connection status refresh.
-	remoteClusterRefreshLimit = 50
+	defaultRemoteClusterRefreshLimit = 50
 
-	// remoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// defaultRemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds remoteClusterRefreshLimit × remoteClusterRefreshBuckets.
-	remoteClusterRefreshBuckets = 12
+	defaultRemoteClusterRefreshBuckets = 12
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
@@ -2112,8 +2121,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
-	updateLimit := remoteClusterRefreshLimit
-	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
+	updateLimit := a.remoteClusterRefreshLimit
+	if dynamicLimit := (len(remoteClusters) / a.remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
 		// if the number of remote clusters is larger than remoteClusterRefreshLimit × remoteClusterRefreshBuckets,
 		// bump the limit to make sure all remote clusters will be updated within reasonable time.
 		updateLimit = dynamicLimit
