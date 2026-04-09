@@ -200,6 +200,7 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	return identity.Expires
 }
 
+// GetAccessState is equivalent to [Context.GetAccessState], but will defer to defaults
 func (c *ScopedContext) GetAccessState(authPref readonly.AuthPreference) (services.AccessState, error) {
 	if c.unscopedContext != nil {
 		return c.unscopedContext.GetAccessState(authPref), nil

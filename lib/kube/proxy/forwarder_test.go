@@ -738,22 +738,51 @@ func TestAuthenticate(t *testing.T) {
 					},
 					Scope: "/local",
 				},
-				&types.KubernetesClusterV3{
-					Metadata: types.Metadata{
-						Name: "foo",
-						Labels: map[string]string{
-							"static_label1": "static_value1",
-							"static_label2": "static_value2",
+			),
+			wantCtx: &authContext{
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterName: "local",
+				kubeClusterLabels: map[string]string{
+					"static_label1": "static_value1",
+					"static_label2": "static_value2",
+				},
+				certExpires: certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Scope: "/local",
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
 						},
 					},
-					Spec: types.KubernetesClusterSpecV3{
-						DynamicLabels: map[string]types.CommandLabelV2{},
-					},
-					Scope: "/local",
-				},
+				),
+			},
+		},
+		{
+			desc:              "local unscoped user and scoped cluster",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
 				&types.KubernetesClusterV3{
 					Metadata: types.Metadata{
-						Name: "bar",
+						Name: "local",
 						Labels: map[string]string{
 							"static_label1": "static_value1",
 							"static_label2": "static_value2",
@@ -819,6 +848,32 @@ func TestAuthenticate(t *testing.T) {
 						DynamicLabels: map[string]types.CommandLabelV2{},
 					},
 					Scope: "/other",
+				},
+			),
+			wantAuthzErr: true,
+		},
+		{
+			desc:              "local scoped user and unscoped cluster",
+			user:              authz.LocalUser{},
+			scope:             "/local",
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "local",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
 			),
 			wantAuthzErr: true,
@@ -968,21 +1023,6 @@ func setupScopedKubeRoleWithAssignment(t *testing.T, ap *mockAccessPoint, groups
 		},
 	}
 
-	// ap.scopedRoleAssignments[scopeAsName+"-assignment"] = &accessv1.ScopedRoleAssignment{
-	// 	Kind:    access.KindScopedRoleAssignment,
-	// 	SubKind: access.SubKindDynamic,
-	// 	Version: types.V1,
-	// 	Scope:   scope,
-	// 	Metadata: &headerv1.Metadata{
-	// 		Name: scopeAsName + "-assignment",
-	// 	},
-	// 	Spec: &accessv1.ScopedRoleAssignmentSpec{
-	// 		User: username,
-	// 		Assignments: []*accessv1.Assignment{
-	// 			{Role: scopeAsName + "-role", Scope: scope},
-	// 		},
-	// 	},
-	// }
 	return &scopesv1.Pin{
 		Scope: scope,
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{

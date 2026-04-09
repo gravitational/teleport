@@ -547,7 +547,10 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	srv.Scope = t.Scope
+	if t.Scope != "" {
+		srv.Scope = t.Scope
+		srv.Spec.Cluster.SetScope(t.Scope)
+	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Get the kube cluster health and send it to the auth server.
@@ -771,7 +774,7 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if t.scope != "" {
+			if t.Scope != "" {
 				srv.Scope = t.scope
 				srv.Spec.Cluster.SetScope(t.scope)
 			}
@@ -800,7 +803,7 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if t.scope != "" {
+			if t.Scope != "" {
 				srv.Scope = t.scope
 				srv.Spec.Cluster.SetScope(t.scope)
 			}

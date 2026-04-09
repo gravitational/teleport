@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
@@ -41,11 +43,13 @@ import (
 func TestForwarderClusterDialer(t *testing.T) {
 	t.Parallel()
 	var (
-		hostname    = "localhost:8080"
-		hostId      = "hostId"
-		proxyIds    = []string{"proxyId"}
-		clusterName = "cluster"
-		health      = types.TargetHealthStatusHealthy
+		hostname          = "localhost:8080"
+		hostId            = "hostId"
+		proxyIds          = []string{"proxyId"}
+		clusterName       = "cluster"
+		scopedClusterName = "scoped-cluster"
+		health            = types.TargetHealthStatusHealthy
+		scope             = "/test"
 	)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
@@ -53,15 +57,23 @@ func TestForwarderClusterDialer(t *testing.T) {
 			ClusterName: clusterName,
 		},
 		getKubernetesServersForKubeCluster: func(_ context.Context, kubeClusterName string) ([]types.KubeServer, error) {
+			if kubeClusterName == clusterName {
+				return []types.KubeServer{
+					newKubeServer(t, clusterName, hostname, hostId, proxyIds, health),
+				}, nil
+			}
+			scopedKubeServer := newKubeServer(t, scopedClusterName, hostname, hostId, proxyIds, health)
+			scopedKubeServer.Scope = scope
 			return []types.KubeServer{
-				newKubeServer(t, hostname, hostId, proxyIds, health),
+				scopedKubeServer,
 			}, nil
 		},
 	}
 	tests := []struct {
-		name          string
-		dialerCreator func(kubeClusterName string) dialContextFunc
-		want          reversetunnelclient.DialParams
+		name            string
+		kubeClusterName string
+		dialerCreator   func(kubeClusterName string) dialContextFunc
+		want            reversetunnelclient.DialParams
 	}{
 		{
 			name: "local site",
@@ -80,6 +92,27 @@ func TestForwarderClusterDialer(t *testing.T) {
 				ServerID: hostId + "." + clusterName,
 				ConnType: types.KubeTunnel,
 				ProxyIDs: proxyIds,
+			},
+		},
+		{
+			name:            "local site scoped",
+			kubeClusterName: scopedClusterName,
+			dialerCreator: func(kubeClusterName string) dialContextFunc {
+				return f.localClusterDialer(kubeClusterName)
+			},
+			want: reversetunnelclient.DialParams{
+				From: &utils.NetAddr{
+					Addr:        "0.0.0.0:0",
+					AddrNetwork: "tcp",
+				},
+				To: &utils.NetAddr{
+					Addr:        hostname,
+					AddrNetwork: "tcp",
+				},
+				ServerID:    hostId + "." + clusterName,
+				ConnType:    types.KubeTunnel,
+				ProxyIDs:    proxyIds,
+				TargetScope: scope,
 			},
 		},
 		{
@@ -104,7 +137,8 @@ func TestForwarderClusterDialer(t *testing.T) {
 				t:    t,
 				want: tt.want,
 			}
-			_, _ = tt.dialerCreator("")(context.Background(), "tcp", "")
+			_, err := tt.dialerCreator(cmp.Or(tt.kubeClusterName, clusterName))(context.Background(), "tcp", "")
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -133,9 +167,9 @@ func (f *fakeRemoteSiteTunnel) DialTCP(p reversetunnelclient.DialParams) (net.Co
 	return nil, nil
 }
 
-func newKubeServer(t *testing.T, hostname, hostID string, proxyIds []string, health types.TargetHealthStatus) types.KubeServer {
+func newKubeServer(t *testing.T, name, hostname, hostID string, proxyIds []string, health types.TargetHealthStatus) *types.KubernetesServerV3 {
 	k, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name: "cluster",
+		Name: name,
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 
@@ -207,73 +241,73 @@ func TestLocalClusterDialsByHealth(t *testing.T) {
 		{
 			name: "one",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
 			},
 		},
 		{
 			name: "healthy",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
 			},
 		},
 		{
 			name: "unknown",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
 			},
 		},
 		{
 			name: "unhealthy",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
 			},
 		},
 		{
 			name: "random",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
 			},
 		},
 		{
 			name: "reversed",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
 			},
 		},
 		{
 			name: "sorted",
 			servers: []types.KubeServer{
-				newKubeServer(t, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
-				newKubeServer(t, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
-				newKubeServer(t, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
-				newKubeServer(t, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-1", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-2", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "healthy-3", proxyIds, types.TargetHealthStatusHealthy),
+				newKubeServer(t, clusterName, hostname, "unknown-1", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-2", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unknown-3", proxyIds, types.TargetHealthStatusUnknown),
+				newKubeServer(t, clusterName, hostname, "unhealthy-1", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-2", proxyIds, types.TargetHealthStatusUnhealthy),
+				newKubeServer(t, clusterName, hostname, "unhealthy-3", proxyIds, types.TargetHealthStatusUnhealthy),
 			},
 		},
 	}

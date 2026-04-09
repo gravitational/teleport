@@ -75,14 +75,14 @@ func (c *KubeAccessChecker) GetGroupsAndUsers(ttl time.Duration, overrideTTL boo
 	return c.checker.scopedCompatChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }
 
-// GetGroupsAndUsers returns the kube groups and users that are permitted for
-// impersonation.
+// GetResources returns the kube resources that are permitted to be accessed. Scoped identities do not yet
+// support resources and will always return wildcards to prevent denying access that would oteherwise be granted.
 func (c *KubeAccessChecker) GetResources(cluster types.KubeCluster) (allowed []types.KubernetesResource, denied []types.KubernetesResource) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.GetKubeResources(cluster)
 	}
-	// resources are not yet supported for scoped identities
-	return nil, nil
+
+	return c.checker.scopedCompatChecker.GetKubeResources(cluster)
 }
 
 func (c *KubeAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) time.Duration {
