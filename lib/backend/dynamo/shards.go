@@ -206,18 +206,31 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 
 func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) error {
 	isInitializing := initC != nil
-	shardIteratorType := streamtypes.ShardIteratorTypeTrimHorizon
+
+	var req *dynamodbstreams.GetShardIteratorInput
 	if isInitializing {
 		// On initialization register iterators at LATEST to avoid processing old events.
-		shardIteratorType = streamtypes.ShardIteratorTypeLatest
+		req = &dynamodbstreams.GetShardIteratorInput{
+			ShardId:           shard.ShardId,
+			ShardIteratorType: streamtypes.ShardIteratorTypeLatest,
+			StreamArn:         streamArn,
+		}
+	} else if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.StartingSequenceNumber != nil {
+		// For new shards found after initialization, register at the starting sequence number
+		// unlike TRIM_HORIZON this should error if the events have been trimmed for some reason and cause
+		// a watcher reset. This is not expected to ever happen under normal circumstances.
+		req = &dynamodbstreams.GetShardIteratorInput{
+			ShardId:           shard.ShardId,
+			ShardIteratorType: streamtypes.ShardIteratorTypeAtSequenceNumber,
+			StreamArn:         streamArn,
+			SequenceNumber:    shard.SequenceNumberRange.StartingSequenceNumber,
+		}
+	} else {
+		// If the shard is missing a valid starting sequence number, something is very wrong. Error out and trigger a reset.
+		return trace.BadParameter("shard %q missing valid starting sequence number", aws.ToString(shard.ShardId))
 	}
 
-	shardIterator, err := b.streams.GetShardIterator(ctx, &dynamodbstreams.GetShardIteratorInput{
-		ShardId:           shard.ShardId,
-		ShardIteratorType: shardIteratorType,
-		StreamArn:         streamArn,
-	})
-
+	shardIterator, err := b.streams.GetShardIterator(ctx, req)
 	if err == nil && shardIterator.ShardIterator == nil {
 		// In both cases for either new init calls or shard split we expect a valid iterator. For LATEST calls on a shard that may be
 		// closed the iterator is still valid but will return no records. for TRIM_HORIZON the iterator will always start at the beginning
