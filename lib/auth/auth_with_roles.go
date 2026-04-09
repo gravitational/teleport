@@ -163,15 +163,15 @@ func (a *ServerWithRoles) authorizeAction(resource string, verb string, extraVer
 	return a.actionNamespace(apidefaults.Namespace, resource, verb, extraVerbs...)
 }
 
-func (a *ServerWithRoles) authorizeScopedAction(ctx context.Context, resource string, verbs ...string) error {
+// preAuthorizeScopedAction runs a more efficient check to see if an action is definitely not possible before doing
+// more expensive per-resource checks
+func (a *ServerWithRoles) preAuthorizeScopedAction(resource string, verbs ...string) error {
 	if a.scopedContext == nil {
-		return trace.AccessDenied("cannot authorize scoped action for unscoped context")
+		return trace.AccessDenied("cannot pre authorize scoped action for unscoped context")
 	}
 
 	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, "", func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, resource, verbs...)
-	})
+	return trace.Wrap(a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, resource, verbs...))
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -1311,9 +1311,6 @@ func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) 
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	return a.authServer.DeleteAllNodes(ctx, namespace)
 }
@@ -1332,7 +1329,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbRead); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindNode, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1849,7 +1846,7 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindNode, types.VerbList); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindNode, types.VerbList); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6574,7 +6571,7 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 			return nil, trace.Wrap(err)
 		}
 
-		if err := a.authorizeScopedAction(ctx, types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7081,7 +7078,7 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -7103,7 +7100,7 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -7132,7 +7129,7 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7153,7 +7150,7 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7183,7 +7180,7 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 		if !errors.Is(err, services.ErrScopedIdentity) {
 			return nil, "", trace.Wrap(err)
 		}
-		if err := a.authorizeScopedAction(ctx, types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
