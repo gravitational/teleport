@@ -280,8 +280,6 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		}
 
 		if len(out.Records) > 0 {
-			b.logger.DebugContext(ctx, "Got new stream shard records.", "shard_id", shardID, "num_records", len(out.Records))
-
 			events := make([]backend.Event, 0, len(out.Records))
 			for i := range out.Records {
 				event, err := toEvent(out.Records[i])

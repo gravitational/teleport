@@ -39,6 +39,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestShardSplitting is an integration test that simulates a high load scenario on a DynamoDB table to trigger shard splits in DynamoDB Streams.
@@ -147,7 +148,7 @@ func testCreateBackend(t *testing.T, ctx context.Context, config map[string]any)
 		require.NoError(c, err)
 		require.NotEmpty(c, streamArn)
 
-		shards, err := b.collectActiveShards(ctx, streamArn)
+		shards, err := iterstream.Collect(b.fetchShards(ctx, streamArn))
 		require.NoError(c, err)
 		require.NotEmpty(c, shards)
 	}, 2*time.Minute, 5*time.Second, "DynamoDB shards not ready in time")
