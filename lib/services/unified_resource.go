@@ -38,6 +38,7 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -973,6 +974,7 @@ func newResourceCollection(r resource) resourceCollection {
 				return &aggregatedDatabase{
 					DatabaseServer: srv,
 					status:         aggregateHealthStatuses(servers),
+					features:       intersectComponentFeaturesForDatabaseServers(servers),
 				}
 			})
 	case types.KubeServer:
@@ -1125,7 +1127,8 @@ func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer)
 // would be made generic.
 type aggregatedDatabase struct {
 	types.DatabaseServer
-	status types.TargetHealthStatus
+	status   types.TargetHealthStatus
+	features *componentfeaturesv1.ComponentFeatures
 }
 
 // This type MUST implement [types.DatabaseServer] to act as a facade type,
@@ -1138,18 +1141,36 @@ func (d *aggregatedDatabase) GetTargetHealthStatus() types.TargetHealthStatus {
 	return d.status
 }
 
+// GetComponentFeatures returns the intersected ComponentFeatures across all
+// database servers serving this database.
+func (d *aggregatedDatabase) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	if d.features == nil {
+		return nil
+	}
+	return componentfeatures.Join(d.features)
+}
+
 // Copy returns a copy of the underlying database server with aggregated health
-// status.
+// status and component features.
 func (d *aggregatedDatabase) Copy() types.DatabaseServer {
 	out := d.DatabaseServer.Copy()
 	out.SetTargetHealthStatus(d.status)
+	out.SetComponentFeatures(d.GetComponentFeatures())
 	return out
 }
 
 // CloneResource returns a copy of the underlying database server with
-// aggregated health status.
+// aggregated health status and component features.
 func (d *aggregatedDatabase) CloneResource() types.ResourceWithLabels {
 	return d.Copy()
+}
+
+func intersectComponentFeaturesForDatabaseServers(servers map[string]types.DatabaseServer) *componentfeaturesv1.ComponentFeatures {
+	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
+	for _, s := range servers {
+		allFeatures = append(allFeatures, s.GetComponentFeatures())
+	}
+	return componentfeatures.Intersect(allFeatures...)
 }
 
 // aggregatedKube wraps a kube server with aggregated health status.
@@ -1215,10 +1236,12 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 	}
 
 	var logins []string
+	var principals map[string]*wrappers.StringValues
 	resource := r
 	if enriched, ok := r.(*types.EnrichedResource); ok {
 		resource = enriched.ResourceWithLabels
 		logins = enriched.Logins
+		principals = mapPrincipalsToProto(enriched.Principals)
 	}
 
 	switch resourceKind {
@@ -1341,7 +1364,23 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}
 
+	if len(principals) > 0 {
+		protoResource.Principals = principals
+	}
+
 	return protoResource, nil
+}
+
+// mapPrincipalsToProto converts a Go principals map to proto StringValues map.
+func mapPrincipalsToProto(principals map[types.PrincipalKind][]string) map[string]*wrappers.StringValues {
+	if len(principals) == 0 {
+		return nil
+	}
+	out := make(map[string]*wrappers.StringValues, len(principals))
+	for k, v := range principals {
+		out[string(k)] = &wrappers.StringValues{Values: v}
+	}
+	return out
 }
 
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.

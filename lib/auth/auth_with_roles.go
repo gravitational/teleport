@@ -1333,6 +1333,18 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+// setPrincipal sets a principal dimension on a PaginatedResource's Principals map.
+// It initializes the map if needed. If values is empty, it is a no-op.
+func setPrincipal(r *proto.PaginatedResource, kind types.PrincipalKind, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	if r.Principals == nil {
+		r.Principals = make(map[string]*wrappers.StringValues)
+	}
+	r.Principals[string(kind)] = &wrappers.StringValues{Values: values}
+}
+
 // unifiedResourceLister is used to check if an unified resource should be listed. It also
 // memorizes all the resources which are requestable-only in the requestableMap.
 type unifiedResourceLister struct {
@@ -1414,6 +1426,90 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 		logins, err := l.accessChecker.GetAllowedLoginsForResource(resource)
 		return logins, trace.Wrap(err)
 	}
+}
+
+// getEnrichedDatabasePrincipals returns the full set of database users, names, and roles
+// visible to the user (including requestable principals via search_as_roles).
+// It uses the requestable access checker if available, falling back to the base checker.
+func (l *unifiedResourceLister) getEnrichedDatabasePrincipals(database types.Database) (users, names, roles []string) {
+	checker := l.getAccessChecker()
+	if checker == nil {
+		return nil, nil, nil
+	}
+
+	users = allowedDatabaseEntities(checker, database,
+		func(role types.Role, ct types.RoleConditionType) []string { return role.GetDatabaseUsers(ct) },
+		func(entity string) services.RoleMatcher { return services.NewDatabaseUserMatcher(database, entity) },
+	)
+	names = allowedDatabaseEntities(checker, database,
+		func(role types.Role, ct types.RoleConditionType) []string { return role.GetDatabaseNames(ct) },
+		func(entity string) services.RoleMatcher { return &services.DatabaseNameMatcher{Name: entity} },
+	)
+	if r, err := checker.CheckDatabaseRoles(database, nil); err == nil && len(r) > 0 {
+		roles = r
+	}
+	return users, names, roles
+}
+
+// allowedDatabaseEntities collects all database entities (users or names) from
+// all roles and filters them against the full AccessChecker.
+func allowedDatabaseEntities(
+	checker services.AccessChecker,
+	database types.Database,
+	getEntities func(types.Role, types.RoleConditionType) []string,
+	newMatcher func(string) services.RoleMatcher,
+) []string {
+	// Collect all entities across all roles, marking denied ones.
+	mapped := make(map[string]bool)
+	for _, role := range checker.Roles() {
+		for _, e := range getEntities(role, types.Allow) {
+			if _, set := mapped[e]; !set {
+				mapped[e] = true
+			}
+		}
+		for _, e := range getEntities(role, types.Deny) {
+			mapped[e] = false
+		}
+	}
+
+	// Filter to entities allowed by the full RoleSet for this database.
+	var allowed []string
+	for entity, notDenied := range mapped {
+		if !notDenied {
+			continue
+		}
+		if err := checker.CheckAccess(database, services.AccessState{MFAVerified: true}, newMatcher(entity)); err == nil {
+			allowed = append(allowed, entity)
+		}
+	}
+	return allowed
+}
+
+// getAccessChecker returns the services.AccessChecker from the most-privileged
+// resource checker (requestable if available, else base).
+func (l *unifiedResourceLister) getAccessChecker() services.AccessChecker {
+	rc := l.requestableAccessChecker
+	if rc == nil {
+		rc = l.accessChecker
+	}
+	return unwrapAccessChecker(rc)
+}
+
+// unwrapAccessChecker extracts the services.AccessChecker from a
+// resourceCheckerI, unwrapping through any decorator layers (e.g.
+// oktaRequestableResoruceChecker).
+func unwrapAccessChecker(rc resourceCheckerI) services.AccessChecker {
+	for rc != nil {
+		if checker, ok := rc.(*resourceChecker); ok {
+			return checker.AccessChecker
+		}
+		if okta, ok := rc.(*oktaRequestableResoruceChecker); ok {
+			rc = okta.underlying
+			continue
+		}
+		return nil
+	}
+	return nil
 }
 
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
@@ -1607,6 +1703,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindSSHLogins, logins)
 			} else if d := r.GetWindowsDesktop(); d != nil {
 				logins, err := resourceLister.getAllowedLogins(d)
 				if err != nil {
@@ -1617,6 +1714,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindWindowsLogins, logins)
 			} else if d := r.GetLinuxDesktop(); d != nil {
 				desktop := proto.UnpackLinuxDesktop(d)
 				logins, err := resourceLister.getAllowedLogins(desktop)
@@ -1628,6 +1726,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if d := r.GetDatabaseServer(); d != nil {
+				users, dbNames, dbRoles := resourceLister.getEnrichedDatabasePrincipals(d.GetDatabase())
+				setPrincipal(r, types.PrincipalKindDBUsers, users)
+				setPrincipal(r, types.PrincipalKindDBNames, dbNames)
+				setPrincipal(r, types.PrincipalKindDBRoles, dbRoles)
 			} else if d := r.GetAppServer(); d != nil {
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent
@@ -1651,6 +1754,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+				setPrincipal(r, types.PrincipalKindAWSRoleARNs, logins)
 			}
 		}
 	}

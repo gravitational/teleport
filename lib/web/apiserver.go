@@ -3532,19 +3532,37 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
 				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
 					Logins:            principals.Logins,
 					RequiresRequest:   enriched.RequiresRequest,
-					SupportedFeatures: nodeComponentFeatures,
+					SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
 				}))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
-			unifiedResources = append(unifiedResources, db)
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			unifiedResources = append(
+				unifiedResources,
+				ui.MakeDatabaseFromDatabaseServer(r, ui.MakeDatabaseFromDatabaseServerConfig{
+					AccessChecker:      accessChecker,
+					InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+					RequiresRequest:    enriched.RequiresRequest,
+					SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+					DBUsers:            principals.DBUsers,
+					DBNames:            principals.DBNames,
+					DBRoles:            principals.DBRoles,
+				}),
+			)
 		case types.AppServer:
 			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
 				Resource:           enriched,
@@ -3562,11 +3580,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
 
-			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
-			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
-			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: proxyDNSName,
@@ -3575,7 +3588,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.logger,
 				RequiresRequest:   enriched.RequiresRequest,
-				SupportedFeatures: appComponentFeatures,
+				SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:

@@ -34,6 +34,12 @@ type UnifiedResourcePrincipals struct {
 	Logins *webui.PrincipalSet
 	// AWSRoleARNs is populated for AWS Console apps.
 	AWSRoleARNs *webui.PrincipalSet
+	// DBUsers is populated for databases.
+	DBUsers *webui.PrincipalSet
+	// DBNames is populated for databases.
+	DBNames *webui.PrincipalSet
+	// DBRoles is populated for databases.
+	DBRoles *webui.PrincipalSet
 }
 
 // PrincipalsForUnifiedResourceOpts configures PrincipalsForUnifiedResource.
@@ -71,6 +77,8 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 			return nil, trace.Wrap(err)
 		}
 		result.AWSRoleARNs = arns
+	case types.DatabaseServer:
+		result.DBUsers, result.DBNames, result.DBRoles = databasePrincipals(opts, r)
 	}
 
 	return result, nil
@@ -137,6 +145,59 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 	}
 
 	return ps, nil
+}
+
+// databasePrincipals computes database user, name, and role principals for
+// a database server resource.
+//
+// All principals come from the enriched resource's Principals map (populated by
+// auth, potentially with search_as_roles). When IncludeRequestable is set,
+// granted principals are computed separately from the base access checker so
+// the frontend can distinguish granted vs. requestable.
+func databasePrincipals(opts PrincipalsForUnifiedResourceOpts, dbServer types.DatabaseServer) (users, names, roles *webui.PrincipalSet) {
+	db := dbServer.GetDatabase()
+
+	allUsers := opts.Resource.GetPrincipals(types.PrincipalKindDBUsers)
+	allNames := opts.Resource.GetPrincipals(types.PrincipalKindDBNames)
+	allRoles := opts.Resource.GetPrincipals(types.PrincipalKindDBRoles)
+
+	users = principalSetFromSlice(allUsers)
+	names = principalSetFromSlice(allNames)
+	roles = principalSetFromSlice(allRoles)
+
+	if !opts.IncludeRequestable {
+		return
+	}
+
+	// Compute granted from base access checker to distinguish requestable principals.
+	if users != nil {
+		if res, err := opts.AccessChecker.EnumerateDatabaseUsers(db); err == nil {
+			granted, _ := res.ToEntities()
+			users.Granted = set.New(granted...)
+		}
+	}
+	if names != nil {
+		namesResult := opts.AccessChecker.EnumerateDatabaseNames(db)
+		granted, _ := namesResult.ToEntities()
+		names.Granted = set.New(granted...)
+	}
+	if roles != nil {
+		if r, err := opts.AccessChecker.CheckDatabaseRoles(db, nil); err == nil {
+			roles.Granted = set.New(r...)
+		}
+	}
+
+	return
+}
+
+// principalSetFromSlice creates a PrincipalSet where All == Granted from a
+// string slice. Returns nil if the slice is empty.
+func principalSetFromSlice(principals []string) *webui.PrincipalSet {
+	if len(principals) == 0 {
+		return nil
+	}
+	s := set.New(principals...)
+	return &webui.PrincipalSet{All: s, Granted: s}
 }
 
 // filterByIdentityPrincipals returns the intersection of allowedLogins with

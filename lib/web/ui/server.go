@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/slices"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // SSHLogin describes an SSH login available on a server.
@@ -38,6 +38,30 @@ type SSHLogin struct {
 	// Login is the SSH login name.
 	Login string `json:"login"`
 	// RequiresRequest indicates whether this login requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseUserDetail describes a database user with request metadata.
+type DatabaseUserDetail struct {
+	// User is the database user name.
+	User string `json:"user"`
+	// RequiresRequest indicates whether this user requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseNameDetail describes a database name with request metadata.
+type DatabaseNameDetail struct {
+	// Name is the database name.
+	Name string `json:"name"`
+	// RequiresRequest indicates whether this name requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
+
+// DatabaseRoleDetail describes a database role with request metadata.
+type DatabaseRoleDetail struct {
+	// Role is the database role.
+	Role string `json:"role"`
+	// RequiresRequest indicates whether this role requires an access request to be used.
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
@@ -147,10 +171,46 @@ func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
 	if logins == nil {
 		return nil
 	}
-	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
+	return sliceutils.Map(logins.All.Elements(), func(login string) SSHLogin {
 		return SSHLogin{
 			Login:           login,
 			RequiresRequest: !logins.Granted.Contains(login),
+		}
+	})
+}
+
+func buildDatabaseUserDetailsFromSet(ps *PrincipalSet) []DatabaseUserDetail {
+	if ps == nil {
+		return nil
+	}
+	return sliceutils.Map(ps.All.Elements(), func(u string) DatabaseUserDetail {
+		return DatabaseUserDetail{
+			User:            u,
+			RequiresRequest: !ps.Granted.Contains(u),
+		}
+	})
+}
+
+func buildDatabaseNameDetailsFromSet(ps *PrincipalSet) []DatabaseNameDetail {
+	if ps == nil {
+		return nil
+	}
+	return sliceutils.Map(ps.All.Elements(), func(n string) DatabaseNameDetail {
+		return DatabaseNameDetail{
+			Name:            n,
+			RequiresRequest: !ps.Granted.Contains(n),
+		}
+	})
+}
+
+func buildDatabaseRoleDetailsFromSet(ps *PrincipalSet) []DatabaseRoleDetail {
+	if ps == nil {
+		return nil
+	}
+	return sliceutils.Map(ps.All.Elements(), func(r string) DatabaseRoleDetail {
+		return DatabaseRoleDetail{
+			Role:            r,
+			RequiresRequest: !ps.Granted.Contains(r),
 		}
 	})
 }
@@ -363,6 +423,15 @@ type Database struct {
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
 	DatabaseRoles []string `json:"database_roles,omitempty"`
+	// DatabaseUserDetails provides per-user metadata (e.g. whether a user requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseUserDetails []DatabaseUserDetail `json:"databaseUserDetails,omitempty"`
+	// DatabaseNameDetails provides per-name metadata (e.g. whether a name requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseNameDetails []DatabaseNameDetail `json:"databaseNameDetails,omitempty"`
+	// DatabaseRoleDetails provides per-role metadata (e.g. whether a role requires an access request).
+	// Only populated when the handler has requestable principal info.
+	DatabaseRoleDetails []DatabaseRoleDetail `json:"databaseRoleDetails,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -383,6 +452,8 @@ type Database struct {
 	// - webapi/sites/:site/databases/:database (singular)
 	// - webapi/sites/:site/resources (unified resources)
 	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
+	// SupportedFeatureIDs contains ComponentFeatures supported by this Database and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -405,25 +476,57 @@ type DatabaseInteractiveChecker interface {
 	IsSupported(protocol string) bool
 }
 
+type MakeDatabaseConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// DBUsers holds granted and requestable database user principals.
+	// When nil, users are computed from AccessChecker.
+	DBUsers *PrincipalSet
+	// DBNames holds granted and requestable database name principals.
+	// When nil, names are computed from AccessChecker.
+	DBNames *PrincipalSet
+	// DBRoles holds granted and requestable database role principals.
+	// When nil, roles are computed from AccessChecker.
+	DBRoles           *PrincipalSet
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+//
+// When PrincipalSet fields (DBUsers, DBNames, DBRoles) are provided, they are
+// used for both the flat principal lists and the per-principal detail objects.
+// When nil, principals are computed from AccessChecker (legacy path for
+// non-unified-resource endpoints).
+func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	var (
 		autoUserEnabled bool
 		dbUsers         []string
+		dbNames         []string
 		dbRoles         []string
 	)
-	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
-	dbNames, _ := dbNamesResult.ToEntities()
-	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+
+	// Compute principals from PrincipalSets when available, else from AccessChecker.
+	if c.DBUsers != nil {
+		dbUsers = c.DBUsers.All.Elements()
+	} else if res, err := c.AccessChecker.EnumerateDatabaseUsers(database); err == nil {
 		dbUsers, _ = res.ToEntities()
 	}
-	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
-		// Avoid assigning empty slice to keep the resulting roles nil.
+	if c.DBNames != nil {
+		dbNames = c.DBNames.All.Elements()
+	} else {
+		dbNamesResult := c.AccessChecker.EnumerateDatabaseNames(database)
+		dbNames, _ = dbNamesResult.ToEntities()
+	}
+	if c.DBRoles != nil {
+		dbRoles = c.DBRoles.All.Elements()
+	} else if roles, err := c.AccessChecker.CheckDatabaseRoles(database, nil); err == nil {
 		if len(roles) > 0 {
 			dbRoles = roles
 		}
 	}
-	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
+	if autoUser, err := c.AccessChecker.DatabaseAutoUserMode(database); err == nil {
 		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
 	}
 
@@ -441,9 +544,13 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		DatabaseRoles:       dbRoles,
 		Hostname:            stripProtocolAndPort(database.GetURI()),
 		URI:                 database.GetURI(),
-		RequiresRequest:     requiresRequest,
-		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
+		RequiresRequest:     c.RequiresRequest,
+		SupportsInteractive: c.InteractiveChecker.IsSupported(database.GetProtocol()),
 		AutoUsersEnabled:    autoUserEnabled,
+	}
+
+	if c.SupportedFeatures != nil {
+		db.SupportedFeatureIDs = c.SupportedFeatures.GetFeatures()
 	}
 
 	if database.IsAWSHosted() {
@@ -457,13 +564,45 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 
+	// Build per-principal detail objects from PrincipalSets.
+	db.DatabaseUserDetails = buildDatabaseUserDetailsFromSet(c.DBUsers)
+	db.DatabaseNameDetails = buildDatabaseNameDetailsFromSet(c.DBNames)
+	db.DatabaseRoleDetails = buildDatabaseRoleDetailsFromSet(c.DBRoles)
+
 	return db
 }
 
+type MakeDatabaseFromDatabaseServerConfig struct {
+	AccessChecker      services.AccessChecker
+	InteractiveChecker DatabaseInteractiveChecker
+	// RequiresRequest is whether the DB resource requires an Access Request to access
+	RequiresRequest bool
+	// SupportedFeatures contains ComponentFeatures supported by this DB Server and all other involved components.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+	// DBUsers holds granted and requestable database user principals.
+	DBUsers *PrincipalSet
+	// DBNames holds granted and requestable database name principals.
+	DBNames *PrincipalSet
+	// DBRoles holds granted and requestable database role principals.
+	DBRoles *PrincipalSet
+}
+
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
+// If intersectedFeatures is provided, it is used instead of the server's own component features
+// (e.g. after intersecting with cluster-level auth/proxy features).
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, c MakeDatabaseFromDatabaseServerConfig) Database {
+	db := MakeDatabase(dbServer.GetDatabase(), MakeDatabaseConfig{
+		AccessChecker:      c.AccessChecker,
+		InteractiveChecker: c.InteractiveChecker,
+		RequiresRequest:    c.RequiresRequest,
+		DBUsers:            c.DBUsers,
+		DBNames:            c.DBNames,
+		DBRoles:            c.DBRoles,
+	})
 	db.TargetHealth = dbServer.GetTargetHealth()
+	if c.SupportedFeatures != nil {
+		db.SupportedFeatureIDs = c.SupportedFeatures.GetFeatures()
+	}
 	return db
 }
 
@@ -471,7 +610,11 @@ func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker
 func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
+		db := MakeDatabase(database, MakeDatabaseConfig{
+			AccessChecker:      accessChecker,
+			InteractiveChecker: interactiveChecker,
+			RequiresRequest:    false,
+		})
 		uiServers = append(uiServers, db)
 	}
 
