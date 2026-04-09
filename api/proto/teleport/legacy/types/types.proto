@@ -4109,6 +4109,20 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
+
+  reserved 47, 48, 49;
+  reserved "LinuxDesktopLogins", "LinuxDesktopLabels", "LinuxDesktopLabelsExpression";
+
+  // BeamLabels are used in the RBAC system to allow/deny access to beams.
+  wrappers.LabelValues BeamLabels = 50 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "beam_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // BeamLabelsExpression is a predicate expression used to allow/deny access
+  // to beams.
+  string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
