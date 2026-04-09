@@ -1336,7 +1336,7 @@ const (
 	// belongs to.
 	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
 
-	// BeamOwnerLabel is the label used to track the alias of the Beam a
+	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
 )
