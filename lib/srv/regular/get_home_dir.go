@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 type homeDirSubsys struct {
@@ -50,7 +51,7 @@ func (h *homeDirSubsys) Start(_ context.Context, serverConn *ssh.ServerConn, ch 
 		return trace.Wrap(err)
 	}
 
-	exists, err := srv.CheckHomeDir(localUser)
+	exists, err := reexec.CheckHomeDir(localUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}

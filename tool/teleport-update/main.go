@@ -207,7 +207,7 @@ func Run(args []string) int {
 	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
 		Short('f').BoolVar(&ccfg.ForceUninstall)
 
-	libutils.UpdateAppUsageTemplate(app, args)
+	libutils.UpdateAppUsageTemplate(app)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)

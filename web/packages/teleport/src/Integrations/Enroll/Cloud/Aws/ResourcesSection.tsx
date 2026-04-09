@@ -30,7 +30,7 @@ import {
   type LabelsRule,
 } from 'teleport/components/LabelsInput/LabelsInput';
 
-import { CircleNumber } from './EnrollAws';
+import { CircleNumber } from '../Shared';
 import { AwsLabel, Ec2Config } from './types';
 
 const nonEmptyTags: LabelsRule = (labels: Label[]) => () => {

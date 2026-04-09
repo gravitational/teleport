@@ -28,6 +28,8 @@ rules:
       - teleportsamlconnectors/status
       - teleportsamlidpserviceprovidersv1
       - teleportsamlidpserviceprovidersv1/status
+      - teleportlocksv2
+      - teleportlocksv2/status
       - teleportloginrules
       - teleportloginrules/status
       - teleportprovisiontokens

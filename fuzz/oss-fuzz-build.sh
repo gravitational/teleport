@@ -44,10 +44,10 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/sftp \
     FuzzParseDestination fuzz_sshutil_parse_destination
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
+  compile_native_go_fuzzer $TELEPORT_PREFIX/session/networking/x11 \
     FuzzParseDisplay fuzz_parse_display
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
+  compile_native_go_fuzzer $TELEPORT_PREFIX/session/networking/x11 \
     FuzzReadAndRewriteXAuthPacket fuzz_read_xauth_packet
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/aws \

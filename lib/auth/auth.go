@@ -147,6 +147,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -655,14 +656,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
-		Provisioner:                     cfg.Provisioner,
-		Identity:                        cfg.Identity,
-		Access:                          cfg.Access,
+		ProvisionerInternal:             cfg.Provisioner,
+		IdentityInternal:                cfg.Identity,
+		AccessInternal:                  cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Applications:                    cfg.Apps,
+		ApplicationsInternal:            cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -755,6 +756,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		insecureMode:                 cfg.InsecureMode,
+		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
+		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1018,7 +1021,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
+	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -1502,6 +1505,13 @@ type Server struct {
 	// anonymizationKey is used to anonymize sensitive data in a consistent way for
 	// use in telemetry and logging without exposing the original values.
 	anonymizationKey []byte
+
+	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	remoteClusterRefreshLimit int
+	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
+	remoteClusterRefreshBuckets int
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2392,14 +2402,14 @@ func (a *Server) updateBotInstanceMetrics() {
 	}
 }
 
-var (
-	// remoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+const (
+	// defaultRemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
 	// during periodic remote cluster connection status refresh.
-	remoteClusterRefreshLimit = 50
+	defaultRemoteClusterRefreshLimit = 50
 
-	// remoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// defaultRemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds remoteClusterRefreshLimit × remoteClusterRefreshBuckets.
-	remoteClusterRefreshBuckets = 12
+	defaultRemoteClusterRefreshBuckets = 12
 )
 
 // refreshRemoteClusters updates connection status of all remote clusters.
@@ -2417,8 +2427,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
-	updateLimit := remoteClusterRefreshLimit
-	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
+	updateLimit := a.remoteClusterRefreshLimit
+	if dynamicLimit := (len(remoteClusters) / a.remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
 		// if the number of remote clusters is larger than remoteClusterRefreshLimit × remoteClusterRefreshBuckets,
 		// bump the limit to make sure all remote clusters will be updated within reasonable time.
 		updateLimit = dynamicLimit
@@ -2820,7 +2830,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		User:            req.User,
 		SSHPublicKey:    req.PublicKey,
 		Compatibility:   constants.CertificateFormatStandard,
-		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
 		TTL:             sessionTTL,
 		Traits:          req.User.GetTraits(),
 		RouteToCluster:  req.Cluster,
@@ -2838,25 +2848,28 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 // TODO(tross): Figure out how to move this into test only code.
 type GenerateUserTestCertsRequest struct {
-	SSHPubKey               []byte
-	TLSPubKey               []byte
-	Username                string
-	TTL                     time.Duration
-	Compatibility           string
-	RouteToCluster          string
-	PinnedIP                string
-	MFAVerified             string
-	SSHAttestationStatement *hardwarekey.AttestationStatement
-	TLSAttestationStatement *hardwarekey.AttestationStatement
-	AppName                 string
-	AppSessionID            string
-	DeviceExtensions        DeviceExtensions
-	Renewable               bool
-	Generation              uint64
-	ActiveRequests          []string
-	KubernetesCluster       string
-	Usage                   []string
-	Scope                   string
+	SSHPubKey                []byte
+	TLSPubKey                []byte
+	Username                 string
+	TTL                      time.Duration
+	Compatibility            string
+	RouteToCluster           string
+	PinnedIP                 string
+	MFAVerified              string
+	SSHAttestationStatement  *hardwarekey.AttestationStatement
+	TLSAttestationStatement  *hardwarekey.AttestationStatement
+	AppName                  string
+	AppSessionID             string
+	DeviceExtensions         DeviceExtensions
+	Renewable                bool
+	Generation               uint64
+	ActiveRequests           []string
+	AllowedResourceAccessIDs []types.ResourceAccessID
+	KubernetesCluster        string
+	Usage                    []string
+	Scope                    string
+	BotInternal              bool
+	DisallowReissue          bool
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2872,7 +2885,10 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checkerContext, err := a.accessCheckerForScope(ctx, req.Scope, userState)
+	// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
+	// doesn't fall back to role-based checks alone if resource-level restrictions
+	// are present on caller's identity.
+	checkerContext, err := a.AccessCheckerForScope(ctx, req.Scope, userState, req.AllowedResourceAccessIDs)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2899,6 +2915,8 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		ActiveRequests:                   req.ActiveRequests,
 		KubernetesCluster:                req.KubernetesCluster,
 		Usage:                            req.Usage,
+		BotInternal:                      req.BotInternal,
+		DisallowReissue:                  req.DisallowReissue,
 	}
 
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
@@ -2906,7 +2924,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		certReq.BotInstanceID = uuid.NewString()
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2968,10 +2986,10 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		login = uuid.New().String()
 	}
 
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
@@ -3030,12 +3048,12 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
 		LoginIP:        req.PinnedIP,
 		PinIP:          req.PinnedIP != "",
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
 		TTL:            time.Hour,
 		Traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
@@ -3369,7 +3387,7 @@ func (a *Server) augmentUserCertificates(
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		checkerContext:       services.NewUnscopedSplitAccessCheckerContext(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
+		checkerContext:       services.NewScopedAccessCheckerContextFromUnscoped(opts.checker), // TODO(fspmarshall/scopes): add scoping support to AugmentUserCertificates.
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
@@ -3483,8 +3501,8 @@ func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPoli
 	})
 }
 
-// generateUserCert generates certificates signed with User CA
-func (a *Server) generateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+// GenerateUserCerts generates certificates signed with User CA
+func (a *Server) GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.UserCA)
 }
 
@@ -3902,6 +3920,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Generation:               req.Generation,
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
+		BotInternal:              req.BotInternal,
 		JoinToken:                req.JoinToken,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
@@ -4055,7 +4074,7 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 
 type verifyLocksForUserCertsReq struct {
 	// checkerContext is a split access checker context which may be scoped or unscoped.
-	checkerContext *services.SplitAccessCheckerContext
+	checkerContext *services.ScopedAccessCheckerContext
 	// defaultMode is the default locking mode, as recorded in the cluster
 	// Auth Preferences.
 	defaultMode constants.LockingMode
@@ -4314,7 +4333,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.BadParameter("challenge extensions must not be set when a browser MFA request ID is provided")
 		}
 
-		browserMFAReq, err := a.GetSSOMFASession(ctx, req.BrowserMFARequestID)
+		browserMFAReq, err := a.GetMFASession(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")
@@ -5005,7 +5024,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(ctx, req.User, false)
+		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8147,7 +8166,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8166,8 +8185,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowCLIAuthViaBrowser() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8236,6 +8256,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.Code = events.ValidateMFAAuthResponseCode
 		auditEvent.Success = true
 		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		deviceMetadata.MFAViaBrowser = authData.MFAViaBrowser
 		auditEvent.MFADevice = &deviceMetadata
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
@@ -8347,6 +8368,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
@@ -8793,4 +8817,15 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// TODO(tigrato): remove Download* methods once e no longer references them.
+func (s *Server) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	reader, err := s.StreamSessionSummary(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer reader.Close()
+	_, err = io.Copy(writer, reader)
+	return trace.Wrap(err)
 }

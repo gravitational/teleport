@@ -213,6 +213,23 @@ func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user strin
 	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
 }
 
+// PopulatePinnedAssignmentsForBot populates the provided scope pin with all
+// relevant assignments related to the given bot. The provided pin must already
+// have its Scope field set.
+//
+// botScope should be the scope at which the bot in question is defined. This
+// must have already been validated to ensure this matches join token.
+func (c *Cache) PopulatePinnedAssignmentsForBot(
+	ctx context.Context, botName string, botScope string, pin *scopesv1.Pin,
+) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForBot(ctx, botName, botScope, pin)
+}
+
 // Close stops cache background operations and causes future reads to fail. It is safe to call multiple times.
 func (c *Cache) Close() error {
 	c.cancel()
@@ -350,7 +367,7 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 		case scopedaccess.KindScopedRole:
 			state.roles.Delete(event.Resource.GetName())
 		case scopedaccess.KindScopedRoleAssignment:
-			state.assignments.Delete(event.Resource.GetName())
+			state.assignments.Delete(event.Resource.GetName(), event.Resource.GetSubKind())
 		default:
 			return trace.BadParameter("unexpected resource kind %q in event delete event", event.Resource.GetKind())
 		}

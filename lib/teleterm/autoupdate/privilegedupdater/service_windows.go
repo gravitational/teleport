@@ -409,6 +409,9 @@ func ensureDirIsSecure(dir string, sa *windows.SecurityAttributes) error {
 	if err != nil {
 		return trace.Wrap(err, "reading DACL from security descriptor")
 	}
+	if dacl == nil {
+		return trace.BadParameter("security violation: DACL must not be empty")
+	}
 
 	// Reapply directory ACLs.
 	err = windows.SetSecurityInfo(

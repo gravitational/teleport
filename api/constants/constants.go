@@ -466,6 +466,12 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+// MaxAuthConnectorNameLength is the maximum allowed length of an authentication connector name.
+// The connector name is used as its backend key. This value is selected to be large enough for
+// all real-world use cases, but small enough to not exceed the key length on Teleport's supported
+// backends.
+const MaxAuthConnectorNameLength = 768
+
 const (
 	// MaxHealthCheckInterval is the minimum interval between resource health
 	// checks.
@@ -603,4 +609,18 @@ const (
 	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
 	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
 	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+)
+
+const (
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
