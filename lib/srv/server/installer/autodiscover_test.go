@@ -29,11 +29,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/buildkite/bintest/v3"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1260,137 +1260,109 @@ func TestCheckJoinHealth(t *testing.T) {
 	})
 
 	t.Run("retries until ready", func(t *testing.T) {
-		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			inst := newTestJoinHealthInstaller(t.TempDir())
+			inst.readyzPollInterval = 5 * time.Second
+			inst.readyzPollTimeout = 30 * time.Second
 
-		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
-
-		inst := newTestJoinHealthInstaller(t.TempDir())
-		inst.clock = fakeClock
-		inst.readyzPollInterval = 5 * time.Second
-		inst.readyzPollTimeout = 30 * time.Second
-
-		calls := 0
-		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-			calls++
-			if calls < 3 {
-				return debug.Readiness{Ready: false, Status: "starting"}, nil
+			calls := 0
+			inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+				calls++
+				if calls < 3 {
+					return debug.Readiness{Ready: false, Status: "starting"}, nil
+				}
+				return debug.Readiness{Ready: true, Status: "ok"}, nil
 			}
-			return debug.Readiness{Ready: true, Status: "ok"}, nil
-		}
 
-		errC := make(chan error, 1)
-		go func() {
-			errC <- inst.checkJoinHealth(t.Context())
-		}()
+			errC := make(chan error, 1)
+			go func() {
+				errC <- inst.checkJoinHealth(t.Context())
+			}()
 
-		waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		defer cancel()
+			// Call 1 is immediate (not ready). Sleep to trigger call 2.
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		// Call 1 is immediate (not ready). Timer created → advance to trigger call 2.
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
+			// Call 2 (not ready). Sleep to trigger call 3.
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		// Call 2 (not ready). Timer reset → advance to trigger call 3.
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
-
-		// Call 3 returns ready → function returns nil.
-		select {
-		case err := <-errC:
-			require.NoError(t, err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for checkJoinHealth to return")
-		}
-		require.Equal(t, 3, calls)
+			// Call 3 returns ready → function returns nil.
+			require.NoError(t, <-errC)
+			require.Equal(t, 3, calls)
+		})
 	})
 
 	t.Run("times out and includes diagnostics", func(t *testing.T) {
-		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			inst := newTestJoinHealthInstaller(t.TempDir())
+			inst.readyzPollInterval = 5 * time.Second
+			inst.readyzPollTimeout = 10 * time.Second
+			inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+				return debug.Readiness{Ready: false, Status: "starting"}, nil
+			}
+			inst.diagnostics = func(_ context.Context, _ string) string {
+				return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+			}
+			inst.journal = func(_ context.Context, _ string) (string, error) {
+				return "journal line", nil
+			}
 
-		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+			errC := make(chan error, 1)
+			go func() {
+				errC <- inst.checkJoinHealth(t.Context())
+			}()
 
-		inst := newTestJoinHealthInstaller(t.TempDir())
-		inst.clock = fakeClock
-		inst.readyzPollInterval = 5 * time.Second
-		inst.readyzPollTimeout = 10 * time.Second
-		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-			return debug.Readiness{Ready: false, Status: "starting"}, nil
-		}
-		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
-			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
-		}
-		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
-			return "journal line", nil
-		}
+			// Immediate check (not ready). Sleep to trigger second check.
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		errC := make(chan error, 1)
-		go func() {
-			errC <- inst.checkJoinHealth(context.Background())
-		}()
+			// Second check (not ready). Sleep past deadline.
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		waitCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		defer cancel()
-
-		// Immediate check (not ready). Timer created → advance.
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
-
-		// Second check (not ready). Timer reset → advance past deadline.
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
-
-		select {
-		case err := <-errC:
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "agent failed to join the cluster")
-			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
-			require.Contains(t, err.Error(), `systemd service state: ActiveState="active", SubState="running", Result="success"`)
-			require.Contains(t, err.Error(), "Journal output:\njournal line")
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for checkJoinHealth to return")
-		}
+			err := <-errC
+			var joinErr *JoinFailureError
+			require.ErrorAs(t, err, &joinErr)
+			require.Contains(t, joinErr.Error(), "agent failed to join the cluster")
+			require.Contains(t, joinErr.Error(), "Journal output:\njournal line")
+			require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
+			require.Equal(t, `systemd service state: ActiveState="active", SubState="running", Result="success"`, joinErr.ServiceDiagnostics)
+			require.Equal(t, "journal line", joinErr.JournalOutput)
+		})
 	})
 
-	t.Run("times out at deadline boundary with injected clock", func(t *testing.T) {
-		t.Parallel()
+	t.Run("times out at deadline boundary", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			inst := newTestJoinHealthInstaller(t.TempDir())
+			inst.readyzPollInterval = 5 * time.Second
+			inst.readyzPollTimeout = 10 * time.Second
+			inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+				return debug.Readiness{Ready: false, Status: "starting"}, nil
+			}
+			inst.diagnostics = func(_ context.Context, _ string) string {
+				return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+			}
+			inst.journal = func(_ context.Context, _ string) (string, error) {
+				return "journal line", nil
+			}
 
-		fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+			errC := make(chan error, 1)
+			go func() {
+				errC <- inst.checkJoinHealth(t.Context())
+			}()
 
-		inst := newTestJoinHealthInstaller(t.TempDir())
-		inst.clock = fakeClock
-		inst.readyzPollInterval = 5 * time.Second
-		inst.readyzPollTimeout = 10 * time.Second
-		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-			return debug.Readiness{Ready: false, Status: "starting"}, nil
-		}
-		inst.diagnosticsOverride = func(_ context.Context, _ string) string {
-			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
-		}
-		inst.journalOverride = func(_ context.Context, _ string) (string, error) {
-			return "journal line", nil
-		}
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		errC := make(chan error, 1)
-		go func() {
-			errC <- inst.checkJoinHealth(context.Background())
-		}()
+			time.Sleep(5 * time.Second)
+			synctest.Wait()
 
-		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
-
-		require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-		fakeClock.Advance(5 * time.Second)
-
-		select {
-		case err := <-errC:
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for checkJoinHealth to return")
-		}
+			err := <-errC
+			var joinErr *JoinFailureError
+			require.ErrorAs(t, err, &joinErr)
+			require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
+		})
 	})
 
 	t.Run("returns context cancellation", func(t *testing.T) {
@@ -1410,6 +1382,7 @@ func TestCheckJoinHealth(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.Canceled)
 		require.NotContains(t, err.Error(), "agent failed to join the cluster")
+		require.NotErrorAs(t, err, new(*JoinFailureError))
 	})
 }
 
@@ -1441,130 +1414,100 @@ func TestInstallAndConfigureLockContention(t *testing.T) {
 }
 
 func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "bad token"}, nil
+		}
+		inst.diagnostics = func(_ context.Context, _ string) string {
+			return `systemd service state: ActiveState="active", SubState="running", Result="success"`
+		}
+		inst.journal = func(_ context.Context, _ string) (string, error) {
+			return "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", nil
+		}
 
-	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(t.Context())
+		}()
 
-	inst := newTestJoinHealthInstaller(t.TempDir())
-	inst.clock = fakeClock
-	inst.readyzPollInterval = 5 * time.Second
-	inst.readyzPollTimeout = 10 * time.Second
-	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-		return debug.Readiness{Ready: false, Status: "bad token"}, nil
-	}
-	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
-		return `systemd service state: ActiveState="active", SubState="running", Result="success"`
-	}
-	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
-		return "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", nil
-	}
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
 
-	errC := make(chan error, 1)
-	go func() {
-		errC <- inst.checkJoinHealth(context.Background())
-	}()
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-	fakeClock.Advance(5 * time.Second)
-
-	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-	fakeClock.Advance(5 * time.Second)
-
-	select {
-	case err := <-errC:
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "node did not become ready (join cluster) within 10s")
-		require.Contains(t, err.Error(), "token is expired or not found")
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for checkJoinHealth to return")
-	}
+		err := <-errC
+		var joinErr *JoinFailureError
+		require.ErrorAs(t, err, &joinErr)
+		require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
+		require.Equal(t, "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.", joinErr.JournalOutput)
+	})
 }
 
 func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "starting"}, nil
+		}
+		inst.diagnostics = func(_ context.Context, _ string) string {
+			return defaultServiceDiagnosticsUnavailable
+		}
+		inst.journal = func(_ context.Context, _ string) (string, error) {
+			return "journal output", nil
+		}
 
-	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(t.Context())
+		}()
 
-	inst := newTestJoinHealthInstaller(t.TempDir())
-	inst.clock = fakeClock
-	inst.readyzPollInterval = 5 * time.Second
-	inst.readyzPollTimeout = 10 * time.Second
-	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-		return debug.Readiness{Ready: false, Status: "starting"}, nil
-	}
-	inst.diagnosticsOverride = func(_ context.Context, _ string) string {
-		return defaultServiceDiagnosticsUnavailable
-	}
-	inst.journalOverride = func(_ context.Context, _ string) (string, error) {
-		return "journal output", nil
-	}
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
 
-	errC := make(chan error, 1)
-	go func() {
-		errC <- inst.checkJoinHealth(context.Background())
-	}()
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-	fakeClock.Advance(5 * time.Second)
-
-	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-	fakeClock.Advance(5 * time.Second)
-
-	select {
-	case err := <-errC:
-		require.Error(t, err)
-		require.Contains(t, err.Error(), defaultServiceDiagnosticsUnavailable)
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for checkJoinHealth to return")
-	}
+		err := <-errC
+		var joinErr *JoinFailureError
+		require.ErrorAs(t, err, &joinErr)
+		require.Equal(t, defaultServiceDiagnosticsUnavailable, joinErr.ServiceDiagnostics)
+	})
 }
 
 func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 30 * time.Second
 
-	fakeClock := clockwork.NewFakeClockAt(time.Unix(0, 0))
-
-	tmpDir := t.TempDir()
-	inst := newTestJoinHealthInstaller(tmpDir)
-	inst.clock = fakeClock
-	inst.readyzPollInterval = 5 * time.Second
-	inst.readyzPollTimeout = 30 * time.Second
-
-	checkCalls := 0
-	inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
-		checkCalls++
-		if checkCalls == 1 {
-			return debug.Readiness{}, &net.OpError{Op: "dial", Net: "unix", Err: os.ErrNotExist}
+		checkCalls := 0
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			checkCalls++
+			if checkCalls == 1 {
+				return debug.Readiness{}, &net.OpError{Op: "dial", Net: "unix", Err: os.ErrNotExist}
+			}
+			return debug.Readiness{Ready: true, Status: "ok"}, nil
 		}
-		return debug.Readiness{Ready: true, Status: "ok"}, nil
-	}
 
-	errC := make(chan error, 1)
-	go func() {
-		errC <- inst.checkJoinHealth(context.Background())
-	}()
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(t.Context())
+		}()
 
-	waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		// Call 1 is immediate (connection error, retries). Sleep to trigger call 2.
+		time.Sleep(5 * time.Second)
+		synctest.Wait()
 
-	// Call 1 is immediate (connection error, retries). Timer created → advance.
-	require.NoError(t, fakeClock.BlockUntilContext(waitCtx, 1))
-	fakeClock.Advance(5 * time.Second)
-
-	// Call 2 returns ready.
-	select {
-	case err := <-errC:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for checkJoinHealth to return")
-	}
-	require.Equal(t, 2, checkCalls)
+		// Call 2 returns ready.
+		require.NoError(t, <-errC)
+		require.Equal(t, 2, checkCalls)
+	})
 }
 
 // newTestJoinHealthInstaller returns an AutoDiscoverNodeInstaller configured
@@ -1609,4 +1552,13 @@ func TestRedactFlagArgsForTeleportNodeConfigure(t *testing.T) {
 		"--token=my-secret-token",
 		"--labels=teleport.dev/instance-id=i-123",
 	}, original)
+
+	// Single-dash variant is also redacted (defense in depth).
+	singleDash := []string{"node", "configure", "-token=my-secret-token"}
+	redactedSingleDash := utils.RedactFlagArgs(singleDash, teleportNodeConfigureArgRedactors)
+	require.Equal(t, []string{
+		"node",
+		"configure",
+		"-token=" + backend.MaskKeyName("my-secret-token"),
+	}, redactedSingleDash)
 }

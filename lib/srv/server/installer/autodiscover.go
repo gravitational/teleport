@@ -37,7 +37,6 @@ import (
 
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
@@ -153,17 +152,13 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// When nil, a default checker is created in NewAutoDiscoverNodeInstaller.
 	readyzChecker *readyzChecker
 
-	// diagnostics is a function called to retrieve server diagnostics
+	// diagnostics is a function called to retrieve server diagnostics.
 	// If undefined, it's set to gatherServiceDiagnostics.
 	diagnostics func(ctx context.Context, serviceName string) string
 
-	// journalOverride, when set, replaces captureJournal.
-	// Used for testing.
-	journalOverride func(ctx context.Context, serviceName string) (string, error)
-
-	// clock overrides the time source used by join-health polling.
-	// Used for testing.
-	clock clockwork.Clock
+	// journal is a function called to capture recent journal output.
+	// If undefined, it's set to captureJournal.
+	journal func(ctx context.Context, serviceName string) (string, error)
 }
 
 func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
@@ -251,7 +246,6 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 // It's meant to be used by the Server Auto Discover script.
 type AutoDiscoverNodeInstaller struct {
 	*AutoDiscoverNodeInstallerConfig
-	clock clockwork.Clock
 }
 
 // NewAutoDiscoverNodeInstaller returns a new AutoDiscoverNodeInstaller.
@@ -262,10 +256,6 @@ func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDi
 
 	ti := &AutoDiscoverNodeInstaller{
 		AutoDiscoverNodeInstallerConfig: cfg,
-		clock:                           cfg.clock,
-	}
-	if ti.clock == nil {
-		ti.clock = clockwork.NewRealClock()
 	}
 
 	if ti.readyzChecker == nil {
@@ -273,6 +263,14 @@ func NewAutoDiscoverNodeInstaller(cfg *AutoDiscoverNodeInstallerConfig) (*AutoDi
 			logger:  cfg.Logger,
 			dataDir: ti.buildTeleportDataDirPath(),
 		}
+	}
+
+	if ti.diagnostics == nil {
+		ti.diagnostics = ti.gatherServiceDiagnostics
+	}
+
+	if ti.journal == nil {
+		ti.journal = ti.captureJournal
 	}
 
 	return ti, nil
@@ -397,28 +395,35 @@ func (a *AutoDiscoverNodeInstaller) getInstallLockWaitTimeout() time.Duration {
 // with systemd service diagnostics and recent journal logs.
 func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	serviceName := a.buildTeleportSystemdUnitName()
-	clock := a.getClock()
-	deadline := clock.Now().Add(a.readyzPollTimeout)
+	deadline := time.Now().Add(a.readyzPollTimeout)
 
-	// Run the first check immediately, then poll on a reusable timer.
+	// Run the first check immediately, then poll on a reusable timer. Unexpected (non-transient)
+	// errors from check are saved but do not abort the loop; they are surfaced in the timeout diagnostics.
+	var lastUnexpectedErr error
 	ready, err := a.readyzChecker.check(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		if ctx.Err() != nil {
+			return trace.Wrap(ctx.Err())
+		}
+		lastUnexpectedErr = err
 	}
 
-	pollTimer := clock.NewTimer(a.readyzPollInterval)
+	pollTimer := time.NewTimer(a.readyzPollInterval)
 	defer pollTimer.Stop()
 
 	for !ready {
-		if !clock.Now().Before(deadline) {
+		if !time.Now().Before(deadline) {
 			break
 		}
-		pollTimer.Reset(minDuration(a.readyzPollInterval, clock.Until(deadline)))
+		pollTimer.Reset(minDuration(a.readyzPollInterval, time.Until(deadline)))
 		select {
-		case <-pollTimer.Chan():
+		case <-pollTimer.C:
 			ready, err = a.readyzChecker.check(ctx)
 			if err != nil {
-				return trace.Wrap(err)
+				if ctx.Err() != nil {
+					return trace.Wrap(ctx.Err())
+				}
+				lastUnexpectedErr = err
 			}
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -429,39 +434,26 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 		return nil
 	}
 
-	var parts []string
-	parts = append(parts, fmt.Sprintf("node did not become ready (join cluster) within %s", a.readyzPollTimeout))
-	if a.diagnosticsOverride != nil {
-		parts = append(parts, a.diagnosticsOverride(ctx, serviceName))
-	} else {
-		parts = append(parts, a.gatherServiceDiagnostics(ctx, serviceName))
+	joinErr := &JoinFailureError{
+		Message: fmt.Sprintf(
+			"node did not become ready (join cluster) within %s",
+			a.readyzPollTimeout),
+	}
+	if lastUnexpectedErr != nil {
+		joinErr.LastError = lastUnexpectedErr.Error()
 	}
 
-	var journalOutput string
-	var captureErr error
-	if a.journalOverride != nil {
-		journalOutput, captureErr = a.journalOverride(ctx, serviceName)
-	} else {
-		journalOutput, captureErr = a.captureJournal(ctx, serviceName)
-	}
+	joinErr.ServiceDiagnostics = a.diagnostics(ctx, serviceName)
+
+	journalOutput, captureErr := a.journal(ctx, serviceName)
 	if captureErr != nil {
 		return trace.Wrap(captureErr)
 	}
 	if journalOutput != "" {
-		parts = append(parts, "\nJournal output:\n"+journalOutput)
-	}
-	return trace.Errorf("%s: %w", strings.Join(parts, "; "), ErrJoinFailure)
-}
-
-func (a *AutoDiscoverNodeInstaller) getClock() clockwork.Clock {
-	if a.clock != nil {
-		return a.clock
-	}
-	if a.AutoDiscoverNodeInstallerConfig != nil && a.AutoDiscoverNodeInstallerConfig.clock != nil {
-		return a.AutoDiscoverNodeInstallerConfig.clock
+		joinErr.JournalOutput = journalOutput
 	}
 
-	return clockwork.NewRealClock()
+	return trace.Wrap(joinErr)
 }
 
 func minDuration(a, b time.Duration) time.Duration {
