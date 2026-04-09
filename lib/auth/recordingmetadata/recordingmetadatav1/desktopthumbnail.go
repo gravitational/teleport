@@ -43,7 +43,9 @@ const (
 )
 
 type desktopThumbnailGenerator struct {
-	rdpstate *rdpstate.RDPState
+	rdpstate   *rdpstate.RDPState
+	pngEncoder png.Encoder
+	buf        bytes.Buffer
 	// disabled is set when the RDP decoder is not available (e.g. nop builds without desktop_access_rdp). Once set, all
 	// subsequent events are skipped so that metadata processing degrades to a no-op instead of failing.
 	disabled bool
@@ -51,7 +53,8 @@ type desktopThumbnailGenerator struct {
 
 func newDesktopThumbnailGenerator() *desktopThumbnailGenerator {
 	return &desktopThumbnailGenerator{
-		rdpstate: rdpstate.New(),
+		rdpstate:   rdpstate.New(),
+		pngEncoder: png.Encoder{CompressionLevel: png.BestSpeed},
 	}
 }
 
@@ -120,8 +123,8 @@ func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThum
 	thumbImg := image.NewRGBA(image.Rect(0, 0, thumbW, thumbH))
 	draw.CatmullRom.Scale(thumbImg, thumbImg.Bounds(), img, bounds, draw.Over, nil)
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, thumbImg); err != nil {
+	d.buf.Reset()
+	if err := d.pngEncoder.Encode(&d.buf, thumbImg); err != nil {
 		return nil, trace.Wrap(err, "encoding thumbnail PNG")
 	}
 
@@ -131,7 +134,7 @@ func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThum
 		CursorVisible: cursor.Visible,
 		ScreenWidth:   int32(screenWidth),
 		ScreenHeight:  int32(screenHeight),
-		Png:           buf.Bytes(),
+		Png:           bytes.Clone(d.buf.Bytes()),
 	}, nil
 }
 
