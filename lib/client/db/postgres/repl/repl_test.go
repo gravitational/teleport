@@ -343,7 +343,9 @@ func (tc *testCtx) processMessages() error {
 			SecretKey: 123,
 		})
 		tc.pgClient.Send(&pgproto3.ReadyForQuery{})
-		return trace.Wrap(tc.pgClient.Flush())
+		if err := tc.pgClient.Flush(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("expected *pgproto3.StartupMessage, got: %T", msg)
 	}

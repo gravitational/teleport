@@ -271,7 +271,7 @@ func streamResult(rr *pgconn.ResultReader, writer bufferedWriter) error {
 	columns := make([]string, 0, len(rr.FieldDescriptions()))
 	dashes := make([]string, 0, cap(columns))
 	for _, fd := range rr.FieldDescriptions() {
-		columns = append(columns, string(fd.Name))
+		columns = append(columns, fd.Name)
 		dashes = append(dashes, strings.Repeat("-", max(len(fd.Name))))
 	}
 
