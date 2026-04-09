@@ -784,6 +784,7 @@ code here
       const list = screen.getByRole('list');
 
       expect(list.tagName).toBe('OL');
+      expect(list).toHaveAttribute('start', '1');
 
       const items = screen.getAllByRole('listitem');
 
