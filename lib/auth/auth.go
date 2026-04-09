@@ -2880,6 +2880,8 @@ type GenerateUserTestCertsRequest struct {
 	KubernetesCluster        string
 	Usage                    []string
 	Scope                    string
+	BotInternal              bool
+	DisallowReissue          bool
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2898,7 +2900,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
 	// doesn't fall back to role-based checks alone if resource-level restrictions
 	// are present on caller's identity.
-	checkerContext, err := a.accessCheckerForScope(ctx, req.Scope, userState, req.AllowedResourceAccessIDs)
+	checkerContext, err := a.AccessCheckerForScope(ctx, req.Scope, userState, req.AllowedResourceAccessIDs)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2925,6 +2927,8 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		ActiveRequests:                   req.ActiveRequests,
 		KubernetesCluster:                req.KubernetesCluster,
 		Usage:                            req.Usage,
+		BotInternal:                      req.BotInternal,
+		DisallowReissue:                  req.DisallowReissue,
 	}
 
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
@@ -2932,7 +2936,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		certReq.BotInstanceID = uuid.NewString()
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2994,7 +2998,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		login = uuid.New().String()
 	}
 
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
 		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker),
@@ -3056,7 +3060,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:           userState,
 		TLSPublicKey:   req.PublicKey,
 		LoginIP:        req.PinnedIP,
@@ -3509,8 +3513,8 @@ func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPoli
 	})
 }
 
-// generateUserCert generates certificates signed with User CA
-func (a *Server) generateUserCert(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+// GenerateUserCerts generates certificates signed with User CA
+func (a *Server) GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.UserCA)
 }
 
@@ -3927,6 +3931,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Generation:               req.Generation,
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
+		BotInternal:              req.BotInternal,
 		JoinToken:                req.JoinToken,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
