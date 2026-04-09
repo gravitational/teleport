@@ -1092,9 +1092,9 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
+	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	t.Parallel()
 
-	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -4949,8 +4949,8 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 }
 
 func TestListResources_KindKubernetesCluster(t *testing.T) {
-	t.Parallel()
 	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)

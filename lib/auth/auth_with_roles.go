@@ -2091,6 +2091,11 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if a.scopedContext == nil {
+		// This doesn't mean unscoped identities can't list resources, they just need to
+		// to be wrapped in a scoped auth context first
+		return nil, trace.AccessDenied("resource listings must use a scoped auth context")
+	}
 	// Check if auth server has a license for this resource type but only return an
 	// error if the requester is not a builtin or remote server.
 	// Builtin and remote server roles are allowed to list resources to avoid crashes
@@ -2319,7 +2324,12 @@ func (r *resourceChecker) CanAccess(ctx context.Context, resource types.Resource
 // - types.KindWindowsDesktop
 // - types.KindApp with IsAWSConsole() == true
 func (r *resourceChecker) GetAllowedLoginsForResource(ctx context.Context, resource services.AccessCheckable) ([]string, error) {
-	for checker, err := range r.scopedCheckerCtx.CheckersForResourceScope(ctx, scopes.Root) {
+	scope := scopes.Root
+	scopedResource, ok := resource.(services.ScopedAccessCheckable)
+	if ok {
+		scope = scopedResource.GetScope()
+	}
+	for checker, err := range r.scopedCheckerCtx.CheckersForResourceScope(ctx, scope) {
 		if err != nil {
 			continue
 		}
@@ -6552,7 +6562,7 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 			return nil, trace.Wrap(err)
 		}
 
-		if a.authorizeScopedAction(ctx, types.KindKubeServer, types.VerbList, types.VerbRead) != nil {
+		if err := a.authorizeScopedAction(ctx, types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

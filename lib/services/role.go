@@ -2614,6 +2614,12 @@ type AccessCheckable interface {
 	GetAllLabels() map[string]string
 }
 
+// ScopedAccessCheckable is an AccessCheckable that can also return a resource's scope.
+type ScopedAccessCheckable interface {
+	AccessCheckable
+	GetScope() string
+}
+
 var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
 
 // resourceRequiresLabelMatching decides if a resource requires label matching

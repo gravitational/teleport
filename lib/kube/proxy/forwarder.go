@@ -181,7 +181,9 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
-	scope           string
+	// scope is the scope assigned to the forwarder at startup. When provided, all kube servers
+	// and clusters served by the forwarder should have the same scope applied.
+	scope string
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
