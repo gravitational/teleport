@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -82,7 +83,33 @@ func (shardClosedError) Error() string {
 	return "shard closed"
 }
 
+// deleteShardsWithParents removes any shards that have a parent shard also present in the list.
+// In a rare case where both a parent and child shard are present in the list of active shards, we want to ignore the child
+// shard until the parent shard is closed and removed from the list.
+func (b *Backend) deleteShardsWithParents(ctx context.Context, shards []streamtypes.Shard) []streamtypes.Shard {
+	shardSet := make(map[string]struct{}, len(shards))
+	for _, shard := range shards {
+		if shard.ShardId != nil {
+			shardSet[aws.ToString(shard.ShardId)] = struct{}{}
+		}
+	}
+
+	return slices.DeleteFunc(shards, func(s streamtypes.Shard) bool {
+		if s.ParentShardId == nil {
+			return false
+		}
+		_, exists := shardSet[aws.ToString(s.ParentShardId)]
+		if exists {
+			b.logger.DebugContext(ctx, "Skipping shard with parent shard in active list", "shard_id", aws.ToString(s.ShardId), "parent_shard_id", aws.ToString(s.ParentShardId))
+		}
+		return exists // delete if parent is present
+	})
+}
+
 func (b *Backend) pollStreams(externalCtx context.Context) error {
+	const shardReadyForDeletion = true
+	const shardActive = false
+
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
 
@@ -111,22 +138,33 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 
 	refreshShards := func(init bool) error {
-		shards, err := iterstream.Collect(iterstream.FilterMap(
+		activeShards, err := iterstream.Collect(iterstream.FilterMap(
 			b.fetchShards(ctx, streamArn),
 			func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
+				active := shard.SequenceNumberRange.EndingSequenceNumber == nil
+				processed, known := set[aws.ToString(shard.ShardId)]
+
 				// First do cleanup of any tombstoned shards.
-				if processed, ok := set[aws.ToString(shard.ShardId)]; ok && processed {
+				if !active && known && processed {
 					b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
 					delete(set, aws.ToString(shard.ShardId))
 				}
 
-				// Only include if active.
-				return shard, shard.SequenceNumberRange.EndingSequenceNumber == nil
+				if _, ok := set[aws.ToString(shard.ShardId)]; ok {
+					return shard, false
+				}
+
+				// Only include if active and not already known.
+				return shard, active && !known
 			},
 		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// In the case where both a parent and child shard are present in the list of active shards
+		// we want to ignore the child because the set marker may not be set yet for the parent shard.
+		shards := b.deleteShardsWithParents(ctx, activeShards)
 
 		var initC chan error
 		if init {
@@ -142,7 +180,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			}
 			shardID := aws.ToString(shards[i].ShardId)
 			b.logger.DebugContext(ctx, "Adding active shard", "shard_id", shardID)
-			set[shardID] = false
+			set[shardID] = shardActive
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
 		}
@@ -185,7 +223,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					b.logger.WarnContext(ctx, "Forcing watch system reset due to empty shard ID on error (this is a bug)", "error", err)
 					return trace.BadParameter("empty shard ID")
 				}
-				set[event.shardID] = true // mark ready for deletion.
+				set[event.shardID] = shardReadyForDeletion
 				if !errors.Is(event.err, shardClosedError{}) {
 					b.logger.DebugContext(ctx, "Shard closed with error, resetting buffers.", "shard_id", event.shardID, "error", event.err)
 					return trace.Wrap(event.err)
