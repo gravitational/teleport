@@ -341,6 +341,9 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
+	// write --help output to stdout instead of stderr
+	app.UsageWriter(os.Stdout)
+
 	// set our own help template
 	app.UsageFuncs(template.FuncMap{
 		"CommandPrintfWidth": func(cmds []*kingpin.CmdModel) int {
