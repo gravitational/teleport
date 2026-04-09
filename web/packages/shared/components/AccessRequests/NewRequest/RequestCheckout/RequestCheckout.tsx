@@ -65,6 +65,7 @@ import { RequestableResourceKind } from 'shared/components/AccessRequests/NewReq
 import {
   formatAWSRoleARNForDisplay,
   toggleAWSConsoleConstraint,
+  toggleDatabaseConstraint,
   toggleSSHConstraint,
 } from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
@@ -172,7 +173,7 @@ type DisplayRow<T extends PendingListItem> = T & {
   constraints?: ResourceConstraints;
 };
 
-const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
+const StyledResourceConstraintDisplayRow = styled(Flex).attrs({
   flexDirection: 'row',
   justifyContent: 'space-between',
   gap: 2,
@@ -208,7 +209,7 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
     <Text bold>Role ARNs</Text>
     <Flex flexDirection="column" width="100%">
       {item.constraints.aws_console.role_arns.map((arn, idx) => (
-        <StyledAWSRoleARNDisplayRow
+        <StyledResourceConstraintDisplayRow
           key={arn}
           $idx={idx}
           $len={item.constraints.aws_console.role_arns.length}
@@ -230,7 +231,7 @@ const AWSConsoleConstraintsList = <T extends PendingListItem>({
           >
             <Cross size="small" />
           </ButtonIcon>
-        </StyledAWSRoleARNDisplayRow>
+        </StyledResourceConstraintDisplayRow>
       ))}
     </Flex>
   </Flex>
@@ -251,7 +252,7 @@ const SSHConstraintsList = <T extends PendingListItem>({
     <Text bold>SSH Logins</Text>
     <Flex flexDirection="column" width="100%">
       {item.constraints.ssh.logins.map((login, idx) => (
-        <StyledAWSRoleARNDisplayRow
+        <StyledResourceConstraintDisplayRow
           key={login}
           $idx={idx}
           $len={item.constraints.ssh.logins.length}
@@ -271,11 +272,134 @@ const SSHConstraintsList = <T extends PendingListItem>({
           >
             <Cross size="small" />
           </ButtonIcon>
-        </StyledAWSRoleARNDisplayRow>
+        </StyledResourceConstraintDisplayRow>
       ))}
     </Flex>
   </Flex>
 );
+
+const DatabaseConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'database', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => {
+  const db = item.constraints.database;
+  return (
+    <Flex flexDirection="column" gap={2} mt={1} width="100%">
+      {!!db.names?.length && (
+        <Flex flexDirection="column" gap={1}>
+          <Text bold>Database Names</Text>
+          <Flex flexDirection="column" width="100%">
+            {db.names.map((name, idx) => (
+              <StyledResourceConstraintDisplayRow
+                key={name}
+                $idx={idx}
+                $len={db.names.length}
+              >
+                <Text style={{ alignContent: 'center' }}>{name}</Text>
+                <ButtonIcon
+                  size={0}
+                  title="Remove Database Name"
+                  onClick={() => {
+                    clearAttempt();
+                    toggleDatabaseConstraint(
+                      item,
+                      'names',
+                      name,
+                      setResourceConstraints
+                    );
+                  }}
+                  disabled={createAttempt.status === 'processing'}
+                  css={`
+                    border-radius: ${({ theme }) => theme.radii[2]}px;
+                  `}
+                >
+                  <Cross size="small" />
+                </ButtonIcon>
+              </StyledResourceConstraintDisplayRow>
+            ))}
+          </Flex>
+        </Flex>
+      )}
+      {!!db.users?.length && (
+        <Flex flexDirection="column" gap={1}>
+          <Text bold>Database Users</Text>
+          <Flex flexDirection="column" width="100%">
+            {db.users.map((user, idx) => (
+              <StyledResourceConstraintDisplayRow
+                key={user}
+                $idx={idx}
+                $len={db.users.length}
+              >
+                <Text style={{ alignContent: 'center' }}>{user}</Text>
+                <ButtonIcon
+                  size={0}
+                  title="Remove Database User"
+                  onClick={() => {
+                    clearAttempt();
+                    toggleDatabaseConstraint(
+                      item,
+                      'users',
+                      user,
+                      setResourceConstraints
+                    );
+                  }}
+                  disabled={createAttempt.status === 'processing'}
+                  css={`
+                    border-radius: ${({ theme }) => theme.radii[2]}px;
+                  `}
+                >
+                  <Cross size="small" />
+                </ButtonIcon>
+              </StyledResourceConstraintDisplayRow>
+            ))}
+          </Flex>
+        </Flex>
+      )}
+      {!!db.roles?.length && (
+        <Flex flexDirection="column" gap={1}>
+          <Text bold>Database Roles</Text>
+          <Flex flexDirection="column" width="100%">
+            {db.roles.map((role, idx) => (
+              <StyledResourceConstraintDisplayRow
+                key={role}
+                $idx={idx}
+                $len={db.roles.length}
+              >
+                <Text style={{ alignContent: 'center' }}>{role}</Text>
+                <ButtonIcon
+                  size={0}
+                  title="Remove Database Role"
+                  onClick={() => {
+                    clearAttempt();
+                    toggleDatabaseConstraint(
+                      item,
+                      'roles',
+                      role,
+                      setResourceConstraints
+                    );
+                  }}
+                  disabled={createAttempt.status === 'processing'}
+                  css={`
+                    border-radius: ${({ theme }) => theme.radii[2]}px;
+                  `}
+                >
+                  <Cross size="small" />
+                </ButtonIcon>
+              </StyledResourceConstraintDisplayRow>
+            ))}
+          </Flex>
+        </Flex>
+      )}
+    </Flex>
+  );
+};
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -483,6 +607,22 @@ export function RequestCheckout<T extends PendingListItem>({
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
               <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'database')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <DatabaseConstraintsList
                 item={item}
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}

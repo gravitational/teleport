@@ -18,6 +18,7 @@
 
 import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
+import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
 
@@ -50,6 +51,13 @@ export interface Database {
   names?: string[];
   users?: string[];
   roles?: string[];
+  /**
+   * databasePrincipalsByRole maps Teleport role names to the database
+   * principals each role grants, with requiresRequest metadata.
+   * Used by the frontend to show valid principal combinations and
+   * prevent selection of incompatible ones.
+   */
+  databasePrincipalsByRole?: Record<string, DatabaseRolePrincipalGroup>;
   hostname: string;
   aws?: Aws;
   requiresRequest?: boolean;
@@ -67,6 +75,11 @@ export interface Database {
    * - webapi/sites/:site/resources (unified resources)
    */
   targetHealth?: ResourceTargetHealth;
+  /**
+   * supportedFeatureIds contains component feature IDs supported by
+   * both the Database and all required back-end components.
+   */
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export type DatabasesResponse = {
@@ -121,4 +134,12 @@ export type DatabaseServer = {
   hostname: string;
   hostId: string;
   targetHealth?: ResourceTargetHealth;
+};
+
+/** Describes the database principals that a single Teleport role grants. */
+export type DatabaseRolePrincipalGroup = {
+  requiresRequest?: boolean;
+  users?: string[];
+  names?: string[];
+  roles?: string[];
 };

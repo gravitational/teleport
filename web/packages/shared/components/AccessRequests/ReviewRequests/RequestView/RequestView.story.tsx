@@ -31,6 +31,7 @@ import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 import {
   requestResourceApprovedWithConstraints,
   requestResourcePendingWithConstraints,
+  requestResourcePendingWithDatabaseConstraints,
   requestResourceWithConstraintsSuggestedAccessLists,
   requestRoleApproved,
   requestRoleApprovedWithStartTime,
@@ -51,6 +52,7 @@ type RequestState =
   | 'roleApproved'
   | 'roleApprovedWithStartTime'
   | 'resourcePendingWithConstraints'
+  | 'resourcePendingWithDatabaseConstraints'
   | 'resourceApprovedWithConstraints'
   | 'rolePromoted'
   | 'roleEmpty'
@@ -98,6 +100,8 @@ function requestAttempt(r: RequestState): Attempt<AccessRequest> {
       return makeSuccessAttempt(requestRoleApprovedWithStartTime);
     case 'resourcePendingWithConstraints':
       return makeSuccessAttempt(requestResourcePendingWithConstraints);
+    case 'resourcePendingWithDatabaseConstraints':
+      return makeSuccessAttempt(requestResourcePendingWithDatabaseConstraints);
     case 'resourceApprovedWithConstraints':
       return makeSuccessAttempt(requestResourceApprovedWithConstraints);
     case 'rolePromoted':
@@ -159,6 +163,7 @@ const meta = {
         'roleApproved',
         'roleApprovedWithStartTime',
         'resourcePendingWithConstraints',
+        'resourcePendingWithDatabaseConstraints',
         'resourceApprovedWithConstraints',
         'rolePromoted',
         'roleEmpty',
@@ -261,6 +266,14 @@ export const LoadedResourcePendingWithConstraints: Story = {
   args: {
     request: 'resourcePendingWithConstraints',
     suggestions: 'constraintLists',
+    canReview: true,
+    canDelete: true,
+  },
+};
+
+export const LoadedResourcePendingWithDatabaseConstraints: Story = {
+  args: {
+    request: 'resourcePendingWithDatabaseConstraints',
     canReview: true,
     canDelete: true,
   },

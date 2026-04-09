@@ -45,6 +45,9 @@ export function ConnectDialog(props: {
   serviceName: string;
   onClose(): void;
   onConnect(data: DbConnectData): void;
+  desiredDbUser?: string;
+  desiredDbName?: string;
+  desiredDbRole?: string;
 }) {
   // Fetch database information to pre-fill the connection parameters.
   const ctx = useTeleport();
@@ -95,6 +98,9 @@ export function ConnectDialog(props: {
           db={attempt.data}
           onConnect={props.onConnect}
           onClose={props.onClose}
+          desiredDbUser={props.desiredDbUser}
+          desiredDbName={props.desiredDbName}
+          desiredDbRole={props.desiredDbRole}
         />
       )}
     </Dialog>
@@ -105,6 +111,9 @@ function ConnectForm(props: {
   db: Database;
   onConnect(data: DbConnectData): void;
   onClose(): void;
+  desiredDbUser?: string;
+  desiredDbName?: string;
+  desiredDbRole?: string;
 }) {
   const { options: dbNamesOpts, hasWildcard: dbNameHasWildcard } =
     prepareOptions(props.db.names);
@@ -113,10 +122,15 @@ function ConnectForm(props: {
   const { options: dbRolesOpts, hasWildcard: dbRoleHasWildcard } =
     prepareOptions(props.db.roles);
 
-  const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts?.[0]);
-  const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts?.[0]);
-  const [selectedRoles, setSelectedRoles] =
-    useState<readonly Option[]>(dbRolesOpts);
+  const [selectedName, setSelectedName] = useState<Option>(
+    toOption(props.desiredDbName) ?? dbNamesOpts?.[0]
+  );
+  const [selectedUser, setSelectedUser] = useState<Option>(
+    toOption(props.desiredDbUser) ?? dbUserOpts?.[0]
+  );
+  const [selectedRoles, setSelectedRoles] = useState<readonly Option[]>(
+    props.desiredDbRole ? [toOption(props.desiredDbRole)] : dbRolesOpts
+  );
 
   const dbConnect = () => {
     props.onConnect({
@@ -238,6 +252,13 @@ function ConnectionField({
   ) : (
     <FieldSelect {...commonOptions} />
   );
+}
+
+function toOption(value?: string): Option | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return { value, label: value };
 }
 
 function prepareOptions(rawOpts: string[]): {
