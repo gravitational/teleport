@@ -121,6 +121,9 @@ type ConnectionsHandlerConfig struct {
 
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
+
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -297,6 +300,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
+		InsecureMode:     c.cfg.InsecureMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

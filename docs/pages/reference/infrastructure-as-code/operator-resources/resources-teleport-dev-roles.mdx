@@ -38,50 +38,50 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
-|app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
+|app_labels|[object](#specallowapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|cluster_labels|object|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
+|cluster_labels|[object](#specallowcluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
-|db_labels|object|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
+|db_labels|[object](#specallowdb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
 |db_labels_expression|string|DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.|
 |db_names|[]string|DatabaseNames is a list of database names this role is allowed to connect to.|
 |db_permissions|[][object](#specallowdb_permissions-items)|DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.|
 |db_roles|[]string|DatabaseRoles is a list of databases roles for automatic user creation.|
-|db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
+|db_service_labels|[object](#specallowdb_service_labels)|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
-|group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
+|group_labels|[object](#specallowgroup_labels)|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
 |host_sudoers|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |impersonate|[object](#specallowimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |join_sessions|[][object](#specallowjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |kubernetes_groups|[]string|KubeGroups is a list of kubernetes groups|
-|kubernetes_labels|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|kubernetes_labels|[object](#specallowkubernetes_labels)|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|object|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels|[object](#specallowlinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
 |linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
 |linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
-|node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
+|node_labels|[object](#specallownode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specallowrequest)||
 |require_session_join|[][object](#specallowrequire_session_join-items)|RequireSessionJoin specifies policies for required users to start a session.|
 |review_requests|[object](#specallowreview_requests)|ReviewRequests defines conditions for submitting access reviews.|
 |rules|[][object](#specallowrules-items)|Rules is a list of rules and their access levels. Rules are a high level construct used for access control.|
 |spiffe|[][object](#specallowspiffe-items)|SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.|
-|windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
+|windows_desktop_labels|[object](#specallowwindows_desktop_labels)|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
-|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels|[object](#specallowworkload_identity_labels)|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.allow.account_assignments items
@@ -91,18 +91,60 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account|string||
 |permission_set|string||
 
+### spec.allow.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.cluster_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.db_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
-|match|object|Match is a list of object labels that must be matched for the permission to be granted.|
+|match|[object](#specallowdb_permissions-itemsmatch)|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.allow.db_permissions items.match
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.db_service_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.github_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |orgs|[]string||
+
+### spec.allow.group_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.impersonate
 
@@ -121,6 +163,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the name of the policy.|
 |roles|[]string|Roles is a list of roles that you can join the session of.|
 
+### spec.allow.kubernetes_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.kubernetes_resources items
 
 |Field|Type|Description|
@@ -131,17 +180,31 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
+### spec.allow.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.mcp
 
 |Field|Type|Description|
 |---|---|---|
 |tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
+### spec.allow.node_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.request
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|[object](#specallowrequestannotations)|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specallowrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
@@ -150,6 +213,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
 |thresholds|[][object](#specallowrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
+
+### spec.allow.request.annotations
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.allow.request.claims_to_roles items
 
@@ -227,55 +297,69 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |ip_sans|[]string|IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|
 |path|string|Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|
 
+### spec.allow.windows_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.workload_identity_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny
 
 |Field|Type|Description|
 |---|---|---|
 |account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
-|app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
+|app_labels|[object](#specdenyapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|cluster_labels|object|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
+|cluster_labels|[object](#specdenycluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
-|db_labels|object|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
+|db_labels|[object](#specdenydb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
 |db_labels_expression|string|DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.|
 |db_names|[]string|DatabaseNames is a list of database names this role is allowed to connect to.|
 |db_permissions|[][object](#specdenydb_permissions-items)|DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.|
 |db_roles|[]string|DatabaseRoles is a list of databases roles for automatic user creation.|
-|db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
+|db_service_labels|[object](#specdenydb_service_labels)|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
-|group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
+|group_labels|[object](#specdenygroup_labels)|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
 |host_sudoers|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |impersonate|[object](#specdenyimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |join_sessions|[][object](#specdenyjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |kubernetes_groups|[]string|KubeGroups is a list of kubernetes groups|
-|kubernetes_labels|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|kubernetes_labels|[object](#specdenykubernetes_labels)|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|object|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels|[object](#specdenylinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
 |linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
 |linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
-|node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
+|node_labels|[object](#specdenynode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specdenyrequest)||
 |require_session_join|[][object](#specdenyrequire_session_join-items)|RequireSessionJoin specifies policies for required users to start a session.|
 |review_requests|[object](#specdenyreview_requests)|ReviewRequests defines conditions for submitting access reviews.|
 |rules|[][object](#specdenyrules-items)|Rules is a list of rules and their access levels. Rules are a high level construct used for access control.|
 |spiffe|[][object](#specdenyspiffe-items)|SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.|
-|windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
+|windows_desktop_labels|[object](#specdenywindows_desktop_labels)|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
-|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels|[object](#specdenyworkload_identity_labels)|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.deny.account_assignments items
@@ -285,18 +369,60 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account|string||
 |permission_set|string||
 
+### spec.deny.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.cluster_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.db_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
-|match|object|Match is a list of object labels that must be matched for the permission to be granted.|
+|match|[object](#specdenydb_permissions-itemsmatch)|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.deny.db_permissions items.match
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.db_service_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.github_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |orgs|[]string||
+
+### spec.deny.group_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.impersonate
 
@@ -315,6 +441,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the name of the policy.|
 |roles|[]string|Roles is a list of roles that you can join the session of.|
 
+### spec.deny.kubernetes_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.kubernetes_resources items
 
 |Field|Type|Description|
@@ -325,17 +458,31 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
+### spec.deny.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.mcp
 
 |Field|Type|Description|
 |---|---|---|
 |tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
+### spec.deny.node_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.request
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|[object](#specdenyrequestannotations)|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specdenyrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
@@ -344,6 +491,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
 |thresholds|[][object](#specdenyrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
+
+### spec.deny.request.annotations
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.deny.request.claims_to_roles items
 
@@ -420,6 +574,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |dns_sans|[]string|DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com|
 |ip_sans|[]string|IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|
 |path|string|Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|
+
+### spec.deny.windows_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.workload_identity_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.options
 
@@ -529,50 +697,50 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
-|app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
+|app_labels|[object](#specallowapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|cluster_labels|object|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
+|cluster_labels|[object](#specallowcluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
-|db_labels|object|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
+|db_labels|[object](#specallowdb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
 |db_labels_expression|string|DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.|
 |db_names|[]string|DatabaseNames is a list of database names this role is allowed to connect to.|
 |db_permissions|[][object](#specallowdb_permissions-items)|DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.|
 |db_roles|[]string|DatabaseRoles is a list of databases roles for automatic user creation.|
-|db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
+|db_service_labels|[object](#specallowdb_service_labels)|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
-|group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
+|group_labels|[object](#specallowgroup_labels)|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
 |host_sudoers|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |impersonate|[object](#specallowimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |join_sessions|[][object](#specallowjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |kubernetes_groups|[]string|KubeGroups is a list of kubernetes groups|
-|kubernetes_labels|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|kubernetes_labels|[object](#specallowkubernetes_labels)|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|object|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels|[object](#specallowlinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
 |linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
 |linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
-|node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
+|node_labels|[object](#specallownode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specallowrequest)||
 |require_session_join|[][object](#specallowrequire_session_join-items)|RequireSessionJoin specifies policies for required users to start a session.|
 |review_requests|[object](#specallowreview_requests)|ReviewRequests defines conditions for submitting access reviews.|
 |rules|[][object](#specallowrules-items)|Rules is a list of rules and their access levels. Rules are a high level construct used for access control.|
 |spiffe|[][object](#specallowspiffe-items)|SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.|
-|windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
+|windows_desktop_labels|[object](#specallowwindows_desktop_labels)|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
-|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels|[object](#specallowworkload_identity_labels)|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.allow.account_assignments items
@@ -582,18 +750,60 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account|string||
 |permission_set|string||
 
+### spec.allow.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.cluster_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.db_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
-|match|object|Match is a list of object labels that must be matched for the permission to be granted.|
+|match|[object](#specallowdb_permissions-itemsmatch)|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.allow.db_permissions items.match
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.db_service_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.github_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |orgs|[]string||
+
+### spec.allow.group_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.impersonate
 
@@ -612,6 +822,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the name of the policy.|
 |roles|[]string|Roles is a list of roles that you can join the session of.|
 
+### spec.allow.kubernetes_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.kubernetes_resources items
 
 |Field|Type|Description|
@@ -622,17 +839,31 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
+### spec.allow.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.mcp
 
 |Field|Type|Description|
 |---|---|---|
 |tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
+### spec.allow.node_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.allow.request
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|[object](#specallowrequestannotations)|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specallowrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
@@ -641,6 +872,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
 |thresholds|[][object](#specallowrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
+
+### spec.allow.request.annotations
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.allow.request.claims_to_roles items
 
@@ -718,55 +956,69 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |ip_sans|[]string|IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|
 |path|string|Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|
 
+### spec.allow.windows_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.workload_identity_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny
 
 |Field|Type|Description|
 |---|---|---|
 |account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
-|app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
+|app_labels|[object](#specdenyapp_labels)|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|cluster_labels|object|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
+|cluster_labels|[object](#specdenycluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
-|db_labels|object|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
+|db_labels|[object](#specdenydb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
 |db_labels_expression|string|DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.|
 |db_names|[]string|DatabaseNames is a list of database names this role is allowed to connect to.|
 |db_permissions|[][object](#specdenydb_permissions-items)|DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning.|
 |db_roles|[]string|DatabaseRoles is a list of databases roles for automatic user creation.|
-|db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
+|db_service_labels|[object](#specdenydb_service_labels)|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
-|group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
+|group_labels|[object](#specdenygroup_labels)|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
 |host_sudoers|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |impersonate|[object](#specdenyimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |join_sessions|[][object](#specdenyjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |kubernetes_groups|[]string|KubeGroups is a list of kubernetes groups|
-|kubernetes_labels|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|kubernetes_labels|[object](#specdenykubernetes_labels)|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|object|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels|[object](#specdenylinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
 |linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
 |linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
-|node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
+|node_labels|[object](#specdenynode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specdenyrequest)||
 |require_session_join|[][object](#specdenyrequire_session_join-items)|RequireSessionJoin specifies policies for required users to start a session.|
 |review_requests|[object](#specdenyreview_requests)|ReviewRequests defines conditions for submitting access reviews.|
 |rules|[][object](#specdenyrules-items)|Rules is a list of rules and their access levels. Rules are a high level construct used for access control.|
 |spiffe|[][object](#specdenyspiffe-items)|SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.|
-|windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
+|windows_desktop_labels|[object](#specdenywindows_desktop_labels)|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
-|workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
+|workload_identity_labels|[object](#specdenyworkload_identity_labels)|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
 ### spec.deny.account_assignments items
@@ -776,18 +1028,60 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |account|string||
 |permission_set|string||
 
+### spec.deny.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.cluster_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.db_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
-|match|object|Match is a list of object labels that must be matched for the permission to be granted.|
+|match|[object](#specdenydb_permissions-itemsmatch)|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
+
+### spec.deny.db_permissions items.match
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.db_service_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.github_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |orgs|[]string||
+
+### spec.deny.group_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.impersonate
 
@@ -806,6 +1100,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the name of the policy.|
 |roles|[]string|Roles is a list of roles that you can join the session of.|
 
+### spec.deny.kubernetes_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.kubernetes_resources items
 
 |Field|Type|Description|
@@ -816,17 +1117,31 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
+### spec.deny.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.mcp
 
 |Field|Type|Description|
 |---|---|---|
 |tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
+### spec.deny.node_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
 ### spec.deny.request
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|[object](#specdenyrequestannotations)|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specdenyrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
@@ -835,6 +1150,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
 |thresholds|[][object](#specdenyrequestthresholds-items)|Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.|
+
+### spec.deny.request.annotations
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[]string||
 
 ### spec.deny.request.claims_to_roles items
 
@@ -911,6 +1233,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |dns_sans|[]string|DNSSANs specifies matchers for the SPIFFE ID DNS SANs.  Each requested DNS SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: *.example.com would match foo.example.com|
 |ip_sans|[]string|IPSANs specifies matchers for the SPIFFE ID IP SANs.  Each requested IP SAN is compared against all matchers configured and if any match, the condition is considered to be met.  The matchers should be specified using CIDR notation, it supports IPv4 and IPv6.  Examples: - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255 - 10.0.0.42/32 would match only 10.0.0.42|
 |path|string|Path specifies a matcher for the SPIFFE ID path. It should not include the trust domain and should start with a leading slash.  The matcher by default allows '*' to be used to indicate zero or more of any character. Prepend '^' and append '$' to instead switch to matching using the Go regex syntax.  Example: - /svc/foo/*/bar would match /svc/foo/baz/bar - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar|
+
+### spec.deny.windows_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.workload_identity_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.options
 

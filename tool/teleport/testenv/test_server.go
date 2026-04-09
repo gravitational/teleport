@@ -50,10 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -68,7 +68,7 @@ const StaticToken = "test-static-token"
 func init() {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe. Used to test tsh ssh and tsh scp commands.
-	if srv.IsReexec() {
+	if reexec.IsReexec() {
 		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
@@ -472,6 +472,10 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
+func (p *cliModules) GenerateAccessRequestSuggestedReviewers(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) ([]string, error) {
+	return []string{}, nil
+}
+
 func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }
@@ -543,6 +547,7 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
 	identity, err := storage.ReadLocalIdentityForRole(
+		process.GracefulExitContext(),
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
 		types.RoleAdmin,
 	)

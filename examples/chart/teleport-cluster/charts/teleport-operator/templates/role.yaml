@@ -26,6 +26,10 @@ rules:
       - teleportoidcconnectors/status
       - teleportsamlconnectors
       - teleportsamlconnectors/status
+      - teleportsamlidpserviceprovidersv1
+      - teleportsamlidpserviceprovidersv1/status
+      - teleportlocksv2
+      - teleportlocksv2/status
       - teleportloginrules
       - teleportloginrules/status
       - teleportprovisiontokens
@@ -60,6 +64,8 @@ rules:
       - teleportinferencesecrets/status
       - teleportaccessmonitoringrulesv1
       - teleportaccessmonitoringrulesv1/status
+      - teleportscopedtokensv1
+      - teleportscopedtokensv1/status
     verbs:
       - get
       - list

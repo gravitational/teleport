@@ -197,7 +197,7 @@ func (p *StatementBulkExecutePacket) Parameters(definitions []mysql.Field) (para
 func parseStatementPreparePacket(packetBytes []byte) (Packet, error) {
 	unread, ok := skipHeaderAndType(packetBytes)
 	if !ok {
-		return nil, trace.BadParameter("failed to parse COM_STMT_PREAPRE packet: %v", packetBytes)
+		return nil, trace.BadParameter("failed to parse COM_STMT_PREPARE packet: %v", packetBytes)
 	}
 
 	return &StatementPreparePacket{

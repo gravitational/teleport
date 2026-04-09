@@ -23,6 +23,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/aws"
 )
 
 const (
@@ -103,9 +104,13 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 			return trace.BadParameter("spec.bedrock.region is required")
 		}
 
-		if containsPlaceholderInstruction(p.Bedrock.GetRegion()) &&
-			strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
-			return trace.BadParameter("spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.bedrock.region: %q", p.Bedrock.GetRegion())
 		}
 	}
 

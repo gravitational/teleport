@@ -47,6 +47,7 @@ import (
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	p := newAuthSuite(t)
 

@@ -49,7 +49,7 @@ message UserLoginEvent {
   // the required private key policy for this login.
   string required_private_key_policy = 4;
 
-  // UserOrigin specifies the origin of this user account.
+  // UserOrigin specifies the origin of the user specified in user_name.
   //
   // PostHog property: tp.user_origin
   UserOrigin user_origin = 5;
@@ -57,7 +57,7 @@ message UserLoginEvent {
 
 // UserOrigin is the origin of a user account.
 // Keep the values in sync with UserOrigin enum defined in
-// API events and prehogv1.
+// Teleport OSS repository.
 enum UserOrigin {
   // Indicates a legacy cluster emitting events without a defined user origin.
   USER_ORIGIN_UNSPECIFIED = 0;
@@ -111,6 +111,9 @@ message ResourceCreateEvent {
   string cloud_provider = 3;
   // database contains additional database information if resource_type == "db".
   DiscoveredDatabaseMetadata database = 4;
+  // discovery_config_name is the anonymized name of the DiscoveryConfig that triggered discovery.
+  // Empty for teleport.yaml matcher configuration.
+  string discovery_config_name = 5;
 }
 
 // DiscoveredDatabaseMetadata contains additional database information.
@@ -882,6 +885,7 @@ enum CTA {
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
   CTA_OKTA_SCIM = 13;
+  CTA_USAGE_REPORT = 14;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -1009,6 +1013,10 @@ message AssistActionEvent {
 message AccessListMetadata {
   // id uniquely identifies an Access List. Will allow correlation of events within an access list.
   string id = 1;
+  // anonymized
+  string user_name = 2;
+  // Describes the sessions preset.
+  AccessListPreset preset = 3;
 }
 
 // AccessListCreate is an event that is emitted when an access list is created.
@@ -1155,6 +1163,9 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
+  INTEGRATION_ENROLL_KIND_AWS_CLOUD = 30;
+  INTEGRATION_ENROLL_KIND_AZURE_CLOUD = 31;
+  INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD = 32;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1203,6 +1214,9 @@ enum IntegrationEnrollStep {
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
   INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
+
+  // General integration setup steps
+  INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
 }
 
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -1720,6 +1734,12 @@ message UserTaskStateEvent {
   //
   // PostHog property: tp.usertask.discover_ec2.instances_count
   int32 instances_count = 4;
+
+  // discovery_config_name is the anonymized name of the DiscoveryConfig used when
+  // the issue was created.
+  //
+  // PostHog property: tp.usertask.discovery_config_name
+  string discovery_config_name = 5;
 }
 
 // AccessRequestCreateEvent is emitted when an Access Request is created.
@@ -1834,11 +1854,163 @@ message SessionSummaryCreateEvent {
   // PostHog property: tp.resource_name
   string resource_name = 6;
 
-  // is_cloud_default_model indicates wether the session summary was generated using
+  // is_cloud_default_model indicates whether the session summary was generated using
   // the cloud default model.
   //
   // PostHog property: tp.ai.default_model
   bool is_cloud_default_model = 7;
+}
+
+// DiscoveryConfigAction is the action performed on a DiscoveryConfig.
+enum DiscoveryConfigAction {
+  DISCOVERY_CONFIG_ACTION_UNSPECIFIED = 0;
+  DISCOVERY_CONFIG_ACTION_CREATE = 1;
+  DISCOVERY_CONFIG_ACTION_UPDATE = 2;
+  DISCOVERY_CONFIG_ACTION_DELETE = 3;
+}
+
+// DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
+//
+// PostHog event: tp.discovery.config
+message DiscoveryConfigEvent {
+  // action is the operation performed on the DiscoveryConfig.
+  DiscoveryConfigAction action = 1;
+  // discovery_config_name is the anonymized name of the DiscoveryConfig.
+  string discovery_config_name = 2;
+  // resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
+  repeated string resource_types = 3;
+  // cloud_providers is the list of cloud providers the config has matchers for.
+  repeated string cloud_providers = 4;
+  // creation_method specifies the flow used to create the config ("iac" or "guided")
+  string creation_method = 5;
+}
+
+// IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
+// for a provider is updated.
+message IdentitySecurityGraphSizeEvent {
+  // provider is the system containing the identities and resources being counted.
+  // It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+  string provider = 1;
+
+  // total_identities is the number of identities in the graph.
+  uint64 total_identities = 2;
+
+  // total_resources is the number of resources in the graph.
+  uint64 total_resources = 3;
+}
+
+// IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
+// identity activity center.
+message IdentitySecurityAuditLogsIngestedEvent {
+  // provider is the system emitting audit logs. It is one of
+  // teleport, cloudtrail, kubernetes, github or okta.
+  string provider = 1;
+
+  // logs_ingested is a count of log entries ingested into Identity Security.
+  uint64 logs_ingested = 2;
+}
+
+// AccessListStatus represents a access list wizard step outcome.
+enum AccessListStatus {
+  ACCESS_LIST_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  // e.g. going to next step,
+  ACCESS_LIST_STATUS_SUCCESS = 1;
+  // The user skipped the action (some steps may be optional).
+  ACCESS_LIST_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  ACCESS_LIST_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  ACCESS_LIST_STATUS_ABORTED = 4;
+}
+
+// AccessListPreset represents the access list preset type.
+enum AccessListPreset {
+  ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+  ACCESS_LIST_PRESET_SHORT_TERM = 1;
+  ACCESS_LIST_PRESET_LONG_TERM = 2;
+}
+
+// AccessListStepStatus contains fields that track a particular step outcome.
+message AccessListStepStatus {
+  // Indicates the step outcome.
+  AccessListStatus status = 1;
+  // Contains error details in case of Error Status.
+  string error = 2;
+}
+
+// UIAccessListDefineAccessEvent is emitted when user is finished with the step
+// that defines access to resources.
+message UIAccessListDefineAccessEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
+// step that defines resource identities/principals.
+message UIAccessListDefineIdentitiesEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineBasicInfoEvent is emitted when user is finished with the step
+// that defines basic info of an access list (title, desc, etc).
+message UIAccessListDefineBasicInfoEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineMembersEvent is emitted when user is finished with the
+// step that defines access list members.
+message UIAccessListDefineMembersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineOwnersEvent is emitted when user is finished with the
+// step that defines access list owners.
+message UIAccessListDefineOwnersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListStartEvent is emitted when user is at the guide selection page
+// or when directed straight to the first step.
+message UIAccessListStartEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListCustomEvent is emitted when user completes non wizard
+// flow (old way of creating access list).
+message UIAccessListCustomEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListIntegrateEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListCompleteEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+  // True if the user completed wizard by choosing terraform script over
+  // creating access list via web UI.
+  bool preferred_terraform = 3;
+}
+
+// AccessListIntegrate describes what integration user
+// was interested in.
+enum AccessListIntegrate {
+  ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
+  // User wants to integrate Okta or is coming from Okta.
+  ACCESS_LIST_INTEGRATE_OKTA = 1;
+}
+
+// UIAccessListIntegrateOktaEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListIntegrateEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
 }
 
 message SubmitEventRequest {
@@ -2019,6 +2191,21 @@ message SubmitEventRequest {
 
     SessionSummaryCreateEvent session_summary_create_event = 105;
     SessionSummaryAccessEvent session_summary_access_event = 106;
+
+    DiscoveryConfigEvent discovery_config = 107;
+
+    IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108;
+    IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109;
+
+    UIAccessListDefineAccessEvent ui_access_list_define_access_event = 110;
+    UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event = 111;
+    UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event = 112;
+    UIAccessListDefineMembersEvent ui_access_list_define_members_event = 113;
+    UIAccessListDefineOwnersEvent ui_access_list_define_owners_event = 114;
+    UIAccessListStartEvent ui_access_list_start_event = 115;
+    UIAccessListCompleteEvent ui_access_list_complete_event = 116;
+    UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
+    UIAccessListCustomEvent ui_access_list_custom_event = 118;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -19,7 +19,10 @@
 package app
 
 import (
+	"context"
+	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -61,8 +64,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	})
 }
 
-// redirectToLauncher redirects to the proxy web's app launcher if the public
-// address of the proxy is set.
+// redirectToLauncher redirects to the proxy web's app launcher.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
 	if p.stateToken == "" && !HasSessionCookie(r) && !p.requiresAppRedirect {
 		// Reaching this block means the application was accessed through the CLI (eg: tsh app login)
@@ -70,18 +72,6 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		// Since we can't redirect the user to the app launcher from the CLI,
 		// we just return an error instead.
 		return trace.BadParameter("redirecting to launcher when using client certificate, is not allowed")
-	}
-
-	if h.c.WebPublicAddr == "" {
-		const errMsg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
-			"Update the Teleport Proxy Service configuration to include a public_addr. " +
-			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
-
-		// Log the error to warn admins 🚩
-		h.logger.ErrorContext(r.Context(), errMsg)
-
-		// Immediately return an error since this is a critical misconfiguration 🛑
-		return trace.BadParameter(errMsg)
 	}
 
 	addr, err := utils.ParseAddr(r.Host)
@@ -92,27 +82,47 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	proxyPublicAddrs := make([]string, 0, len(h.c.ProxyPublicAddrs))
 
 	for _, proxyAddr := range h.c.ProxyPublicAddrs {
-		if p.publicAddr == proxyAddr.Host() {
-			const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
-				"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
-				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
-
-			// Log the error to warn admins 🚩
-			h.logger.ErrorContext(r.Context(), errMsg, "launcher_params", p)
-
-			// Immediately return an error since this is a critical misconfiguration 🛑
-			return trace.BadParameter(errMsg)
+		err := h.validateAppAddr(r.Context(), p.publicAddr, proxyAddr.Host())
+		if err != nil {
+			return trace.Wrap(err)
 		}
-
-		// Append the full proxy address (host:port) to the list, preserving the port information.
-		// This is necessary to support proxies running on non-standard HTTPS ports and ensure accurate DNS matching.
 		proxyPublicAddrs = append(proxyPublicAddrs, proxyAddr.String())
+	}
+
+	// Fall back to the cluster name when proxy_service.public_addr is
+	// not configured. Derive the port from the incoming request so the
+	// redirect URL matches what the client actually connected to.
+	if len(proxyPublicAddrs) == 0 {
+		err := h.validateAppAddr(r.Context(), p.publicAddr, h.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		port := addr.Port(443)
+		proxyPublicAddrs = []string{
+			net.JoinHostPort(h.clusterName, strconv.Itoa(port)),
+		}
 	}
 
 	proxyDNSName := utils.FindMatchingProxyDNS(r.Host, proxyPublicAddrs)
 	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), p)
 	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
+}
+
+// validateAppAddr checks that appAddr does not match proxyHost
+// and returns an error on conflict.
+func (h *Handler) validateAppAddr(ctx context.Context, appAddr, proxyHost string) error {
+	if appAddr != proxyHost {
+		return nil
+	}
+	const errMsg = "Application public address conflicts with the " +
+		"Teleport Proxy public address. Configure the application " +
+		"to use a unique public address that does not match the " +
+		"proxy's public addresses. Refer to https://goteleport.com/" +
+		"docs/enroll-resources/application-access/guides/" +
+		"connecting-apps/."
+	h.logger.ErrorContext(ctx, errMsg, "app_public_addr", appAddr, "proxy_host", proxyHost)
+	return trace.BadParameter(errMsg)
 }
 
 // makeRouterHandler creates a httprouter.Handle.

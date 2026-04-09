@@ -22,11 +22,10 @@ version. Teleport Connect supports macOS, Linux, and Windows.
 <TabItem label="macOS">
 Double-click the downloaded `.dmg` file and drag the Teleport Connect icon to the Applications folder.
 
-To manually upgrade Teleport Connect to a newer version, drag the new version to the Applications folder.
 </TabItem>
 <TabItem label="Linux">
 Download the DEB (Debian-based distros) or RPM (RHEL-based distros) package and install it using
-your package manager. Repeat the process for in-place upgrades.
+your package manager.
 
 You can also download the project as a `tar.gz` file to extract and run it in place:
 
@@ -35,28 +34,29 @@ $ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 ```
 </TabItem>
 <TabItem label="Windows">
-Download and run the installer `.exe` file. It will install and open Teleport Connect without
-further user input.
+Download and run the installer `.exe` file.
 
-The installer requires administrator privileges in order to set up a Windows
-service used by the [VNet](#connecting-to-tcp-apps-with-vnet) feature.
-If you run the installer as a regular user it will automatically create a UAC
-(User Account Control) prompt for the necessary permissions.
+The installer supports two modes:
+- `Only for me` (per-user): installs to `%LOCALAPPDATA%` and does not require administrator privileges.
+- `Anyone who uses this computer` (per-machine): installs to `%PROGRAMFILES%`, requires administrator
+  privileges (UAC), and enables [VNet](#connecting-to-tcp-apps-with-vnet).
 
-Repeat the process with newer versions to upgrade.
-
-A silent installation can be performed by running the installer as an
-administrator with the `/S` flag. This will hide the progress bar and skip the
-launch of the app after the installation is complete.
+A silent installation can be performed with `/S`. This hides the progress bar and skips launching the app after install.
+By default, `/S` installs per-machine. If a per-user installation already exists, it updates that installation instead.
+To choose the mode explicitly, add `/allusers` (per-machine) or `/currentuser` (per-user).
 
 ```code
-$ "Teleport Connect Setup-(=teleport.version=).exe" /S
+$ "Teleport Connect Setup-(=teleport.version=).exe" /S /allusers
 ```
 
-In version 17.3.0+ Connect is installed per-machine.
-In older versions Connect was installed only for the user running the installer.
-When upgrading to 17.3.0+ from an older version, the installer will
-automatically handle the migration to a per-machine installation.
+<Admonition
+    type="warning"
+    title="Avoid Dual Installations"
+>
+  Having both per-user and per-machine installations may cause the Start Menu shortcut to point to a different instance than expected.
+
+  Before installing the app in a different mode, [uninstall](#uninstalling-teleport-connect) the existing installation.
+</Admonition>
 
 </TabItem>
 </Tabs>
@@ -64,9 +64,13 @@ automatically handle the migration to a per-machine installation.
 ### Managed updates
 
 Teleport Connect supports [Teleport Client Tool Managed Updates](../../upgrading/client-tools-managed-updates.mdx).
-When enabled in your cluster, the app checks for available updates at login,
-downloads them automatically, and prompts you to restart. On Windows and Linux,
-you may be asked to provide administrator credentials to complete the installation.
+When enabled in your cluster, the app checks for available updates at login, downloads them automatically, and prompts you to restart.
+Unlike managed updates for `tsh`, Teleport Connect only installs upgrades. Downgrades must be installed manually.
+
+On Windows, per-machine installations use a privileged updater service (`TeleportConnectUpdater`) to install
+updates in the background without UAC prompts.
+
+On Linux, you may be asked to provide administrator credentials to complete the installation.
 
 You can also check for updates manually via "Check for Updates…" in the
 additional actions menu.
@@ -98,44 +102,71 @@ to manage updates, you can manually choose the cluster in the
 
 #### Managed updates configuration
 
-Like the CLI tools, Teleport Connect respects the `TELEPORT_CDN_BASE_URL` and
-`TELEPORT_TOOLS_VERSION` environment variables.
-
-`TELEPORT_CDN_BASE_URL` lets you use custom builds or mirror the CDN in a private
-network (for example `https://example.com`).
-
-`TELEPORT_TOOLS_VERSION` controls client tool updates:
-- Set to `off` to completely disable managed updates.
-- Set to a specific version (e.g. `18.0.1`) to override the cluster-provided version
-(for example, to work around a known issue).
-
-To use an environment variable with Teleport Connect, open your terminal and launch
-the app from there, providing the variable.
-It will apply only for that session, so you can test settings or override
-cluster-provided updates without affecting your system-wide configuration.
-For a permanent setup, follow the instructions below:
+Managed updates are configured with environment variables on macOS and Linux, and with registry policy keys on Windows.
 
 <Tabs>
   <TabItem label="macOS">
-    To set the variable for your current login session, open the Terminal and type:
+    Configure managed updates with environment variables:
+    - `TELEPORT_CDN_BASE_URL`: use custom builds or a private CDN mirror
+      (for example `https://example.com`).
+    - `TELEPORT_TOOLS_VERSION`: set to `off` to disable updates, or set `X.Y.Z`
+      (for example `18.0.1`) to update Teleport Connect to a specific version.
+
+    To set a variable for your current login session, open Terminal and run:
     ```code
     $ launchctl set env TELEPORT_TOOLS_VERSION X.Y.Z
     ```
     Then run Teleport Connect as usual. This setting persists until you log out.
   </TabItem>
   <TabItem label="Windows">
-    To set the variable permanently for your user account, open the Command Prompt and type:
+    Configure managed updates through registry policy keys:
+    - `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Teleport\TeleportConnect`
+    - `HKEY_CURRENT_USER\SOFTWARE\Policies\Teleport\TeleportConnect`
+
+    `HKEY_LOCAL_MACHINE` takes precedence over `HKEY_CURRENT_USER`.
+    For per-machine installations, only `HKEY_LOCAL_MACHINE` is used.
+
+    Use these values:
+    - `CdnBaseUrl` (`REG_SZ`): custom build source or private CDN mirror
+      (for example `https://example.com`).
+    - `ToolsVersion` (`REG_SZ`): set to `off` to disable updates, or set `X.Y.Z` (for example `18.0.1`) to update
+      Teleport Connect to a specific version.
+
+    On Windows, `TELEPORT_CDN_BASE_URL` and `TELEPORT_TOOLS_VERSION` environment variables are deprecated.
+    They are still read for compatibility, but per-machine updates may require UAC prompts until configuration
+    is migrated to registry policy keys.
+
+    Use `HKLM` to apply settings system-wide, or `HKCU` to apply settings only for the current user.
+
+    Set version:
     ```code
-    $ setx TELEPORT_TOOLS_VERSION X.Y.Z
+    $ reg add "HKLM\SOFTWARE\Policies\Teleport\TeleportConnect" /v ToolsVersion /t REG_SZ /d X.Y.Z /f
     ```
-    Then run Teleport Connect as usual. To clear it, use:
+
+    Disable updates:
     ```code
-    $ setx TELEPORT_TOOLS_VERSION ""
+    $ reg add "HKLM\SOFTWARE\Policies\Teleport\TeleportConnect" /v ToolsVersion /t REG_SZ /d off /f
+    ```
+
+    Set custom download source:
+    ```code
+    $ reg add "HKLM\SOFTWARE\Policies\Teleport\TeleportConnect" /v CdnBaseUrl /t REG_SZ /d https://example.com /f
+    ```
+
+    Remove a setting:
+    ```code
+    $ reg delete "HKLM\SOFTWARE\Policies\Teleport\TeleportConnect" /v ToolsVersion /f
     ```
   </TabItem>
   <TabItem label="Linux">
-    To set the variable permanently for the app, prepend the environment variable to
-    the `Exec=` line in  `usr/share/applications/teleport-connect.desktop` file:
+    Configure managed updates with environment variables:
+    - `TELEPORT_CDN_BASE_URL`: use custom builds or a private CDN mirror
+      (for example `https://example.com`).
+    - `TELEPORT_TOOLS_VERSION`: set to `off` to disable updates, or set `X.Y.Z`
+      (for example `18.0.1`) to update Teleport Connect to a specific version.
+
+    To set a variable permanently for the app, prepend it to the `Exec=` line
+    in `/usr/share/applications/teleport-connect.desktop`:
     ```text
     Exec=env TELEPORT_TOOLS_VERSION=X.Y.Z "/opt/Teleport Connect/teleport-connect" %U
     ```
@@ -799,8 +830,18 @@ The app version can be found under Help -> About Teleport Connect.
 To get more detailed logs, open Teleport Connect from the Command Prompt with the `--connect-debug` flag:
 
 ```code
+# Per-machine install (default):
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
+
+# Per-user install:
+$ "%LOCALAPPDATA%\Programs\Teleport Connect\Teleport Connect.exe" --connect-debug
 ````
+
+In case of failed per-machine updates, you will need to collect the logs from the `TeleportConnectUpdater` service.
+To do this, open Event Viewer from the Start menu.
+From the sidebar on the left, select Event Viewer (Local) → Applications and Services Logs →
+Teleport. From the sidebar on the right, select "Save All Events As…". Save the logs as .evtx file.
+If Event Viewer asks about Display Information, choose "No display information".
 </TabItem>
 </Tabs>
 
@@ -836,7 +877,11 @@ $ teleport-connect --insecure
 From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 
 ```code
+# Per-machine install (default):
 $ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --insecure
+
+# Per-user install:
+$ "%LOCALAPPDATA%\Programs\Teleport Connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>

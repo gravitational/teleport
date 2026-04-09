@@ -72,9 +72,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // Server implements SSH server that uses configuration backend and
@@ -155,7 +158,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pamcfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -303,7 +306,7 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
 	return s.pamConfig
 }
 
@@ -369,10 +372,8 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 
 	// return a noop log configuration
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: reexec.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
 }
 
@@ -448,8 +449,14 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
+	// Set the listener before starting heartbeats so the first node heartbeat
+	// does not advertise an empty address.
+	if err := s.srv.SetListener(l); err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.startPeriodicOperations()
-	return trace.Wrap(s.srv.Serve(l))
+	return trace.Wrap(s.srv.Serve())
 }
 
 func (s *Server) startPeriodicOperations() {
@@ -628,7 +635,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pamcfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -819,8 +826,8 @@ func SetImmutableLabels(labels map[string]string) ServerOption {
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
-			ExecLogConfig: srv.ExecLogConfig{
-				Level:        cfg.LoggerLevel,
+			ExecLogConfig: reexec.ExecLogConfig{
+				Level:        cfg.LoggerLevel.Level(),
 				Format:       strings.ToLower(cfg.LogConfig.Format),
 				ExtraFields:  cfg.LogConfig.ExtraFields,
 				EnableColors: cfg.LogConfig.EnableColors,
@@ -1206,7 +1213,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
-	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer())
 
 	return srv
 }
@@ -1298,7 +1305,7 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 		return nil, trace.Wrap(err)
 	}
 	nsctx.SessionRecordingConfig.SetMode(types.RecordOff)
-	nsctx.ExecType = teleport.NetworkingSubCommand
+	nsctx.ExecType = reexecconstants.NetworkingSubCommand
 	scx.Parent().AddCloser(nsctx)
 
 	// Create command to re-exec Teleport which will handle networking requests. The

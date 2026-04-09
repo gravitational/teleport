@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -114,7 +114,7 @@ export function Account({
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -130,7 +130,7 @@ export function Account({
             mr={2}
             size="large"
             color="text.main"
-            onClick={history.goBack}
+            onClick={() => navigate(-1)}
             style={{ cursor: 'pointer' }}
           />
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
@@ -152,11 +152,11 @@ export function Account({
               <Route
                 exact
                 path={cfg.routes.account}
-                component={() => <Redirect to={cfg.routes.accountSecurity} />}
+                element={<Redirect to={cfg.routes.accountSecurity} />}
               />
               <Route
                 path={cfg.routes.accountSecurity}
-                component={() => (
+                element={
                   <SecuritySettings
                     isSso={isSso}
                     canAddPasskeys={canAddPasskeys}
@@ -179,13 +179,13 @@ export function Account({
                     userTrustedDevicesComponent={TrustedDeviceListComponent}
                     onPasswordChange={onPasswordChangeCb}
                   />
-                )}
+                }
               />
               <Route
                 path={cfg.routes.accountPreferences}
-                component={() => (
+                element={
                   <Preferences setErrorMessage={stableSetErrorMessage} />
-                )}
+                }
               />
             </Switch>
           </Flex>

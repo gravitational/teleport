@@ -111,7 +111,7 @@ func (UserKind) EnumDescriptor() ([]byte, []int) {
 
 // UserOrigin is the origin of a user account.
 // Keep the values in sync with UserOrigin enum defined in
-// API events and prehogv1alpha.
+// Teleport OSS repository.
 type UserOrigin int32
 
 const (
@@ -400,15 +400,18 @@ type UserActivityRecord struct {
 	CertificatesIssued uint64 `protobuf:"varint,17,opt,name=certificates_issued,json=certificatesIssued,proto3" json:"certificates_issued,omitempty"`
 	// counter of SVIDs issued for each SPIFFE ID.
 	SpiffeIdsIssued []*SPIFFEIDRecord `protobuf:"bytes,18,rep,name=spiffe_ids_issued,json=spiffeIdsIssued,proto3" json:"spiffe_ids_issued,omitempty"`
-	// Indicates origin of user account.
+	// Indicates origin of this user account. Only
+	// recorded for the user login event.
 	UserOrigin UserOrigin `protobuf:"varint,19,opt,name=user_origin,json=userOrigin,proto3,enum=prehog.v1.UserOrigin" json:"user_origin,omitempty"`
 	// counter of Access Requests created by this user.
 	AccessRequestsCreated uint64 `protobuf:"varint,20,opt,name=access_requests_created,json=accessRequestsCreated,proto3" json:"access_requests_created,omitempty"`
 	// counter of Access Requests reviewed by this user.
 	AccessRequestsReviewed uint64 `protobuf:"varint,21,opt,name=access_requests_reviewed,json=accessRequestsReviewed,proto3" json:"access_requests_reviewed,omitempty"`
-	// counter of Access List review.
+	// counter of Access Lists reviewed by this user.
 	AccessListsReviewed uint64 `protobuf:"varint,22,opt,name=access_lists_reviewed,json=accessListsReviewed,proto3" json:"access_lists_reviewed,omitempty"`
-	// counter of roles or traits grant event based on Access List membership.
+	// counter of roles or traits granted to this user based on
+	// the Access List membership. The event is emitted during
+	// user login state calculation.
 	AccessListsGrants uint64 `protobuf:"varint,23,opt,name=access_lists_grants,json=accessListsGrants,proto3" json:"access_lists_grants,omitempty"`
 	// counter of successful SAML IdP authentication by this user.
 	SamlIdpSessions uint64 `protobuf:"varint,24,opt,name=saml_idp_sessions,json=samlIdpSessions,proto3" json:"saml_idp_sessions,omitempty"`
@@ -1173,8 +1176,10 @@ type SessionSummariesGeneratedRecord struct {
 	TotalInputTokens uint64 `protobuf:"varint,4,opt,name=total_input_tokens,json=totalInputTokens,proto3" json:"total_input_tokens,omitempty"`
 	// total_output_tokens is number of total output tokens generated during the summary.
 	TotalOutputTokens uint64 `protobuf:"varint,5,opt,name=total_output_tokens,json=totalOutputTokens,proto3" json:"total_output_tokens,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// number of summaries generated for this session type and resource combination.
+	SummariesGenerated uint64 `protobuf:"varint,6,opt,name=summaries_generated,json=summariesGenerated,proto3" json:"summaries_generated,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SessionSummariesGeneratedRecord) Reset() {
@@ -1231,6 +1236,13 @@ func (x *SessionSummariesGeneratedRecord) GetTotalInputTokens() uint64 {
 func (x *SessionSummariesGeneratedRecord) GetTotalOutputTokens() uint64 {
 	if x != nil {
 		return x.TotalOutputTokens
+	}
+	return 0
+}
+
+func (x *SessionSummariesGeneratedRecord) GetSummariesGenerated() uint64 {
+	if x != nil {
+		return x.SummariesGenerated
 	}
 	return 0
 }
@@ -1438,12 +1450,13 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12D\n" +
-	"\arecords\x18\x05 \x03(\v2*.prehog.v1.SessionSummariesGeneratedRecordR\arecords\"\xc7\x01\n" +
+	"\arecords\x18\x05 \x03(\v2*.prehog.v1.SessionSummariesGeneratedRecordR\arecords\"\xf8\x01\n" +
 	"\x1fSessionSummariesGeneratedRecord\x12!\n" +
 	"\fsession_type\x18\x01 \x01(\tR\vsessionType\x12#\n" +
 	"\rresource_name\x18\x02 \x01(\tR\fresourceName\x12,\n" +
 	"\x12total_input_tokens\x18\x04 \x01(\x04R\x10totalInputTokens\x12.\n" +
-	"\x13total_output_tokens\x18\x05 \x01(\x04R\x11totalOutputTokens\"\x8c\x03\n" +
+	"\x13total_output_tokens\x18\x05 \x01(\x04R\x11totalOutputTokens\x12/\n" +
+	"\x13summaries_generated\x18\x06 \x01(\x04R\x12summariesGenerated\"\x8c\x03\n" +
 	"\x19SubmitUsageReportsRequest\x12B\n" +
 	"\ruser_activity\x18\x01 \x03(\v2\x1d.prehog.v1.UserActivityReportR\fuserActivity\x12N\n" +
 	"\x11resource_presence\x18\x02 \x03(\v2!.prehog.v1.ResourcePresenceReportR\x10resourcePresence\x12X\n" +

@@ -152,9 +152,10 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		kubeEventPrefix + kubeCluster.GetName(): {
-			ResourceType:   types.DiscoveredResourceKubernetes,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  kubeCluster.GetCloud(),
+			ResourceType:        types.DiscoveredResourceKubernetes,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       kubeCluster.GetCloud(),
+			DiscoveryConfigName: kubeCluster.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
 		},
 	})
 	if err != nil {

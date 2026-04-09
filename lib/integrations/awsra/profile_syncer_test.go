@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -366,6 +368,187 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
 		})
 	})
+
+	t.Run("app server console URL is partition-specific", func(t *testing.T) {
+		for _, tt := range []struct {
+			name          string
+			integration   string
+			appName       string
+			syncProfile   string
+			appProfile    string
+			trustAnchor   string
+			roleARN       string
+			expectedURI   string
+			expectedAppID string
+		}{
+			{
+				name:          "govcloud",
+				integration:   "govcloud-integration",
+				appName:       "GovProfile",
+				syncProfile:   "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:profile/sync-profile",
+				appProfile:    "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:profile/uuid-gov",
+				trustAnchor:   "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:trust-anchor/ExampleTrustAnchor",
+				roleARN:       "arn:aws-us-gov:iam::123456789012:role/SyncRole",
+				expectedURI:   constants.AWSUSGovConsoleURL,
+				expectedAppID: "GovProfile-govcloud-integration",
+			},
+			{
+				name:          "china",
+				integration:   "china-integration",
+				appName:       "ChinaProfile",
+				syncProfile:   "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:profile/sync-profile",
+				appProfile:    "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:profile/uuid-cn",
+				trustAnchor:   "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:trust-anchor/ExampleTrustAnchor",
+				roleARN:       "arn:aws-cn:iam::123456789012:role/SyncRole",
+				expectedURI:   constants.AWSCNConsoleURL,
+				expectedAppID: "ChinaProfile-china-integration",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				integration, err := types.NewIntegrationAWSRA(types.Metadata{Name: tt.integration}, &types.AWSRAIntegrationSpecV1{
+					TrustAnchorARN: tt.trustAnchor,
+					ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+						Enabled:                       true,
+						ProfileARN:                    tt.syncProfile,
+						ProfileAcceptsRoleSessionName: true,
+						RoleARN:                       tt.roleARN,
+					},
+				})
+				require.NoError(t, err)
+
+				serverClient := &mockCache{
+					integrations: map[string]types.Integration{
+						integration.GetName(): integration,
+					},
+					ca: newCertAuthority(t, types.AWSRACA, "cluster-name"),
+				}
+
+				syncProfile := ratypes.ProfileDetail{
+					Name:                  aws.String("SyncProfile"),
+					ProfileArn:            aws.String(tt.syncProfile),
+					Enabled:               aws.Bool(true),
+					AcceptRoleSessionName: aws.Bool(true),
+				}
+
+				appProfile := ratypes.ProfileDetail{
+					Name:                  aws.String(tt.appName),
+					ProfileArn:            aws.String(tt.appProfile),
+					Enabled:               aws.Bool(true),
+					AcceptRoleSessionName: aws.Bool(true),
+				}
+
+				params := baseParams(serverClient)
+				params.rolesAnywhereClient = &mockRolesAnywhereClient{
+					profiles: []ratypes.ProfileDetail{
+						syncProfile,
+						appProfile,
+					},
+					tags: map[string][]ratypes.Tag{},
+				}
+
+				synctest.Test(t, func(t *testing.T) {
+					go func() {
+						err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+						assert.NoError(t, err)
+					}()
+
+					synctest.Wait()
+
+					require.Len(t, serverClient.appServers, 1)
+					appServer := serverClient.appServers[0]
+					require.Equal(t, tt.expectedAppID, appServer.GetName())
+					require.Equal(t, tt.expectedURI, appServer.GetApp().GetURI())
+					require.Equal(t, tt.appProfile, appServer.GetApp().GetAWSRolesAnywhereProfileARN())
+
+					status := serverClient.integrations[integration.GetName()].GetStatus()
+					require.NotNil(t, status)
+					lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+					require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
+					require.NotEmpty(t, lastSyncSummary.StartTime)
+					require.NotEmpty(t, lastSyncSummary.EndTime)
+					require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+					require.Empty(t, lastSyncSummary.ErrorMessage)
+				})
+			})
+		}
+	})
+
+	t.Run("invalid profile ARN reports error status", func(t *testing.T) {
+		serverClient := baseServerClient(t)
+
+		invalidProfile := ratypes.ProfileDetail{
+			Name:                  aws.String("InvalidProfile"),
+			ProfileArn:            aws.String("not-an-arn"),
+			Enabled:               aws.Bool(true),
+			AcceptRoleSessionName: aws.Bool(true),
+		}
+
+		params := baseParams(serverClient)
+		params.rolesAnywhereClient = &mockRolesAnywhereClient{
+			profiles: []ratypes.ProfileDetail{
+				syncProfile,
+				invalidProfile,
+			},
+			tags: map[string][]ratypes.Tag{},
+		}
+
+		synctest.Test(t, func(t *testing.T) {
+			go func() {
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				assert.NoError(t, err)
+			}()
+
+			synctest.Wait()
+
+			require.Empty(t, serverClient.appServers)
+
+			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+			require.NotNil(t, status)
+			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusError, lastSyncSummary.Status)
+			require.NotEmpty(t, lastSyncSummary.StartTime)
+			require.NotEmpty(t, lastSyncSummary.EndTime)
+			require.Equal(t, int32(0), lastSyncSummary.SyncedProfiles)
+			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
+		})
+	})
+}
+
+func TestAWSConsoleURLForARN(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputARN    string
+		expectedURL string
+	}{
+		{
+			name:        "GovCloud us-gov-west-1",
+			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:profile/uuid1",
+			expectedURL: constants.AWSUSGovConsoleURL,
+		},
+		{
+			name:        "GovCloud us-gov-east-1",
+			inputARN:    "arn:aws-us-gov:rolesanywhere:us-gov-east-1:123456789012:profile/uuid1",
+			expectedURL: constants.AWSUSGovConsoleURL,
+		},
+		{
+			name:        "AWS China",
+			inputARN:    "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:profile/uuid1",
+			expectedURL: "https://console.amazonaws.cn",
+		},
+		{
+			name:        "AWS Standard",
+			inputARN:    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+			expectedURL: "https://console.aws.amazon.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := arn.Parse(tt.inputARN)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedURL, awsConsoleURLForARN(parsed))
+		})
+	}
 }
 
 type mockRolesAnywhereClient struct {

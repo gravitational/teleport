@@ -21,6 +21,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import api from 'teleport/services/api';
 import { ApiError } from 'teleport/services/api/parseError';
 import history from 'teleport/services/history';
+import userService from 'teleport/services/user';
 import session from 'teleport/services/websession';
 
 import Authenticated from './Authenticated';
@@ -43,8 +44,9 @@ describe('session', () => {
     jest.spyOn(session, 'ensureSession').mockImplementation();
     jest.spyOn(session, 'getInactivityTimeout').mockImplementation(() => 0);
     jest.spyOn(session, 'clear').mockImplementation();
-    jest.spyOn(api, 'get').mockResolvedValue(null);
+    jest.spyOn(api, 'get').mockResolvedValue({});
     jest.spyOn(api, 'delete').mockResolvedValue(null);
+    jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(null);
     jest.spyOn(history, 'goToLogin').mockImplementation();
   });
 

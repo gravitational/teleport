@@ -124,18 +124,20 @@ Okta Integration Network support is still in beta. If unsure please proceed with
      {/* NOTE: This image is shared in multiple guides. */}
      ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
-  6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
+  6. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
-     - Name: `groups` | Name format: `Unspecified`
-     - Filter: `Matches regex` |  `.*`
+  7. Now you should be in your newly created SAML app configuration screen in the **Sign On** tab. Scroll down to the **Attribute statements** and click **Add expression**. Provide values like below and click **Save**.
+
+     - Name: `groups`
+     - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
+     - Name: `username`
+     - Expression: `user.profile.login`
 
      {/* NOTE: This image is shared in multiple guides. */}
-     ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
-
-  7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
+     ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
 
   Notice that we have set "NameID" to the email format and mapped the groups with
-  a wildcard regex in the Group Attribute statements. We have also set the "Audience"
+  an expression returning all groups. We have also set the "Audience"
   and SSO URLs to the same value. This is so Teleport can read and use Okta users'
   email addresses to create their usernames in Teleport, instead of relying on additional
   name fields.

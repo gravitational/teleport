@@ -23,11 +23,13 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -41,7 +43,12 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+type AuthClient interface {
+	services.CurrentUserRoleGetter
+	apiclient.ListUnifiedResourcesClient
+}
+
+func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -55,11 +62,25 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 
 	req.Kinds = kinds
 	req.IncludeLogins = true
-	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
-	if err != nil {
+	var (
+		enrichedResources []*types.EnrichedResource
+		nextKey           string
+		accessChecker     services.AccessChecker
+	)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		enrichedResources, nextKey, err = apiclient.GetUnifiedResourcePage(ctx, authClient, req)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		accessChecker, err = cluster.NewAccessChecker(ctx, authClient)
+		return err
+	})
+	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	response := &ListResponse{
 		NextKey: nextKey,
 	}
@@ -82,11 +103,33 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			})
 		case types.DatabaseServer:
 			db := r.GetDatabase()
+			autoUser, err := accessChecker.DatabaseAutoUserMode(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			autoUsersEnabled := db.IsAutoUsersEnabled() && autoUser.IsEnabled()
+			var autoUserProvisioning *clusters.AutoUserProvisioning
+			if autoUsersEnabled {
+				databaseRoles, err := accessChecker.CheckDatabaseRoles(db, nil)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				autoUserProvisioning = &clusters.AutoUserProvisioning{
+					DatabaseRoles: databaseRoles,
+				}
+			}
+			dbUsers, err := accessChecker.EnumerateDatabaseUsers(db)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				Database: &clusters.Database{
-					URI:          cluster.URI.AppendDB(db.GetName()),
-					Database:     db,
-					TargetHealth: r.GetTargetHealth(),
+					URI:                  cluster.URI.AppendDB(db.GetName()),
+					Database:             db,
+					TargetHealth:         r.GetTargetHealth(),
+					DatabaseUsers:        dbUsers.Allowed(),
+					WildcardUserAllowed:  dbUsers.WildcardAllowed(),
+					AutoUserProvisioning: autoUserProvisioning,
 				},
 				RequiresRequest: requiresRequest,
 			})

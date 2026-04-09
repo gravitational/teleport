@@ -45,6 +45,7 @@ as the Auth Service.
   ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
   chart](../../reference/helm-reference/teleport-cluster.mdx) 
   have the correct role by default.
+- (!docs/pages/includes/iac-clients.mdx!)
 
 ## Step 1/5. Create a Kubernetes join token
 
@@ -69,9 +70,12 @@ It is not recommended to use a single token that can join everything. You should
 restrict the token to the roles used by the joining instance. For example, a Teleport
 instance running both the Application Service and Database Service should use a token with
 `roles: [App, Db]`.
-Follow the instructions below to create the token depending on whether you have administrative access to the Auth Service pod:
+
+You can create the token with `tctl` as well as the Teleport Terraform provider
+or Kubernetes operator:
+
 <Tabs>
-<TabItem label="Using tctl locally as your current user">
+<TabItem label="tctl">
 
 Create the token:
 
@@ -96,48 +100,19 @@ version: v2
 ```
 
 </TabItem>
-<TabItem label="Using tctl on the Auth Service as an admin">
-Retrieve the name and namespace of the Auth Service deployment:
+<TabItem label="Terraform">
 
-```code
-$ kubectl get namespaces
-NAME              STATUS   AGE
-cert-manager      Active   40d
-default           Active   40d
-kube-system       Active   40d
-teleport          Active   40d
+Add the following resource to your Terraform configuration, replacing values as
+indicated:
 
-# We look for deployments in the "teleport" namespace
-$ kubectl get deployments -n teleport
-NAME             READY   UP-TO-DATE   AVAILABLE   AGE
-teleport-auth    2/2     2            2           6d20h
-teleport-proxy   2/2     2            2           6d20h
+(!docs/pages/includes/provision-token/kubernetes-in-cluster-spec-hcl.mdx!)
 
-# Here, the deployment name is "teleport-auth".
-```
+</TabItem>
+<TabItem label="Kubernetes">
 
-Then run the following command to execute the `tctl create` command from inside
-one of the Auth Service pods:
+Add the following Kubernetes resource manifest, replacing values as indicated:
 
-```code
-$ kubectl exec -i -n teleport deployment/teleport-auth -- tctl create < token.yaml
-```
-
-Finally, validate the token was successfully created:
-
-```code
-$ kubectl exec -i -n teleport deployment/teleport-auth tctl get token/kubernetes-token
-
-kind: token
-metadata:
-  expires: "3000-01-01T00:00:00Z"
-  name: kubernetes-token
-spec:
-  join_method: kubernetes
-  roles:
-  - App
-version: v2
-```
+(!docs/pages/includes/provision-token/kubernetes-in-cluster-spec-kube.mdx!)
 
 </TabItem>
 </Tabs>

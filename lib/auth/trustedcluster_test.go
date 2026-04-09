@@ -47,6 +47,7 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a := newTestAuthServer(ctx, t)
 
@@ -479,6 +480,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 }
 
 func TestUpsertTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",
@@ -620,6 +622,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 }
 
 func TestUpdateTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",

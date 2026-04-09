@@ -107,6 +107,7 @@ export function Story(props: StoryProps) {
     status: '',
     targetName: 'quux',
     targetSubresourceName: undefined,
+    autoUserProvisioning: undefined,
   };
   if (!props.online) {
     documentGateway.gatewayUri = undefined;

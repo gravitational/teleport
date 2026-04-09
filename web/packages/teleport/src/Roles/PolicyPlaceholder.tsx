@@ -110,7 +110,7 @@ export function PolicyPlaceholder({
               </ButtonLockedFeature>
               <ButtonSecondary
                 as="a"
-                href="https://goteleport.com/platform/policy/"
+                href="https://goteleport.com/platform/identity-security/"
                 target="_blank"
                 ml={2}
               >

@@ -64,6 +64,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
+		WebauthnLogin:      cfg.WebauthnLogin,
 		ClientStore:        client.NewFSClientStore(cfg.HomeDir, client.WithHardwareKeyService(hwks)),
 	})
 	if err != nil {

@@ -33,12 +33,6 @@ import { AutoUpdateClient, TshdClient, VnetClient } from '../createClient';
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  listDatabaseUsers = () =>
-    new MockedUnaryCall({
-      users: [],
-      totalCount: 0,
-      startKey: '',
-    });
   getRequestableRoles = () =>
     new MockedUnaryCall({
       roles: [],
@@ -66,7 +60,7 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({
       localAuthEnabled: true,
       authProviders: [],
-      hasMessageOfTheDay: false,
+      messageOfTheDay: '',
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',

@@ -2820,12 +2820,52 @@ func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *WorkloadClusterCreate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
 }
 
-func (m *WorkloadClusterUpdate) TrimToMaxSize(_ int) AuditEvent {
-	return m
+func (m *WorkloadClusterUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	// This should never happen, but guard to prevent panics
+	if m.Payload == nil {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Payload = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Payload.nonEmptyStrs()
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Payload = m.Payload.trimToMaxFieldSize(maxFieldsSize)
+
+	return out
 }
 
 func (m *WorkloadClusterDelete) TrimToMaxSize(_ int) AuditEvent {
@@ -2870,4 +2910,13 @@ func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
+}
+
+func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Status.Error, &out.Status.Error),
+			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
 }

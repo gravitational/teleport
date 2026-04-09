@@ -40,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -350,7 +351,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// (You may need this configuration in order to use certificates to
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
-	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
+	if len(cfg.LDAPConfig.CAs) > 0 && cfg.LDAPConfig.InsecureSkipVerify {
 		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
@@ -517,9 +518,11 @@ func (s *WindowsService) issueNewTLSConfigForLDAP() (*tls.Config, error) {
 		ServerName:         s.cfg.ServerName,
 	}
 
-	if s.cfg.CA != nil {
+	if len(s.cfg.CAs) > 0 {
 		pool := x509.NewCertPool()
-		pool.AddCert(s.cfg.CA)
+		for _, ca := range s.cfg.CAs {
+			pool.AddCert(ca)
+		}
 		tc.RootCAs = pool
 	}
 
@@ -1017,7 +1020,7 @@ func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int
 		DelayMilliseconds: delay,
 	}
 
-	if len(data) > libevents.MaxProtoMessageSizeBytes {
+	if len(data) > constants.MaxProtoMessageSizeBytes {
 		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
 		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
 		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest

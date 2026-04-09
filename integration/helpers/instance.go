@@ -902,6 +902,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.DebugService.Enabled = false
+			cfg.InsecureMode = true
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -1095,6 +1096,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 
 	tconf.Auth.Enabled = false
+	tconf.InsecureMode = true
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)

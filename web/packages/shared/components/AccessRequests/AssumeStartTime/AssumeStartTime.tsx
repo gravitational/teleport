@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { addMonths } from 'date-fns';
 import { useState } from 'react';
 import { DayPicker } from 'react-day-picker';
-import styled from 'styled-components';
-
 import 'react-day-picker/dist/style.css';
-
-import { addMonths } from 'date-fns';
+import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, LabelInput } from 'design';
 import { ButtonSecondary } from 'design/Button';

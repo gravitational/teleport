@@ -17,8 +17,7 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { MemoryRouter } from 'react-router';
-import { Route } from 'react-router-dom';
+import { MemoryRouter, Route } from 'react-router';
 import { mocked } from 'storybook/test';
 
 import Box from 'design/Box';

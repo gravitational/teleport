@@ -19,8 +19,8 @@
 package srv
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +31,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -41,16 +42,10 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
-	defaultEnvPath       = "PATH=" + defaultPath
-	defaultRootPath      = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	defaultEnvRootPath   = "PATH=" + defaultRootPath
-	defaultTerm          = "xterm"
-	defaultLoginDefsPath = "/etc/login.defs"
+	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	"github.com/gravitational/teleport/session/envutils"
+	sessionreexec "github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 // ExecResult is used internally to send the result of a command execution from
@@ -132,6 +127,11 @@ type localExec struct {
 	// Ctx holds the *ServerContext.
 	Ctx *ServerContext
 
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
+
 	pid int
 }
 
@@ -140,7 +140,7 @@ func (e *localExec) GetCommand() string {
 	return e.Command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *localExec) SetCommand(command string) {
 	e.Command = command
 }
@@ -156,21 +156,62 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		return nil, trace.Wrap(err)
 	}
 
+	// Create pipes to capture stdio of the shell (grandchild) process, closing our
+	// side of each pipe after starting the command.
+	shellStdinR, shellStdinW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStdinR.Close()
+	e.Ctx.AddCloser(shellStdinW)
+
+	shellStdoutR, shellStdoutW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStdoutW.Close()
+	e.Ctx.AddCloser(shellStdoutR)
+
+	shellStderrR, shellStderrW, err := os.Pipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer shellStderrW.Close()
+	e.Ctx.AddCloser(shellStderrR)
+
 	// Create the command that will actually execute.
-	e.Cmd, err = ConfigureCommand(e.Ctx)
+	e.Cmd, err = ConfigureCommand(e.Ctx, shellStdinR, shellStdoutW, shellStderrW)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
-
-	// Copy from the channel (client input) into stdin of the process.
-	inputWriter, err := e.Cmd.StdinPipe()
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer stderrW.Close()
+	e.Cmd.Stderr = stderrW
+
+	e.waitForOutputStreams.Go(func() {
+		defer stderrR.Close()
+
+		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+			DecisionContext: e.Ctx.Identity.AccessPermit.DecisionContext,
+			Login:           e.Ctx.Identity.Login,
+		})
+		if err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to read child process stderr", "error", err)
+			return
+		}
+		if childErr == "" {
+			return
+		}
+
+		if _, err := crlfReplacer.WriteString(channel, childErr); err != nil {
+			logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to client", "error", err)
+		}
+	})
 
 	// Start the command.
 	err = e.Cmd.Start()
@@ -195,12 +236,23 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	// Save off the PID of the Teleport process under which the command is executing.
 	e.pid = e.Cmd.Process.Pid
 
+	// copy stdio between the channel and shell process.
 	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
-			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		if _, err := io.Copy(shellStdinW, channel); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdin from SSH channel to local command", "error", err)
 		}
-		inputWriter.Close()
+		shellStdinW.Close()
 	}()
+	e.waitForOutputStreams.Go(func() {
+		if _, err := io.Copy(channel, shellStdoutR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stdout from local command to SSH channel", "error", err)
+		}
+	})
+	e.waitForOutputStreams.Go(func() {
+		if _, err := io.Copy(channel.Stderr(), shellStderrR); err != nil {
+			logger.WarnContext(ctx, "Failed to forward stderr from local command to SSH channel", "error", err)
+		}
+	})
 
 	logger.InfoContext(ctx, "Started local command execution")
 
@@ -215,6 +267,7 @@ func (e *localExec) Wait() *ExecResult {
 
 	// Block until the command is finished executing.
 	err := e.Cmd.Wait()
+	e.waitForOutputStreams.Wait()
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command failed", "error", err)
 	} else {
@@ -362,7 +415,7 @@ func (e *remoteExec) GetCommand() string {
 	return e.command
 }
 
-// SetCommand gets the command string.
+// SetCommand sets the command string.
 func (e *remoteExec) SetCommand(command string) {
 	e.command = command
 }
@@ -531,66 +584,6 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	}
 }
 
-// getDefaultEnvPath returns the default value of PATH environment variable for
-// new logins (prior to shell) based on login.defs. Returns a string which
-// looks like "PATH=/usr/bin:/bin"
-func getDefaultEnvPath(uid string, loginDefsPath string) string {
-	envPath := defaultEnvPath
-	envRootPath := defaultEnvRootPath
-
-	// open file, if it doesn't exist return a default path and move on
-	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
-	if err != nil {
-		if uid == "0" {
-			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
-			return defaultEnvRootPath
-		}
-		slog.DebugContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
-		return defaultEnvPath
-	}
-	defer f.Close()
-
-	// read path from login.defs file (/etc/login.defs) line by line:
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// skip comments and empty lines:
-		if line == "" || line[0] == '#' {
-			continue
-		}
-
-		// look for a line that starts with ENV_PATH or ENV_SUPATH
-		fields := strings.Fields(line)
-		if len(fields) > 1 {
-			if fields[0] == "ENV_PATH" {
-				envPath = fields[1]
-			}
-			if fields[0] == "ENV_SUPATH" {
-				envRootPath = fields[1]
-			}
-		}
-	}
-
-	// if any error occurs while reading the file, return the default value
-	err = scanner.Err()
-	if err != nil {
-		if uid == "0" {
-			slog.WarnContext(context.Background(), "Unable to read login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
-			return defaultEnvRootPath
-		}
-		slog.WarnContext(context.Background(), "Unable to read login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
-		return defaultEnvPath
-	}
-
-	// if requesting path for uid 0 and no ENV_SUPATH is given, fallback to
-	// ENV_PATH first, then the default path.
-	if uid == "0" {
-		return envRootPath
-	}
-	return envPath
-}
-
 // parseSecureCopy will parse a command and return if it's secure copy or not.
 func parseSecureCopy(path string) (string, string, bool, error) {
 	parts := strings.Fields(path)
@@ -627,7 +620,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 func exitCode(err error) int {
 	// If no error occurred, return 0 (success).
 	if err == nil {
-		return teleport.RemoteCommandSuccess
+		return reexecconstants.RemoteCommandSuccess
 	}
 
 	var execExitErr *exec.ExitError
@@ -637,7 +630,7 @@ func exitCode(err error) int {
 	case errors.As(err, &execExitErr):
 		waitStatus, ok := execExitErr.Sys().(syscall.WaitStatus)
 		if !ok {
-			return teleport.RemoteCommandFailure
+			return reexecconstants.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
 	// Remote execution.
@@ -646,6 +639,98 @@ func exitCode(err error) int {
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
 		slog.DebugContext(context.Background(), "Unknown error returned when executing command", "error", err)
-		return teleport.RemoteCommandFailure
+		return reexecconstants.RemoteCommandFailure
+	}
+}
+
+// ConfigureCommand creates a command fully configured to execute. This
+// function is used by Teleport to re-execute itself and pass whatever data
+// is need to the child to actually execute the shell.
+func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
+	// Create a os.Pipe and start copying over the payload to execute. While the
+	// pipe buffer is quite large (64k) some users have run into the pipe
+	// blocking writes on much smaller buffers (7k) leading to Teleport being
+	// unable to run some exec commands.
+	//
+	// To not depend on the OS implementation of a pipe, instead the copy should
+	// be non-blocking. The io.Copy will be closed when either when the child
+	// process has fully read in the payload or the process exits with an error
+	// (and closes all child file descriptors).
+	//
+	// See the below for details.
+	//
+	//   https://man7.org/linux/man-pages/man7/pipe.7.html
+	cmdmsg, err := ctx.ExecCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go copyCommand(ctx.CancelContext(), ctx.cmdw, cmdmsg)
+
+	// Find the Teleport executable and its directory on disk.
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The channel/request type determines the subcommand to execute.
+	var subCommand string
+	switch ctx.ExecType {
+	case reexecconstants.NetworkingSubCommand:
+		subCommand = reexecconstants.NetworkingSubCommand
+	default:
+		subCommand = reexecconstants.ExecSubCommand
+	}
+
+	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
+	// is appended if Teleport is running in debug mode.
+	args := []string{executable, subCommand}
+
+	// build env for `teleport exec`
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
+	// Build the "teleport exec" command.
+	cmd := &exec.Cmd{
+		Path: executable,
+		Args: args,
+		Env:  *env,
+		ExtraFiles: []*os.File{
+			ctx.cmdr,
+			ctx.logw,
+			ctx.contr,
+			ctx.readyw,
+			ctx.killShellr,
+		},
+	}
+	// Add extra files if applicable.
+	if len(extraFiles) > 0 {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
+	}
+
+	// Perform OS-specific tweaks to the command.
+	sessionreexec.CommandOSTweaks(cmd)
+
+	return cmd, nil
+}
+
+// copyCommand will copy the provided command to the child process over the
+// pipe attached to the context.
+func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *sessionreexec.ExecCommand) {
+	defer func() {
+		err := cmdw.Close()
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to close command pipe", "error", err)
+		}
+
+		// Set to nil so the close in the context doesn't attempt to re-close.
+		cmdw = nil
+	}()
+
+	// Write command bytes to pipe. The child process will read the command
+	// to execute from this pipe.
+	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
+		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
+		return
 	}
 }

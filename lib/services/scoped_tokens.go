@@ -42,6 +42,11 @@ type ScopedTokenService interface {
 	// this returns trace.NotFound error if the token doesn't exist
 	DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error)
 
-	// UpsertScopedToken updates or creates a scoped join token. If updating an existing token, the scope and status must not be modified.
+	// UpsertScopedToken updates or creates a scoped join token. If updating an existing token, the scope and usage mode must not be modified.
+	// Updates to the status will also be ignored.
 	UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error)
+
+	// UpdateScopedToken updates an existing scoped join token. Returns trace.NotFound if the token doesn't exist.
+	// The scope and usage mode must not be modified. Any changes to status will be ignored.
+	UpdateScopedToken(ctx context.Context, req *joiningv1.UpdateScopedTokenRequest) (*joiningv1.UpdateScopedTokenResponse, error)
 }

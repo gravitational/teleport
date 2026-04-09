@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
 
 // TestPrincipals makes sure that SAN extension of generated x509 cert gets
@@ -134,14 +135,9 @@ func TestScopePin(t *testing.T) {
 		Username: "alice@example.com",
 		ScopePin: &scopesv1.Pin{
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"r1"},
-				},
-				"/foo": {
-					Roles: []string{"r2"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"r1"}, "/foo": {"r2"}},
+			}),
 		},
 	}
 

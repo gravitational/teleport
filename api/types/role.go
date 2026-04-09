@@ -67,7 +67,8 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 type Role interface {
 	// Resource provides common resource methods.
 	ResourceWithLabels
-
+	// IsEqual determines if two roles are equivalent to one another.
+	IsEqual(Role) bool
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
@@ -347,6 +348,15 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+func (r *RoleV6) IsEqual(other Role) bool {
+	otherv6, ok := other.(*RoleV6)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualRoleV6(r, otherv6)
+}
 
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {
@@ -2536,6 +2546,16 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	}
 
 	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// The JSON and YAML unmarshaller will not call this method because CreateHostUserMode
+// also implements yaml/json.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	err := h.decode(string(text))
 	return trace.Wrap(err)
 }
 

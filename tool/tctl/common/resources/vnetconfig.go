@@ -34,7 +34,7 @@ import (
 )
 
 func getVnetConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	vnetConfig, err := client.GetVnetConfig(ctx)
+	vnetConfig, err := client.VnetConfigClient().GetVnetConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -48,9 +48,9 @@ func createVnetConfig(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	if opts.Force {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().CreateVnetConfig(ctx, vnetConfig)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -65,7 +65,7 @@ func updateVnetConfig(ctx context.Context, client *authclient.Client, raw servic
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
+	if _, err := client.VnetConfigClient().UpdateVnetConfig(ctx, vnetConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("vnet_config has been updated")

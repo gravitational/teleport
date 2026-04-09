@@ -51,16 +51,17 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/session/envutils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 var ctxID int32
@@ -156,7 +157,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() *servicecfg.PAMConfig
+	GetPAM() *pamcfg.PAMConfig
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -207,7 +208,7 @@ type Server interface {
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
 type ChildLogConfig struct {
-	ExecLogConfig
+	reexec.ExecLogConfig
 
 	// Writer is the output writer to use for the logger. May be nil.
 	Writer io.Writer
@@ -612,28 +613,36 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		child.logw = fileWriter
 	} else {
-		// Create a pipe so we can pass the writing side as an *os.File to the child process.
-		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
-		r, w, err := os.Pipe()
-		if err != nil {
-			childErr := child.Close()
-			return nil, trace.NewAggregate(err, childErr)
+		if err := child.streamChildLogs(logCfg.Writer); err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		child.logw = w
-		child.AddCloser(r)
-		child.AddCloser(w)
-
-		// Copy logs from the child process to the parent process over
-		// the pipe until it is closed by the child context.
-		go func() {
-			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
-			}
-		}()
 	}
 
 	return child, nil
+}
+
+func (c *ServerContext) streamChildLogs(logCfgWriter io.Writer) error {
+	// Create a pipe so we can pass the writing side as an *os.File to the child process.
+	// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+	r, w, err := os.Pipe()
+	if err != nil {
+		childErr := c.Close()
+		return trace.NewAggregate(err, childErr)
+	}
+
+	c.logw = w
+	c.AddCloser(r)
+	c.AddCloser(w)
+
+	// Copy logs from the child process to the parent process over
+	// the pipe until it is closed by the child context.
+	go func() {
+		if _, err := io.Copy(logCfgWriter, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+			slog.ErrorContext(c.CancelContext(), "Failed to copy logs over pipe", "error", err)
+		}
+	}()
+
+	return nil
 }
 
 // Parent grants access to the connection-level context of which this
@@ -1058,7 +1067,7 @@ func (c *ServerContext) LogValue() slog.Value {
 	)
 }
 
-func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
+func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	// PAM should be disabled.
 	if c.srv.Component() != teleport.ComponentNode {
 		return nil, nil
@@ -1109,7 +1118,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 	}
 
-	return &PAMConfig{
+	return &reexec.PAMConfig{
 		UsePAMAuth:  localPAMConfig.UsePAMAuth,
 		ServiceName: localPAMConfig.ServiceName,
 		Environment: environment,
@@ -1118,7 +1127,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
-func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
+func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
@@ -1155,7 +1164,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}
 
 	// Create the execCommand that will be sent to the child process.
-	return &ExecCommand{
+	return &reexec.ExecCommand{
 		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
@@ -1277,10 +1286,10 @@ func closeAll(closers ...io.Closer) error {
 	return trace.NewAggregate(errs...)
 }
 
-func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
+func newUaccMetadata(c *ServerContext) (*reexec.UaccMetadata, error) {
 	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
-	return &UaccMetadata{
-		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
+	return &reexec.UaccMetadata{
+		RemoteAddr: reexec.NetAddrFromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
@@ -1400,7 +1409,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Session Recording events to the SSH session.
 	var waitErr error
 	if bpfService.Enabled() {
-		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+		if waitErr = reexec.WaitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}
 	}
@@ -1409,4 +1418,27 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
+}
+
+// ServerMetadata returns ServerMetadata for this server context.
+func (c *ServerContext) ServerMetadata() apievents.ServerMetadata {
+	return c.GetServer().EventMetadata()
+}
+
+// UserMetadata returns UserMetadata for this server context.
+func (c *ServerContext) UserMetadata() apievents.UserMetadata {
+	return c.Identity.GetUserMetadata()
+}
+
+// ConnectionMetadata returns ConnectionMetadata for this server context.
+func (c *ServerContext) ConnectionMetadata() apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{
+		RemoteAddr: c.ServerConn.RemoteAddr().String(),
+		LocalAddr:  c.ServerConn.LocalAddr().String(),
+	}
+}
+
+// EmitAuditEvent emits a single audit event.
+func (c *ServerContext) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return c.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), event)
 }

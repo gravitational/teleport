@@ -346,6 +346,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
 // for themselves.
 func TestSSOUserCanReissueCert(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -372,6 +373,7 @@ func TestSSOUserCanReissueCert(t *testing.T) {
 }
 
 func TestInstaller(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -461,6 +463,60 @@ func TestInstaller(t *testing.T) {
 		require.NoError(t, err)
 		tc.assert(t, tc.installerAction(client))
 	}
+}
+
+func TestGitHubConnectorNameTooLarge(t *testing.T) {
+	t.Parallel()
+
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	// Create a role that the connector will reference
+	role, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateRole(t.Context(), role)
+	require.NoError(t, err)
+
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleAdmin).I))
+	require.NoError(t, err)
+
+	authWithRoles := auth.NewServerWithRoles(
+		srv.AuthServer,
+		new(eventstest.MockAuditLog),
+		*authContext,
+	)
+
+	conn, err := types.NewGithubConnector(strings.Repeat("abc", 300), types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	created, err := authWithRoles.CreateGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
+	require.Nil(t, created)
+
+	upserted, err := authWithRoles.UpsertGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
+	require.Nil(t, upserted)
+
+	conn.SetName("short")
+	conn, err = authWithRoles.CreateGithubConnector(t.Context(), conn)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+
+	conn.SetName(strings.Repeat("abc", 300))
+	_, err = authWithRoles.UpdateGithubConnector(t.Context(), conn)
+	require.ErrorContains(t, err, "exceeds maximum length")
 }
 
 func TestGithubAuthRequest(t *testing.T) {
@@ -772,6 +828,7 @@ func TestGithubAuthCompat(t *testing.T) {
 }
 
 func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -875,6 +932,7 @@ func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
 }
 
 func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -966,6 +1024,7 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1323,6 +1382,7 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 }
 
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1581,6 +1641,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 // impersonated client can reissue certificates but that role impersonation
 // cannot be escaped.
 func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -1730,6 +1791,7 @@ func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
 // re-escalate privileges using a (perhaps compromised) set of role
 // impersonated certs.
 func TestRoleRequestDenyReimpersonation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3792,6 +3854,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 // TestIsMFARequired_databaseProtocols tests the MFA requirement logic per
 // database protocol where different role matchers are used.
 func TestIsMFARequired_databaseProtocols(t *testing.T) {
+	t.Parallel()
 	const (
 		databaseName = "test-database"
 		userName     = "test-username"
@@ -5056,6 +5119,7 @@ func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[strin
 }
 
 func TestDeleteUserAppSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
@@ -5159,6 +5223,96 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, sessions)
 	require.Empty(t, nextKey)
+}
+
+func TestSetAppSessionDBSCPublicKey(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
+
+	// Generates a new user client.
+	userClient := func(username string) *authclient.Client {
+		user, _, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
+		require.NoError(t, err)
+		identity := authtest.TestUser(user.GetName())
+		clt, err := srv.NewClient(identity)
+		require.NoError(t, err)
+		return clt
+	}
+
+	// Register users.
+	aliceClt := userClient("alice")
+	bobClt := userClient("bob")
+
+	// Register an application.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "panel",
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: "panel.example.com",
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+	require.NoError(t, err)
+
+	// Create a session for alice.
+	aliceSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "alice",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+
+	// Create a session for bob.
+	bobSession, err := bobClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:    "bob",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+
+	// Alice can set the DBSC public key on her own session.
+	testDBSCPublicKey := []byte(`{"kty":"EC","crv":"P-256","x":"test","y":"test"}`)
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	require.NoError(t, err)
+
+	// Verify the update persisted.
+	updatedSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: aliceSession.GetName(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, testDBSCPublicKey, updatedSession.GetDBSCPublicKey())
+
+	// Setting the same key again should succeed (idempotent retry).
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	require.NoError(t, err)
+
+	// Alice cannot set a different DBSC public key (one-time binding).
+	differentKey := []byte(`{"kty":"EC","crv":"P-256","x":"different","y":"different"}`)
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), differentKey)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Verify the key was not changed.
+	unchangedSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: aliceSession.GetName(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, testDBSCPublicKey, unchangedSession.GetDBSCPublicKey())
+
+	// Alice cannot set the DBSC public key on bob's session.
+	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, bobSession.GetName(), testDBSCPublicKey)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Bob cannot set the DBSC public key on alice's session.
+	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), testDBSCPublicKey)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 func TestListResources_SortAndDeduplicate(t *testing.T) {
@@ -6573,6 +6727,7 @@ func withAccountAssignment(condition types.RoleConditionType, accountID, permiss
 }
 
 func TestUnifiedResources_IdentityCenter(t *testing.T) {
+	t.Parallel()
 	const (
 		validAccountID        = "11111111"
 		validPermissionSetARN = "some:ps:arn"
@@ -7349,14 +7504,17 @@ func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, 
 }
 
 func TestGenerateHostCertsScoped(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	scope := "/aa/bb"
 	hostID := "testhost"
 	roles := types.SystemRoles{types.RoleNode}
 
-	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+	s := newScopedTestServerForHost(t, as, hostID, scope, types.RoleNode)
 
 	_, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
@@ -7395,6 +7553,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 // This is because only one uploader service runs per Teleport process, and it will use
 // the first available identity.
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
+	t.Parallel()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
@@ -7836,6 +7995,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 }
 
 func TestListReleasesPermissions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -7891,6 +8051,7 @@ func TestListReleasesPermissions(t *testing.T) {
 }
 
 func TestGetLicensePermissions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -7948,6 +8109,7 @@ func TestGetLicensePermissions(t *testing.T) {
 const errSAMLAppLabelsDenied = "access to saml_idp_service_provider denied"
 
 func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8100,6 +8262,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8273,6 +8436,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate)})
@@ -8377,6 +8541,7 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 }
 
 func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate, types.VerbUpdate)})
@@ -8456,6 +8621,7 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 }
 
 func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -8558,6 +8724,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 }
 
 func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -9202,7 +9369,6 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.Empty(t, next)
 	require.Len(t, page2, 1)
 	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
-
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -10053,7 +10219,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
-
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -10212,7 +10377,7 @@ func TestScopedRoleEvents(t *testing.T) {
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
-	crsp, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 		Role: role,
 	})
 	require.NoError(t, err)
@@ -10220,7 +10385,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	_ = getNextEvent() // drain the role create event
 
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: &headerv1.Metadata{
 			Name: uuid.New().String(),
 		},
@@ -10239,9 +10405,6 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: assignment,
-		RoleRevisions: map[string]string{
-			role.Metadata.Name: crsp.Role.Metadata.Revision,
-		},
 	})
 	require.NoError(t, err)
 
@@ -10252,7 +10415,8 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the assignment and verify delete event is well-formed.
 	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name: assignment.Metadata.Name,
+		Name:    assignment.Metadata.Name,
+		SubKind: assignment.SubKind,
 	})
 	require.NoError(t, err)
 
@@ -10260,7 +10424,8 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Equal(t, types.OpDelete, event.Type)
 
 	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRoleAssignment,
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
 		Metadata: types.Metadata{
 			Name: assignment.Metadata.Name,
 		},
@@ -10326,8 +10491,11 @@ func collectWatchKind(kinds []types.WatchKind) []string {
 
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
-	domainName, err := srv.Auth().GetDomainName()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+	domainName, err := authServer.GetDomainName()
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -10379,7 +10547,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 			// Upsert the kubernetes server into the backend.
-			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
+			_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
 			// Create a built-in role.
@@ -10394,7 +10562,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 			// Create a server with the built-in role.
 			srv := auth.NewServerWithRoles(
-				srv.Auth(),
+				authServer,
 				events.NewDiscardAuditLog(),
 				*authContext,
 			)
@@ -10438,6 +10606,7 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 }
 
 func TestIsMFARequired_AdminAction(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name                 string
 		adminActionAuthState authz.AdminActionAuthState
@@ -10624,10 +10793,13 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 }
 
 func TestRoleRequestReasonModeValidation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+	s := newTestServerWithRoles(t, as, types.RoleAdmin)
 
 	testCases := []struct {
 		desc          string
@@ -10739,6 +10911,7 @@ func testUserName(testName string) string {
 }
 
 func TestFilterIdentityCenterPermissionSets(t *testing.T) {
+	t.Parallel()
 	const (
 		allAccessRoleName      = "all-access"
 		accountID              = "1234567890"
@@ -11071,10 +11244,13 @@ func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
+	s := newTestServerWithRoles(t, as, types.RoleAdmin)
 
 	const errMsg = "supported in role version 7 and below"
 	testCases := []struct {
@@ -11193,7 +11369,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.Len(t, retrievedAcks, 1)
 				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
 
-				//cluster alert is filtered out since it's acknowledged
+				// cluster alert is filtered out since it's acknowledged
 				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -11208,7 +11384,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, retrievedAcks)
 
-				//cluster alert is back since its acknowledgement is cleared
+				// cluster alert is back since its acknowledgement is cleared
 				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -11314,7 +11490,9 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	const serverID = "test-server"
 	const agentScope = "/test/one"
@@ -11346,7 +11524,7 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, agentScope, "", types.RoleNode)
+			h := newInventoryControlStreamHarness(t, as, serverID, agentScope, "", types.RoleNode)
 			type registerResult struct {
 				hello *proto.UpstreamInventoryHello
 				err   error
@@ -11394,8 +11572,9 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 	}
 	helloHash := joining.HashImmutableLabels(helloLabels)
 
-	srv := newTestTLSServer(t)
-	t.Cleanup(func() { srv.Close() })
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	cases := []struct {
 		name        string
@@ -11436,7 +11615,7 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, srv.AuthServer, serverID, "", c.identHash, types.RoleNode)
+			h := newInventoryControlStreamHarness(t, as, serverID, "", c.identHash, types.RoleNode)
 			type registerResult struct {
 				hello *proto.UpstreamInventoryHello
 				err   error

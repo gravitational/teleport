@@ -48,8 +48,7 @@ joining token.
 
 - An AWS EC2 instance to host a Teleport service, with the Teleport binary
   installed.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/iac-clients.mdx!)
 
 ## Step 1/5. Set up AWS IAM credentials
 
@@ -70,7 +69,8 @@ policies.
 Create the following `token.yaml` with an `allow` rule specifying your AWS
 account and the ARN that the Teleport process's identity must match.
 
-(!docs/pages/includes/provision-token/iam-spec.mdx!)
+You can create the token with `tctl` as well as the Teleport Terraform provider
+or Kubernetes operator.
 
 The token name `iam-token` is just an example and can be any value you want to
 use, as long as you use the same value for `join_params.token_name` in Step 3.
@@ -79,11 +79,34 @@ The optional `aws_arn` field in the allow rules supports wildcard characters:
 - `*` to match any combination of characters
 - `?` to match any single character
 
+<Tabs>
+<TabItem label="tctl">
+
+(!docs/pages/includes/provision-token/iam-spec.mdx!)
+
 Run the following command to create the token:
 
 ```code
 $ tctl create -f token.yaml
 ```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Add the following resource to your Terraform configuration, replacing values as
+indicated:
+
+(!docs/pages/includes/provision-token/iam-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Add the following Kubernetes resource manifest, replacing values as indicated:
+
+(!docs/pages/includes/provision-token/iam-spec-kube.mdx!)
+
+</TabItem>
+</Tabs>
 
 ## Step 3/5 Install Teleport
 

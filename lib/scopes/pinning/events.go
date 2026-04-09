@@ -25,19 +25,23 @@ import (
 
 // ToEventsPin converts a scopesv1.Pin to an events.ScopePin. Used in the creation of
 // audit events that encode the identity parameters of an actor as part of the event.
+// This function flattens the assignment tree into the simpler flat format used for audit events.
 func ToEventsPin(pin *scopesv1.Pin) *events.ScopePin {
 	if pin == nil {
 		return nil
 	}
 
-	var ea map[string]*events.ScopePinnedAssignments
-	if assignments := pin.GetAssignments(); assignments != nil {
-		ea = make(map[string]*events.ScopePinnedAssignments, len(assignments))
-		for scope, assignment := range assignments {
-			ea[scope] = &events.ScopePinnedAssignments{
-				Roles: assignment.GetRoles(),
-			}
+	// TODO(fspmarshall/scopes): reevaluate how we show the pin in events. Should we convert it to the
+	// new assignment tree format even though it is less readable? Keep as old flat format? Some third option?
+	// For now, we flatten the tree by grouping roles by their scope of effect (where they apply).
+	ea := make(map[string]*events.ScopePinnedAssignments)
+	for assignment := range EnumerateAllAssignments(pin) {
+		// Group roles by their scope of effect (where they apply) for the audit record
+		scope := assignment.ScopeOfEffect
+		if ea[scope] == nil {
+			ea[scope] = &events.ScopePinnedAssignments{}
 		}
+		ea[scope].Roles = append(ea[scope].Roles, assignment.RoleName)
 	}
 
 	return &events.ScopePin{

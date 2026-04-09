@@ -63,8 +63,8 @@ message BotInstanceSpec {
 // of a Bot. This information is not verified by the server and should not be
 // trusted.
 message BotInstanceStatusHeartbeat {
-  // The timestamp that the heartbeat was recorded by the Auth Server. Any
-  // value submitted by `tbot` for this field will be ignored.
+  // The timestamp that the heartbeat was recorded by the Teleport Auth Service.
+  // Any value submitted by `tbot` for this field will be ignored.
   google.protobuf.Timestamp recorded_at = 1;
   // Indicates whether this is the heartbeat submitted by `tbot` on startup.
   bool is_startup = 2;
@@ -121,10 +121,11 @@ enum BotKind {
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.
-// Ths information is entirely sourced by the Auth Server and can be trusted.
+// Ths information is entirely sourced by the Teleport Auth Service and can be
+// trusted.
 message BotInstanceStatusAuthentication {
-  // The timestamp that the join or renewal was authenticated by the Auth
-  // Server.
+  // The timestamp that the join or renewal was authenticated by the Teleport
+  // Auth Service.
   google.protobuf.Timestamp authenticated_at = 1;
   // The join method used for this join or renewal.
   // Deprecated: prefer using join_attrs.meta.join_method

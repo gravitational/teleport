@@ -21,8 +21,9 @@ import { parse as parseVersion } from 'shared/utils/semVer';
 import cfg from 'teleport/config';
 import { Regions as AwsRegion } from 'teleport/services/integrations';
 
+import { WildcardRegion } from '../Shared';
 import { hcl } from '../terraform';
-import { AwsLabel, Ec2Config, WildcardRegion } from './types';
+import { AwsLabel, Ec2Config } from './types';
 
 export type AwsDiscoverTerraformModuleConfig = {
   integrationName: string;

@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-dev
+VERSION=19.0.0-prealpha.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -86,8 +86,7 @@ FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 GOEXPERIMENT = boringcrypto
-OPENSSL_FIPS = 1
-export GOEXPERIMENT OPENSSL_FIPS
+export GOEXPERIMENT
 ifeq ($(BUILDBOX_MODE),cross)
 # We need to set CGO_ENABLED=0 when building rdpclient as the build of
 # boring-sys builds and runs a Go program as part of its integrity testing.
@@ -493,11 +492,17 @@ bpf-up-to-date: must-start-clean/host bpf-bytecode
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
+RDPCLIENT_SKIP_CARGO ?= 0
+
 .PHONY: rdpclient
 rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
+ifneq ($(RDPCLIENT_SKIP_CARGO),1)
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+else
+	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
+endif
 endif
 
 .PHONY: rdpdecoder
@@ -519,13 +524,20 @@ define ironrdp_package_json
 endef
 export ironrdp_package_json
 
+IRONRDP_SKIP_BUILD ?= 0
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
+ifeq ($(IRONRDP_SKIP_BUILD),1)
+build-ironrdp-wasm:
+	@echo "Skipping ironrdp WASM build (IRONRDP_SKIP_BUILD=1)"
+else
 build-ironrdp-wasm: ensure-wasm-deps
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
+endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
@@ -903,7 +915,7 @@ tooling: $(DIFF_TEST)
 test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-provider
 
 $(TEST_LOG_DIR):
-	mkdir $(TEST_LOG_DIR)
+	mkdir -p $(TEST_LOG_DIR)
 
 .PHONY: helmunit/installed
 helmunit/installed:
@@ -1232,6 +1244,12 @@ e2e-aws: | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
 
+# e2e-binaries builds teleport, tctl, and tsh (with webauthnmock) in parallel
+# for use in e2e tests.
+.PHONY: e2e-binaries
+e2e-binaries:
+	build.assets/build-e2e-binaries.sh
+
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
@@ -1454,7 +1472,7 @@ $(VERSRC) &: Makefile version.mk
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
+	cd build.assets/tooling && GOWORK=off CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
@@ -1638,6 +1656,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
 	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
+	$(GODERIVE) ./lib/services/local ./lib/services/local
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
@@ -2022,10 +2041,6 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
-
-.PHONY: test-e2e
-test-e2e: ensure-webassets
-	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
 
 .PHONY: cli-docs-tsh
 cli-docs-tsh:

@@ -23,6 +23,7 @@ import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb'
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
   makeApp,
+  makeDatabase,
   makeKube,
   makeLabelsList,
   makeLeafCluster,
@@ -35,6 +36,7 @@ import { SearchResult, SearchResultApp } from 'teleterm/ui/services/resources';
 import { routing, ServerUri, Params as UriParams } from 'teleterm/ui/uri';
 
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
+import { mapToAction } from './actions';
 import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
@@ -528,6 +530,69 @@ describe('useFiltersSearch', () => {
       .filter(f => f.kind === 'cluster-filter');
     expect(clusterFilters).toHaveLength(1);
     expect(clusterFilters[0].resource).toEqual(clusterA);
+  });
+});
+
+describe('mapToAction for database results', () => {
+  const stubSearchContext = {
+    inputValue: '',
+    filters: [],
+    setFilter: () => {},
+    removeFilter: () => {},
+    isOpen: false,
+    open: () => {},
+    close: () => {},
+    closeWithoutRestoringFocus: () => {},
+    resetInput: () => {},
+    changeActivePicker: () => {},
+    setInputValue: () => {},
+    activePicker: undefined,
+    inputRef: undefined,
+    pauseUserInteraction: async (cb: () => Promise<any>) => {
+      await cb();
+    },
+    addWindowEventListener: () => ({ cleanup: () => {} }),
+    makeEventListener: <T,>(cb: T) => cb,
+    advancedSearchEnabled: false,
+    toggleAdvancedSearch: () => {},
+  };
+
+  it('returns parametrized-action when autoUserProvisioning is not set, prompting for a db username', () => {
+    const appContext = new MockAppContext();
+    const result = makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase(),
+    });
+
+    const action = mapToAction(
+      appContext,
+      undefined,
+      stubSearchContext,
+      result
+    );
+
+    expect(action.type).toBe('parametrized-action');
+  });
+
+  it('returns simple-action when autoUserProvisioning is set, skipping db username prompt', () => {
+    const appContext = new MockAppContext();
+    const result = makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase({
+        autoUserProvisioning: {
+          databaseRoles: ['reader'],
+        },
+      }),
+    });
+
+    const action = mapToAction(
+      appContext,
+      undefined,
+      stubSearchContext,
+      result
+    );
+
+    expect(action.type).toBe('simple-action');
   });
 });
 

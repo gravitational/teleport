@@ -217,6 +217,25 @@ func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter(`unexpected precondition type "PRECONDITION_KIND_UNSPECIFIED" found (this is a bug)`))
 }
 
+func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {
+	t.Parallel()
+
+	h, id := setupKeyboardInteractiveAuthTest(t)
+
+	id.ClusterName = ""
+	id.RouteToCluster = ""
+
+	preconds := []*decisionpb.Precondition{
+		{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
+		},
+	}
+
+	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, &ssh.Permissions{})
+	require.Nil(t, outPerms)
+	require.ErrorIs(t, err, trace.BadParameter("identity missing cluster name (this is a bug)"))
+}
+
 func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.Identity) {
 	t.Helper()
 

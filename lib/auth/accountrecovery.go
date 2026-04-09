@@ -522,13 +522,16 @@ func generateRecoveryCodes() ([]string, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		words := make([]string, 0, 1+len(wordIDs))
-		words = append(words, "tele")
+		const prefix = "tele"
+		var sb strings.Builder
+		sb.Grow(len(prefix) + len(wordIDs)*6)
+		sb.WriteString(prefix)
 		for _, id := range wordIDs {
-			words = append(words, encodeProquint(id))
+			sb.WriteRune('-')
+			sb.Write(encodeProquint(id))
 		}
 
-		tokenList = append(tokenList, strings.Join(words, "-"))
+		tokenList = append(tokenList, sb.String())
 	}
 
 	return tokenList, nil
@@ -538,7 +541,7 @@ func generateRecoveryCodes() ([]string, error) {
 // This proquint implementation is adapted from upspin.io:
 // https://github.com/upspin/upspin/blob/master/key/proquint/proquint.go
 // For the algorithm, see https://arxiv.org/html/0901.4016
-func encodeProquint(x uint16) string {
+func encodeProquint(x uint16) []byte {
 	const consonants = "bdfghjklmnprstvz"
 	const vowels = "aiou"
 
@@ -548,11 +551,11 @@ func encodeProquint(x uint16) string {
 	vow1 := (x >> 10) & 0b11
 	cons1 := x >> 12
 
-	return string([]byte{
+	return []byte{
 		consonants[cons1],
 		vowels[vow1],
 		consonants[cons2],
 		vowels[vow2],
 		consonants[cons3],
-	})
+	}
 }

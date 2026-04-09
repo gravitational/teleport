@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'whatwg-fetch';
-
 import crypto from 'node:crypto';
 import path from 'node:path';
 
@@ -25,6 +23,7 @@ import { configure as configureTestingLibrary } from '@testing-library/react';
 import failOnConsole from 'jest-fail-on-console';
 import { configMocks } from 'jsdom-testing-mocks';
 import { act } from 'react';
+import 'whatwg-fetch';
 
 configMocks({ act });
 

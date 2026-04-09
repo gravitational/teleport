@@ -772,6 +772,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		raConf.Apps.MCPDemoServer = true
 		raConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		raConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
+		raConf.InsecureMode = true
 		raConf.Apps.Apps = append([]servicecfg.App{
 			{
 				Name:       p.rootAppName,
@@ -941,6 +942,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		laConf.Apps.Enabled = true
 		laConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		laConf.Apps.MonitorCloseChannel = opts.MonitorCloseChannel
+		laConf.InsecureMode = true
 		laConf.Apps.Apps = append([]servicecfg.App{
 			{
 				Name:       p.leafAppName,

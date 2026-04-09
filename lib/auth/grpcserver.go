@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -148,6 +149,7 @@ import (
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -155,7 +157,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -228,6 +229,13 @@ type GRPCServer struct {
 	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
+
+	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
+	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
+	// context and thus warrant additional rate limiting since they are
+	// unauthenticated (either through direct API connections or coming from the
+	// proxy on behalf of a remote unauthenticated user).
+	createAuthenticateChallengeLimiter *limiter.RateLimiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -532,6 +540,20 @@ const logInterval = 10000
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
+		// Support scoped identities calling the RPC by falling back to scoped
+		// authorizer check.
+		if errors.Is(err, services.ErrScopedIdentity) {
+			scopedAuth, err := g.scopedAuthenticate(stream.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(WatchEvents(
+				watch,
+				stream,
+				scopedAuth.scopedContext.User.GetName(),
+				scopedAuth,
+			))
+		}
 		return trace.Wrap(err)
 	}
 
@@ -667,33 +689,8 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 }
 
 func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
-	switch req.Usage {
-	case authpb.UserCertsRequest_All:
-		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
-		}
-	case authpb.UserCertsRequest_App:
-		if req.RouteToApp.Name == "" {
-			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_SSH:
-		if req.NodeName == "" {
-			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
-			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_Database:
-		if req.RouteToDatabase.ServiceName == "" {
-			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
-		}
-	case authpb.UserCertsRequest_WindowsDesktop:
-		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
-			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
-		}
-	default:
-		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	if err := validateCertUsage(req); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if req.RequesterName == authpb.UserCertsRequest_TSH_DB_EXEC {
@@ -720,6 +717,58 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		return trace.Wrap(err)
 	}
 
+	return nil
+}
+
+func validateCertUsage(req *authpb.UserCertsRequest) error {
+	switch req.Usage {
+	case authpb.UserCertsRequest_All:
+		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("single-use certificates cannot be issued for all purposes")
+		}
+	case authpb.UserCertsRequest_App:
+		if req.RouteToApp.Name == "" {
+			return trace.BadParameter("missing app Name field in an app-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_SSH:
+		if req.NodeName == "" {
+			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Kubernetes:
+		if req.KubernetesCluster == "" {
+			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_Database:
+		if req.RouteToDatabase.ServiceName == "" {
+			return trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_WindowsDesktop:
+		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
+			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
+		}
+	case authpb.UserCertsRequest_AccessGraphAPI:
+		if err := validateAccessGraphcertificateReq(req); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+	return nil
+}
+
+func validateAccessGraphcertificateReq(req *authpb.UserCertsRequest) error {
+	reqCopy := apiutils.CloneProtoMsg(req)
+	for field, usageI := range authpb.UserCertsRequest_CertUsage_value {
+		usage := authpb.UserCertsRequest_CertUsage(usageI)
+		if usage == authpb.UserCertsRequest_All || usage == authpb.UserCertsRequest_AccessGraphAPI {
+			continue
+		}
+		reqCopy.Usage = usage
+		// call validateCertUsage to ensure it doesn't satisfy any usage types.
+		if validateCertUsage(reqCopy) == nil {
+			return trace.BadParameter("%s field must be empty in a UserCertsRequest for Access Graph", field)
+		}
+	}
 	return nil
 }
 
@@ -1859,6 +1908,28 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	return &emptypb.Empty{}, nil
 }
 
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key must not be empty")
+	}
+
+	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -2129,7 +2200,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	return role, nil
 }
 
-var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
+var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
 
 // maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
 // the client version passed through the gRPC metadata is below the version
@@ -2580,7 +2651,25 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
+
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
+	clientRedirectURL := ""
+	if challengeReq.BrowserMfaRequestId == "" {
+		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
+		// So we can take either one and generate an auth challenge with it.
+		ssoURL := challengeReq.SSOClientRedirectURL
+		browserURL := challengeReq.BrowserMFATSHRedirectURL
+		clientRedirectURL = cmp.Or(ssoURL, browserURL)
+		if ssoURL != "" && browserURL != "" && ssoURL != browserURL {
+			slog.WarnContext(ctx, "SSO and Browser MFA redirect URLs do not match, this is a bug.",
+				// Strip out the sensitive query params before printing
+				"sso_url", strings.Split(ssoURL, "?")[0],
+				"browser_url", strings.Split(browserURL, "?")[0],
+			)
+		}
+	}
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, clientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2790,7 +2879,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -4113,7 +4202,6 @@ func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest
 		req.PageToken,
 		req.Filter,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4824,6 +4912,22 @@ func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authp
 		}
 
 		return nil, trace.Wrap(err)
+	}
+
+	if req.GetContextUser() == nil && req.GetRequest() != nil {
+		// requests with a user context (or with an empty request, which is
+		// considered to be the same) will be checked for legitimacy by
+		// ServerWithRoles later, so we only need to care about adding an
+		// additional rate limit for the non-user-context requests here
+
+		peerInfo, ok := peer.FromContext(ctx)
+		if !ok {
+			return nil, trace.BadParameter("unable to find peer")
+		}
+
+		if err := g.createAuthenticateChallengeLimiter.RegisterRequestFromAddr(peerInfo.Addr); err != nil {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
 	}
 
 	res, err := actx.ServerWithRoles.CreateAuthenticateChallenge(ctx, req)
@@ -6222,11 +6326,24 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	grpcv1pb.RegisterServiceConfigDiscoveryServiceServer(server, grpcClientConfigService)
 
+	createAuthenticateChallengeLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{{
+			Period:  defaults.LimiterPeriod,
+			Average: defaults.LimiterAverage,
+			Burst:   defaults.LimiterBurst,
+		}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
 		server:      server,
 		healthcheck: health.NewServer(),
+
+		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
@@ -6279,13 +6396,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
-	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:         cfg.Authorizer,
-		AuthService:        cfg.AuthServer,
-		FIPS:               cfg.AuthServer.fips,
-		ScopedTokenService: cfg.AuthServer.Services,
-		OracleHTTPClient:   cfg.OracleHTTPClient,
-	}))
+	if !cfg.DisableJoinV1 {
+		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+			Authorizer:         cfg.Authorizer,
+			AuthService:        cfg.AuthServer,
+			FIPS:               cfg.AuthServer.fips,
+			ScopedTokenService: cfg.AuthServer.Services,
+			OracleHTTPClient:   cfg.OracleHTTPClient,
+		}))
+	}
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
@@ -6325,12 +6444,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationv1pb.RegisterAWSRolesAnywhereServiceServer(server, integrationAWSRolesAnywhereServiceServer)
 
 	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
-		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
-		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Authorizer:    cfg.Authorizer,
+		Backend:       cfg.AuthServer.Services,
+		Cache:         cfg.AuthServer.Cache,
+		UsageReporter: cfg.AuthServer.UsageReporter,
 		Emitter:       cfg.Emitter,
 	})
 	if err != nil {
@@ -6339,11 +6456,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Clock:      cfg.AuthServer.clock,
-		Emitter:    cfg.Emitter,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
+		Authorizer:    cfg.Authorizer,
+		Backend:       cfg.AuthServer.Services,
+		Clock:         cfg.AuthServer.clock,
+		Emitter:       cfg.Emitter,
+		UsageReporter: cfg.AuthServer.UsageReporter,
+		Logger:        cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6401,10 +6519,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	recordingencryptionv1pb.RegisterRecordingEncryptionServiceServer(server, recordingEncryptionService)
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Authorizer: cfg.Authorizer,
-		Emitter:    cfg.Emitter,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Emitter:          cfg.Emitter,
 		AccessGraph: clusterconfigv1.AccessGraphConfig{
 			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
 			CA:       cfg.APIConfig.AccessGraph.CA,
@@ -6552,7 +6671,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		AuthServer: cfg.AuthServer,
 		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
-		Identity:   cfg.AuthServer.Identity,
+		Identity:   cfg.AuthServer.IdentityInternal,
 		Storage:    cfg.AuthServer.MFAService,
 	})
 	if err != nil {

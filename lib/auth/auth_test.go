@@ -974,7 +974,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err, "NewClient")
 
-	authenticateSSH := func(dev *authtest.Device) (*authclient.SSHLoginResponse, error) {
+	authenticateSSH := func(dev *authtest.Device) (*authclient.CLILoginResponse, error) {
 		chal, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 				UserCredentials: &proto.UserCredentials{
@@ -1426,61 +1426,95 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.Equal(t, clientAddr.String(), deleteEvt.ConnectionMetadata.RemoteAddr)
 }
 
-func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
+func TestOIDCConnector(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
-	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
-		ClientID:     "a",
-		ClientSecret: "b",
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "dummy",
-				Value: "dummy",
-				Roles: []string{"dummy"},
+	ctx := t.Context()
+
+	t.Run("long name", func(t *testing.T) {
+		oidc, err := types.NewOIDCConnector(strings.Repeat("abc", 300), types.OIDCConnectorSpecV3{
+			ClientID:     "a",
+			ClientSecret: "b",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "dummy",
+					Value: "dummy",
+					Roles: []string{"dummy"},
+				},
 			},
-		},
-		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
+
+		_, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		_, err = s.a.UpsertOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		oidc.SetName("short")
+		_, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+
+		oidc.SetName(strings.Repeat("abc", 300))
+		_, err = s.a.UpdateOIDCConnector(ctx, oidc)
+		require.ErrorContains(t, err, "exceeds maximum length")
 	})
-	require.NoError(t, err)
 
-	// test oidc create event
-	oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+	t.Run("events", func(t *testing.T) {
+		oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
+			ClientID:     "a",
+			ClientSecret: "b",
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "dummy",
+					Value: "dummy",
+					Roles: []string{"dummy"},
+				},
+			},
+			RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
 
-	// test oidc update event
-	oidc.SetDisplay("llama")
-	oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test oidc create event
+		oidc, err = s.a.CreateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test oidc upsert event
-	oidc.SetDisplay("alpaca")
-	upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
-	require.NoError(t, err)
-	require.NotNil(t, upserted)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test oidc update event
+		oidc.SetDisplay("llama")
+		oidc, err = s.a.UpdateOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorUpdate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test oidc delete event
-	err = s.a.DeleteOIDCConnector(ctx, "test")
-	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+		// test oidc upsert event
+		oidc.SetDisplay("alpaca")
+		upserted, err := s.a.UpsertOIDCConnector(ctx, oidc)
+		require.NoError(t, err)
+		require.NotNil(t, upserted)
+		require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
+
+		// test oidc delete event
+		err = s.a.DeleteOIDCConnector(ctx, "test")
+		require.NoError(t, err)
+		require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	})
 }
 
-func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
+func TestSAMLConnector(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
+
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
@@ -1503,52 +1537,86 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	role, err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
-	saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
-		AssertionConsumerService: "a",
-		Issuer:                   "b",
-		SSO:                      "https://example.com",
-		AttributesToRoles: []types.AttributeMapping{
-			{
-				Name:  "dummy",
-				Value: "dummy",
-				Roles: []string{role.GetName()},
+	t.Run("long name", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector(strings.Repeat("abc", 300), types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
 			},
-		},
-		Cert: string(certBytes),
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
+
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
+
+		saml.SetName("short")
+		_, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+
+		saml.SetName(strings.Repeat("abc", 300))
+		_, err = s.a.UpdateSAMLConnector(ctx, saml)
+		require.ErrorContains(t, err, "exceeds maximum length")
 	})
-	require.NoError(t, err)
 
-	// test saml create
-	saml, err = s.a.CreateSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+	t.Run("events", func(t *testing.T) {
+		saml, err := types.NewSAMLConnector("test", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "a",
+			Issuer:                   "b",
+			SSO:                      "https://example.com",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "dummy",
+					Value: "dummy",
+					Roles: []string{role.GetName()},
+				},
+			},
+			Cert: string(certBytes),
+		})
+		require.NoError(t, err)
 
-	// test saml update event
-	saml.SetDisplay("llama")
-	saml, err = s.a.UpdateSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test saml create
+		saml, err = s.a.CreateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test saml upsert event
-	saml.SetDisplay("alapaca")
-	_, err = s.a.UpsertSAMLConnector(ctx, saml)
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
-	s.mockEmitter.Reset()
+		// test saml update event
+		saml.SetDisplay("llama")
+		saml, err = s.a.UpdateSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorUpdate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorUpdatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
 
-	// test saml delete event
-	err = s.a.DeleteSAMLConnector(ctx, "test")
-	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
-	require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+		// test saml upsert event
+		saml.SetDisplay("alapaca")
+		_, err = s.a.UpsertSAMLConnector(ctx, saml)
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+		s.mockEmitter.Reset()
+
+		// test saml delete event
+		err = s.a.DeleteSAMLConnector(ctx, "test")
+		require.NoError(t, err)
+		require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
+		require.Equal(t, events.SAMLConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	})
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
+	t.Parallel()
 	mockE := &eventstest.MockRecorderEmitter{}
 
 	auth.EmitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
@@ -1587,8 +1655,14 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	clock := clockwork.NewFakeClock()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	emitter := &eventstest.MockRecorderEmitter{}
 	authServer.SetEmitter(emitter)
 	ctx := context.Background()
@@ -1602,7 +1676,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	principals := []string{"login0", username, "-teleport-internal-join"}
 
 	// Prepare the user to test with.
-	_, _, err := authtest.CreateUserAndRole(authServer, username, principals, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, principals, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1625,12 +1699,6 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const devID = "deviceid1"
 	const devTag = "devicetag1"
 	const devCred = "devicecred1"
-
-	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(*clockwork.FakeClock); ok {
-			fc.Advance(d)
-		}
-	}
 
 	tests := []struct {
 		name           string
@@ -1690,14 +1758,14 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 				Username: username,
 				Identity: *identity,
 			})
-			authCtx, err := testServer.APIConfig.Authorizer.Authorize(ctx)
+			authCtx, err := as.Authorizer.Authorize(ctx)
 			require.NoError(t, err, "Authorize failed")
 
 			// Advance time before issuing new certs. This makes timestamp checks
 			// effective under fake clocks.
 			// 1m is enough to make tests fail if the timestamps aren't correct.
-			advanceClock(1 * time.Minute)
-			validAfter := testServer.Clock().Now().UTC().Add(-61 * time.Second)
+			clock.Advance(1 * time.Minute)
+			validAfter := clock.Now().UTC().Add(-61 * time.Second)
 
 			// Test!
 			certs, err := authServer.AugmentContextUserCertificates(ctx, authCtx, test.opts)
@@ -1750,8 +1818,10 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
 	const pass1 = "secret!!1!!!"
@@ -1829,7 +1899,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Build an invalid version of xCert1 (signed using wrongKey).
 	userCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
-		DomainName: testServer.ClusterName(),
+		DomainName: as.ClusterName,
 	}, true /* loadKeys */)
 	require.NoError(t, err, "GetCertAuthority failed")
 	caXPEM := userCA.GetActiveKeys().TLS[0].Cert
@@ -1851,7 +1921,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
-	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
+	ctxFromAuthorize := as.Authorizer.Authorize
 	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
 	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
@@ -2063,7 +2133,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			identity: identity1,
 			createOpts: func(t *testing.T) *auth.AugmentUserCertificateOpts {
 				// Fake a 1h TTL, expired cert.
-				now := testServer.Clock().Now()
+				now := as.Clock().Now()
 				after := now.Add(-1 * time.Hour)
 				before := now.Add(-1 * time.Minute)
 
@@ -2203,11 +2273,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
-	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
 	// Safe to reuse, user-independent.
 	deviceExts := &auth.DeviceExtensions{
@@ -2264,7 +2336,7 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 		})
 	})
 
-	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	user2Data := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 	user2Opts := &auth.AugmentWebSessionCertificatesOpts{
 		WebSessionID:     user2Data.webSessionID,
 		User:             user2Data.user,
@@ -2332,11 +2404,13 @@ func TestServer_AugmentWebSessionCertificates(t *testing.T) {
 func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 	ctx := context.Background()
 
-	userData := setupUserForAugmentWebSessionCertificatesTest(t, testServer)
+	userData := setupUserForAugmentWebSessionCertificatesTest(t, authServer)
 
 	deviceExts := &auth.DeviceExtensions{
 		DeviceID:     "my-device-id",
@@ -2345,7 +2419,7 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	}
 
 	// Augment the user's session, then later extend it.
-	err := authServer.AugmentWebSessionCertificates(ctx, &auth.AugmentWebSessionCertificatesOpts{
+	err = authServer.AugmentWebSessionCertificates(ctx, &auth.AugmentWebSessionCertificatesOpts{
 		WebSessionID:     userData.webSessionID,
 		User:             userData.user,
 		DeviceExtensions: deviceExts,
@@ -2403,8 +2477,7 @@ type augmentUserData struct {
 	webSessionID string
 }
 
-func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *authtest.TLSServer) *augmentUserData {
-	authServer := testServer.Auth()
+func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, authServer *auth.Server) *augmentUserData {
 	ctx := context.Background()
 
 	user := &augmentUserData{
@@ -3067,6 +3140,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 }
 
 func TestGenerateKubernetesUserCert(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	p := newAuthSuite(t)
 
@@ -3906,9 +3980,9 @@ func newTestServices(t *testing.T) auth.Services {
 	return auth.Services{
 		TrustInternal:                local.NewCAService(bk),
 		PresenceInternal:             local.NewPresenceService(bk),
-		Provisioner:                  local.NewProvisioningService(bk),
-		Identity:                     identityService,
-		Access:                       local.NewAccessService(bk),
+		ProvisionerInternal:          local.NewProvisioningService(bk),
+		IdentityInternal:             identityService,
+		AccessInternal:               local.NewAccessService(bk),
 		DynamicAccessExt:             local.NewDynamicAccessService(bk),
 		ClusterConfigurationInternal: configService,
 		Events:                       local.NewEventsService(bk),
@@ -4052,6 +4126,7 @@ func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.Aut
 }
 
 func TestCAGeneration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	const (
 		clusterName = "cluster1"
@@ -4090,6 +4165,7 @@ func TestCAGeneration(t *testing.T) {
 }
 
 func TestGetLicense(t *testing.T) {
+	t.Parallel()
 	s := newAuthSuite(t)
 
 	// GetLicense should return error if license is not set
@@ -4543,6 +4619,7 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 }
 
 func TestCleanupNotifications(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -4780,6 +4857,40 @@ func testCreateAccessListReminderNotifications(t *testing.T) {
 		"notifications should not have changed after second reconciliation")
 }
 
+func TestPing(t *testing.T) {
+	type fixture struct {
+		name         string
+		envVar       string
+		scopesStatus proto.ScopesStatus
+	}
+	fixtures := []fixture{
+		{
+			name:         "scopes disabled",
+			envVar:       "",
+			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_DISABLED,
+		},
+		{
+			name:         "scopes enabled",
+			envVar:       "yes",
+			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_ENABLED,
+		},
+	}
+
+	for _, f := range fixtures {
+		t.Run(f.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_SCOPES", f.envVar)
+			s := newAuthSuite(t)
+			resp, err := s.a.Ping(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, "test.localhost", resp.ClusterName)
+			assert.Equal(t, teleport.Version, resp.ServerVersion)
+			assert.NotNil(t, resp.ServerFeatures)
+			assert.NotNil(t, resp.LicenseExpiry)
+			assert.Equal(t, f.scopesStatus, resp.ScopesStatus)
+		})
+	}
+}
+
 type createAccessListOptions struct {
 	typ           accesslist.Type
 	nextAuditDate time.Time
@@ -4843,8 +4954,10 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), CacheEnabled: true})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	testRole, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -4877,7 +4990,7 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
+		lists, err := authServer.Cache.GetAccessLists(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
 	}, 5*time.Minute, 500*time.Millisecond)
@@ -4963,9 +5076,17 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 
 			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
 
-			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			err = testTLSServer.AuthServer.AuthServer.InitializeAnonymizationKey()
+			require.NoError(t, err)
+
+			got := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
 			tt.errCheck(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, string(got))
+
+			testTLSServer.AuthServer.AuthServer.SetAnonymizationKey([]byte("somethingelse"))
+			got = testTLSServer.AuthServer.AuthServer.GetAnonymizationKey()
+			tt.errCheck(t, err)
+			require.Equal(t, "somethingelse", string(got))
 		})
 	}
 }

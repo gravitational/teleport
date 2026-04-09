@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -161,13 +162,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is a service that controls access
-	Access services.Access
+	Access services.AccessInternal
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
@@ -277,7 +278,8 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -342,6 +344,9 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
+	TriggerOktaSyncC chan struct{}
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
@@ -734,7 +739,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true

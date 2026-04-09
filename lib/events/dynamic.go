@@ -625,6 +625,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
 
+	case CertAuthOverrideCreateEvent,
+		CertAuthOverrideUpdateEvent,
+		CertAuthOverrideUpsertEvent,
+		CertAuthOverrideDeleteEvent:
+		e = &events.CertAuthorityOverrideEvent{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

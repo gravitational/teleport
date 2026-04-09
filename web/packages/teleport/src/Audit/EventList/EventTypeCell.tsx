@@ -19,7 +19,9 @@
 import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
+import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
+import Text from 'design/Text/Text';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
@@ -372,7 +374,7 @@ export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
-    p: 1,
+    p: 2,
     mr: 3,
   };
 
@@ -380,7 +382,19 @@ export default function renderTypeCell(event: Event) {
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} size="medium" />
-        {event.codeDesc}
+        <Flex
+          gap={0}
+          flexDirection="column"
+          minHeight={64}
+          justifyContent="center"
+        >
+          <Text typography="body2" fontWeight={500} mb={0}>
+            {event.raw.event}
+          </Text>
+          <Text typography="body2" color="text.muted">
+            {event.codeDesc}
+          </Text>
+        </Flex>
       </StyledEventType>
     </Cell>
   );
