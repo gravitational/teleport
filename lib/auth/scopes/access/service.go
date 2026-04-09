@@ -143,6 +143,10 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	if req.GetAssignment().GetMetadata().GetName() == "" {
 		req.GetAssignment().GetMetadata().Name = uuid.New().String()
 	}
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	req.GetAssignment().Status = nil
 
 	if err := scopedaccess.StrongValidateAssignment(req.GetAssignment()); err != nil {
 		return nil, trace.Wrap(err)
@@ -492,6 +496,11 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return nil, trace.Wrap(err)
 	}
 
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	req.GetAssignment().Status = nil
+
 	return s.cfg.Writer.UpdateScopedRoleAssignment(ctx, req)
 }
 
@@ -541,6 +550,11 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
 	}
+
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	req.GetAssignment().Status = nil
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)
 }
