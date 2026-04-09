@@ -184,11 +184,9 @@ func (a *ServerWithRoles) currentUserAction(ctx context.Context, username string
 		}
 		ruleCtx := a.scopedContext.RuleContext()
 		ruleCtx.User = a.getUser()
-		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
+		return trace.Wrap(a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindUser, types.VerbCreate)
-		}); err != nil {
-			return trace.Wrap(err)
-		}
+		}))
 	}
 
 	if authz.IsCurrentUser(a.context, username) {
