@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
