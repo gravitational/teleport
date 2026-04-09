@@ -349,3 +349,8 @@ func (h *headerCapturer) Write(b []byte) (int, error) {
 	h.WriteHeader(http.StatusOK)
 	return h.body.Write(b)
 }
+
+// Flush implements http.Flusher.
+// The reverse proxy checks for this interface and calls Flush after writes for streaming responses.
+// Since our body is an io.Pipe (synchronous), this is a no-op.
+func (h *headerCapturer) Flush() {}
