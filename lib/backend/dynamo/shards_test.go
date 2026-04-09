@@ -19,6 +19,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +41,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestShardSplitting is an integration test that simulates a high load scenario on a DynamoDB table to trigger shard splits in DynamoDB Streams.
@@ -147,7 +150,7 @@ func testCreateBackend(t *testing.T, ctx context.Context, config map[string]any)
 		require.NoError(c, err)
 		require.NotEmpty(c, streamArn)
 
-		shards, err := b.collectActiveShards(ctx, streamArn)
+		shards, err := iterstream.Collect(b.fetchShards(ctx, streamArn))
 		require.NoError(c, err)
 		require.NotEmpty(c, shards)
 	}, 2*time.Minute, 5*time.Second, "DynamoDB shards not ready in time")
@@ -288,7 +291,7 @@ type eventTracker struct {
 	writtenEvents map[string]bool
 
 	receiveMu      sync.Mutex
-	receivedEvents map[string]bool
+	receivedEvents map[string]int
 	lastEventTime  time.Time
 }
 
@@ -296,7 +299,7 @@ func newEventTracker(t *testing.T) *eventTracker {
 	now := time.Now()
 	return &eventTracker{
 		writtenEvents:  make(map[string]bool),
-		receivedEvents: make(map[string]bool),
+		receivedEvents: make(map[string]int),
 		lastEventTime:  now,
 		startTime:      now,
 		t:              t,
@@ -322,10 +325,7 @@ func (et *eventTracker) receiveEvents(ctx context.Context, watcher backend.Watch
 func (et *eventTracker) handleReceivedEvent(event backend.Event) {
 	keyStr := event.Item.Key.String()
 	et.receiveMu.Lock()
-	if _, exists := et.receivedEvents[keyStr]; exists {
-		et.t.Logf("Duplicate event received for key %q", keyStr)
-	}
-	et.receivedEvents[keyStr] = true
+	et.receivedEvents[keyStr]++
 	et.lastEventTime = time.Now()
 	et.receiveMu.Unlock()
 }
@@ -545,7 +545,77 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	defer tracker.writeMu.Unlock()
 
 	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
+
+	for key, count := range tracker.receivedEvents {
+		assert.Equal(t, 1, count, "Duplicate events (%v) recieved for key %q", count, key)
+	}
+
 	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
 	require.Empty(t, missingRecived, "Missing %d events that were successfully written. Missing event keys: %v", len(missingRecived), missingRecived)
 	require.Empty(t, unexpectedReceived, "Received %d unexpected events that were not written. Unexpected event keys: %v", len(unexpectedReceived), unexpectedReceived)
+}
+
+func TestBackend_deleteShardsWithParents(t *testing.T) {
+	tests := []struct {
+		name   string
+		params backend.Params
+		shards []streamtypes.Shard
+		want   []streamtypes.Shard
+	}{
+		{
+			name: "no parents",
+			shards: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-orphan1")},
+				{ShardId: aws.String("shardId-orphan2")},
+			},
+			want: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-orphan1")},
+				{ShardId: aws.String("shardId-orphan2")},
+			},
+		},
+
+		{
+			name: "parents in the list",
+			shards: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-parent1")},
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+			want: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-parent1")},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+		},
+
+		{
+			name: "parents outside the list",
+			shards: []streamtypes.Shard{
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+			want: []streamtypes.Shard{
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Dummy backend instance just to call the method under test.
+			b := &Backend{
+				logger: slog.With(teleport.ComponentKey, BackendName),
+			}
+			got := b.deleteShardsWithParents(context.Background(), tt.shards)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
