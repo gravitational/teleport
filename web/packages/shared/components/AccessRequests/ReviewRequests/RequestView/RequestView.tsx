@@ -489,6 +489,23 @@ const AwsConsoleConstraintsList = <R extends object>({
   );
 };
 
+const SshConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'ssh', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>SSH Logins</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.ssh.logins.map(login => (
+          <AWSConstraintChip key={login} label={login} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
 function Comment({
   author,
   comment,
@@ -507,10 +524,15 @@ function Comment({
     constraints: resource.constraints,
   }));
 
-  const renderConstraints = (r: NonNullable<typeof data>[number]) =>
-    hasResourceConstraints(r, 'aws_console') ? (
-      <AwsConsoleConstraintsList resource={r} />
-    ) : null;
+  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
+    if (hasResourceConstraints(r, 'aws_console')) {
+      return <AwsConsoleConstraintsList resource={r} />;
+    }
+    if (hasResourceConstraints(r, 'ssh')) {
+      return <SshConstraintsList resource={r} />;
+    }
+    return null;
+  };
 
   const renderAfter = (r: NonNullable<typeof data>[number]) =>
     r.constraints ? (

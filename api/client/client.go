@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -105,6 +104,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -344,7 +345,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					tlsConfig: tlsConfig,
 					addr:      addr,
 				})
-				if sshConfig != nil {
+				if !sshConfig.IsEmpty() {
 					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
@@ -407,7 +408,7 @@ type (
 		addr      string
 		tlsConfig *tls.Config
 		dialer    ContextDialer
-		sshConfig *ssh.ClientConfig
+		sshConfig ssh.ClientConfig
 	}
 )
 
@@ -429,10 +430,10 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+	dialer := newTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -444,12 +445,12 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 // takes a specific addr parameter to allow the proxy address to be modified
 // when using special credentials.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
 
 	dialer := NewProxyDialer(
-		*params.sshConfig,
+		params.sshConfig,
 		params.cfg.KeepAlivePeriod,
 		params.cfg.DialTimeout,
 		params.addr,
@@ -465,10 +466,10 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
 func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := newTLSRoutingTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
@@ -479,10 +480,10 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 // tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
 // through the proxy using TLS Routing with ALPN connection upgrade.
 func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	dialer := newTLSRoutingWithConnUpgradeDialer(params.sshConfig, params)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
@@ -1648,6 +1649,15 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	}
 
 	return resp.GetSession(), nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: publicKey,
+	})
+	return trace.Wrap(err)
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
@@ -6234,4 +6244,10 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+// SubCAClient returns an unadorned Sub CA client, using the underlying Auth
+// gRPC connection.
+func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
+	return subcav1.NewSubCAServiceClient(c.conn)
 }

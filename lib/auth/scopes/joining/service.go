@@ -111,7 +111,7 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	// and perform an unconditional delete. this is not strictly necessary, but allows us to
 	// have an escape hatch for deleting tokens that are so malformed that they cannot be read.
 	if err := authzContext.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedToken, types.VerbDelete)
 	}); err == nil {
 		return s.backend.DeleteScopedToken(ctx, req)
 	}

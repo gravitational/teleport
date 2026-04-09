@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1501,6 +1502,306 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			actualTimeout := permit.ClientIdleTimeout.AsDuration()
 			require.Equal(t, tt.expectTimeout, actualTimeout,
 				"ClientIdleTimeout should be %v but got %v", tt.expectTimeout, actualTimeout)
+		})
+	}
+}
+
+// newScopedSSHPermitTestPack is a helper to create newScopedAccessAuthzPack
+func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole) *scopedAccessAuthzPack {
+	t.Helper()
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"env": "test",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	// add standard logins and labels to each role so they match the test node
+	for _, role := range roles {
+		if role.Spec.Ssh.Logins == nil {
+			role.Spec.Ssh.Logins = []string{"testuser"}
+		}
+		if role.Spec.Ssh.Labels == nil {
+			role.Spec.Ssh.Labels = []*labelv1.Label{
+				{Name: "env", Values: []string{"test"}},
+			}
+		}
+	}
+
+	return newScopedAccessAuthzPack(t, serverV2, roles, types.DefaultClusterNetworkingConfig())
+}
+
+func pinForRole(roleName string) *scopesv1.Pin {
+	return &scopesv1.Pin{
+		Scope: "/staging",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/staging/west": {"/staging/west": {roleName}},
+		}),
+	}
+}
+
+func baseScopedRoleForAuthz(name string) *scopedaccessv1.ScopedRole {
+	return &scopedaccessv1.ScopedRole{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: name},
+		Scope:    "/staging/west",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/staging/west"},
+			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+		},
+		Version: types.V1,
+	}
+}
+
+func TestScopedX11Forwarding(t *testing.T) {
+	const x11enabled = "x11-enabled"
+	const x11disabled = "x11-disabled"
+	const x11unset = "x11-unset"
+	enabled := baseScopedRoleForAuthz(x11enabled)
+	enabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(x11disabled)
+	disabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(x11unset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(x11enabled), true},
+		{"disabled", pinForRole(x11disabled), false},
+		{"unset defaults to false", pinForRole(x11unset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.X11Forwarding)
+		})
+	}
+}
+
+func TestScopedForwardAgent(t *testing.T) {
+	const agentEnabled = "agent-enabled"
+	const agentDisabled = "agent-disabled"
+	const agentUnset = "agent-unset"
+
+	enabled := baseScopedRoleForAuthz(agentEnabled)
+	enabled.Spec.Ssh.ForwardAgent = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(agentDisabled)
+	disabled.Spec.Ssh.ForwardAgent = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(agentUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(agentEnabled), true},
+		{"disabled", pinForRole(agentDisabled), false},
+		{"unset defaults to false", pinForRole(agentUnset), false},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.ForwardAgent)
+		})
+	}
+}
+
+func TestScopedSSHFileCopy(t *testing.T) {
+	const copyEnabled = "copy-enabled"
+	const copyDisabled = "copy-disabled"
+	const copyUnset = "copy-unset"
+
+	enabled := baseScopedRoleForAuthz(copyEnabled)
+	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
+
+	disabled := baseScopedRoleForAuthz(copyDisabled)
+	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
+
+	unset := baseScopedRoleForAuthz(copyUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{enabled, disabled, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect bool
+	}{
+		{"enabled", pinForRole(copyEnabled), true},
+		{"disabled", pinForRole(copyDisabled), false},
+		{"unset defaults to true", pinForRole(copyUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.SshFileCopy)
+		})
+	}
+}
+
+func TestScopedSSHPortForwarding(t *testing.T) {
+	const pfBothOn = "pf-both-on"
+	const pfBothOff = "pf-both-off"
+	const pfLocalOnly = "pf-local-only"
+	const pfUnset = "pf-unset"
+
+	bothOn := baseScopedRoleForAuthz(pfBothOn)
+	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+	}
+
+	bothOff := baseScopedRoleForAuthz(pfBothOff)
+	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
+	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
+	}
+
+	unset := baseScopedRoleForAuthz(pfUnset)
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{bothOn, bothOff, localOnly, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect decisionpb.SSHPortForwardMode
+	}{
+		{"both on", pinForRole(pfBothOn), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+		{"both off", pinForRole(pfBothOff), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF},
+		{"local only", pinForRole(pfLocalOnly), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL},
+		{"unset defaults to on", pinForRole(pfUnset), decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.PortForwardMode)
+		})
+	}
+}
+
+func TestScopedMaxSessions(t *testing.T) {
+	const sessions5 = "sessions-5"
+	const sessions1 = "sessions-1"
+	const sessionsUnset = "sessions-unset"
+
+	five := baseScopedRoleForAuthz(sessions5)
+	five.Spec.Ssh.MaxSessions = proto.Int64(5)
+
+	one := baseScopedRoleForAuthz(sessions1)
+	one.Spec.Ssh.MaxSessions = proto.Int64(1)
+
+	unset := baseScopedRoleForAuthz(sessionsUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{five, one, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect int64
+	}{
+		{"set to 5", pinForRole(sessions5), 5},
+		{"set to 1", pinForRole(sessions1), 1},
+		{"unset defaults to 0", pinForRole(sessionsUnset), 0},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.MaxSessions)
+		})
+	}
+}
+
+func TestScopedHostUserCreation(t *testing.T) {
+	const hostUserKeep = "host-user-keep"
+	const hostUserOff = "host-user-off"
+	const hostUserUnset = "host-user-unset"
+
+	keep := baseScopedRoleForAuthz(hostUserKeep)
+	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode:   "keep",
+		Groups: []string{"wheel"},
+		Shell:  "/bin/bash",
+	}
+
+	off := baseScopedRoleForAuthz(hostUserOff)
+	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode: "off",
+	}
+
+	unset := baseScopedRoleForAuthz(hostUserUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{keep, off, unset})
+
+	tts := []struct {
+		name      string
+		pin       *scopesv1.Pin
+		expectNil bool
+	}{
+		{"mode keep", pinForRole(hostUserKeep), false},
+		{"mode off", pinForRole(hostUserOff), true},
+		{"unset defaults to denied", pinForRole(hostUserUnset), true},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			if tt.expectNil {
+				require.Nil(t, permit.HostUsersInfo)
+			} else {
+				require.NotNil(t, permit.HostUsersInfo)
+			}
+		})
+	}
+}
+
+func TestHostSudoers(t *testing.T) {
+	const sudoersPresent = "sudoers-present"
+	const sudoersUnset = "sudoers-unset"
+
+	present := baseScopedRoleForAuthz(sudoersPresent)
+	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
+	present.Spec.Ssh.HostSudoers = expectedSudoers
+	unset := baseScopedRoleForAuthz(sudoersUnset)
+
+	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		expect []string
+	}{
+		{"enabled", pinForRole(sudoersPresent), expectedSudoers},
+		{"unset defaults to false", pinForRole(sudoersUnset), nil},
+	}
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, permit.HostSudoers)
 		})
 	}
 }

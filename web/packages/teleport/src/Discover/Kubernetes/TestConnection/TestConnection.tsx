@@ -177,7 +177,7 @@ export function TestConnection({
             canTestConnection={canTestConnection}
             testConnection={() => handleTestConnection(validator)}
             stepNumber={3}
-            stepDescription="Verify that the Kubernetes is accessible"
+            stepDescription="Verify that the Kubernetes cluster is accessible"
           />
           <StyledBox>
             <H3 mb={3}>To Access your Kubernetes cluster</H3>

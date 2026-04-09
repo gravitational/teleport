@@ -212,13 +212,15 @@ type authAuditProps struct {
 	userOrigin     apievents.UserOrigin
 }
 
-// trimUsername truncates the length of a username to the maximum allowed length, if needed.
-func trimUsername(username string) string {
-	if len(username) <= teleport.MaxUsernameLength {
-		return username
+// trimStr truncates the length of a string, appending '...' for strings
+// that are truncated. If the string is truncated, the result will have
+// len of max + 3 (for the ellipsis).
+func trimStr(str string, max int) string {
+	if len(str) <= max {
+		return str
 	}
 
-	return username[:teleport.MaxUsernameLength] + "..."
+	return str[:max] + "..."
 }
 
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
@@ -231,7 +233,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:       trimUsername(props.username),
+			User:       trimStr(props.username, teleport.MaxUsernameLength),
 			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,

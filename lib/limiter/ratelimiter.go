@@ -32,12 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// defaultRate is the maximum number of requests per second that the limiter
-	// will allow when no rate limits are configured
-	defaultRate = 100_000_000
-)
-
 // RateLimiter controls connection rate using the token bucket algorithm.
 // See: https://en.wikipedia.org/wiki/Token_bucket
 type RateLimiter struct {
@@ -66,12 +60,6 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if len(config.Rates) == 0 {
-		err := limiter.rates.Add(time.Second, defaultRate, defaultRate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	if config.Clock == nil {
 		config.Clock = clockwork.NewRealClock()
@@ -88,23 +76,29 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
-		// The default TTL here is not super important because we set the
-		// TTL explicitly for each entry we insert.
-		TTL:   10 * time.Second,
-		Clock: config.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if limiter.rates.Len() > 0 {
+		limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
+			// The default TTL here is not super important because we set
+			// the TTL explicitly for each entry we insert.
+			TTL:   10 * time.Second,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &limiter, nil
 }
 
-// IsRateLimited checks if the provided token is currently rate-limited without
-// consuming any tokens. Returns true if the token would be rate-limited, false otherwise.
-// This is useful for checking rate limit status before executing expensive operations.
+// IsRateLimited checks if the provided token is currently
+// rate-limited without consuming any tokens.
 func (l *RateLimiter) IsRateLimited(token string) bool {
+	// No rates configured means no buckets can exist, so skip the
+	// lock entirely.
+	if l.rates.Len() == 0 {
+		return false
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	bucketSet, ok := l.rateLimits.GetIfExists(token)
@@ -120,8 +114,13 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 
 // RegisterRequest increases number of requests for the provided token.
 // It returns an error if there are too many requests with the provided
-// token.
+// token. If no rates are configured, the request passes through
+// without any limiting.
 func (l *RateLimiter) RegisterRequest(token string) error {
+	if l.rates.Len() == 0 {
+		return nil
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -161,7 +160,7 @@ func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
 	return l.RegisterRequest(token)
 }
 
-// Add rate limiter to the handle
+// WrapHandle wraps the given HTTP handler with the rate limiter.
 func (l *RateLimiter) WrapHandle(h http.Handler) {
 	l.TokenLimiter.Wrap(h)
 }
