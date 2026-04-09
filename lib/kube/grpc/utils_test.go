@@ -193,6 +193,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LockWatcher:      testCtx.lockWatcher,
 	}
 	testCtx.Authz, err = authz.NewAuthorizer(authOpts)
+	require.NoError(t, err)
 	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authOpts)
 	require.NoError(t, err)
 
