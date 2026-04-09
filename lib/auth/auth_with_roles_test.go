@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -1227,8 +1228,10 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			var ident authtest.TestIdentity
 			if tt.scope != "" {
-				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope, map[string]map[string][]string{
-					tt.scope: {tt.scope: {getScopeAsName(tt.scope) + "-role"}},
+				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope, func(i *tlsca.Identity) {
+					i.ScopePin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						tt.scope: {tt.scope: {getScopeAsName(tt.scope) + "-role"}},
+					})
 				})
 			} else {
 				ident = authtest.TestUser(tt.user.GetName())
@@ -5014,16 +5017,20 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	scopedIdent := authtest.TestScopedUser(
 		getScopeAsName(scopes[0])+"-reader",
 		scopes[0],
-		map[string]map[string][]string{
-			scopes[0]: {scopes[0]: {getScopeAsName(scopes[0]) + "-role"}},
+		func(i *tlsca.Identity) {
+			i.ScopePin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopes[0]: {scopes[0]: {getScopeAsName(scopes[0]) + "-role"}},
+			})
 		},
 	).I
 
 	otherScopedIdent := authtest.TestScopedUser(
 		getScopeAsName(scopes[1])+"-reader",
 		scopes[1],
-		map[string]map[string][]string{
-			scopes[1]: {scopes[1]: {getScopeAsName(scopes[1]) + "-role"}},
+		func(i *tlsca.Identity) {
+			i.ScopePin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopes[1]: {scopes[1]: {getScopeAsName(scopes[1]) + "-role"}},
+			})
 		},
 	).I
 

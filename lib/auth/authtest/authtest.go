@@ -67,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -1114,19 +1113,24 @@ func TestUser(username string) TestIdentity {
 	return TestUserWithRoles(username, nil)
 }
 
+type TestIdentityOpt func(i *tlsca.Identity)
+
 // TestScopedUser returns a TestIdentity for a local user with a scoped identity
 // pinned to the given scope.
-func TestScopedUser(username, scope string, assignments map[string]map[string][]string) TestIdentity {
+func TestScopedUser(username, scope string, opts ...TestIdentityOpt) TestIdentity {
+	ident := tlsca.Identity{
+		Username: username,
+		ScopePin: &scopesv1.Pin{
+			Scope: scope,
+		},
+	}
+	for _, opt := range opts {
+		opt(&ident)
+	}
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{
-				Username: username,
-				ScopePin: &scopesv1.Pin{
-					Scope:          scope,
-					AssignmentTree: pinning.AssignmentTreeFromMap(assignments),
-				},
-			},
+			Identity: ident,
 		},
 		Scope: scope,
 	}
