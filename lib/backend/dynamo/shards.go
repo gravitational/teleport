@@ -205,9 +205,9 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 }
 
 func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) error {
-	isInitializting := initC != nil
+	isInitializing := initC != nil
 	shardIteratorType := streamtypes.ShardIteratorTypeTrimHorizon
-	if isInitializting {
+	if isInitializing {
 		// On initialization register iterators at LATEST to avoid processing old events.
 		shardIteratorType = streamtypes.ShardIteratorTypeLatest
 	}
@@ -225,7 +225,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		err = trace.BadParameter("expected valid iterator for shard %q, got nil", aws.ToString(shard.ShardId))
 	}
 
-	if isInitializting {
+	if isInitializing {
 		select {
 		case initC <- convertError(err):
 		case <-ctx.Done():
