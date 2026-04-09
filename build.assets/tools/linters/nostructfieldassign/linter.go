@@ -208,9 +208,6 @@ func checkAssignment(pass *analysis.Pass, assign *ast.AssignStmt, byFieldName ma
 //
 //	pkg.Type{Field: value}
 func checkCompositeLit(pass *analysis.Pass, lit *ast.CompositeLit, byFieldName map[string][]fieldKey) {
-	if lit.Type == nil {
-		return
-	}
 	t := pass.TypesInfo.TypeOf(lit)
 	if t == nil {
 		return
