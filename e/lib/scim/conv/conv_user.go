@@ -47,7 +47,7 @@ func WithExternalIDFunc(f func(u types.User) string) UserResourceOption {
 // WithGroupsAttr sets the groups SCIM attribute for the user resource.
 func WithGroupsAttr(groups []string) UserResourceOption {
 	return func(o *userResourceOptions) {
-		o.groups = groups
+		o.groupsVal = &groupsVal{groups: groups}
 	}
 }
 
@@ -109,7 +109,7 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 			ResourceType: common.ResourceTypeUser,
 		},
 	}
-	if err := setSCIMAttrsInResource(resource, user, options.groups); err != nil {
+	if err := setSCIMAttrsInResource(resource, user, options.groupsVal); err != nil {
 		return nil, trace.Wrap(err, "setting SCIM resource attributes from user label")
 	}
 
@@ -135,6 +135,10 @@ func setSCIMAttrsInUserLabel(u types.User, r *scimpb.Resource, maxSCIMAttrsLabel
 	// delete password field if Okta sets it, we don't want to leak it
 	delete(fields, common.PasswordAttribute)
 
+	// groups are derived from access list membership, not from the SCIM request body.
+	// Storing them in the label doesn't make sense because they are always dynamically calculated.
+	delete(fields, common.GroupsAttribute)
+
 	scimAttrsJSON, err := json.Marshal(fields)
 	if err != nil {
 		return trace.Wrap(err, "JSON encoding SCIM attributes")
@@ -151,7 +155,7 @@ func setSCIMAttrsInUserLabel(u types.User, r *scimpb.Resource, maxSCIMAttrsLabel
 // SetSCIMAttrsLabel sets SCIM resource attributes read  from JSON formatted
 // "teleport.internal/scim-attrs" user label. The only exception is the "userName" attribute which
 // is always set to the Teleport user's name.
-func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, extraGroups []string) error {
+func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, groupsVal *groupsVal) error {
 	var attrs map[string]any
 	if attrsJSON, _ := u.GetLabel(eteleport.SCIMAttrsLabel); attrsJSON != "" {
 		if err := json.Unmarshal([]byte(attrsJSON), &attrs); err != nil {
@@ -161,8 +165,12 @@ func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, extraGroups []stri
 	} else {
 		attrs = map[string]any{common.UsernameAttribute: u.GetName()}
 	}
-	if len(extraGroups) > 0 {
-		attrs[common.GroupsAttribute] = ToSCIMGroups(extraGroups)
+	// Always remove stale groups from the label - groups attribute is manage by SCIM Service Provider - Teleport
+	// where the groups are calculated dynamically based user membership state.
+	delete(attrs, common.GroupsAttribute)
+
+	if groupsVal != nil {
+		attrs[common.GroupsAttribute] = ToSCIMGroups(groupsVal.groups)
 	}
 	attrsProto, err := structpb.NewStruct(attrs)
 	if err != nil {
@@ -176,11 +184,17 @@ func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, extraGroups []stri
 type UserResourceOption func(*userResourceOptions)
 
 type userResourceOptions struct {
-	groups       []string
+	// groupsVal is a pointer to allow to distinguish
+	// empty settings for no settings groups attributes.
+	groupsVal    *groupsVal
 	externalIDFn func(u types.User) string
 	labels       map[string]string
 	clock        clockwork.Clock
 	connectorRef *types.ConnectorRef
+}
+
+type groupsVal struct {
+	groups []string
 }
 
 type labelsGetterSetter interface {

@@ -2,6 +2,7 @@ package scim
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	typescommon "github.com/gravitational/teleport/api/types/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -635,6 +637,181 @@ func TestPagination(t *testing.T) {
 			require.Equal(t, int32(0), resp.ItemsPerPage)
 		})
 	})
+}
+
+// TestSCIMUserGroupAttribute verifies that the groups attribute is managed
+// by the SCIM Service Provider instead of consuming the groups attribute from
+// the request body, as the Teleport SCIM Server Schema marks groups as readOnly.
+func TestSCIMUserGroupAttribute(t *testing.T) {
+	t.Parallel()
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	scimToken := createGenericSCIMPlugin(t, sut)
+	baseURL := buildURL(sut.ProxyAddr, "/v1/webapi/scim/generic")
+	httpClient := newBearerClient(scimToken)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	t.Run("SCIM user groups attribute should be always dynamically calculated", func(t *testing.T) {
+		originalUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("scim-user-001"))
+		require.NoError(t, err)
+
+		// Overwrite a user object with manual groups attribute to make sure that
+		// it will be ignored and calculated by SCIM Service Provider based on actual
+		// access list membership.
+		teleportUser, err := authServer.Services.GetUser(t.Context(), originalUser.UserName, false)
+		require.NoError(t, err)
+		labels := teleportUser.GetAllLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[eteleport.SCIMAttrsLabel] = `{"groups":[{"value":"group-091"}]}`
+		teleportUser.SetStaticLabels(labels)
+
+		_, err = authServer.UpdateUser(t.Context(), teleportUser)
+		require.NoError(t, err)
+
+		u, err := scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, userGroupNames(u))
+
+		const groupName1 = "group-001"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName1),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName1, []map[string]any{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": originalUser.UserName},
+				},
+			},
+		})
+
+		u, err = scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{groupName1}, userGroupNames(u))
+
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName1, []map[string]any{
+			{
+				"op":   "remove",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": originalUser.UserName},
+				},
+			},
+		})
+
+		u, err = scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, userGroupNames(u))
+	})
+
+	t.Run("user groups attributes are readOnly", func(t *testing.T) {
+		originalUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("scim-user-002"))
+		require.NoError(t, err)
+
+		u, err := scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+
+		// Overwriting "groups" attribute in the user object should be not allowed
+		// since groups attribute is readOnly
+		u.Attributes["groups"] = []string{"group1", "group2"}
+		// where other attributes like custom someAttr should be settable by SCIM client.
+		u.Attributes["someAttr"] = "someValue"
+		_, err = scimClient.UpdateUser(t.Context(), u)
+		require.NoError(t, err)
+
+		u, err = scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, userGroupNames(u))
+
+		teleportUser, err := authServer.Services.GetUser(t.Context(), originalUser.UserName, false)
+		require.NoError(t, err)
+
+		v, ok := teleportUser.GetLabel(eteleport.SCIMAttrsLabel)
+		require.True(t, ok)
+
+		got := map[string]any{}
+		require.NoError(t, json.Unmarshal([]byte(v), &got))
+
+		// Validate that groups was not settable by a client while
+		// custom attributes like someAttr are settable by SCIM client.
+		want := map[string]any{
+			"active":   true,
+			"userName": "scim-user-002@example.com",
+			"someAttr": "someValue",
+		}
+		require.Equal(t, want, got)
+	})
+
+	t.Run("scim update user flow", func(t *testing.T) {
+		originalUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("scim-user-003"))
+		require.NoError(t, err)
+
+		const groupName5 = "group-005"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName5),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName5, []map[string]any{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": originalUser.UserName},
+				},
+			},
+		})
+
+		u, err := scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{groupName5}, userGroupNames(u))
+
+		_, err = scimClient.UpdateUser(t.Context(), u)
+		require.NoError(t, err)
+
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName5, []map[string]any{
+			{
+				"op":   "remove",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": originalUser.UserName},
+				},
+			},
+		})
+
+		u, err = scimClient.GetUser(t.Context(), originalUser.UserName)
+		require.NoError(t, err)
+		require.Equal(t, []string{}, userGroupNames(u))
+	})
+}
+
+func userGroupNames(u *scimsdk.User) []string {
+	groupsAttr, ok := u.Attributes["groups"].([]any)
+	if !ok {
+		return []string{}
+	}
+	names := make([]string, 0, len(groupsAttr))
+	for _, g := range groupsAttr {
+		gMap, ok := g.(map[string]any)
+		if !ok {
+			panic("invalid group type")
+		}
+		names = append(names, gMap["value"].(string))
+	}
+	return names
 }
 
 func newSCIMUser(username string) *scimsdk.User {

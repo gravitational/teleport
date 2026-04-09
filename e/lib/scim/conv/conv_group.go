@@ -184,9 +184,9 @@ func GetGroupDisplayName(r *scimpb.Resource) (string, error) {
 
 // ToSCIMGroups converts a slice of group names into a slice of SCIM group representations.
 func ToSCIMGroups(groups []string) []any {
-	if len(groups) == 0 {
-		return nil
-	}
+	// Don't return a nil value
+	// in case of empty groups return empty slice to avoid SICM
+	// returning groups: nil to the client and instead return groups: []
 	scimGroups := make([]any, 0, len(groups))
 	for _, group := range groups {
 		scimGroups = append(scimGroups, map[string]any{"value": group})
