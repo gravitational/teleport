@@ -1936,13 +1936,7 @@ func IsCurrentUser(authContext Context, username string) bool {
 }
 
 // ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
-// If the scoped context wraps an unscoped context, then this function defers to IsCurrentUser.
 func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
-	unscopedCtx, isUnscoped := scopedContext.UnscopedContext()
-	if isUnscoped {
-		return IsCurrentUser(*unscopedCtx, username)
-	}
-
 	_, ok := scopedContext.Identity.(LocalUser)
 	return ok && scopedContext.User.GetName() == username
 }

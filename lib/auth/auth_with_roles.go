@@ -178,22 +178,23 @@ func (a *ServerWithRoles) preAuthorizeScopedAction(resource string, verbs ...str
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(ctx context.Context, username string) error {
+	unscopedCtx := &a.context
 	if a.scopedContext != nil {
-		if authz.ScopedIsCurrentUser(a.scopedContext, username) {
-			return nil
+		var isUnscoped bool
+		unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			if !authz.ScopedIsCurrentUser(a.scopedContext, username) {
+				return nil
+			}
+			return trace.AccessDenied("scoped users can not modify users other than themselves")
 		}
-		ruleCtx := a.scopedContext.RuleContext()
-		ruleCtx.User = a.getUser()
-		return trace.Wrap(a.scopedContext.CheckerContext.RiskyUnpinnedDecision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindUser, types.VerbCreate)
-		}))
 	}
 
-	if authz.IsCurrentUser(a.context, username) {
+	if authz.IsCurrentUser(*unscopedCtx, username) {
 		return nil
 	}
 
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.getUser()},
+	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: a.getUser()},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
