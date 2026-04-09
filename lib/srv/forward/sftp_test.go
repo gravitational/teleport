@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 func TestSFTPProxyServeClosesRemoteFilesystem(t *testing.T) {

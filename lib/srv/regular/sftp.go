@@ -40,13 +40,14 @@ import (
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	sessionsftputils "github.com/gravitational/teleport/session/sftputils"
 )
 
 type sftpSubsys struct {
 	logger *slog.Logger
 
-	fileTransferReq *srv.FileTransferRequest
+	fileTransferReq *reexecsftp.FileTransferRequest
 	sftpCmd         *exec.Cmd
 	serverCtx       *srv.ServerContext
 
@@ -56,7 +57,7 @@ type sftpSubsys struct {
 	waitForOutputStreams sync.WaitGroup
 }
 
-func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
+func newSFTPSubsys(fileTransferReq *reexecsftp.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
 		logger:          slog.With(teleport.ComponentKey, "subsystem:sftp"),
 		fileTransferReq: fileTransferReq,

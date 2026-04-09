@@ -229,7 +229,7 @@ func setstat(req *sftp.Request, fs FileSystem) error {
 // filesystem will be used.
 func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
 	if filesys == nil {
-		filesys = localFS{}
+		filesys = LocalFS{}
 	}
 	switch req.Method {
 	case MethodSetStat:
@@ -322,7 +322,7 @@ func (f fileName) Sys() any {
 // filesystem will be used.
 func HandleFilelist(req *sftp.Request, filesys FileSystem) (sftp.ListerAt, error) {
 	if filesys == nil {
-		filesys = localFS{}
+		filesys = LocalFS{}
 	}
 	switch req.Method {
 	case MethodList:

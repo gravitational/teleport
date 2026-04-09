@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 const fileMaxSize = 1000
@@ -405,7 +406,7 @@ func TestTransferFiles(t *testing.T) {
 			},
 			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
-				require.ErrorAs(t, err, new(*NonRecursiveDirectoryTransferError))
+				require.ErrorAs(t, err, new(*sftputils.NonRecursiveDirectoryTransferError))
 			},
 		},
 		{
@@ -486,7 +487,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 }
 
 type mockFile struct {
-	File
+	sftputils.File
 	altDataSource io.Reader
 }
 
@@ -495,21 +496,21 @@ func (m *mockFile) Read(p []byte) (int, error) {
 }
 
 type mockFS struct {
-	localFS
+	sftputils.LocalFS
 	fileAccesses map[string]int
 	altData      io.Reader
 }
 
-func (m *mockFS) Open(path string) (File, error) {
+func (m *mockFS) Open(path string) (sftputils.File, error) {
 	if m.fileAccesses == nil {
 		m.fileAccesses = make(map[string]int)
 	}
-	realPath, err := m.localFS.RealPath(path)
+	realPath, err := m.LocalFS.RealPath(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	m.fileAccesses[realPath]++
-	file, err := m.localFS.Open(path)
+	file, err := m.LocalFS.Open(path)
 	if err != nil || m.altData == nil {
 		return file, err
 	}
@@ -619,7 +620,7 @@ func TestHTTPUpload(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	transferReq.dstFS = &localFS{}
+	transferReq.dstFS = &sftputils.LocalFS{}
 
 	err = TransferFiles(t.Context(), transferReq)
 	require.NoError(t, err)

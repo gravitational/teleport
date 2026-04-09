@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 // FileTransferRequest holds the settings for an SFTP file transfer.
@@ -71,8 +72,8 @@ type FileTransferRequest struct {
 	// ModeratedSessionID is the optional ID of a moderated session.
 	ModeratedSessionID string
 
-	srcFS FileSystem
-	dstFS FileSystem
+	srcFS sftputils.FileSystem
+	dstFS sftputils.FileSystem
 }
 
 func (req *FileTransferRequest) checkAndSetDefaults() error {
@@ -215,14 +216,14 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 			return trace.Wrap(err)
 		}
 		for i, srcPath := range req.Sources.Paths {
-			expandedPath, err := ExpandHomeDir(srcPath)
+			expandedPath, err := sftputils.ExpandHomeDir(srcPath)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			req.Sources.Paths[i] = expandedPath
 		}
 	default:
-		req.srcFS = localFS{}
+		req.srcFS = sftputils.LocalFS{}
 	}
 	defer req.srcFS.Close()
 
@@ -243,13 +244,13 @@ func TransferFiles(ctx context.Context, req *FileTransferRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		expandedPath, err := ExpandHomeDir(req.Destination.Path)
+		expandedPath, err := sftputils.ExpandHomeDir(req.Destination.Path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		req.Destination.Path = expandedPath
 	default:
-		req.dstFS = localFS{}
+		req.dstFS = sftputils.LocalFS{}
 	}
 	defer req.dstFS.Close()
 
@@ -290,7 +291,7 @@ func transfer(ctx context.Context, req *FileTransferRequest) error {
 			if fi.IsDir() && !req.Recursive {
 				// Note: Using an error constructor included in lib/client.IsErrorResolvableWithRelogin,
 				// e.g. BadParameter, will lead to relogin attempt and a completely obscure error message.
-				return trace.Wrap(&NonRecursiveDirectoryTransferError{Path: match})
+				return trace.Wrap(&sftputils.NonRecursiveDirectoryTransferError{Path: match})
 			}
 			fileInfos = append(fileInfos, fi)
 		}
