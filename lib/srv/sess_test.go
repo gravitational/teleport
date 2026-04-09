@@ -52,6 +52,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
@@ -122,7 +123,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
 			req: &fileTransferRequestWithApprovers{
-				FileTransferRequest: FileTransferRequest{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
 					Requester: "michael",
 				},
@@ -136,7 +137,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			location:       "~/Downloads",
 			req: &fileTransferRequestWithApprovers{
-				FileTransferRequest: FileTransferRequest{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
 					Requester: "teleportUser",
 					Location:  "~/badlocation",
@@ -151,7 +152,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			location:       "~/Downloads",
 			req: &fileTransferRequestWithApprovers{
-				FileTransferRequest: FileTransferRequest{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
 					Requester: "teleportUser",
 					Location:  "~/Downloads",

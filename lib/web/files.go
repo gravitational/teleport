@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 // fileTransferRequest describes HTTP file transfer request
@@ -264,7 +265,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	if err := sftp.TransferFiles(ctx, sftpReq); err != nil {
-		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+		if errors.As(err, new(*sftputils.NonRecursiveDirectoryTransferError)) {
 			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
 		}
 

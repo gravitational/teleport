@@ -90,7 +90,7 @@ type mockCmdHandlers struct {
 }
 
 func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
-	return trace.Wrap(HandleFilecmd(req, localFS{}))
+	return trace.Wrap(HandleFilecmd(req, LocalFS{}))
 }
 
 func TestHandleFilecmd(t *testing.T) {
@@ -284,7 +284,7 @@ func TestHandleFilecmd(t *testing.T) {
 		file := filepath.Join(root, "test.txt")
 		require.NoError(t, os.WriteFile(file, []byte("foo"), 0o644))
 		req := sftp.NewRequest(MethodStat, file)
-		assert.Error(t, HandleFilecmd(req, localFS{}))
+		assert.Error(t, HandleFilecmd(req, LocalFS{}))
 	})
 }
 
@@ -394,7 +394,7 @@ func TestHandleFilelist(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			lister, err := HandleFilelist(tc.req, localFS{})
+			lister, err := HandleFilelist(tc.req, LocalFS{})
 			tc.assert(t, err)
 			if tc.expectedOutput == nil {
 				assert.Nil(t, lister)
