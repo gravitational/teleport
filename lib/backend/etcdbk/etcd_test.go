@@ -68,7 +68,7 @@ func requireEmbedEtcd(t testing.TB) (etcdEndpoint string) {
 
 func requireSerializedExternalEtcdOrParallelEmbedEtcd(t *testing.T) (etcdEndpoint string) {
 	etcdEndpoint = os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
-	if etcdEndpoint != "" {
+	if etcdEndpoint != "" && false {
 		return etcdEndpoint
 	} else {
 		t.Parallel()
