@@ -162,8 +162,8 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
 		ctx,
 		scopes.Root,
-		func(checker *services.SplitAccessChecker) error {
-			return checker.Common().CheckAccessToRules(
+		func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(
 				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
 			)
 		},
