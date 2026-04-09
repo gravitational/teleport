@@ -72,6 +72,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -2581,6 +2582,14 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
+	if err := issueAccessGraphCertOnLogin(cf.Context, keyRing, rootAuthClient); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := tc.AddKeyRing(keyRing); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
 		if err := updateKubeConfigOnLogin(cf, tc); err != nil {
@@ -2660,6 +2669,31 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}
 	}
 
+	return nil
+}
+
+func issueAccessGraphCertOnLogin(ctx context.Context, keyRing *client.KeyRing, rootAuthClient authclient.ClientI) error {
+	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.TLSPrivateKey.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	expires, err := keyRing.TeleportTLSCertValidBefore()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certs, err := rootAuthClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: tlsPublicKey,
+		Username:     keyRing.Username,
+		Expires:      expires,
+		Usage:        proto.UserCertsRequest_AccessGraphAPI,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyRing.AccesssGraphTLSCert = certs.TLS
 	return nil
 }
 

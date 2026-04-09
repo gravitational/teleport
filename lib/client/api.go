@@ -3697,6 +3697,10 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 		return trace.Wrap(err)
 	}
 
+	// Keep the caller's keyring in sync with the activated credentials.
+	keyRing.Cert = cp.Cert
+	keyRing.TLSCert = cp.TLSCert
+
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := rootAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
