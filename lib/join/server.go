@@ -381,12 +381,18 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		// No authentication or AccessDenied is okay, this is not normally an
 		// authenticated endpoint unless the client is re-joining or the
 		// request was forwarded by a proxy, just return an empty Context.
+
+		// A note around use of ScopedAuthorizer: it will return an empty
+		// context if the scopes feature is disabled even if an otherwise-valid
+		// scoped identity is presented, so they will be treated as
+		// unauthenticated and ultimately will fail to join. This edge case will
+		// be resolved when the scopes feature flag is removed.
 		return &joinauthz.Context{}, nil
 	}
 	var isProxy bool
 	if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
-		// Proxies identities are always unscoped, so the unscoped context
-		// should always be available.
+		// Proxy identities are always unscoped, so the unscoped context should
+		// always be available.
 		isProxy = authz.HasBuiltinRole(*unscopedCtx, types.RoleProxy.String())
 	}
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
