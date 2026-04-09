@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
@@ -430,6 +431,17 @@ func (s *Server) SetGroups(groups []*msgraph.Group) {
 			s.Storage.Groups[*group.ID] = group
 		}
 	}
+
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := len(keys)
+
+	var groupDeltas []msgraph.ListGroupsDeltaResponse
+	for _, g := range groups {
+		groupDeltas = append(groupDeltas, msgraph.ListGroupsDeltaResponse{
+			Group: *g,
+		})
+	}
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], groupDeltas...)
 }
 
 func (s *Server) DeleteGroups(groups []string) {
@@ -441,7 +453,7 @@ func (s *Server) DeleteGroups(groups []string) {
 		}
 	}
 
-	// update user delta
+	// update group delta
 	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
 	latestKey := len(keys)
 
@@ -469,7 +481,45 @@ func (s *Server) DeleteGroups(groups []string) {
 func (s *Server) SetGroupMembers(groupID string, members []msgraph.GroupMember) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Storage.GroupMembers[groupID] = members
+	allMembers := slices.Concat(s.Storage.GroupMembers[groupID], members)
+	s.Storage.GroupMembers[groupID] = utils.DeduplicateAny(allMembers, func(m1, m2 msgraph.GroupMember) bool { return m1.GetID() == m2.GetID() })
+
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := len(keys)
+
+	var memberDeltas []msgraph.Delta
+	for _, m := range members {
+		memberType := "#microsoft.graph.user"
+		switch m.(type) {
+		case *msgraph.User:
+			memberType = "#microsoft.graph.user"
+		case *msgraph.Group:
+			memberType = "#microsoft.graph.group"
+		default:
+			continue
+		}
+		memberDeltas = append(memberDeltas, msgraph.Delta{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID: m.GetID(),
+			},
+			Type: memberType,
+		})
+	}
+
+	group, ok := s.Storage.Groups[groupID]
+	if !ok {
+		// should never happen
+		return
+	}
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], msgraph.ListGroupsDeltaResponse{
+		Group: msgraph.Group{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID:          to.Ptr(groupID),
+				DisplayName: group.DisplayName,
+			},
+		},
+		Members: memberDeltas,
+	})
 }
 
 func (s *Server) DeleteGroupMembers(groupID string, members []string) {
@@ -533,6 +583,33 @@ func (s *Server) SetGroupOwners(groupID string, users []*msgraph.User) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Storage.GroupOwners[groupID] = users
+
+	keys := slices.Collect(maps.Keys(s.Storage.GroupsDelta))
+	latestKey := len(keys)
+
+	var userDeltas []msgraph.Delta
+	for _, u := range users {
+		userDeltas = append(userDeltas, msgraph.Delta{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID: u.GetID(),
+			},
+			Type: "#microsoft.graph.user",
+		})
+	}
+	group, ok := s.Storage.Groups[groupID]
+	if !ok {
+		// should never happen
+		return
+	}
+	s.Storage.GroupsDelta[latestKey] = append(s.Storage.GroupsDelta[latestKey], msgraph.ListGroupsDeltaResponse{
+		Group: msgraph.Group{
+			DirectoryObject: msgraph.DirectoryObject{
+				ID:          to.Ptr(groupID),
+				DisplayName: group.DisplayName,
+			},
+		},
+		Members: userDeltas,
+	})
 }
 
 func (s *Server) DeleteGroupOwners(groupID string, owners []string) {
