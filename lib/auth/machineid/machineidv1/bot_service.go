@@ -19,7 +19,6 @@
 package machineidv1
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -196,7 +195,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
-		ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
 		},
 	); err != nil {
@@ -312,7 +311,7 @@ func (bs *BotService) ListBots(
 		// Check if user can access this specific Bot.
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = bot
-		if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		if err := authCtx.CheckerContext.Decision(ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbList)
 		}); err != nil {
 			// Ignore resources the user cannot access.
@@ -349,14 +348,14 @@ func (bs *BotService) CreateBot(
 
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.Bot
-	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(req.Bot.Scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+	if err := authCtx.CheckerContext.Decision(ctx, req.Bot.Scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbCreate)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
 		// We can only perform MFA checks on unscoped identities.
-		// TODO(noah): When scopes supports MFA, add check here :')
+		// TODO(noah/scopes): When scopes supports MFA, add check here :')
 		if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -577,7 +576,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	ruleCtx.Resource153 = req.Bot
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		cmp.Or(req.Bot.Scope, scopes.Root),
+		req.Bot.Scope,
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx, types.KindBot, types.VerbCreate, types.VerbUpdate,
@@ -588,7 +587,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	}
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
 		// We can only perform MFA checks on unscoped identities.
-		// TODO(noah): When scopes supports MFA, add check here :')
+		// TODO(noah/scopes): When scopes supports MFA, add check here :')
 		// Allow re-use for bulk upserts.
 		if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
@@ -829,13 +828,13 @@ func (bs *BotService) DeleteBot(
 	scope := user.GetMetadata().Labels[types.BotScopeLabel]
 
 	ruleCtx.Resource153 = dummyBotWithName(req.BotName)
-	if err := authCtx.CheckerContext.Decision(ctx, cmp.Or(scope, scopes.Root), func(checker *services.ScopedAccessChecker) error {
+	if err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbDelete)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// If identity is unscoped, perform admin action MFA.
-	// TODO(noah): When scope identities support MFA, enforce it!
+	// TODO(noah/scopes): When scope identities support MFA, enforce it!
 	if unscoped, ok := authCtx.UnscopedContext(); ok {
 		if err := unscoped.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
