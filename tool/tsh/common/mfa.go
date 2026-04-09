@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
-	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -183,8 +182,8 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
 	c.Flag("name", "Name of the new MFA device.").StringVar(&c.devName)
-	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", apiutils.JoinStrings(libmfa.DefaultDeviceTypes, ", "))).
-		EnumVar(&c.devType, slices.Map(libmfa.DefaultDeviceTypes, func(v mfa.MFADeviceType) string { return string(v) })...)
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", apiutils.JoinStrings(mfa.DefaultDeviceTypes, ", "))).
+		EnumVar(&c.devType, slices.Map(mfa.DefaultDeviceTypes, func(v mfa.MFADeviceType) string { return string(v) })...)
 	if wancli.IsFIDO2Available() {
 		c.Flag("allow-passwordless", "Allow passwordless logins.").
 			IsSetByUser(&c.allowPasswordlessSet).
@@ -200,10 +199,12 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	}
 	ctx := cf.Context
 
-	config := mfa.RegistrationCeremonyConfig{
-		Reason:     mfa.RegistrationReasonExplicit,
-		DeviceName: c.devName,
-		DeviceType: mfa.MFADeviceType(c.devType), // type correctness guaranteed by EnumVar
+	config := mfa.RegistrationPromptConfig{
+		RegisterConfig: mfa.RegisterConfig{
+			DeviceType: mfa.MFADeviceType(c.devType),
+			DeviceName: c.devName,
+		},
+		Reason: mfa.RegistrationReasonExplicit,
 	}
 
 	if c.allowPasswordlessSet {

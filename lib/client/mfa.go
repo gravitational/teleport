@@ -77,7 +77,7 @@ func (tc *TeleportClient) createRegisterChallenge(ctx context.Context, req *prot
 }
 
 // addMFADevice adds an MFA device to Teleport backend.
-func (tc *TeleportClient) addMFADevice(ctx context.Context, resp *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+func (tc *TeleportClient) addMFADevice(ctx context.Context, resp *proto.MFARegisterResponse, config mfa.RegisterConfig) error {
 	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,10 +166,10 @@ func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.Cal
 	return sso.NewCLIMFACeremony(rd), nil
 }
 
-func (tc *TeleportClient) AddMFA(ctx context.Context, rdc mfa.RegistrationCeremonyConfig) (bool, error) {
+func (tc *TeleportClient) AddMFA(ctx context.Context, config mfa.RegistrationPromptConfig) (bool, error) {
 	c := tc.NewMFACeremony()
 	// Unconditionally allow registering MFA devices.
 	tc.allowRegisteringMFADevicesForCeremony(c)
-	added, err := c.Register(ctx, rdc)
+	added, err := c.Register(ctx, config)
 	return added, trace.Wrap(err)
 }

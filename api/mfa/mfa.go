@@ -58,6 +58,9 @@ var (
 	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{
 		Message: "Reusable MFA response validation failed and possibly expired",
 	}
+
+	// ErrDeniedRegister
+	ErrDeniedRegister = trace.BadParameterError{Message: "user refused to register an MFA device"}
 )
 
 // WithCredentials can be called on a GRPC client request to attach

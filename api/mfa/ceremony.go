@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
@@ -70,9 +71,7 @@ type CreateRegisterChallengeFunc func(
 ) (*proto.MFARegisterChallenge, error)
 
 // AddMFADeviceFunc is a function that adds an MFA device to Teleport backend.
-type AddMFADeviceFunc func(
-	ctx context.Context, req *proto.MFARegisterResponse, config RegistrationCeremonyConfig,
-) error
+type AddMFADeviceFunc func(ctx context.Context, req *proto.MFARegisterResponse, config RegisterConfig) error
 
 // PingFunc is a function that
 type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
@@ -90,7 +89,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return resp, trace.Wrap(runErr)
 	}
 
-	cfg := RegistrationCeremonyConfig{
+	cfg := RegistrationPromptConfig{
 		Reason: RegistrationReasonSessionMFANoDevices,
 	}
 	if added, regErr := c.Register(ctx, cfg); regErr != nil || !added {
@@ -180,28 +179,11 @@ const (
 	RegistrationReasonSessionMFANoEligibleDevices RegistrationReason = "session_mfa_no_eligible_devices"
 )
 
-// RegistrationCeremonyConfig provides configuration for the
-// [Ceremony.Register] function.
-type RegistrationCeremonyConfig struct {
-	// Reason indicates the reason why we register an MFA device.
-	Reason RegistrationReason
-	// DeviceName is the name of the device to be added. If empty, the user will
-	// be prompted to enter it.
-	DeviceName string
-	// DeviceType is the type of the device to be added. If empty, the user will
-	// be prompted to enter it.
-	DeviceType MFADeviceType
-	// DeviceUsage is the intended usage for the MFA device to be added. If set
-	// to [proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED], the user may be offered
-	// registering a passwordless device.
-	DeviceUsage proto.DeviceUsage
-}
-
 // Register interacts with user to register an MFA device on the client side
 // and adds the device to Teleport backend. Returns true if the device was
 // added, and false if it was not (for example, the user refused to register
 // it).
-func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConfig) (bool, error) {
+func (c *Ceremony) Register(ctx context.Context, cfg RegistrationPromptConfig) (bool, error) {
 	if c.CreateRegisterChallenge == nil {
 		return false, trace.BadParameter("mfa ceremony must have CreateRegisterChallenge set in order to begin")
 	}
@@ -212,10 +194,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 
 	regPrompt := c.PromptConstructor(WithPromptDeviceType(DeviceDescriptorNew))
 
-	promptConfig := RegistrationPromptConfig{
-		RegistrationCeremonyConfig: config,
-	}
-	if config.DeviceType == "" {
+	if len(cfg.DeviceTypeOptions) == 0 {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
 		// This is undesirable to do during flag setup, but we can do it here.
@@ -226,23 +205,35 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		promptConfig.AuthSecondFactor = pingResp.Auth.SecondFactor
+
+		switch pingResp.Auth.SecondFactor {
+		case constants.SecondFactorOTP:
+			cfg.DeviceTypeOptions = totpDeviceTypes
+		case constants.SecondFactorWebauthn:
+			cfg.DeviceTypeOptions = webDeviceTypes
+		default:
+			cfg.DeviceTypeOptions = DefaultDeviceTypes
+		}
+	}
+
+	// If the device is being created because of a session MFA, exclude TOTP, as
+	// it's not eligible.
+	switch cfg.Reason {
+	case RegistrationReasonSessionMFANoDevices,
+		RegistrationReasonSessionMFANoEligibleDevices:
+		cfg.DeviceTypeOptions = slices.DeleteFunc(cfg.DeviceTypeOptions, func(d MFADeviceType) bool {
+			return d == MFADeviceTypeTOTP
+		})
 	}
 
 	// Attempt the actual interactive registration.
-	promptConfigPtr, err := regPrompt.AskRegister(ctx, promptConfig)
+	regCfg, err := regPrompt.AskRegister(ctx, cfg)
 	if err != nil {
+		if errors.Is(err, &ErrDeniedRegister) {
+			// No device has been registered.
+			return false, nil
+		}
 		return false, trace.Wrap(err)
-	}
-	if promptConfigPtr == nil {
-		// No device has been registered.
-		return false, nil
-	}
-	promptConfig = *promptConfigPtr
-
-	devTypePB := registrationDeviceTypeProto(promptConfig.DeviceType)
-	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		return false, trace.BadParameter("unexpected device type: %q", promptConfig.DeviceType)
 	}
 
 	mfaResp, err := c.Authenticate(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -257,16 +248,21 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
+	devTypePB := registrationDeviceTypeProto(regCfg.DeviceType)
+	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		return false, trace.BadParameter("unexpected device type: %q", regCfg.DeviceType)
+	}
+
 	regChal, err := c.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		ExistingMFAResponse: mfaResp,
 		DeviceType:          devTypePB,
-		DeviceUsage:         promptConfig.DeviceUsage,
+		DeviceUsage:         regCfg.DeviceUsage,
 	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	result, err := regPrompt.RunRegister(ctx, promptConfig, regChal)
+	result, err := regPrompt.RunRegister(ctx, regCfg, regChal)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -275,7 +271,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 	}
 
 	// Add the registered device to the backend.
-	if err = c.AddMFADevice(ctx, result.Response, result.Config.RegistrationCeremonyConfig); err != nil {
+	if err = c.AddMFADevice(ctx, result.Response, regCfg); err != nil {
 		result.Callbacks.Rollback()
 		return false, trace.Wrap(err)
 	}
@@ -283,7 +279,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	regPrompt.NotifyRegistrationSuccess(ctx, result.Config)
+	regPrompt.NotifyRegistrationSuccess(ctx, regCfg)
 	return true, nil
 }
 
@@ -320,7 +316,7 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 
 	// Remove MFA resp from context if set. This way, the mfa required
 	// check will return true as long as MFA for admin actions is enabled,
-	// even if the current context has a reusable MFA. v18 server will
+	// even if the current context has a reusable  v18 server will
 	// return this requirement as expected.
 	// TODO(Joerger): DELETE IN v19.0.0
 	ceremonyCtx := ContextWithMFAResponse(ctx, nil)
@@ -328,3 +324,14 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
 }
+
+const (
+	// cliMFATypeOTP is the CLI display name for OTP.
+	cliMFATypeOTP = "OTP"
+	// cliMFATypeWebauthn is the CLI display name for Webauthn.
+	cliMFATypeWebauthn = "WEBAUTHN"
+	// cliMFATypeSSO is the CLI display name for SSO.
+	cliMFATypeSSO = "SSO"
+	// cliMFATypeBrowserMFA is the CLI display name for Browser
+	cliMFATypeBrowserMFA = "BROWSER"
+)

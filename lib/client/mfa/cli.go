@@ -50,37 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// cliMFATypeOTP is the CLI display name for OTP.
-	cliMFATypeOTP = "OTP"
-	// cliMFATypeWebauthn is the CLI display name for Webauthn.
-	cliMFATypeWebauthn = "WEBAUTHN"
-	// cliMFATypeSSO is the CLI display name for SSO.
-	cliMFATypeSSO = "SSO"
-	// cliMFATypeBrowserMFA is the CLI display name for Browser MFA.
-	cliMFATypeBrowserMFA = "BROWSER"
-)
-
-var (
-	// totpDeviceTypes are device types available when the second factor option
-	// is set to [constants.SecondFactorOff].
-	totpDeviceTypes = []mfa.MFADeviceType{mfa.MFADeviceTypeTOTP}
-
-	// webDeviceTypes are device types available when the second factor option is
-	// set to [constants.SecondFactorWebauthn].
-	webDeviceTypes = initWebDevs()
-
-	// DefaultDeviceTypes lists the supported device types for `tsh mfa add`.
-	DefaultDeviceTypes = append(totpDeviceTypes, webDeviceTypes...)
-)
-
-func initWebDevs() []mfa.MFADeviceType {
-	if touchid.IsAvailable() {
-		return []mfa.MFADeviceType{mfa.MFADeviceTypeWebauthn, mfa.MFADeviceTypeTouchID}
-	}
-	return []mfa.MFADeviceType{mfa.MFADeviceTypeWebauthn}
-}
-
 type ClusterClient interface {
 	CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
 	AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
@@ -309,6 +278,17 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	// In order: WebAuthn > SSO > Browser MFA > OTP
 	return c.promptWithFallback(ctx, chal, state, availableMethods, isPerSessionMFA, userSpecifiedMethod)
 }
+
+const (
+	// cliMFATypeOTP is the CLI display name for OTP.
+	cliMFATypeOTP = "OTP"
+	// cliMFATypeWebauthn is the CLI display name for Webauthn.
+	cliMFATypeWebauthn = "WEBAUTHN"
+	// cliMFATypeSSO is the CLI display name for SSO.
+	cliMFATypeSSO = "SSO"
+	// cliMFATypeBrowserMFA is the CLI display name for Browser MFA.
+	cliMFATypeBrowserMFA = "BROWSER"
+)
 
 func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthenticateChallenge, state mfaPromptState, availableMethods []string, isPerSessionMFA, userSpecifiedMethod bool) (*proto.MFAAuthenticateResponse, error) {
 	var lastErr error
@@ -600,7 +580,9 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 
 // AskRegister prompts the user for the registration bits that are missing, if
 // any, and returns the resulting config.
-func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (mfa.RegisterConfig, error) {
+	regCfg := config.RegisterConfig
+
 	confirmation := ""
 	switch config.Reason {
 	case mfa.RegistrationReasonSessionMFANoDevices:
@@ -611,46 +593,45 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	if confirmation != "" {
 		yes, err := prompt.Confirmation(ctx, c.stdout(), c.stdin(), confirmation)
 		if err != nil {
-			return nil, err
+			return mfa.RegisterConfig{}, err
 		}
 		if !yes {
-			return nil, nil
+			return mfa.RegisterConfig{}, &mfa.ErrDeniedRegister
 		}
 	}
 
 	// Attempt to diagnose clamshell failures.
-	if !slices.Contains(DefaultDeviceTypes, mfa.MFADeviceTypeTouchID) {
+	if !slices.Contains(mfa.DefaultDeviceTypes, mfa.MFADeviceTypeTouchID) {
 		diag, err := touchid.Diag()
 		if err == nil && diag.IsClamshellFailure() {
 			slog.WarnContext(ctx, "Touch ID support disabled, is your MacBook lid closed?")
 		}
 	}
 
-	if config.DeviceType == "" {
-		var err error
-		config.DeviceType, err = prompt.PickOne(
-			ctx, c.stdout(), c.stdin(),
-			"Choose device type", deviceTypesFromConfig(config))
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if regCfg.DeviceType == "" {
+		if len(config.DeviceTypeOptions) == 0 {
+			return mfa.RegisterConfig{}, trace.BadParameter("expected non-empty DeviceTypeOptions")
 		}
-	}
-	switch config.DeviceType {
-	case mfa.MFADeviceTypeTOTP, mfa.MFADeviceTypeWebauthn, mfa.MFADeviceTypeTouchID:
-	default:
-		return nil, trace.BadParameter("unexpected device type: %q", config.DeviceType)
+
+		var err error
+		regCfg.DeviceType, err = prompt.PickOne(
+			ctx, c.stdout(), c.stdin(),
+			"Choose device type", config.DeviceTypeOptions)
+		if err != nil {
+			return mfa.RegisterConfig{}, trace.Wrap(err)
+		}
 	}
 
 	if config.DeviceName == "" {
 		var err error
 		config.DeviceName, err = prompt.Input(ctx, c.stdout(), c.stdin(), "Enter device name")
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return mfa.RegisterConfig{}, trace.Wrap(err)
 		}
 	}
 	config.DeviceName = strings.TrimSpace(config.DeviceName)
 	if config.DeviceName == "" {
-		return nil, trace.BadParameter("device name cannot be empty")
+		return mfa.RegisterConfig{}, trace.BadParameter("device name cannot be empty")
 	}
 
 	switch config.DeviceType {
@@ -659,7 +640,7 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 		if config.DeviceUsage == proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED && wancli.IsFIDO2Available() {
 			answer, err := prompt.PickOne(ctx, c.stdout(), c.stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return mfa.RegisterConfig{}, trace.Wrap(err)
 			}
 			if answer == "YES" {
 				config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
@@ -670,53 +651,26 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	case mfa.MFADeviceTypeTouchID:
 		// Touch ID is always a resident key/passwordless
 		config.DeviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	case mfa.MFADeviceTypeTOTP:
+	default:
+		return mfa.RegisterConfig{}, trace.BadParameter("unexpected device type: %q", config.DeviceType)
 	}
+
 	slog.DebugContext(ctx, "Determined usage for newly registered MFA device", "usage", config.DeviceUsage.String())
 
-	return &config, nil
-}
-
-// deviceTypesFromConfig returns a list of devices types that can be picked
-// from while registering a new MFA device.
-func deviceTypesFromConfig(cfg mfa.RegistrationPromptConfig) []mfa.MFADeviceType {
-	var devices []mfa.MFADeviceType
-	switch cfg.AuthSecondFactor {
-	case constants.SecondFactorOTP:
-		devices = totpDeviceTypes
-	case constants.SecondFactorWebauthn:
-		devices = webDeviceTypes
-	default:
-		devices = DefaultDeviceTypes
-	}
-
-	// If the device is being created because of a session MFA, exclude TOTP, as
-	// it's not eligible.
-	switch cfg.Reason {
-	case mfa.RegistrationReasonSessionMFANoDevices,
-		mfa.RegistrationReasonSessionMFANoEligibleDevices:
-		withoutTOTP := make([]mfa.MFADeviceType, 0, len(devices))
-		for _, d := range devices {
-			if d != mfa.MFADeviceTypeTOTP {
-				withoutTOTP = append(withoutTOTP, d)
-			}
-		}
-		return withoutTOTP
-	}
-
-	return devices
+	return regCfg, nil
 }
 
 // RunRegister prompts the user to complete a registration challenge.
-func (c *CLIPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+func (c *CLIPrompt) RunRegister(ctx context.Context, cfg mfa.RegisterConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
 	resetPlatformPrompt := c.setPlatformPromptMessage()
 	defer resetPlatformPrompt()
 
-	resp, callback, err := c.promptRegisterChallenge(ctx, config.DeviceType, chal)
+	resp, callback, err := c.promptRegisterChallenge(ctx, cfg.DeviceType, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &mfa.RegistrationResult{
-		Config:    config,
 		Response:  resp,
 		Callbacks: callback,
 	}, nil
@@ -724,8 +678,8 @@ func (c *CLIPrompt) RunRegister(ctx context.Context, config mfa.RegistrationProm
 
 // NotifyRegistrationSuccess notifies the user that the device registration was
 // successful.
-func (c *CLIPrompt) NotifyRegistrationSuccess(_ context.Context, config mfa.RegistrationPromptConfig) error {
-	fmt.Fprintf(c.stdout(), "MFA device %q added.\n\n", config.DeviceName)
+func (c *CLIPrompt) NotifyRegistrationSuccess(_ context.Context, cfg mfa.RegisterConfig) error {
+	fmt.Fprintf(c.stdout(), "MFA device %q added.\n\n", cfg.DeviceName)
 	return nil
 }
 

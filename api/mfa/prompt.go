@@ -23,62 +23,20 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
-
-// MFADeviceType is a type of MFA device for device registration purposes.
-type MFADeviceType string
-
-const (
-	MFADeviceTypeTOTP     MFADeviceType = "TOTP"
-	MFADeviceTypeWebauthn MFADeviceType = "WEBAUTHN"
-	MFADeviceTypeTouchID  MFADeviceType = "TOUCHID"
-)
-
-// RegistrationCallbacks contains functions for confirming or rolling back
-// credentials that have been created by the MFA device.
-type RegistrationCallbacks interface {
-	// Rollback removes the newly created key from the MFA device.
-	Rollback() error
-	// Confirm persists the newly created key in the MFA device.
-	Confirm() error
-}
-
-// RegistrationResult contains the result of a [Prompt.RunRegister] call.
-type RegistrationResult struct {
-	// Config is the registration ceremony config, potentially updated with user
-	// input (device name, type, and usage) if not provided upfront.
-	Config RegistrationPromptConfig
-	// Response is the registration challenge response from the MFA device.
-	Response *proto.MFARegisterResponse
-	// Callbacks contain functions that need to be called depending on the result
-	// of adding the MFA device to the Teleport backend. They may have no effect,
-	// depending if they are supported by the particular MFA technology.
-	Callbacks RegistrationCallbacks
-}
-
-// RegistrationPromptConfig provides configuration for the [Prompt.AskRegister]
-// function.
-type RegistrationPromptConfig struct {
-	RegistrationCeremonyConfig
-
-	// AuthSecondFactor is the Second Factor option as configured in the auth
-	// service's auth preferences.
-	AuthSecondFactor constants.SecondFactorType
-}
 
 // Prompt is an MFA prompt.
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	// AskRegister prompts the user for device details for a new MFA device.
-	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error)
+	AskRegister(ctx context.Context, config RegistrationPromptConfig) (RegisterConfig, error)
 	// RunRegister prompts the user to complete a registration challenge.
-	RunRegister(ctx context.Context, config RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error)
+	RunRegister(ctx context.Context, config RegisterConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error)
 	// NotifyRegistrationSuccess notifies the user that the device registration
 	// was successful.
-	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
+	NotifyRegistrationSuccess(ctx context.Context, cfg RegisterConfig) error
 }
 
 // PromptFunc is a function wrapper that implements the Prompt interface.
@@ -90,18 +48,18 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 }
 
 // AskRegister prompts the user for device details for a new MFA device.
-func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error) {
-	return nil, trace.NotImplemented("not supported")
+func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (RegisterConfig, error) {
+	return RegisterConfig{}, trace.NotImplemented("not supported")
 }
 
 // RunRegister prompts the user to complete a registration challenge.
-func (f PromptFunc) RunRegister(ctx context.Context, config RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error) {
+func (f PromptFunc) RunRegister(ctx context.Context, config RegisterConfig, chal *proto.MFARegisterChallenge) (*RegistrationResult, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 
 // NotifyRegistrationSuccess notifies the user that the device registration was
 // successful.
-func (f PromptFunc) NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error {
+func (f PromptFunc) NotifyRegistrationSuccess(ctx context.Context, config RegisterConfig) error {
 	return trace.NotImplemented("not supported")
 }
 
@@ -125,14 +83,49 @@ type PromptConfig struct {
 	CallbackCeremony CallbackCeremony
 }
 
-// DeviceDescriptor is a descriptor for a device, such as "registered".
-type DeviceDescriptor string
+// RegistrationResult contains the result of a [Prompt.RunRegister] call.
+type RegistrationResult struct {
+	// Response is the registration challenge response from the MFA device.
+	Response *proto.MFARegisterResponse
+	// Callbacks contain functions that need to be called depending on the result
+	// of adding the MFA device to the Teleport backend. They may have no effect,
+	// depending if they are supported by the particular MFA technology.
+	Callbacks RegistrationCallbacks
+}
 
-// DeviceDescriptorRegistered is a registered device.
-const DeviceDescriptorRegistered = "registered"
+// RegistrationCallbacks contains functions for confirming or rolling back
+// credentials that have been created by the MFA device.
+type RegistrationCallbacks interface {
+	// Rollback removes the newly created key from the MFA device.
+	Rollback() error
+	// Confirm persists the newly created key in the MFA device.
+	Confirm() error
+}
 
-// DeviceDescriptorNew is a new device being registered.
-const DeviceDescriptorNew = "new"
+// RegistrationPromptConfig provides configuration for the [Prompt.AskRegister]
+// function.
+type RegistrationPromptConfig struct {
+	RegisterConfig
+
+	// Reason indicates the reason why we register an MFA device.
+	Reason RegistrationReason
+	// DeviceTypeOptions are the options for the type of the device to be added.
+	// If there are multiple options, the user be prompted to pick one.
+	DeviceTypeOptions []MFADeviceType
+}
+
+// RegisterConfig
+type RegisterConfig struct {
+	// DeviceName is the name of the device to be added. If empty, the user will
+	// be prompted to enter it.
+	DeviceName string
+	// DeviceType
+	DeviceType MFADeviceType
+	// DeviceUsage is the intended usage for the MFA device to be added. If set
+	// to [proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED], the user may be offered
+	// registering a passwordless device.
+	DeviceUsage proto.DeviceUsage
+}
 
 // PromptOpt applies configuration options to a prompt.
 type PromptOpt func(*PromptConfig)
@@ -172,6 +165,16 @@ func WithPromptReasonSessionMFA(serviceType, serviceName string) PromptOpt {
 		}
 	}
 }
+
+// DeviceDescriptor is a descriptor for a device, such as "registered".
+type DeviceDescriptor string
+
+const (
+	// DeviceDescriptorRegistered is a registered device.
+	DeviceDescriptorRegistered = "registered"
+	// DeviceDescriptorNew is a new device being registered.
+	DeviceDescriptorNew = "new"
+)
 
 // WithPromptDeviceType sets the prompt's DeviceType field.
 func WithPromptDeviceType(deviceType DeviceDescriptor) PromptOpt {
