@@ -82,6 +82,10 @@ func (d *desktopThumbnailGenerator) handleDesktopRecording(evt *apievents.Deskto
 	return err
 }
 
+// produceThumbnail generates a thumbnail from the current RDP state. If the cursor is visible, the thumbnail is zoomed
+// to the area around the cursor.
+// NOTE: If the decoder is not available (e.g. in nop builds without desktop_access_rdp), this will return nil without
+// error and all subsequent calls will be no-ops.
 func (d *desktopThumbnailGenerator) produceThumbnail() (*pb.SessionRecordingThumbnail, error) {
 	if d.disabled {
 		return nil, nil
