@@ -1439,7 +1439,6 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
-	time.Sleep(disconnectTimeout)
 	select {
 	case <-time.After(disconnectTimeout):
 		t.Fatalf("timeout waiting for session to exit")
