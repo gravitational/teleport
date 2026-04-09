@@ -59,6 +59,9 @@ export function DocumentDb({ doc, visible }: Props) {
           serviceName={doc.name}
           onConnect={sendDbConnectData}
           onClose={closeDocument}
+          desiredDbUser={doc.desiredDbUser}
+          desiredDbName={doc.desiredDbName}
+          desiredDbRole={doc.desiredDbRole}
         />
       )}
       {status !== 'loading' && (

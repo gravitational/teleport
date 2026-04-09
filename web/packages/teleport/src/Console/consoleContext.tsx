@@ -164,9 +164,10 @@ export default class ConsoleContext {
     });
   }
 
-  addDbDocument(params: UrlDbConnectParams) {
+  addDbDocument(params: UrlDbConnectParams, search?: string) {
     const url = this.getDbDocumentUrl(params);
 
+    const searchParams = new URLSearchParams(search);
     return this.storeDocs.add({
       kind: 'db',
       clusterId: params.clusterId,
@@ -174,6 +175,9 @@ export default class ConsoleContext {
       url,
       created: new Date(),
       name: params.serviceName,
+      desiredDbUser: searchParams.get('dbUser') || undefined,
+      desiredDbName: searchParams.get('dbName') || undefined,
+      desiredDbRole: searchParams.get('dbRole') || undefined,
     });
   }
 

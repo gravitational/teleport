@@ -19,6 +19,7 @@
 import { formatDuration, intervalToDuration } from 'date-fns';
 
 import {
+  DatabaseConstraints,
   getResourceIDString,
   ResourceConstraints,
   ResourceIDString,
@@ -121,4 +122,46 @@ export const toggleSSHConstraint = <T extends PendingListItem>(
     },
   };
   set(key, newRc.ssh.logins.length ? newRc : undefined);
+};
+
+/**
+ * Toggles a database constraint by removing the specified value from the given
+ * dimension (users, names, or roles). If no values remain in any dimension
+ * after removal, it clears the constraint.
+ */
+export const toggleDatabaseConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'database',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  dimension: keyof DatabaseConstraints,
+  value: string,
+  set: (
+    key: ResourceIDString,
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const db = item.constraints.database;
+  const newDb: DatabaseConstraints = {
+    users: db.users ? [...db.users] : undefined,
+    names: db.names ? [...db.names] : undefined,
+    roles: db.roles ? [...db.roles] : undefined,
+  };
+  if (newDb[dimension]) {
+    newDb[dimension] = newDb[dimension].filter(v => v !== value);
+    if (newDb[dimension].length === 0) {
+      newDb[dimension] = undefined;
+    }
+  }
+  const hasAny =
+    (newDb.users?.length ?? 0) +
+      (newDb.names?.length ?? 0) +
+      (newDb.roles?.length ?? 0) >
+    0;
+  set(key, hasAny ? { database: newDb } : undefined);
 };
