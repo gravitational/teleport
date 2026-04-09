@@ -118,7 +118,7 @@ type AuthService interface {
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
 	AuthService        AuthService
-	Authorizer         authz.Authorizer
+	ScopedAuthorizer   authz.ScopedAuthorizer
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
@@ -373,7 +373,7 @@ func (s *Server) handleJoinMethod(
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
-	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
+	authCtx, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
 	}
@@ -383,7 +383,12 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		// request was forwarded by a proxy, just return an empty Context.
 		return &joinauthz.Context{}, nil
 	}
-	isProxy := authz.HasBuiltinRole(*authCtx, types.RoleProxy.String())
+	var isProxy bool
+	if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+		// Proxies identities are always unscoped, so the unscoped context
+		// should always be available.
+		isProxy = authz.HasBuiltinRole(*unscopedCtx, types.RoleProxy.String())
+	}
 	if !isProxy && clientInit.ProxySuppliedParams != nil {
 		return nil, trace.AccessDenied("client set ProxySuppliedParameters but did not authenticate as a proxy")
 	}
