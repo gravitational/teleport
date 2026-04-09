@@ -1163,7 +1163,6 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 
 	role := roleResp.GetRole()
 	_, err = srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		RoleRevisions: map[string]string{role.GetMetadata().GetName(): role.GetMetadata().GetRevision()},
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
@@ -4990,7 +4989,6 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 		role := roleResp.GetRole()
 		_, err = srv.AuthServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			RoleRevisions: map[string]string{role.GetMetadata().GetName(): role.GetMetadata().GetRevision()},
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
