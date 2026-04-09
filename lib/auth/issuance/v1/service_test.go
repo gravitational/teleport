@@ -214,6 +214,61 @@ func TestIssueScopedBotCerts(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "unsupported or unspecified usage variant")
 	})
+
+	t.Run("ssh only", func(t *testing.T) {
+		resp, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+			SshPublicKey: sshPubKeyBytes,
+			Ttl:          durationpb.New(requestedTTL),
+			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.Certs)
+		require.NotEmpty(t, resp.Certs.Ssh)
+		require.Empty(t, resp.Certs.Tls)
+	})
+
+	t.Run("tls only", func(t *testing.T) {
+		resp, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+			TlsPublicKey: tlsPubKeyPEM,
+			Ttl:          durationpb.New(requestedTTL),
+			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.Certs)
+		require.Empty(t, resp.Certs.Ssh)
+		require.NotEmpty(t, resp.Certs.Tls)
+	})
+
+	t.Run("missing keys rejected", func(t *testing.T) {
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+			Ttl:   durationpb.New(requestedTTL),
+			Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+		})
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
+		require.ErrorContains(t, err, "at least one of ssh_public_key or tls_public_key is required")
+	})
+
+	t.Run("zero ttl rejected", func(t *testing.T) {
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+			SshPublicKey: sshPubKeyBytes,
+			TlsPublicKey: tlsPubKeyPEM,
+			Ttl:          durationpb.New(0),
+			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+		})
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter for zero TTL, got: %v", err)
+		require.ErrorContains(t, err, "must be greater than zero")
+	})
+
+	t.Run("negative ttl rejected", func(t *testing.T) {
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+			SshPublicKey: sshPubKeyBytes,
+			TlsPublicKey: tlsPubKeyPEM,
+			Ttl:          durationpb.New(-time.Hour),
+			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
+		})
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter for negative TTL, got: %v", err)
+		require.ErrorContains(t, err, "must be greater than zero")
+	})
 }
 
 func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
@@ -327,7 +382,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 		require.True(
 			t,
 			trace.IsAccessDenied(err),
-			"expected bad parameter, got: %v", err,
+			"expected access denied, got: %v", err,
 		)
 	})
 
