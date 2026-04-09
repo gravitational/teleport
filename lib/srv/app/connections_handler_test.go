@@ -19,6 +19,7 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -91,6 +92,45 @@ func newConnWithIP(t *testing.T, ip string, port int) (server, client net.Conn) 
 	return server, client
 }
 
+func TestHandleConnection_CancelsContextOnError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("limiter exceeded", func(t *testing.T) {
+		c := newTestHandler(t, limiter.Config{MaxConnections: 1})
+
+		// Pre-fill the limiter so handleConnection hits the
+		// "max connections exceeded" error path.
+		release, err := c.limiter.RegisterRequestAndConnection("10.0.0.1")
+		require.NoError(t, err)
+		defer release()
+
+		ctx, cancel := context.WithCancelCause(t.Context())
+		called := false
+		wrapped := func(cause error) { called = true; cancel(cause) }
+		conn, _ := newConnWithIP(t, "10.0.0.1", 10001)
+		_, err = c.handleConnection(ctx, wrapped, conn)
+		require.True(t, trace.IsLimitExceeded(err))
+		require.True(t, called, "cancel should be called on limiter error path")
+	})
+
+	t.Run("TLS handshake failure", func(t *testing.T) {
+		c := newTestHandler(t, limiter.Config{})
+
+		// Close the client side so the TLS handshake in
+		// getConnectionInfo fails immediately.
+		conn, client := net.Pipe()
+		t.Cleanup(func() { conn.Close() })
+		client.Close()
+
+		ctx, cancel := context.WithCancelCause(t.Context())
+		called := false
+		wrapped := func(cause error) { called = true; cancel(cause) }
+		_, err := c.handleConnection(ctx, wrapped, conn)
+		require.Error(t, err)
+		require.True(t, called, "cancel should be called on TLS handshake error path")
+	})
+}
+
 func TestHandleConnection_MaxConnections(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +147,9 @@ func TestHandleConnection_MaxConnections(t *testing.T) {
 	conn, client := newConnWithIP(t, clientIP, 10001)
 	client.Close() // prevent blocking on TLS handshake
 
-	_, err = c.handleConnection(conn)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	_, err = c.handleConnection(ctx, cancel, conn)
 	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error, got: %v", err)
 }
 
@@ -129,7 +171,9 @@ func TestHandleConnection_MaxConnectionsRelease(t *testing.T) {
 
 	// handleConnection should pass the limiter and fail later
 	// (at TLS handshake). The error must not be about limits.
-	_, err = c.handleConnection(conn)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	_, err = c.handleConnection(ctx, cancel, conn)
 	require.Error(t, err)
 	require.False(t, trace.IsLimitExceeded(err), "unexpected LimitExceeded error: %v", err)
 }
@@ -153,7 +197,9 @@ func TestHandleConnection_RateLimiting(t *testing.T) {
 	conn, client := newConnWithIP(t, clientIP, 10001)
 	client.Close()
 
-	_, err := c.handleConnection(conn)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	_, err := c.handleConnection(ctx, cancel, conn)
 	require.True(t, trace.IsLimitExceeded(err), "expected LimitExceeded error, got: %v", err)
 }
 
@@ -175,7 +221,9 @@ func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 
 	// handleConnection should bypass the limiter (which is full)
 	// and fail later at TLS instead.
-	_, err = c.handleConnection(server)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	_, err = c.handleConnection(ctx, cancel, server)
 	require.Error(t, err)
 	require.False(t, trace.IsLimitExceeded(err), "unexpected LimitExceeded error: %v", err)
 }
