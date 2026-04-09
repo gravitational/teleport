@@ -89,8 +89,10 @@ func (r *readyzChecker) check(ctx context.Context) (ready bool, err error) {
 			return false, nil
 		}
 
+		// Return the unexpected error so the caller can surface it in
+		// timeout diagnostics. The caller keeps polling; it does not abort.
 		r.logger.WarnContext(checkCtx, "Readyz check returned unexpected error", "error", trace.UserMessage(err))
-		return false, nil
+		return false, err
 	}
 
 	if !readiness.Ready {
