@@ -240,5 +240,5 @@ func (c *CertificateParameterContext) GetKubeGroupsAndUsersForTTL(ctx context.Co
 		}
 	}
 
-	return slices.Collect(maps.Keys(groupSet)), slices.Collect(maps.Keys(userSet)), nil
+	return slices.Sorted(maps.Keys(groupSet)), slices.Sorted(maps.Keys(userSet)), nil
 }

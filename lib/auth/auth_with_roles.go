@@ -7246,9 +7246,9 @@ func (a *ServerWithRoles) checkAccessToNode(ctx context.Context, node types.Serv
 		// In addition, allow proxy (and remote proxy) to access all nodes for its
 		// smart resolution address resolution. Once the smart resolution logic is
 		// moved to the auth server, this logic can be removed.
-		builtinRole := authz.HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
-			authz.HasBuiltinRole(a.context, string(types.RoleProxy)) ||
-			HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
+		builtinRole := authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)) ||
+			authz.HasBuiltinRole(*unscopedCtx, string(types.RoleProxy)) ||
+			HasRemoteBuiltinRole(*unscopedCtx, string(types.RoleRemoteProxy))
 
 		if builtinRole {
 			return nil
