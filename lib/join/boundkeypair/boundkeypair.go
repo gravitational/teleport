@@ -514,7 +514,7 @@ func mutateStatusClearRegistrationSecret(oldValue string) boundKeypairStatusMuta
 func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypairStatusMutatorV2) (provision.Token, error) {
 	token := params.ProvisionToken
 
-	switch t := token.(type) {
+	switch token.(type) {
 	case *types.ProvisionTokenV2:
 		patched, err := params.AuthService.PatchToken(ctx, token.GetName(), func(pt types.ProvisionToken) (types.ProvisionToken, error) {
 			// Apply all mutators. Individual mutators may make additional
@@ -525,7 +525,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 				}
 			}
 
-			return t, nil
+			return pt, nil
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "committing updated token state, please try again")
