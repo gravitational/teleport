@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	apimfa "github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -52,10 +53,10 @@ func TestCLIPrompt(t *testing.T) {
 		makeWebauthnLoginFunc func(stdin *prompt.FakeReader) mfa.WebauthnLoginFunc
 	}{
 		{
-			name:         "OK empty challenge",
+			name:         "NOK empty challenge",
 			expectStdOut: "",
 			challenge:    &proto.MFAAuthenticateChallenge{},
-			expectResp:   &proto.MFAAuthenticateResponse{},
+			expectErr:    &apimfa.ErrNoMFADevices,
 		},
 		{
 			name:         "OK webauthn",
@@ -452,7 +453,7 @@ Enter your security key PIN:
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 				}
 			},
-			expectErr: trace.AccessDenied("only WebAuthn, SSO MFA, and Browser MFA methods are supported with per-session MFA"),
+			expectErr: &apimfa.ErrNoEligibleMFADevices,
 		},
 		{
 			name: "NOK prefer otp with per-session MFA",

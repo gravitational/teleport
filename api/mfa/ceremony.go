@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -46,13 +47,6 @@ type Ceremony struct {
 	AddMFADevice AddMFADeviceFunc
 	// Ping fetches a [webclient.PingResponse] from the server.
 	Ping PingFunc
-	// isRegistering is set to indicate that the ceremony is currently
-	// registering an MFA device. In such case, another registration should not
-	// be attempted. This prevents infinite recursion where adding a new device
-	// results in an MFA ceremony that is naturally resolved without human
-	// intervention (no MFA on file), but then, since there's no MFA, another
-	// attempt to register an MFA would be conducted, and so on.
-	isRegistering bool
 }
 
 // CallbackCeremony is an SSO/Browser callback ceremony.
@@ -91,6 +85,22 @@ type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
 // If the ceremony and was configured to support it, this method also offers
 // the user to register their first MFA device.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	resp, runErr := c.Authenticate(ctx, req, promptOpts...)
+	if !errors.Is(runErr, &ErrNoMFADevices) {
+		return resp, trace.Wrap(runErr)
+	}
+
+	cfg := RegistrationCeremonyConfig{
+		Reason: RegistrationReasonSessionMFANoDevices,
+	}
+	if added, regErr := c.Register(ctx, cfg); regErr != nil || !added {
+		return nil, trace.NewAggregate(runErr, regErr)
+	}
+
+	return c.Authenticate(ctx, req, promptOpts...)
+}
+
+func (c *Ceremony) Authenticate(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if c.CreateAuthenticateChallenge == nil {
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
 	}
@@ -144,33 +154,6 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
-	// If this is a per-session MFA prompt and the user has no eligible device,
-	// offer to register one and then re-generate the challenge. TOTP devices
-	// don't count as eligible, so even if we do have one, don't offer.
-	isPerSessionMFA := req != nil && req.ChallengeExtensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
-	noPerSessionMFADevices := chal.WebauthnChallenge == nil && chal.SSOChallenge == nil
-	if isPerSessionMFA && noPerSessionMFADevices && c.CreateRegisterChallenge != nil && c.AddMFADevice != nil && !c.isRegistering {
-		reason := RegistrationReasonSessionMFANoDevices
-		if chal.TOTP != nil {
-			// The user has some MFA devices, but still no eligible one.
-			reason = RegistrationReasonSessionMFANoEligibleDevices
-		}
-		added, err := c.Register(ctx, RegistrationCeremonyConfig{
-			Reason: reason,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !added {
-			return &proto.MFAAuthenticateResponse{}, nil
-		}
-
-		chal, err = c.CreateAuthenticateChallenge(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// Set challenge extensions in the prompt, if present, but set it first so the
 	// caller can still override it.
 	if req != nil && req.ChallengeExtensions != nil {
@@ -188,12 +171,12 @@ const (
 	// register an MFA device.
 	RegistrationReasonExplicit RegistrationReason = "explicit"
 	// RegistrationReasonSessionMFANoDevices indicates that the registration is
-	// attempted because a per-session MFA, but there are no MFA devices
-	// registered.
+	// attempted because a per-session MFA is required, but there are no MFA
+	// devices registered.
 	RegistrationReasonSessionMFANoDevices RegistrationReason = "session_mfa_no_devices"
 	// RegistrationReasonSessionMFANoEligibleDevices indicates that the
-	// registration is attempted because a per-session MFA, but none of the
-	// registered MFA devices are eligible.
+	// registration is attempted because a per-session MFA is required, but none
+	// of the registered MFA devices are eligible.
 	RegistrationReasonSessionMFANoEligibleDevices RegistrationReason = "session_mfa_no_eligible_devices"
 )
 
@@ -219,19 +202,15 @@ type RegistrationCeremonyConfig struct {
 // added, and false if it was not (for example, the user refused to register
 // it).
 func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConfig) (bool, error) {
-	// Normally, registration can cause the MFA ceremony to be executed using
-	// Run(). However, Run() can also be executed standalone and attempt to
-	// register user's first MFA device. In such case, we prevent recursion here
-	// and just report that no device has been registered.
-	if c.isRegistering {
-		return false, nil
+	if c.CreateRegisterChallenge == nil {
+		return false, trace.BadParameter("mfa ceremony must have CreateRegisterChallenge set in order to begin")
 	}
-	c.isRegistering = true
-	defer func() {
-		c.isRegistering = false
-	}()
 
-	regPrompt := c.PromptConstructor()
+	if c.AddMFADevice == nil {
+		return false, trace.BadParameter("mfa ceremony must have AddMFADevice set in order to begin")
+	}
+
+	regPrompt := c.PromptConstructor(WithPromptDeviceType(DeviceDescriptorNew))
 
 	promptConfig := RegistrationPromptConfig{
 		RegistrationCeremonyConfig: config,
@@ -266,12 +245,15 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.BadParameter("unexpected device type: %q", promptConfig.DeviceType)
 	}
 
-	mfaResp, err := c.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+	mfaResp, err := c.Authenticate(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	}, WithPromptDeviceType(DeviceDescriptorRegistered))
-	if err != nil {
+	if errors.Is(err, &ErrNoMFADevices) {
+		// First-device registration is allowed without an existing MFA response.
+		mfaResp = &proto.MFAAuthenticateResponse{}
+	} else if err != nil {
 		return false, trace.Wrap(err)
 	}
 
@@ -284,8 +266,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	runPrompt := c.PromptConstructor(WithPromptDeviceType(DeviceDescriptorNew))
-	result, err := runPrompt.RunRegister(ctx, promptConfig, regChal)
+	result, err := regPrompt.RunRegister(ctx, promptConfig, regChal)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -302,7 +283,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	runPrompt.NotifyRegistrationSuccess(ctx, result.Config)
+	regPrompt.NotifyRegistrationSuccess(ctx, result.Config)
 	return true, nil
 }
 

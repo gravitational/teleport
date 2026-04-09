@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -678,7 +679,9 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILo
 	}
 
 	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
-	if err != nil {
+	if errors.Is(err, &mfa.ErrNoMFADevices) {
+		mfaResp = &proto.MFAAuthenticateResponse{}
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

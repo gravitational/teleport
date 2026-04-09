@@ -253,12 +253,12 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptBrowser:  chal.BrowserMFAChallenge != nil,
 	}
 
-	// No prompt to run, no-op.
-	if !state.promptOTP && !state.promptWebauthn && !state.promptSSO && !state.promptBrowser {
-		return &proto.MFAAuthenticateResponse{}, nil
-	}
-
 	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+
+	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA.
+	if c.cfg.PreferOTP && state.promptOTP && isPerSessionMFA {
+		return nil, trace.AccessDenied("only WebAuthn, SSO MFA, and Browser MFA methods are supported with per-session MFA, cannot specify --mfa-mode=otp")
+	}
 
 	// Build list of available methods from the challenge before filtering
 	// out unsupported methods. This list is used in user-facing messages.
@@ -274,6 +274,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 	if state.promptBrowser {
 		availableMethods = append(availableMethods, cliMFATypeBrowserMFA)
+	}
+
+	if len(availableMethods) == 0 {
+		return nil, &mfa.ErrNoMFADevices
 	}
 
 	// Check off unsupported methods.
@@ -295,11 +299,6 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			"webauthn_available", chal.WebauthnChallenge != nil,
 			"mfa_ceremony_available (if false, this is a bug)", c.cfg.CallbackCeremony != nil,
 		)
-	}
-
-	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA.
-	if c.cfg.PreferOTP && state.promptOTP && isPerSessionMFA {
-		return nil, trace.AccessDenied("only WebAuthn, SSO MFA, and Browser MFA methods are supported with per-session MFA, cannot specify --mfa-mode=otp")
 	}
 
 	// Determine which method(s) to use and print options if multiple are available.
@@ -677,29 +676,6 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	return &config, nil
 }
 
-// RunRegister prompts the user to complete a registration challenge.
-func (c *CLIPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
-	resetPlatformPrompt := c.setPlatformPromptMessage()
-	defer resetPlatformPrompt()
-
-	resp, callback, err := c.promptRegisterChallenge(ctx, config.DeviceType, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &mfa.RegistrationResult{
-		Config:    config,
-		Response:  resp,
-		Callbacks: callback,
-	}, nil
-}
-
-// NotifyRegistrationSuccess notifies the user that the device registration was
-// successful.
-func (c *CLIPrompt) NotifyRegistrationSuccess(_ context.Context, config mfa.RegistrationPromptConfig) error {
-	fmt.Fprintf(c.stdout(), "MFA device %q added.\n\n", config.DeviceName)
-	return nil
-}
-
 // deviceTypesFromConfig returns a list of devices types that can be picked
 // from while registering a new MFA device.
 func deviceTypesFromConfig(cfg mfa.RegistrationPromptConfig) []mfa.MFADeviceType {
@@ -728,6 +704,29 @@ func deviceTypesFromConfig(cfg mfa.RegistrationPromptConfig) []mfa.MFADeviceType
 	}
 
 	return devices
+}
+
+// RunRegister prompts the user to complete a registration challenge.
+func (c *CLIPrompt) RunRegister(ctx context.Context, config mfa.RegistrationPromptConfig, chal *proto.MFARegisterChallenge) (*mfa.RegistrationResult, error) {
+	resetPlatformPrompt := c.setPlatformPromptMessage()
+	defer resetPlatformPrompt()
+
+	resp, callback, err := c.promptRegisterChallenge(ctx, config.DeviceType, chal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &mfa.RegistrationResult{
+		Config:    config,
+		Response:  resp,
+		Callbacks: callback,
+	}, nil
+}
+
+// NotifyRegistrationSuccess notifies the user that the device registration was
+// successful.
+func (c *CLIPrompt) NotifyRegistrationSuccess(_ context.Context, config mfa.RegistrationPromptConfig) error {
+	fmt.Fprintf(c.stdout(), "MFA device %q added.\n\n", config.DeviceName)
+	return nil
 }
 
 type noopRegisterCallback struct{}

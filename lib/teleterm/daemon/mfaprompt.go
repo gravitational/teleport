@@ -71,14 +71,17 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	promptOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
-	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
+	hasOTP := chal.TOTP != nil
+	hasWebauthn := chal.WebauthnChallenge != nil
+	hasSSO := chal.SSOChallenge != nil
+	hasBrowserMfa := chal.BrowserMFAChallenge != nil
+	scope := p.cfg.Extensions.GetScope()
 
-	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowserMfa {
-		return &proto.MFAAuthenticateResponse{}, nil
+	if !hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa {
+		return nil, trace.Wrap(&mfa.ErrNoMFADevices)
+	}
+	if scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION && hasOTP && !hasWebauthn && !hasSSO && !hasBrowserMfa {
+		return nil, trace.Wrap(&mfa.ErrNoEligibleMFADevices)
 	}
 
 	ctx, cancel := context.WithCancelCause(ctx)
@@ -106,7 +109,6 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
 	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
 	scope := p.cfg.Extensions.GetScope()
-
 	var ssoChallenge *api.SSOChallenge
 	if promptSSO {
 		ssoChallenge = &api.SSOChallenge{

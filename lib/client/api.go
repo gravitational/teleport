@@ -2128,7 +2128,8 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
-	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, &mfa.ErrNoMFADevices):
+	case !trace.IsAccessDenied(directErr) &&
+		(errors.Is(mfaErr, &mfa.ErrNoMFADevices) || errors.Is(mfaErr, &mfa.ErrNoEligibleMFADevices)):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
 		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
