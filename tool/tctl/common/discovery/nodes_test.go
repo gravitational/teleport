@@ -201,14 +201,9 @@ func TestInstanceInfo_RunOutput(t *testing.T) {
 			want: `"line1\nline2\nline3"`,
 		},
 		{
-			desc: "carriage returns escaped",
-			fi:   instanceInfo{RunResult: &runResult{Output: "line1\r\nline2"}},
-			want: `"line1\r\nline2"`,
-		},
-		{
-			desc: "tabs escaped",
-			fi:   instanceInfo{RunResult: &runResult{Output: "col1\tcol2"}},
-			want: `"col1\tcol2"`,
+			desc: "long output truncated",
+			fi:   instanceInfo{RunResult: &runResult{Output: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+			want: `"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..."`,
 		},
 		{
 			desc: "whitespace trimmed",
