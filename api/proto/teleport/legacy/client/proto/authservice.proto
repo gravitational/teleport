@@ -653,6 +653,8 @@ message Features {
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
   // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
