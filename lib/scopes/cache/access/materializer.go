@@ -644,14 +644,43 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 }
 
 // handleAccessListDelete handles delete events for access lists.
-// Access lists cannot be deleted if they are a member or owner of another
-// list, but they may have materialized assignments for their own owners.
+// Access lists are unlikely to be deleted if they are a member or owner of
+// another list (the access list service attempts to prevent it), but to be
+// defensive we re-check assignments for all ancestors anyway in case a
+// membership path through this list has been broken.
 func (m *materializer) handleAccessListDelete(ctx context.Context, state state, listName string) {
+	// First of all, keep the ancestor cache up to date with respect to owners.
+	// Access lists are the source of truth for direct owner relationships.
+	// While the deletion of the access list may invalidate a direct membership
+	// involving this list, the source of truth is the member resource, and the
+	// ancestor cache for members will be reconciled in response to member
+	// events.
 	for owner := range m.ancestorCache.ownersOf.Get(listName).Items() {
 		m.ancestorCache.removeOwnership(owner, listName)
 	}
-	for key := range m.materializedAssignmentsForList(listName) {
-		m.deleteMaterializedAssignment(ctx, state, key)
+
+	// Assignments for any ancestor list may be affected if a membership path
+	// through this deleted list is now broken. Collect all ancestor lists
+	// without validation to avoid missing any due to read/paging errors.
+	ancestors := m.collectAncestorListsWithoutValidation(listName)
+
+	// Iterate all currently materialized assignments.
+	for key := range m.materializedAssignments {
+		_, isAncestor := ancestors[key.list]
+		if key.list != listName && !isAncestor {
+			// We don't need to validate any assignments that are not for the
+			// deleted list or any of its ancestors.
+			continue
+		}
+
+		if err := m.recheckAssignment(ctx, state, key); err != nil {
+			// Must pessimistically assume any assignment is invalid if we
+			// encountered an error trying to validate it.
+			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
+				"error", err)
+			m.deleteMaterializedAssignment(ctx, state, key)
+			// TODO(nic): schedule a refresh to recover.
+		}
 	}
 }
 
