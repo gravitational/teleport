@@ -162,13 +162,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is a service that controls access
-	Access services.Access
+	Access services.AccessInternal
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal

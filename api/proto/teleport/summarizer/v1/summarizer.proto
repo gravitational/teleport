@@ -215,6 +215,30 @@ enum CommandCategory {
   // CommandCategoryOther indicates that the command does not fit into any of the
   // other categories.
   COMMAND_CATEGORY_OTHER = 7;
+  // CommandCategoryPackageManagement indicates that the command is related to
+  // package management, such as installing or updating packages.
+  COMMAND_CATEGORY_PACKAGE_MANAGEMENT = 8;
+  // CommandCategoryContainer indicates that the command is related to container
+  // operations, such as Docker or Kubernetes commands.
+  COMMAND_CATEGORY_CONTAINER = 9;
+  // CommandCategorySourceControl indicates that the command is related to source
+  // control, such as Git operations.
+  COMMAND_CATEGORY_SOURCE_CONTROL = 10;
+  // CommandCategoryScheduling indicates that the command is related to scheduling,
+  // such as cron or systemd timer operations.
+  COMMAND_CATEGORY_SCHEDULING = 11;
+  // CommandCategoryMonitoring indicates that the command is related to monitoring
+  // and observability.
+  COMMAND_CATEGORY_MONITORING = 12;
+  // CommandCategoryUserManagement indicates that the command is related to user
+  // and group management.
+  COMMAND_CATEGORY_USER_MANAGEMENT = 13;
+  // CommandCategoryTransfer indicates that the command is related to data transfer
+  // operations, such as scp or rsync.
+  COMMAND_CATEGORY_TRANSFER = 14;
+  // CommandCategoryDevelopment indicates that the command is related to development
+  // tools, such as compilers or build tools.
+  COMMAND_CATEGORY_DEVELOPMENT = 15;
 }
 
 // RiskLevel represents the risk level associated with a command.

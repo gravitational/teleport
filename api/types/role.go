@@ -2549,6 +2549,16 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	return trace.Wrap(err)
 }
 
+// UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// The JSON and YAML unmarshaller will not call this method because CreateHostUserMode
+// also implements yaml/json.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	err := h.decode(string(text))
+	return trace.Wrap(err)
+}
+
 const (
 	createDatabaseUserModeOffString            = "off"
 	createDatabaseUserModeKeepString           = "keep"

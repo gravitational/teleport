@@ -80,3 +80,38 @@ func (s *DelegationSessionService) GetDelegationSession(
 func (s *DelegationSessionService) DeleteDelegationSession(ctx context.Context, id string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, id))
 }
+
+// AppendPutDelegationSessionActions adds conditional actions to an atomic
+// write to create or update a DelegationSession.
+func (s *DelegationSessionService) AppendPutDelegationSessionActions(
+	actions []backend.ConditionalAction,
+	session *delegationv1.DelegationSession,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateDelegationSession(session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := s.service.MakeBackendItem(session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
+// AppendDeleteDelegationSessionActions adds conditional actions to an atomic
+// write to delete a DelegationSession.
+func (s *DelegationSessionService) AppendDeleteDelegationSessionActions(
+	actions []backend.ConditionalAction,
+	id string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       s.service.BackendKey(id),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
+}

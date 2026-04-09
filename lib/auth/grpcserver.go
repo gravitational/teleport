@@ -1908,6 +1908,28 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	return &emptypb.Empty{}, nil
 }
 
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key must not be empty")
+	}
+
+	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -6133,13 +6155,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Emitter:    cfg.Emitter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Emitter:          cfg.Emitter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6649,7 +6671,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		AuthServer: cfg.AuthServer,
 		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
-		Identity:   cfg.AuthServer.Identity,
+		Identity:   cfg.AuthServer.IdentityInternal,
 		Storage:    cfg.AuthServer.MFAService,
 	})
 	if err != nil {

@@ -570,6 +570,27 @@ spec:
   usage_mode: "unlimited"
 `
 
+	const gcpScopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: gcp-test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "gcp"
+  usage_mode: "unlimited"
+  gcp:
+    allow:
+      - project_ids:
+          - example-project-123456
+        locations:
+          - us-west1
+        service_accounts:
+          - 123456789-compute@developer.gserviceaccount.com
+`
+
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
@@ -627,8 +648,8 @@ spec:
 	require.Equal(t, "/foo", token.GetSpec().GetAssignedScope())
 	require.Equal(t, "token", token.GetSpec().GetJoinMethod())
 	require.Equal(t, "unlimited", token.GetSpec().GetUsageMode())
-	// Secret should be populated
-	require.Equal(t, "******", token.GetStatus().GetSecret())
+	// Secret is stripped server-side when not requested with --with-secrets.
+	require.Empty(t, token.GetStatus().GetSecret())
 
 	// Get all scoped tokens
 	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json", "--with-secrets"})
@@ -683,6 +704,30 @@ spec:
 		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
 		require.True(ct, trace.IsNotFound(err))
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	// Create a GCP scoped token and verify it appears in listings.
+	gcpScopedTokenYAMLPath := filepath.Join(t.TempDir(), "gcp-test-token.yaml")
+	require.NoError(t, os.WriteFile(gcpScopedTokenYAMLPath, []byte(gcpScopedTokenYAML), 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", gcpScopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token/gcp-test-token", "--format=json"})
+		require.NoError(ct, err)
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for GCP scoped token cache propagation")
+
+	// Verify GCP token fields outside the retry loop.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json"})
+	require.NoError(t, err)
+	gcpTokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, gcpTokens, 1)
+	require.Equal(t, "gcp-test-token", gcpTokens[0].GetMetadata().GetName())
+	require.Equal(t, "gcp", gcpTokens[0].GetSpec().GetJoinMethod())
+	require.Len(t, gcpTokens[0].GetSpec().GetGcp().GetAllow(), 1)
+	require.Equal(t, []string{"example-project-123456"}, gcpTokens[0].GetSpec().GetGcp().GetAllow()[0].GetProjectIds())
 }
 
 // TestIntegrationResource tests tctl integration commands.

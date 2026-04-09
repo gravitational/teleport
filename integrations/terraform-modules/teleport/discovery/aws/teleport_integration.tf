@@ -11,7 +11,7 @@ locals {
 }
 
 resource "teleport_integration" "aws_oidc" {
-  count = local.create ? 1 : 0
+  count = local.create && local.use_oidc_integration ? 1 : 0
 
   metadata = {
     name        = local.teleport_integration_name

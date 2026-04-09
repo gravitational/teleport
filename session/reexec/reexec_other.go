@@ -1,6 +1,8 @@
-/**
+//go:build !linux
+
+/*
  * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +18,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test } from '@gravitational/e2e/helpers/test';
+package reexec
 
-test('verify that a user can SSH into a node', async ({
-  unifiedResourcesPage,
-}) => {
-  await unifiedResourcesPage.goto();
+import (
+	"os/exec"
+)
 
-  const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
+func CommandOSTweaks(cmd *exec.Cmd) {}
 
-  await terminal.waitForReady();
-  await terminal.exec('ls /');
-  await terminal.waitForText('bin');
-});
+func parkerCommandOSTweaks(cmd *exec.Cmd) {}
+
+func userCommandOSTweaks(cmd *exec.Cmd) {}
+
+func setNeutralOOMScore() error { return nil }

@@ -431,10 +431,10 @@ func makeAzureNode(t *testing.T, name, subscriptionID, vmID string) types.Server
 	t.Helper()
 
 	labels := map[string]string{
-		types.SubscriptionIDLabel: subscriptionID,
+		types.SubscriptionIDLabelInternal: subscriptionID,
 	}
 	if vmID != "" {
-		labels[types.VMIDLabel] = vmID
+		labels[types.VMIDLabelInternal] = vmID
 	}
 
 	node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)

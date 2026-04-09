@@ -14,15 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package logutils
+package srv
 
-// these constants are asserted to be the same as the ones in
-// github.com/gravitational/teleport, they are inlined here to avoid circular
-// module requirements
-const (
-	// ComponentKey is a field that represents a component - e.g. service or
-	// function
-	ComponentKey = "trace.component"
-	// ComponentFields is a fields component
-	ComponentFields = "trace.fields"
+import (
+	"github.com/gravitational/teleport/session/reexec"
 )
+
+//go:fix inline
+func IsReexec() bool {
+	return reexec.IsReexec()
+}
