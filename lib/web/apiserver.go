@@ -2042,6 +2042,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
+		BeamsUI: clusterFeatures.GetBeamsUI(),
 	}
 
 	// Set entitlements with backwards field compatibility
