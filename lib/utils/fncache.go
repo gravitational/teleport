@@ -76,8 +76,11 @@ type FnCacheConfig struct {
 	// caches where keys are unlikely to become orphaned. Shorter cleanup
 	// intervals should be used when keys regularly become orphaned.
 	CleanupInterval time.Duration
-	// OnExpiry is an optional callback that will be executed any time
-	// an item is expired and removed from the cache.
+	// OnExpiry is an optional callback that will be executed any time an
+	// item is expired and removed from the cache, or replaced by a reload
+	// in get() when the entry's TTL has elapsed. The callback must not call
+	// any method on the same FnCache instance because the cache mutex may
+	// be held when the callback is invoked.
 	OnExpiry func(ctx context.Context, key any, value any)
 }
 
@@ -214,7 +217,7 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 		case <-entry.loaded:
 			if now.After(entry.t.Add(entry.ttl)) {
 				if c.cfg.OnExpiry != nil && entry.e == nil {
-					c.cfg.OnExpiry(c.cfg.Context, key, entry.v)
+					c.cfg.OnExpiry(context.WithoutCancel(c.cfg.Context), key, entry.v)
 				}
 
 				delete(c.entries, key)
@@ -299,6 +302,13 @@ func (c *FnCache) get(ctx context.Context, key any, ttl time.Duration, loadfn fu
 	}
 
 	if needsReload {
+		// If we are replacing a loaded, successful entry, call OnExpiry so
+		// the old value is properly cleaned up. Without this, entries that
+		// expire between cleanup intervals are silently dropped when a new
+		// request triggers a reload, skipping the OnExpiry callback.
+		if entry != nil && entry.e == nil && c.cfg.OnExpiry != nil {
+			c.cfg.OnExpiry(context.WithoutCancel(c.cfg.Context), key, entry.v)
+		}
 		// Insert a new entry with a new loaded channel. This channel will
 		// block subsequent reads, and serve as a memory barrier for the results.
 		entry = &fnCacheEntry{
