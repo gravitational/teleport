@@ -593,6 +593,9 @@ func (p *ProvisionTokenV2) GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair {
 
 // GetBoundKeypairStatus returns bound keypair status for this token.
 func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair {
+	if p.Status == nil {
+		return nil
+	}
 	return p.Status.BoundKeypair
 }
 
