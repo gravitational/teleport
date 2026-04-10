@@ -816,6 +816,8 @@
     "parquetlog",
     "pastable",
     "pasteable",
+    "pcsc",
+    "pcscd",
     "persistentvolume",
     "persistentvolumeclaim",
     "pgaadauth",
