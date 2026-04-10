@@ -771,8 +771,10 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			srv.Scope = t.scope
-			srv.Spec.Cluster.SetScope(t.scope)
+			if t.scope != "" {
+				srv.Scope = t.scope
+				srv.Spec.Cluster.SetScope(t.scope)
+			}
 			return []types.KubeServer{srv}, nil
 		}, nil
 	case ProxyService:
@@ -797,6 +799,10 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if t.scope != "" {
+				srv.Scope = t.scope
+				srv.Spec.Cluster.SetScope(t.scope)
 			}
 			return []types.KubeServer{srv}, nil
 		}, nil
