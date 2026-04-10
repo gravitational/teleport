@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -523,11 +524,15 @@ func setupMockServerAndAgent(t *testing.T, tt *testAgentTimeoutCase) (*mockHeart
 	}
 
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{
-		Resolver:                 resolver,
-		Client:                   &mockLocalClusterClient{},
-		AccessPoint:              &fakeClient{caKey: ca.PublicKey()},
-		Cluster:                  "test",
-		AuthMethods:              []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		Resolver:    resolver,
+		Client:      &mockLocalClusterClient{},
+		AccessPoint: &fakeClient{caKey: ca.PublicKey()},
+		Cluster:     "test",
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
+		},
 		HostUUID:                 uuid.NewString(),
 		StaleConnTimeoutDisabled: tt.staleConnTimeoutDisabled,
 	})

@@ -116,7 +116,7 @@ func (c *SSHAccessChecker) PermitX11Forwarding() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.PermitX11Forwarding()
 	}
-	return c.checker.scopedCompatChecker.PermitX11Forwarding()
+	return c.checker.role.GetSpec().GetSsh().GetPermitX11Forwarding()
 }
 
 // SSHPortForwardMode returns the SSH port forwarding mode.
@@ -124,7 +124,29 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SSHPortForwardMode()
 	}
-	return c.checker.scopedCompatChecker.SSHPortForwardMode()
+
+	remote := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetRemote()
+	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
+
+	var denyRemote, denyLocal bool
+	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
+		denyRemote = true
+	}
+	if local != nil && local.Enabled != nil && !*local.Enabled {
+		denyLocal = true
+	}
+
+	// enforcing implicit allow and preferring allow over explicit deny
+	switch {
+	case denyRemote && denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
+	case denyRemote:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
+	case denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
+	default:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+	}
 }
 
 // HostSudoers returns the sudoers rules for the host.
@@ -132,7 +154,7 @@ func (c *SSHAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostSudoers(srv)
 	}
-	return c.checker.scopedCompatChecker.HostSudoers(srv)
+	return c.checker.role.GetSpec().GetSsh().GetHostSudoers(), nil
 }
 
 // EnhancedRecordingSet returns the set of enhanced session recording events to capture.
@@ -148,7 +170,59 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.HostUsers(srv)
 	}
-	return c.checker.scopedCompatChecker.HostUsers(srv)
+
+	createHostUser := c.checker.role.GetSpec().GetSsh().GetHostUserCreation()
+
+	var hostUserMode types.CreateHostUserMode
+	if err := hostUserMode.UnmarshalText([]byte(createHostUser.GetMode())); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If no create_host_user block, or mode is OFF/UNSPECIFIED, host user creation is disabled.
+	if hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF ||
+		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+		return &HostUsersDecision{
+			Info: nil,
+			DeniedBy: []*decisionpb.Determinant{{
+				Kind: c.checker.role.GetKind(),
+				Name: c.checker.role.GetMetadata().GetName(),
+			}},
+		}, nil
+	}
+
+	// Convert to decision
+	var decisionMode decisionpb.HostUserMode
+	switch hostUserMode {
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_KEEP
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_DROP
+	default:
+		decisionMode = decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
+	}
+
+	traits := c.checker.Traits()
+	var uid, gid string
+	if uidL := traits[constants.TraitHostUserUID]; len(uidL) >= 1 {
+		uid = uidL[0]
+	}
+	if gidL := traits[constants.TraitHostUserGID]; len(gidL) >= 1 {
+		gid = gidL[0]
+	}
+
+	return &HostUsersDecision{
+		Info: &decisionpb.HostUsersInfo{
+			Groups: createHostUser.GetGroups(),
+			Mode:   decisionMode,
+			Uid:    uid,
+			Gid:    gid,
+			Shell:  createHostUser.GetShell(),
+		},
+		AllowedBy: []*decisionpb.Determinant{{
+			Kind: c.checker.role.GetKind(),
+			Name: c.checker.role.GetMetadata().GetName(),
+		}},
+	}, nil
 }
 
 // CheckAgentForward checks whether SSH agent forwarding is permitted for the given login.
@@ -156,7 +230,11 @@ func (c *SSHAccessChecker) CheckAgentForward(login string) error {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CheckAgentForward(login)
 	}
-	return c.checker.scopedCompatChecker.CheckAgentForward(login)
+	if !c.checker.role.GetSpec().GetSsh().GetForwardAgent() {
+		return trace.AccessDenied("agent forwarding is not permitted for scoped role %q",
+			c.checker.role.GetMetadata().GetName())
+	}
+	return nil
 }
 
 // MaxConnections returns the maximum number of concurrent SSH connections permitted.
@@ -174,7 +252,7 @@ func (c *SSHAccessChecker) MaxSessions() int64 {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.MaxSessions()
 	}
-	return c.checker.scopedCompatChecker.MaxSessions()
+	return c.checker.role.GetSpec().GetSsh().GetMaxSessions()
 }
 
 // getScopedLogins returns the OS logins permitted by this scoped role. Returns nil for unscoped
@@ -188,9 +266,16 @@ func (c *SSHAccessChecker) getScopedLogins() []string {
 }
 
 // CanCopyFiles returns true if remote file operations via SCP or SFTP are permitted.
+// If GetSshFileCopy is nil, then we default to true.
 func (c *SSHAccessChecker) CanCopyFiles() bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.CanCopyFiles()
 	}
-	return c.checker.scopedCompatChecker.CanCopyFiles()
+
+	ssh := c.checker.role.GetSpec().GetSsh()
+	if ssh == nil || ssh.FileCopy == nil {
+		return true
+	}
+	return ssh.GetFileCopy()
+
 }

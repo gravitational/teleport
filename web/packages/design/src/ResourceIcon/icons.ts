@@ -218,7 +218,7 @@ export { default as maxioLight } from './assets/maxio-light.svg?no-inline';
 export { default as mcpDark } from './assets/mcp-dark.svg?no-inline';
 export { default as mcpLight } from './assets/mcp-light.svg?no-inline';
 export { default as mcpCursorDark } from './assets/mcpcursor-dark.svg?no-inline';
-export { default as mcpCursorLight } from './assets/mcpcursor-dark.svg?no-inline';
+export { default as mcpCursorLight } from './assets/mcpcursor-light.svg?no-inline';
 export { default as mcpVscode } from './assets/mcpvscode.svg?no-inline';
 export { default as mcpVscodeInsiders } from './assets/mcpvscodeinsiders.svg?no-inline';
 export { default as metabase } from './assets/metabase.svg?no-inline';

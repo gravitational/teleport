@@ -877,8 +877,10 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] G Suite Screenshots are up-to-date
 - [ ] Azure Active Directory (AD) install instructions work
     - [ ] Azure Active Directory (AD) Screenshots are up-to-date
-- [ ] ActiveDirectory (ADFS) install instructions work
-    - [ ] Active Directory (ADFS) Screenshots are up-to-date
+- [ ] Entra ID SAML (previously ADFS) install instructions work
+    - [ ] Entra ID SAML Screenshots are up-to-date
+- [ ] Entra ID OIDC install instructions work
+    - [ ] Entra ID OIDC Screenshots are up-to-date
 - [ ] Okta install instructions work
     - [ ] Okta Screenshots are up-to-date
 - [ ] OneLogin install instructions work
@@ -1518,7 +1520,8 @@ manualy testing.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
+    - [ ] MySQL server version reported by Teleport is correct. You can find this in the connection information that is printed when you connect via `tsh db connect`.
+    - [ ] MySQL server version reported by `SELECT VERSION();` is correct and approximately matches the one printed in the connection information above.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.

@@ -19,6 +19,7 @@
 package azsessions
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/base64"
@@ -36,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 // sessionContainerParam and inprogressContainerParam are the parameters in the
@@ -379,57 +382,94 @@ func (h *Handler) uploadBlob(
 	return blob.URL(), nil
 }
 
-// Download implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer))
+// StreamSessionRecording implements [events.UploadHandler] and downloads a session recording.
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.sessionBlob(sessionID))
 }
 
-// DownloadSummary implements [events.UploadHandler] and downloads a final
+// StreamSessionSummary implements [events.UploadHandler] and downloads a final
 // session summary.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	// Happy path: the final summary exists.
-	err := h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
+	rc, err := h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
 	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one.
-		err = h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer)
+		// Final summary doesn't exist, try the pending one. We don't retry
+		// here since the pending summary can be overwritten at any time.
+		rc, err = h.blobStream(ctx, h.pendingSummaryBlob(sessionID))
 		if trace.IsNotFound(err) {
 			// One more check for the final summary to prevent a race condition where
 			// the final one got created and the pending one got removed between the
 			// two checks above.
-			err = h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
+			rc, err = h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
 		}
 	}
-	return trace.Wrap(err)
+	return rc, trace.Wrap(err)
 }
 
-// DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.metadataBlob(sessionID), writer))
-}
-
-// DownloadThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), writer))
-}
-
-func (h *Handler) downloadBlob(ctx context.Context, sessionID session.ID, blob *blockblob.Client, writer io.Writer) error {
-	resp, err := cErr(blob.DownloadStream(ctx, nil))
+// blobStream downloads a blob in a single shot without retry logic.
+func (h *Handler) blobStream(ctx context.Context, blobClient *blockblob.Client) (io.ReadCloser, error) {
+	resp, err := cErr(blobClient.DownloadStream(ctx, nil))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
+	return resp.Body, nil
+}
 
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			h.log.WarnContext(ctx, "Error closing downloaded blob.", "error", err, fieldSessionID, sessionID)
+// StreamSessionMetadata implements [events.UploadHandler] and downloads a session's metadata.
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.metadataBlob(sessionID))
+}
+
+// StreamSessionThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.thumbnailBlob(sessionID))
+}
+
+// blobRetrier checks that the blob exists and returns a downloadretrier.Retrier
+// whose DownloadFunc issues a range download starting at the given offset.
+func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobClient *blockblob.Client) (io.ReadCloser, error) {
+	// Check existence upfront so NotFound is returned before any reads.
+	props, err := cErr(blobClient.GetProperties(ctx, nil))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var size int64
+	if props.ContentLength != nil {
+		size = *props.ContentLength
+	}
+	if size == 0 {
+		return io.NopCloser(bytes.NewBuffer(nil)), nil
+	}
+	var accessConditions *azblob.AccessConditions
+	if props.VersionID != nil {
+		blobClient, err = blobClient.WithVersionID(*props.VersionID)
+		if err != nil {
+			return nil, trace.Wrap(err, "applying blob version from properties")
 		}
-	}()
-
-	if _, err := io.Copy(writer, resp.Body); err != nil {
-		return trace.ConvertSystemError(cErr0(err))
+	} else if props.ETag != nil {
+		// if versioning isn't enabled, we can still get some protection against
+		// concurrent writes by using the ETag as an If-Match condition
+		// if the blob gets modified between the GetProperties call and the download,
+		// the ETag will change and the download will fail instead of returning potentially
+		// inconsistent data
+		accessConditions = &azblob.AccessConditions{
+			ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+				IfMatch: props.ETag,
+			},
+		}
 	}
 
-	h.log.DebugContext(ctx, "Blob downloaded.", fieldSessionID, sessionID)
-	return nil
+	return downloadretrier.New(ctx, size, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
+		resp, err := cErr(blobClient.DownloadStream(ctx, &azblob.DownloadStreamOptions{
+			Range:            azblob.HTTPRange{Offset: offset},
+			AccessConditions: accessConditions,
+		}))
+		if err != nil {
+			return nil, trace.Wrap(trace.ConvertSystemError(err))
+		}
+		h.log.DebugContext(ctx, "Blob download started.", fieldSessionID, sessionID, "offset", offset)
+		return resp.Body, nil
+	}), nil
 }
 
 // CreateUpload implements [events.MultipartUploader].

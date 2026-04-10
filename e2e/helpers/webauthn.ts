@@ -35,6 +35,10 @@ declare global {
 // mockWebAuthn sets up a mock for the WebAuthn API in the browser context in a way that
 // is compatible with Chromium, Firefox and WebKit.
 export async function mockWebAuthn(page: Page) {
+  if (await page.evaluate(() => '__e2eWebAuthn' in self)) {
+    return;
+  }
+
   const credIdBuf = Buffer.from(webauthnCredentialId, 'base64');
   const privateKey = createPrivateKey({
     key: Buffer.from(webauthnPrivateKey, 'base64'),

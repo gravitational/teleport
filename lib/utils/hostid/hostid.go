@@ -66,6 +66,7 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		types.JoinMethodUnspecified,
 		types.JoinMethodAzureDevops,
 		types.JoinMethodBitbucket,
+		types.JoinMethodBoundKeypair,
 		types.JoinMethodIAM,
 		types.JoinMethodCircleCI,
 		types.JoinMethodKubernetes,

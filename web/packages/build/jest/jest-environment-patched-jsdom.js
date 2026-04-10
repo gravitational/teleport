@@ -7,7 +7,7 @@ import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
 // When using jest-environment-jsdom, TextEncoder and TextDecoder are not defined. This poses a
 // problem when writing tests for code which uses TextEncoder and TextDecoder directly or that
-// imports libraries which depend on those globals (for example whatwg-url).
+// imports libraries which depend on those globals.
 //
 // It's unclear if that's a problem with Jest or JSDOM itself, see
 // https://github.com/jsdom/jsdom/issues/2524#issuecomment-902027138

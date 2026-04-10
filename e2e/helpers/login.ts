@@ -27,9 +27,13 @@ export async function login(
   username = 'bob',
   password = e2ePassword
 ) {
-  await page.addInitScript(() =>
-    localStorage.setItem('grv_teleport_license_acknowledged', 'true')
-  );
+  await page.addInitScript(() => {
+    localStorage.setItem('grv_teleport_license_acknowledged', 'true');
+    localStorage.setItem(
+      'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
+      'true'
+    );
+  });
 
   await mockWebAuthn(page);
 
@@ -46,4 +50,13 @@ export async function login(
   await page.waitForLoadState('networkidle');
 
   await expect(page.getByText(/^Resources$/).first()).toBeVisible();
+}
+
+export async function logout(page: Page) {
+  await page.getByRole('button', { name: 'User Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Logout' }).click();
+  // This is important to make sure that the redirect and subsequent page.goto
+  // inside login() don't enter a race condition which results in a
+  // net::ERR_ABORTED.
+  await expect(page.getByText('Sign in to Teleport')).toBeVisible();
 }

@@ -152,7 +152,6 @@
     // https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-useless-fragment.html#allowexpressions
     "react/jsx-no-useless-fragment": ["error", { "allowExpressions": true }],
     "react/display-name": "off",
-    "react/prop-types": "off",
 
     "react-hooks/rules-of-hooks": "warn",
     "react-hooks/exhaustive-deps": "warn",
