@@ -315,58 +315,9 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		}
 	} else {
 		// Delegation certificates, tied to a human user identity.
-		certReq := &delegationv1.GenerateCertsRequest{
-			DelegationSessionId: o.delegationSessionID,
-			SshPublicKey:        req.SSHPublicKey,
-			TlsPublicKey:        req.TLSPublicKey,
-			Ttl:                 durationpb.New(o.ttl),
-		}
-		if req.RouteToCluster != o.currentIdentity.ClusterName {
-			return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
-		}
-		switch {
-		case req.GetRouteToApp().Name != "":
-			route := req.GetRouteToApp()
-			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
-				RouteToApp: &delegationv1.RouteToApp{
-					Name:              route.GetName(),
-					PublicAddr:        route.GetPublicAddr(),
-					ClusterName:       route.GetClusterName(),
-					Uri:               route.GetURI(),
-					TargetPort:        route.GetTargetPort(),
-					AwsRoleArn:        route.GetAWSRoleARN(),
-					AzureIdentity:     route.GetAzureIdentity(),
-					GcpServiceAccount: route.GetGCPServiceAccount(),
-				},
-			}
-		case req.GetRouteToDatabase().ServiceName != "":
-			route := req.GetRouteToDatabase()
-			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
-				RouteToDatabase: &delegationv1.RouteToDatabase{
-					ServiceName: route.GetServiceName(),
-					Protocol:    route.GetProtocol(),
-					Username:    route.GetUsername(),
-					Database:    route.GetDatabase(),
-					Roles:       route.GetRoles(),
-				},
-			}
-		case req.GetKubernetesCluster() != "":
-			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
-				RouteToKubernetes: &delegationv1.RouteToKubernetes{
-					ClusterName: req.GetKubernetesCluster(),
-				},
-			}
-		}
-		certsRsp, err := g.client.DelegationSessionServiceClient().
-			GenerateCerts(ctx, certReq)
+		certs, err = g.generateDelegationCertificates(ctx, req, o)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		certs = &proto.Certs{
-			SSH:        certsRsp.GetSsh(),
-			TLS:        certsRsp.GetTls(),
-			SSHCACerts: certsRsp.GetSshCas(),
-			TLSCACerts: certsRsp.GetTlsCas(),
 		}
 	}
 
@@ -429,6 +380,63 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 	}
 	conditions := role.GetImpersonateConditions(types.Allow)
 	return conditions.Roles, nil
+}
+
+func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
+	certReq := &delegationv1.GenerateCertsRequest{
+		DelegationSessionId: o.delegationSessionID,
+		SshPublicKey:        req.SSHPublicKey,
+		TlsPublicKey:        req.TLSPublicKey,
+		Ttl:                 durationpb.New(o.ttl),
+	}
+	if req.GetRouteToCluster() != o.currentIdentity.ClusterName {
+		return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
+	}
+	switch {
+	case req.GetRouteToApp().Name != "":
+		route := req.GetRouteToApp()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
+			RouteToApp: &delegationv1.RouteToApp{
+				Name:              route.GetName(),
+				PublicAddr:        route.GetPublicAddr(),
+				ClusterName:       route.GetClusterName(),
+				Uri:               route.GetURI(),
+				TargetPort:        route.GetTargetPort(),
+				AwsRoleArn:        route.GetAWSRoleARN(),
+				AzureIdentity:     route.GetAzureIdentity(),
+				GcpServiceAccount: route.GetGCPServiceAccount(),
+			},
+		}
+	case req.GetRouteToDatabase().ServiceName != "":
+		route := req.GetRouteToDatabase()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
+			RouteToDatabase: &delegationv1.RouteToDatabase{
+				ServiceName: route.GetServiceName(),
+				Protocol:    route.GetProtocol(),
+				Username:    route.GetUsername(),
+				Database:    route.GetDatabase(),
+				Roles:       route.GetRoles(),
+			},
+		}
+	case req.GetKubernetesCluster() != "":
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
+			RouteToKubernetes: &delegationv1.RouteToKubernetes{
+				ClusterName: req.GetKubernetesCluster(),
+			},
+		}
+	}
+	certsRsp, err := g.client.DelegationSessionServiceClient().
+		GenerateCerts(ctx, certReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.Certs{
+		SSH:        certsRsp.GetSsh(),
+		TLS:        certsRsp.GetTls(),
+		SSHCACerts: certsRsp.GetSshCas(),
+		TLSCACerts: certsRsp.GetTlsCas(),
+	}, nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to
