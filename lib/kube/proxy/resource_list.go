@@ -175,9 +175,13 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		if sf != nil {
 			src, dst, compErr := wrapContentEncoding(pipeReader, w, contentEncoding)
 			if compErr != nil {
-				// Kubernetes API servers only use gzip today.
-				// If a new encoding appears, add support in wrapContentEncoding.
-				f.log.WarnContext(ctx, "Unexpected Content-Encoding, falling back to buffered filter", "content_encoding", contentEncoding)
+				if trace.IsBadParameter(compErr) {
+					// Kubernetes API servers only use gzip today.
+					// If a new encoding appears, add support in wrapContentEncoding.
+					f.log.WarnContext(ctx, "Unexpected Content-Encoding, falling back to buffered filter", "content_encoding", contentEncoding)
+				} else {
+					return status, trace.ConnectionProblem(compErr, "failed to initialize content encoding wrapper for %q", contentEncoding)
+				}
 			} else {
 				maps.Copy(w.Header(), hc.headers)
 				w.Header().Del("Content-Length")
