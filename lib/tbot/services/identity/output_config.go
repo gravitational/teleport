@@ -147,6 +147,9 @@ func (o *OutputConfig) CheckAndSetDefaults() error {
 	default:
 		return trace.BadParameter("ssh_config: unrecognized value %q", o.SSHConfigMode)
 	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 
 	return nil
 }
