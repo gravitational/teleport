@@ -476,7 +476,7 @@ func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobCli
 }
 
 func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
-	return "", trace.NotImplemented("GetRecordingVersion not implemented for Azure Blob Storage")
+	return "", nil
 }
 
 // CreateUpload implements [events.MultipartUploader].

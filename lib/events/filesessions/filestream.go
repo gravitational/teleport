@@ -190,9 +190,70 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return h.cleanupUpload(ctx, upload)
 	}
 
+	// Parts must be sorted in PartNumber order.
+	slices.SortFunc(parts, func(a, b events.StreamPart) int {
+		return cmp.Compare(a.Number, b.Number)
+	})
+
+	tempFile, err := os.CreateTemp(h.Directory, string(upload.SessionID)+".tar.*")
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer func() {
+		_ = tempFile.Close()
+		if err := os.Remove(tempFile.Name()); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to remove temp file", "path", tempFile.Name(), "error", err)
+		}
+	}()
+
+	if err := h.fileRecorder.CombineParts(ctx, tempFile, func(yield func(string) bool) {
+		for _, part := range parts {
+			if !yield(h.partPath(upload, part.Number)) {
+				break
+			}
+		}
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	uploadPath := h.recordingPath(upload)
+	// Prevent other processes from accessing this file until the write is completed
+	unlock, err := utils.FSTryWriteLock(uploadPath)
+Loop:
+	for range 3 {
+		switch {
+		case err == nil:
+			break Loop
+		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
+			// If unable to lock the file, try again with some backoff
+			// to allow the UploadCompleter to finish and remove its
+			// file lock before giving up.
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(50 * time.Millisecond):
+				unlock, err = utils.FSTryWriteLock(uploadPath)
+				continue
+			}
+		default:
+			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+		}
+	}
+	if unlock == nil {
+		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
+		}
+	}()
+
 	if !upload.Temporary {
 		// Check that we're replacing the version we expect to, or creating anew.
-		version, err := h.GetRecordingVersion(ctx, upload.SessionID, "")
+		version, err := h.GetRecordingVersion(ctx, upload.SessionID, "" /* upload ID */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -207,72 +268,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 	}
 
-	uploadPath := h.recordingPath(upload)
-
-	// Prevent other processes from accessing this file until the write is completed
-	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	unlock, err := utils.FSTryWriteLock(uploadPath)
-Loop:
-	for range 3 {
-		switch {
-		case err == nil:
-			break Loop
-		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
-			// If unable to lock the file, try again with some backoff
-			// to allow the UploadCompleter to finish and remove its
-			// file lock before giving up.
-			select {
-			case <-ctx.Done():
-				if err := f.Close(); err != nil {
-					h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-				}
-
-				return nil
-			case <-time.After(50 * time.Millisecond):
-				unlock, err = utils.FSTryWriteLock(uploadPath)
-				continue
-			}
-		default:
-			if err := f.Close(); err != nil {
-				h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath)
-			}
-
-			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
-		}
-	}
-
-	if unlock == nil {
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-		}
-
-		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
-	}
-
-	defer func() {
-		if err := unlock(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
-		}
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-		}
-	}()
-
-	// Parts must be sorted in PartNumber order.
-	slices.SortFunc(parts, func(a, b events.StreamPart) int {
-		return cmp.Compare(a.Number, b.Number)
-	})
-
-	if err := h.fileRecorder.CombineParts(ctx, f, func(yield func(string) bool) {
-		for _, part := range parts {
-			if !yield(h.partPath(upload, part.Number)) {
-				break
-			}
-		}
-	}); err != nil {
+	if err := os.Rename(tempFile.Name(), uploadPath); err != nil {
 		return trace.Wrap(err)
 	}
 
