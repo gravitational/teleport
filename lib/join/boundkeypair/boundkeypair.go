@@ -212,8 +212,15 @@ func requestBoundKeypairRotation(
 // invariants remain in place, mutator functions may make assertions to ensure
 // the provided backend state is still sane before the update is committed.
 type boundKeypairStatusMutatorV2 interface {
-	mutateStandardToken(*types.ProvisionTokenSpecV2BoundKeypair, *types.ProvisionTokenStatusV2BoundKeypair) error
-	mutateScopedToken(*joiningv1.BoundKeypairSpec, *joiningv1.BoundKeypairStatus) error
+	validate(
+		*types.ProvisionTokenSpecV2BoundKeypair,
+		*types.ProvisionTokenStatusV2BoundKeypair,
+	) error
+	mutateStandardToken(
+		*types.ProvisionTokenSpecV2BoundKeypair,
+		*types.ProvisionTokenStatusV2BoundKeypair,
+	)
+	mutateScopedToken(*joiningv1.BoundKeypairSpec, *joiningv1.BoundKeypairStatus)
 }
 
 type consumeRecoveryMutator struct {
@@ -222,7 +229,7 @@ type consumeRecoveryMutator struct {
 	now                    time.Time
 }
 
-func (m *consumeRecoveryMutator) mutateStandardToken(
+func (m *consumeRecoveryMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -238,32 +245,23 @@ func (m *consumeRecoveryMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
+	return nil
+}
+
+func (m *consumeRecoveryMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
 	status.RecoveryCount += 1
 	status.LastRecoveredAt = &m.now
-
-	return nil
 }
 
 func (m *consumeRecoveryMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	// Ensure we have the expected number of rejoins left to prevent going
-	// below zero.
-	if status.RecoveryCount != m.expectRecoveryCount {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
-	// Ensure the allowed join count has at least not decreased, but allow
-	// for collision with potentially increased values.
-	if spec.Recovery.Limit < m.expectMinRecoveryLimit {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.RecoveryCount += 1
 	status.LastRecoveredAt = timestamppb.New(m.now)
-
-	return nil
 }
 
 // mutateStatusConsumeRecovery consumes a "hard" join on the backend, incrementing
@@ -285,7 +283,7 @@ type boundPublicKeyMutator struct {
 	expectPreviousKey string
 }
 
-func (m *boundPublicKeyMutator) mutateStandardToken(
+func (m *boundPublicKeyMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -293,22 +291,21 @@ func (m *boundPublicKeyMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
-	status.BoundPublicKey = m.newPublicKey
-
 	return nil
+}
+
+func (m *boundPublicKeyMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	status.BoundPublicKey = m.newPublicKey
 }
 
 func (m *boundPublicKeyMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	if status.BoundPublicKey != m.expectPreviousKey {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.BoundPublicKey = m.newPublicKey
-
-	return nil
 }
 
 // mutateStatusBoundPublicKey is a mutator that updates the bound public key
@@ -326,7 +323,7 @@ type boundBotInstanceMutator struct {
 	expectPreviousBotInstance string
 }
 
-func (m *boundBotInstanceMutator) mutateStandardToken(
+func (m *boundBotInstanceMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -334,27 +331,26 @@ func (m *boundBotInstanceMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
-	status.BoundBotInstanceID = m.newBotInstance
+	// Bound bot instance IDs are mutually exclusive with bound host IDs
+	if status.BoundHostID != "" {
+		return trace.AccessDenied("unexpected backend state")
+	}
 
 	return nil
+}
+
+func (m *boundBotInstanceMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	status.BoundBotInstanceID = m.newBotInstance
 }
 
 func (m *boundBotInstanceMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	if status.BoundBotInstanceId != m.expectPreviousBotInstance {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
-	// Bound bot instance IDs are mutually exclusive with bound host IDs
-	if status.BoundHostId != "" {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.BoundBotInstanceId = m.newBotInstance
-
-	return nil
 }
 
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
@@ -372,7 +368,7 @@ type boundHostIDMutator struct {
 	expectPreviousHostID string
 }
 
-func (m *boundHostIDMutator) mutateStandardToken(
+func (m *boundHostIDMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -385,27 +381,21 @@ func (m *boundHostIDMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
-	status.BoundHostID = m.newHostID
-
 	return nil
+}
+
+func (m *boundHostIDMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	status.BoundHostID = m.newHostID
 }
 
 func (m *boundHostIDMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	if status.GetBoundHostId() != m.expectPreviousHostID {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
-	// Bound bot instance IDs are mutually exclusive to bound host IDs
-	if status.GetBoundBotInstanceId() != "" {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.BoundHostId = m.newHostID
-
-	return nil
 }
 
 // mutateStatusBoundHostID updates the host ID currently bound to this token. It
@@ -425,7 +415,7 @@ type lastRotatedAtMutator struct {
 	expectPrevValue *time.Time
 }
 
-func (m *lastRotatedAtMutator) mutateStandardToken(
+func (m *lastRotatedAtMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -440,29 +430,21 @@ func (m *lastRotatedAtMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
-	status.LastRotatedAt = m.newValue
-
 	return nil
+}
+
+func (m *lastRotatedAtMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	status.LastRotatedAt = m.newValue
 }
 
 func (m *lastRotatedAtMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	switch {
-	case m.expectPrevValue == nil && status.LastRotatedAt == nil:
-		// no issue
-	case m.expectPrevValue != nil && status.LastRotatedAt == nil:
-		fallthrough
-	case m.expectPrevValue == nil && status.LastRotatedAt != nil:
-		fallthrough
-	case !m.expectPrevValue.Equal(status.LastRotatedAt.AsTime()):
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.LastRotatedAt = timestamppb.New(*m.newValue)
-
-	return nil
 }
 
 // mutateStatusLastRotatedAt updates the `status.LastRotatedAt` field to
@@ -479,7 +461,7 @@ type clearRegistrationSecretMutator struct {
 	oldValue string
 }
 
-func (m *clearRegistrationSecretMutator) mutateStandardToken(
+func (m *clearRegistrationSecretMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
@@ -487,20 +469,21 @@ func (m *clearRegistrationSecretMutator) mutateStandardToken(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
-	status.RegistrationSecret = ""
 	return nil
+}
+
+func (m *clearRegistrationSecretMutator) mutateStandardToken(
+	spec *types.ProvisionTokenSpecV2BoundKeypair,
+	status *types.ProvisionTokenStatusV2BoundKeypair,
+) {
+	status.RegistrationSecret = ""
 }
 
 func (m *clearRegistrationSecretMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
-) error {
-	if status.RegistrationSecret != m.oldValue {
-		return trace.AccessDenied("unexpected backend state")
-	}
-
+) {
 	status.RegistrationSecret = ""
-	return nil
 }
 
 // mutateStatusClearRegistrationSecret clears the registration secret field to
@@ -520,9 +503,11 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 			// Apply all mutators. Individual mutators may make additional
 			// assertions to ensure invariants haven't changed.
 			for _, mutator := range mutators {
-				if err := mutator.mutateStandardToken(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus()); err != nil {
+				if err := mutator.validate(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus()); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
+
+				mutator.mutateStandardToken(pt.GetBoundKeypair(), pt.GetBoundKeypairStatus())
 			}
 
 			return pt, nil
@@ -535,12 +520,20 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 	case *joining.Token:
 		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			for _, mutator := range mutators {
-				if err := mutator.mutateScopedToken(
-					st.GetSpec().GetBoundKeypair(),
-					st.GetStatus().GetUsage().GetBoundKeypair(),
-				); err != nil {
+				// Compute the equivalent spec/status for each mutator. No
+				// mutators currently effect the fields another depends on, but
+				// we don't want any surprises if that changes in the future.
+				equivalentSpec := joining.BoundKeypairSpecFromScopedToken(st)
+				equivalentStatus := joining.BoundKeypairStatusFromScopedToken(st)
+
+				if err := mutator.validate(equivalentSpec, equivalentStatus); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
+
+				mutator.mutateScopedToken(
+					st.GetSpec().GetBoundKeypair(),
+					st.GetStatus().GetUsage().GetBoundKeypair(),
+				)
 			}
 
 			return st, nil

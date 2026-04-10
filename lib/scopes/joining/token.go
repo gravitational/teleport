@@ -650,7 +650,42 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 // GetBoundKeypair returns the bound keypair-specific configuration for this
 // token.
 func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
-	spec := t.scoped.GetSpec().GetBoundKeypair()
+	return BoundKeypairSpecFromScopedToken(t.scoped)
+}
+
+// GetBoundKeypairStatus returns the bound keypair-specific status for this
+// token.
+func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
+	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// GetScoped returns the inner scoped token wrapped by this [provision.Token].
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
+}
+
+// GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
+// [provision.Token]. Returns a boolean indicating whether the token is scoped or not.
+func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
+	wrapper, ok := token.(*Token)
+	if !ok {
+		return nil, false
+	}
+
+	return wrapper.scoped, true
+}
+
+// GetImmutableLabels returns labels that must be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
+// BoundKeypairSpecFromScopedToken converts the bound keypair spec from a
+// [*joiningv1.ScopedToken] to the equivalent
+// [*types.ProvisionTokenSpecV2BoundKeypair].
+func BoundKeypairSpecFromScopedToken(token *joiningv1.ScopedToken) *types.ProvisionTokenSpecV2BoundKeypair {
+	spec := token.GetSpec().GetBoundKeypair()
 
 	var mustRegisterBefore, rotateAfter *time.Time
 	if m := spec.GetOnboarding().GetMustRegisterBefore(); m != nil {
@@ -676,52 +711,31 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 	}
 }
 
-// GetBoundKeypairStatus returns the bound keypair-specific status for this
-// token.
-func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
-	spec := t.scoped.GetStatus().GetUsage().GetBoundKeypair()
+// BoundKeypairStatusFromScopedToken converts the bound keypair status from a
+// [*joiningv1.ScopedToken] to the equivalent
+// [*types.ProvisionTokenStatusV2BoundKeypair].
+func BoundKeypairStatusFromScopedToken(token *joiningv1.ScopedToken) *types.ProvisionTokenStatusV2BoundKeypair {
+	status := token.GetStatus().GetUsage().GetBoundKeypair()
 
 	var lastRecoveredAt, lastRotatedAt *time.Time
-	if val := spec.GetLastRecoveredAt(); val != nil {
+	if val := status.GetLastRecoveredAt(); val != nil {
 		v := val.AsTime()
 		lastRecoveredAt = &v
 	}
-	if val := spec.GetLastRotatedAt(); val != nil {
+	if val := status.GetLastRotatedAt(); val != nil {
 		v := val.AsTime()
 		lastRotatedAt = &v
 	}
 
 	return &types.ProvisionTokenStatusV2BoundKeypair{
-		RegistrationSecret: spec.GetRegistrationSecret(),
-		BoundPublicKey:     spec.GetBoundPublicKey(),
-		BoundBotInstanceID: spec.GetBoundBotInstanceId(),
-		BoundHostID:        spec.GetBoundHostId(),
-		RecoveryCount:      spec.GetRecoveryCount(),
+		RegistrationSecret: status.GetRegistrationSecret(),
+		BoundPublicKey:     status.GetBoundPublicKey(),
+		BoundBotInstanceID: status.GetBoundBotInstanceId(),
+		BoundHostID:        status.GetBoundHostId(),
+		RecoveryCount:      status.GetRecoveryCount(),
 		LastRecoveredAt:    lastRecoveredAt,
 		LastRotatedAt:      lastRotatedAt,
 	}
-}
-
-// GetScoped returns the inner scoped token wrapped by this [provision.Token].
-func (t *Token) GetScoped() *joiningv1.ScopedToken {
-	return t.scoped
-}
-
-// GetScopedToken attempts to return the underlying [*joiningv1.ScopedToken] backing a
-// [provision.Token]. Returns a boolean indicating whether the token is scoped or not.
-func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
-	wrapper, ok := token.(*Token)
-	if !ok {
-		return nil, false
-	}
-
-	return wrapper.scoped, true
-}
-
-// GetImmutableLabels returns labels that must be applied to resources
-// provisioned with this token.
-func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
-	return t.scoped.GetSpec().GetImmutableLabels()
 }
 
 func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
