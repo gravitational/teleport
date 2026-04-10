@@ -201,6 +201,32 @@ func TestSessionService_CreateSession(t *testing.T) {
 		require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
 	})
 
+	t.Run("cannot create a session from within a delegation session", func(t *testing.T) {
+		service, pack := sessionServiceTestPack(t)
+
+		pack.authenticateUserInDelegationSession(
+			t,
+			"bob",
+			"source-session",
+			authz.AdminActionAuthMFAVerified,
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						types.Wildcard: {types.Wildcard},
+					},
+				},
+			},
+		)
+
+		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+			Spec: newDelegationSessionSpec("bob"),
+			Ttl:  durationpb.New(5 * time.Minute),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+		require.ErrorContains(t, err, "cannot create a delegation session from within a delegation session")
+	})
+
 	t.Run("missing ttl", func(t *testing.T) {
 		service, pack := sessionServiceTestPack(t)
 

@@ -109,10 +109,20 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 				)
 				require.NoError(t, err)
 
+				identity := authz.LocalUser{
+					Identity: tlsca.Identity{
+						Username:            pack.user.GetName(),
+						Groups:              pack.user.GetRoles(),
+						DelegationSessionID: pack.delegationSessionID,
+					},
+				}
+
 				return &authz.Context{
 					User:                 pack.user,
 					AdminActionAuthState: pack.adminActionAuthState,
 					Checker:              checker,
+					Identity:             identity,
+					UnmappedIdentity:     identity,
 				}, nil
 			}
 
@@ -174,6 +184,20 @@ func (p *sessionTestPack) authenticateUser(
 
 	p.user = p.createUser(t, name, roleSpec)
 	p.adminActionAuthState = mfaState
+	p.delegationSessionID = ""
+}
+
+func (p *sessionTestPack) authenticateUserInDelegationSession(
+	t *testing.T,
+	name string,
+	delegationSessionID string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.delegationSessionID = delegationSessionID
 }
 
 func (p *sessionTestPack) createUser(
