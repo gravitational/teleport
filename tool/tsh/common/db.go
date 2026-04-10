@@ -774,6 +774,10 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter("%s", formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
+	if cf.DatabaseVNet {
+		return onDatabaseConnectVNet(cf, tc, profile, dbInfo)
+	}
+
 	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase, cf.LocalProxyTunnel)
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
@@ -809,6 +813,64 @@ func onDatabaseConnect(cf *CLIConf) error {
 	// Use io.MultiWriter to duplicate stderr to the capture writer. The
 	// captured stderr can be used for diagnosing command failures. The capture
 	// writer captures up to a fixed number to limit memory usage.
+	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
+	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
+
+	err = cf.RunCommand(cmd)
+	if err != nil {
+		return dbcmd.ConvertCommandError(cmd, err, string(peakStderr.Bytes()))
+	}
+	return nil
+}
+
+// defaultVNetDBPort is the fallback port used for VNet database connections when
+// the database URI does not contain a port.
+const defaultVNetDBPort = 61234
+
+// onDatabaseConnectVNet handles "tsh db connect --vnet". It connects through
+// VNet instead of starting a local proxy or issuing certificates.
+func onDatabaseConnectVNet(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, dbInfo *databaseInfo) error {
+	rootClusterName, err := tc.RootClusterName(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	db, err := dbInfo.GetDatabase(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err, "fetching database info")
+	}
+
+	vnetHost := fmt.Sprintf("%s.%s.db.%s",
+		dbInfo.RouteToDatabase.Username,
+		dbInfo.RouteToDatabase.ServiceName,
+		tc.WebProxyHost(),
+	)
+
+	vnetPort := defaultVNetDBPort
+	if addr, err := utils.ParseAddr(db.GetURI()); err == nil {
+		vnetPort = addr.Port(defaultVNetDBPort)
+	}
+
+	logger.InfoContext(cf.Context, "Connecting to database via VNet", "address", fmt.Sprintf("%s:%d", vnetHost, vnetPort))
+
+	opts := []dbcmd.ConnectCommandFunc{
+		dbcmd.WithLocalProxy(vnetHost, vnetPort, ""),
+		dbcmd.WithNoTLS(),
+	}
+
+	bb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, dbInfo.getDatabaseForDBCmd, opts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd, err := bb.GetConnectCommand(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.DebugContext(cf.Context, "Executing VNet database command", "command", logutils.StringerAttr(cmd))
+
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+
 	peakStderr := utils.NewCaptureNBytesWriter(dbcmd.PeakStderrSize)
 	cmd.Stderr = io.MultiWriter(os.Stderr, peakStderr)
 

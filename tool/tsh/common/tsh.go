@@ -476,6 +476,9 @@ type CLIConf struct {
 	LocalProxyPortMapping string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
+	// DatabaseVNet specifies whether to connect through VNet instead of
+	// starting a local proxy.
+	DatabaseVNet bool
 	// TargetPort is a port used for routing connections to multi-port TCP apps.
 	TargetPort uint16
 
@@ -1211,6 +1214,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbConnect.Flag("vnet", "Connect through VNet.").Envar("TELEPORT_DB_VNET").Hidden().BoolVar(&cf.DatabaseVNet)
 	dbExec := db.Command("exec", "Execute database commands on target database services.")
 	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
 	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
