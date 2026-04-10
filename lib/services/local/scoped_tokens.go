@@ -494,8 +494,20 @@ func (s *ScopedTokenService) PatchScopedToken(
 
 func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
 	for _, t := range token {
-		if t != nil && t.Status != nil {
+		if t == nil {
+			continue
+		}
+
+		if ob := t.GetSpec().GetBoundKeypair().GetOnboarding(); ob != nil {
+			ob.RegistrationSecret = ""
+		}
+
+		if t.Status != nil {
 			t.Status.Secret = ""
+
+			if t.Status.GetUsage().GetBoundKeypair() != nil {
+				t.Status.GetUsage().GetBoundKeypair().RegistrationSecret = ""
+			}
 		}
 	}
 }
