@@ -144,8 +144,23 @@ func (s *SessionService) authorizeSession(
 	authCtx *authz.Context,
 	session *delegationv1.DelegationSession,
 ) error {
-	botName := authCtx.Identity.GetIdentity().BotName
+	identity := authCtx.Identity.GetIdentity()
+
+	botName := identity.BotName
 	if botName == "" {
+		return ErrDelegationUnauthorized
+	}
+
+	// We only expect tbot to call GenerateCerts with its *own* identity, so if
+	// we see a DelegationSessionID on the certificate, something is awry and we
+	// should exercise caution.
+	if identity.DelegationSessionID != "" {
+		s.logger.WarnContext(ctx,
+			"Refusing to generate certificates from inside a delegation session",
+			"bot_name", botName,
+			"target_delegation_session_id", session.GetMetadata().GetName(),
+			"source_delegation_session_id", identity.DelegationSessionID,
+		)
 		return ErrDelegationUnauthorized
 	}
 

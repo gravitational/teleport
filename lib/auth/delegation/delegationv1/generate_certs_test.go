@@ -305,6 +305,44 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
 
+	t.Run("bot already in delegation session", func(t *testing.T) {
+		service, pack := sessionServiceTestPack(t)
+		pack.createUser(t, "bob", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"*": []string{"*"},
+				},
+			},
+		})
+		pack.authenticateBotInDelegationSession("payroll-agent", "source-delegation-session")
+
+		session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
+			User: "bob",
+			Resources: []*delegationv1pb.DelegationResourceSpec{
+				{
+					Kind: types.KindApp,
+					Name: "hr-system",
+				},
+			},
+			AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
+				{
+					Kind: types.KindBot,
+					Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+						BotName: "payroll-agent",
+					},
+				},
+			},
+		})
+
+		_, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
+			DelegationSessionId: session.GetMetadata().GetName(),
+			SshPublicKey:        sshPublicKey,
+			TlsPublicKey:        tlsPublicKey,
+			Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+		})
+		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
+	})
+
 	t.Run("session expired", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			service, pack := sessionServiceTestPack(t)

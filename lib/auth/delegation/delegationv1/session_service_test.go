@@ -91,7 +91,10 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 			if pack.botName != "" {
 				return &authz.Context{
 					Identity: authz.LocalUser{
-						Identity: tlsca.Identity{BotName: pack.botName},
+						Identity: tlsca.Identity{
+							BotName:             pack.botName,
+							DelegationSessionID: pack.delegationSessionID,
+						},
 					},
 					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
 				}, nil
@@ -156,6 +159,7 @@ type sessionTestPack struct {
 	user                 types.User
 	adminActionAuthState authz.AdminActionAuthState
 	botName              string
+	delegationSessionID  string
 
 	onCreateAppSession func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
@@ -186,6 +190,12 @@ func (p *sessionTestPack) createUser(
 
 func (p *sessionTestPack) authenticateBot(botName string) {
 	p.botName = botName
+	p.delegationSessionID = ""
+}
+
+func (p *sessionTestPack) authenticateBotInDelegationSession(botName, delegationSessionID string) {
+	p.botName = botName
+	p.delegationSessionID = delegationSessionID
 }
 
 func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.DelegationSessionSpec) *delegationv1pb.DelegationSession {
