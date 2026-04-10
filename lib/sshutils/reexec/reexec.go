@@ -31,8 +31,6 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
-const maxRead = 4096
-
 // ErrorContext contains context used to enrich child process launch errors.
 type ErrorContext struct {
 	// DecisionContext contains RBAC decision details used to clarify
@@ -80,6 +78,8 @@ func ChildErrorWithContext(errMsg string, context *ErrorContext) string {
 
 	return errMsg
 }
+
+const maxRead = 4096
 
 // ReadChildErrorWithContext reads the child process's stderr pipe and returns it as a string,
 // potentially with additional error context gathered from the given ErrorContext.

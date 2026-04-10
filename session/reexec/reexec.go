@@ -884,7 +884,7 @@ func RunNetworking() (code int, err error) {
 
 	// Alert the parent process that the child process is ready and listening for networking requests.
 	if _, err := parentConn.Write(make([]byte, 1)); err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
+		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	for {
