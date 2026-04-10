@@ -164,7 +164,7 @@ to do it:
 
 1. Generate a default CSR:
    ```code
-   $ cfssl print-defaults csr > client.json`
+   $ cfssl print-defaults csr > client.json
    ```
 
 1. Remove all hostnames from the hosts element of the `client.json` file, as
@@ -200,7 +200,7 @@ $ etcd --cert-file=certs/host.pem \
   --client-cert-auth \
   --trusted-ca-file=certs/ca.pem \
   --peer-cert-file=certs/peer-host.pem \
-  --peer-cert-file=certs/peer-host-key.pem \
+  --peer-key-file=certs/peer-host-key.pem \
   --advertise-client-urls=https://<Var name="etcd-host"/>:2379 --listen-client-urls=https://<Var name="etcd-host"/>:2379
   # ... other applicable options
  ```

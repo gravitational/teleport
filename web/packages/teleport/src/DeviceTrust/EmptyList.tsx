@@ -207,7 +207,7 @@ export const EmptyList = ({
               </ButtonPrimary>
               <ButtonSecondary
                 as="a"
-                href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/"
+                href="https://goteleport.com/docs/zero-trust-access/device-trust/jamf-integration/"
                 target="_blank"
                 width="280px"
                 size="large"

@@ -543,7 +543,7 @@ func resourceDiff(res1, res2 types.Resource) string {
 func TestDatabaseWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -1235,6 +1235,58 @@ func TestAccessRequestWatcher(t *testing.T) {
 	}
 }
 
+// TestAccessRequestWatcherRace ensures there are no races when editing AccessRequest resources
+// collected from the watcher.
+func TestAccessRequestWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	dynamicAccessService := local.NewDynamicAccessService(bk)
+
+	for range 10 {
+		accessRequest := newAccessRequest(t, uuid.NewString())
+		_, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.DynamicAccessCore
+		types.Events
+	}
+
+	w, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				DynamicAccessCore: dynamicAccessService,
+				Events:            local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.AccessRequestsC:
+		for _, ar := range changeset {
+			ar.SetMaxDuration(ar.GetMaxDuration().Add(1))
+			_ = dynamicAccessService.UpsertAccessRequest(ctx, ar)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
+	}
+}
+
 func newAccessRequest(t *testing.T, name string) types.AccessRequest {
 	accessRequest, err := types.NewAccessRequest(name, "test-user", "role1")
 	accessRequest.SetState(types.RequestState_PENDING)
@@ -1381,6 +1433,59 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the delete event.")
+	}
+}
+
+// TestOktaAssignmentWatcherRace ensures there are no races when editing OktaAssignment resources
+// collected from the watcher.
+func TestOktaAssignmentWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	oktaService, err := local.NewOktaService(bk, clock)
+	require.NoError(t, err)
+
+	for range 10 {
+		a1 := newOktaAssignment(t, uuid.NewString())
+		_, err = oktaService.CreateOktaAssignment(ctx, a1)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.OktaAssignments
+		types.Events
+	}
+
+	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				OktaAssignments: oktaService,
+				Events:          local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.CollectorChan():
+		for _, a := range changeset {
+			a.SetLastTransition(a.GetLastTransition().Add(1))
+			_, _ = oktaService.UpdateOktaAssignment(ctx, a)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
 	}
 }
 

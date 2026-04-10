@@ -19,17 +19,23 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"slices"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -41,8 +47,10 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -62,53 +70,57 @@ func TestEditResources(t *testing.T) {
 	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
-		kind string
+		name string
 		edit func(t *testing.T, clt *authclient.Client)
 	}{
 		{
-			kind: types.KindGithubConnector,
+			name: types.KindGithubConnector,
 			edit: testEditGithubConnector,
 		},
 		{
-			kind: types.KindRole,
+			name: types.KindRole,
 			edit: testEditRole,
 		},
 		{
-			kind: types.KindUser,
+			name: types.KindUser,
 			edit: testEditUser,
 		},
 		{
-			kind: types.KindClusterNetworkingConfig,
+			name: types.KindClusterNetworkingConfig,
 			edit: testEditClusterNetworkingConfig,
 		},
 		{
-			kind: types.KindClusterAuthPreference,
+			name: types.KindClusterAuthPreference,
 			edit: testEditAuthPreference,
 		},
 		{
-			kind: types.KindSessionRecordingConfig,
+			name: types.KindSessionRecordingConfig,
 			edit: testEditSessionRecordingConfig,
 		},
 		{
-			kind: types.KindStaticHostUser,
+			name: types.KindStaticHostUser,
 			edit: testEditStaticHostUser,
 		},
 		{
-			kind: types.KindAutoUpdateConfig,
+			name: types.KindAutoUpdateConfig,
 			edit: testEditAutoUpdateConfig,
 		},
 		{
-			kind: types.KindAutoUpdateVersion,
+			name: types.KindAutoUpdateVersion,
 			edit: testEditAutoUpdateVersion,
 		},
 		{
-			kind: types.KindDynamicWindowsDesktop,
+			name: types.KindDynamicWindowsDesktop,
 			edit: testEditDynamicWindowsDesktop,
+		},
+		{
+			name: "edit multiple resources with SubKind (" + types.KindCertAuthority + ")",
+			edit: testEditMultipleWithSubKind,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.kind, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			test.edit(t, rootClient)
 		})
 	}
@@ -679,6 +691,218 @@ func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 	expected.SetRevision(actual.GetRevision())
 	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
+}
+
+func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	overwriteFile := func(f *os.File, valsYAML [][]byte) error {
+		if err := f.Truncate(0); err != nil {
+			return fmt.Errorf("truncate: %w", err)
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			return fmt.Errorf("seek to zero: %w", err)
+		}
+
+		for i, val := range valsYAML {
+			if i > 0 {
+				if _, err := f.WriteString("---\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+			if _, err := f.Write(val); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+			if !bytes.HasSuffix(val, []byte("\n")) {
+				if _, err := f.WriteString("\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// Test add/remove detection when the number of resources stays the same.
+	t.Run("add/remove", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		cn, err := clt.GetClusterName()
+		require.NoError(t, err, "read cluster name")
+
+		const loadKeys = false
+		userCA, err := clt.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       types.UserCA,
+			DomainName: cn.GetClusterName(),
+		}, loadKeys)
+		require.NoError(t, err, "read User CA")
+
+		userJSON, err := services.MarshalCertAuthority(userCA)
+		require.NoError(t, err, "marshal User CA")
+		userYAML, err := yaml.JSONToYAML(userJSON)
+		require.NoError(t, err, "convert JSON to YAML")
+
+		editor := func(name string) error {
+			// Replace the editor file contents with the User CA.
+			return os.WriteFile(name, userYAML, 0644)
+		}
+
+		// Edit cas/host, then replace it with cas/user.
+		_, err = runEditCommand(t, clt,
+			[]string{"edit", "cas/host/" + cn.GetClusterName()},
+			withEditor(editor),
+		)
+		assert.ErrorContains(t, err, "was added or removed", "tctl edit error mismatch")
+	})
+
+	// Test replacing one of the resources with a duplicate of another.
+	t.Run("duplicate", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Read CA YAMLs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				casYAML = append(casYAML, raw.Raw)
+			}
+
+			// Replace an item with a duplicate.
+			casYAML[0] = casYAML[1]
+
+			// Overwrite.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		// Edit all CAs, then replace one of them with a duplicate.
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		assert.ErrorContains(t, err, "duplicate kind/sub_kind/name", "tctl edit error mismatch")
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		// Don't t.Parallel(), edits resources.
+
+		const caType1 = types.HostCA
+		const caType2 = types.UserCA
+
+		getCAs := func(t *testing.T) (_, _ types.CertAuthority) {
+			ctx := t.Context()
+			const loadKeys = false
+
+			cas1, err := clt.GetCertAuthorities(ctx, caType1, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType1)
+			require.Len(t, cas1, 1)
+
+			cas2, err := clt.GetCertAuthorities(ctx, caType2, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType2)
+			require.Len(t, cas2, 1)
+
+			return cas1[0], cas2[0]
+		}
+
+		// Prepare wanted CAs.
+		ca1, ca2 := getCAs(t)
+		md := ca1.GetMetadata()
+		md.Description = "description 1"
+		ca1.SetMetadata(md)
+		md = ca2.GetMetadata()
+		md.Description = "description 2"
+		ca2.SetMetadata(md)
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Parse/edit CAs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			editCount := 0
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				ca, err := services.UnmarshalCertAuthority(raw.Raw)
+				if err != nil {
+					return fmt.Errorf("unmarshal CA resource: %w", err)
+				}
+
+				switch ca.GetType() {
+				case ca1.GetType():
+					ca.SetMetadata(ca1.GetMetadata())
+					editCount++
+				case ca2.GetType():
+					ca.SetMetadata(ca2.GetMetadata())
+					editCount++
+				default:
+					// Don't change non-edited YAMLs.
+					casYAML = append(casYAML, raw.Raw)
+					continue
+				}
+
+				caJSON, err := services.MarshalCertAuthority(ca)
+				if err != nil {
+					return fmt.Errorf("marshal CA: %w", err)
+				}
+				caYAML, err := yaml.JSONToYAML(caJSON)
+				if err != nil {
+					return fmt.Errorf("convert JSON to YAML: %w", err)
+				}
+				casYAML = append(casYAML, caYAML)
+			}
+
+			const wantEdits = 2
+			if wantEdits != editCount {
+				return fmt.Errorf("edit count mismatch (want %d, got %d)", wantEdits, editCount)
+			}
+
+			// Write edited CAs.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		require.NoError(t, err, "tctl edit errored")
+
+		// Verify CA updates.
+		gotCA1, gotCA2 := getCAs(t)
+		ca1.SetRevision(gotCA1.GetRevision())
+		ca2.SetRevision(gotCA2.GetRevision())
+		assert.Equal(t, ca1, gotCA1, "CA1 edit failed")
+		assert.Equal(t, ca2, gotCA2, "CA2 edit failed")
+	})
 }
 
 func TestMultipleRoles(t *testing.T) {

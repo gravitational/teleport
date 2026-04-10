@@ -125,7 +125,7 @@ type tokenBucket struct {
 	lastConsumed int64
 }
 
-// newTokenBucket crates a tokenBucket instance for the specified rate.
+// newTokenBucket creates a tokenBucket instance for the specified rate.
 func newTokenBucket(rate *rate, clock clockwork.Clock) *tokenBucket {
 	period := cmp.Or(rate.period, time.Nanosecond)
 	return &tokenBucket{

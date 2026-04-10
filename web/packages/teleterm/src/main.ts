@@ -28,7 +28,10 @@ import { ensureError } from 'shared/utils/error';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
-import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import {
+  registerAppFileProtocol,
+  setUpProtocolHandlers,
+} from 'teleterm/mainProcess/protocolHandler';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
@@ -58,6 +61,17 @@ if (!process.defaultApp) {
 // https://github.com/electron/electron/issues/46538#issuecomment-2808806722
 app.commandLine.appendSwitch('gtk-version', '3');
 
+// On macOS, when the app is launched via a deep link, the 'open-url' event can be emitted very
+// early — before initializeApp finishes its async work and registers the real handler.
+// Buffer the URL at the module level so it's not lost.
+let bufferedOpenUrl: string | undefined;
+function bufferOpenUrl(_event: Electron.Event, url: string) {
+  bufferedOpenUrl = url;
+}
+if (process.platform === 'darwin') {
+  app.on('open-url', bufferOpenUrl);
+}
+
 if (app.requestSingleInstanceLock()) {
   initializeApp().catch(error =>
     showDialogWithError('Could not initialize the app', error)
@@ -71,6 +85,7 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
+  registerAppFileProtocol();
   let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
@@ -184,6 +199,9 @@ async function initializeApp(): Promise<void> {
   // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
   // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
   // window before processing the listener for deep links.
+  //
+  // On macOS, the 'open-url' event may be emitted before this point (during the async work above).
+  // A module-level listener buffers the URL so it's not lost. setUpDeepLinks drains the buffer.
   setUpDeepLinks(logger, windowsManager, settings);
 
   const rootClusterProxyHostAllowList = new Set<string>();
@@ -214,7 +232,7 @@ async function initializeApp(): Promise<void> {
         });
       }
 
-      enableWebHandlersProtection();
+      setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
 
@@ -388,6 +406,10 @@ function setUpDeepLinks(
   // https://www.electronjs.org/docs/latest/tutorial/launch-app-from-url-in-another-app
 
   if (settings.platform === 'darwin') {
+    // Remove the early buffering listener registered at the module level and replace it with the
+    // real handler.
+    app.off('open-url', bufferOpenUrl);
+
     // Deep link click on macOS.
     app.on('open-url', (event, url) => {
       // When macOS launches an app as a result of a deep link click, macOS does bring focus to the
@@ -398,6 +420,15 @@ function setUpDeepLinks(
       logger.info(`Deep link launch from open-url, URL: ${url}`);
       launchDeepLink(logger, windowsManager, url);
     });
+
+    // Drain URL that arrived while initializeApp was doing async work.
+    if (bufferedOpenUrl) {
+      logger.info(
+        `Deep link launch from buffered open-url, URL: ${bufferedOpenUrl}`
+      );
+      launchDeepLink(logger, windowsManager, bufferedOpenUrl);
+      bufferedOpenUrl = undefined;
+    }
     return;
   }
 

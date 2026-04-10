@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -2161,4 +2162,65 @@ func basicDirCopy(src string, dst string) error {
 	}
 
 	return nil
+}
+
+func TestInitAppsEmptyConfig(t *testing.T) {
+	t.Parallel()
+	supervisor := NewSupervisor("test-initApps", logrus.StandardLogger())
+	t.Cleanup(func() { supervisor.Wait() })
+	process := &TeleportProcess{
+		Supervisor: supervisor,
+		Clock:      clockwork.NewRealClock(),
+		Config:     &servicecfg.Config{Apps: servicecfg.AppsConfig{Enabled: true}},
+		logger:     slog.Default(),
+	}
+
+	process.initApps()
+
+	event, err := process.WaitForEventTimeout(5*time.Second, AppsReady)
+	require.NoError(t, err)
+	require.Equal(t, AppsReady, event.Name)
+}
+
+func TestInitKubernetesUnlicensed(t *testing.T) {
+	t.Parallel()
+	supervisor := NewSupervisor("test-initKube", logrus.StandardLogger())
+	localSupervisor := supervisor.(*LocalSupervisor)
+	dataDir := t.TempDir()
+	stor, err := storage.NewProcessStorage(context.Background(), dataDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { stor.Close() })
+	t.Cleanup(func() { localSupervisor.signalExit(); supervisor.Wait() })
+
+	process := &TeleportProcess{
+		Supervisor:    supervisor,
+		Clock:         clockwork.NewRealClock(),
+		Config:        servicecfg.MakeDefaultConfig(),
+		logger:        slog.Default(),
+		storage:       stor,
+		instanceRoles: map[types.SystemRole]string{types.RoleKube: KubeIdentityEvent},
+	}
+	// clusterFeatures is zero-valued so K8s entitlement is
+	// disabled, matching the unlicensed early-return path.
+	process.Config.Kube.Enabled = true
+	process.Config.DataDir = dataDir
+
+	process.initKubernetes()
+
+	// Broadcast a fake connector to unblock WaitForConnector
+	// inside the registered critical func.
+	process.BroadcastEvent(Event{Name: KubeIdentityEvent, Payload: &Connector{ReusedClient: true}})
+
+	err = supervisor.Start()
+	require.NoError(t, err)
+
+	event, err := process.WaitForEventTimeout(5*time.Second, KubernetesReady)
+	require.NoError(t, err)
+	require.Equal(t, KubernetesReady, event.Name)
+
+	// Verify OnHeartbeat transitioned the component to stateOK
+	// so that /readyz returns HTTP 200.
+	okEvent, err := process.WaitForEventTimeout(5*time.Second, TeleportOKEvent)
+	require.NoError(t, err)
+	require.Equal(t, teleport.ComponentKube, okEvent.Payload)
 }

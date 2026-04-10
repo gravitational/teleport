@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { registerDeepLinkTests } from './deepLinks.testcases';
+package bot
 
-registerDeepLinkTests('jsdom');
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+)
+
+func TestBot_RejectsDoubleStart(t *testing.T) {
+	b, err := New(Config{
+		Connection: connection.Config{
+			Address:            "localhost:3025",
+			AddressKind:        connection.AddressKindProxy,
+			StaticProxyAddress: true,
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	_ = b.OneShot(ctx)
+
+	err = b.OneShot(ctx)
+	require.ErrorContains(t, err, "already been started")
+
+	err = b.Run(ctx)
+	require.ErrorContains(t, err, "already been started")
+}
