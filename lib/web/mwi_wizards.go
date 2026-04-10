@@ -21,7 +21,6 @@ package web
 import (
 	"bytes"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"text/template"
@@ -33,6 +32,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/tfgen/transform"
@@ -42,7 +42,7 @@ import (
 // machineIDWizardGenerateIaC generates IaC code for the Machine Identity CI/CD wizards.
 func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext, _ reversetunnelclient.Cluster) (any, error) {
 	var req machineIDWizardGenerateIaCRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
