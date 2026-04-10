@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -836,8 +835,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
-					types.NewRule(access.KindScopedRoleAssignment, RW()),
-					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
 				},
 			},
 		},

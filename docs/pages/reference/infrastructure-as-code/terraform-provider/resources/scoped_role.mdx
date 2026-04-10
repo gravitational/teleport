@@ -37,7 +37,30 @@ resource "teleport_scoped_role" "example" {
       verbs     = ["read", "list"]
     }]
     ssh = {
-      logins = ["root"]
+      logins                = ["root", "ubuntu"]
+      client_idle_timeout   = "30m"
+      forward_agent         = true
+      permit_x11_forwarding = true
+      file_copy             = true
+      max_sessions          = 10
+      host_sudoers          = ["ALL=(ALL) NOPASSWD: ALL"]
+      labels = [{
+        name   = "env"
+        values = ["staging", "dev"]
+      }]
+      host_user_creation = {
+        mode   = "keep"
+        shell  = "/bin/bash"
+        groups = ["sudo", "docker"]
+      }
+      port_forwarding = {
+        local = {
+          enabled = true
+        }
+        remote = {
+          enabled = true
+        }
+      }
     }
   }
 }
@@ -102,8 +125,24 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
+- `file_copy` (Boolean) FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.
+- `forward_agent` (Boolean) ForwardAgent enables SSH agent forwarding.
+- `host_sudoers` (List of String) Sudoers is a list of entries to include in a users sudoer file
+- `host_user_creation` (Attributes) HostUserCreation configures the creation of host users. (see [below for nested schema](#nested-schema-for-specsshhost_user_creation))
 - `labels` (Attributes List) Labels is the set of node labels used to dynamically select which nodes this role applies to. (see [below for nested schema](#nested-schema-for-specsshlabels))
 - `logins` (List of String) Logins is the list of OS logins this role permits on matching nodes.
+- `max_sessions` (Number) MaxSessions defines the maximum number of concurrent sessions per connection.
+- `permit_x11_forwarding` (Boolean) PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.
+- `port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specsshport_forwarding))
+
+### Nested Schema for `spec.ssh.host_user_creation`
+
+Optional:
+
+- `groups` (List of String) Groups is a list of host groups to add the user to.
+- `mode` (String) Mode specifies how the host user should be created.
+- `shell` (String) Shell is the shell to set for the user.
+
 
 ### Nested Schema for `spec.ssh.labels`
 
@@ -111,3 +150,24 @@ Optional:
 
 - `name` (String) The name of the label.
 - `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.ssh.port_forwarding`
+
+Optional:
+
+- `local` (Attributes) Allow for local port forwarding. (see [below for nested schema](#nested-schema-for-specsshport_forwardinglocal))
+- `remote` (Attributes) Allow for remote port forwarding. (see [below for nested schema](#nested-schema-for-specsshport_forwardingremote))
+
+### Nested Schema for `spec.ssh.port_forwarding.local`
+
+Optional:
+
+- `enabled` (Boolean)
+
+
+### Nested Schema for `spec.ssh.port_forwarding.remote`
+
+Optional:
+
+- `enabled` (Boolean)

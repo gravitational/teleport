@@ -35,9 +35,10 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	terraformclient "github.com/gravitational/teleport/integrations/terraform/provider/client"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+
+	terraformclient "github.com/gravitational/teleport/integrations/terraform/provider/client"
 )
 
 const (

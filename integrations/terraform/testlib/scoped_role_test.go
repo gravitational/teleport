@@ -29,8 +29,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
-	client "github.com/gravitational/teleport/integrations/terraform/provider/client"
 	"github.com/gravitational/teleport/lib/scopes/access"
+
+	"github.com/gravitational/teleport/integrations/terraform/provider/client"
 )
 
 func (s *TerraformSuiteOSS) TestScopedRole() {
