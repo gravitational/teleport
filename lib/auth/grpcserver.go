@@ -668,13 +668,17 @@ func resourceLabel(event types.Event) string {
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	if err := validateUserCertsRequest(req); err != nil {
-		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
-		return nil, trace.Wrap(err)
-	}
-
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// deny access to scoped bots
+	if ident := auth.getIdentity(); ident.IsBot() && ident.ScopePin != nil {
+		return nil, trace.AccessDenied("scoped bots can not generate user certs")
+	}
+
+	if err := validateUserCertsRequest(req); err != nil {
+		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {

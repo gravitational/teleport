@@ -1123,11 +1123,17 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test user1.
-	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	// Create test user2.
-	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	getScopeAsName := func(scope string) string {
@@ -1193,9 +1199,13 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	user2, err = srv.Auth().UpdateUser(ctx, user2)
 	require.NoError(t, err)
 
-	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
-	ttl := time.Hour
+	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
+	require.NoError(t, err)
 
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES_SESSION_TTL", defaultDuration.String())
 	testCases := []struct {
 		desc             string
 		user             types.User
@@ -1207,7 +1217,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		{
 			desc:             "Roles don't have max_session_ttl set",
 			user:             user1,
-			expiration:       srv.Auth().GetClock().Now().Add(ttl),
+			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
 			expectKubeUsers:  []string{"kube_user"},
 			expectKubeGroups: []string{"kube_group"},
 		},
@@ -1219,10 +1229,11 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:             "Scoped role",
+			// scopes don't support max_session_ttl
+			desc:             "Scoped role, no max_session_ttl set",
 			user:             user1,
 			scope:            scope,
-			expiration:       srv.Auth().GetClock().Now().Add(ttl),
+			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
 			expectKubeUsers:  []string{"scoped_kube_user"},
 			expectKubeGroups: []string{"scoped_kube_group"},
 		},
@@ -1230,9 +1241,6 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			if tt.desc != "Scoped role" {
-				t.Skip()
-			}
 			var ident authtest.TestIdentity
 			if tt.scope != "" {
 				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope, func(i *tlsca.Identity) {
@@ -1244,7 +1252,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				ident = authtest.TestUser(tt.user.GetName())
 			}
 
-			ident.TTL = ttl
+			ident.TTL = defaultDuration
 			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
@@ -1252,7 +1260,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				SSHPublicKey:      sshPubKey,
 				TLSPublicKey:      tlsPubKey,
 				Username:          tt.user.GetName(),
-				Expires:           srv.Auth().GetClock().Now().Add(ttl),
+				Expires:           srv.Auth().GetClock().Now().Add(defaultDuration),
 				KubernetesCluster: kubeClusterName,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 				Usage:             proto.UserCertsRequest_Kubernetes,

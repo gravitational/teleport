@@ -3907,17 +3907,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	switch {
-	case !isUnscoped:
-		// scoped identities do not support impersonation, so we would have
-		// already returned an error at this point if this were an impersonation
-		break
-	case authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)):
+	case isUnscoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin)):
 		// builtin admins can impersonate anyone
 		// this is required for local tctl commands to work
 	case req.Username == a.getUser().GetName():
 		// users can impersonate themselves, but role impersonation requests
 		// must be checked.
 		if isRoleImpersonation(req) {
+			if !isUnscoped {
+				return nil, trace.Wrap(services.ErrScopedIdentity, "impersonation not permitted")
+			}
 			// Note: CheckImpersonateRoles() checks against the _stored_
 			// impersonate roles for the user rather than the set available
 			// to the current identity. If not explicitly denied (as above),
@@ -3948,6 +3947,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			}
 		}
 	default:
+		if !isUnscoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "impersonation not permitted")
+		}
 		// check if this user is allowed to impersonate other users
 		err = unscopedCtx.Checker.CheckImpersonate(a.getUser(), user, parsedRoles)
 		// adjust session TTL based on the impersonated role set limit
