@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -1499,4 +1501,91 @@ func TestIsAutoUsersEnabled(t *testing.T) {
 			require.Equal(t, tc.expectedResult, db.IsAutoUsersEnabled())
 		})
 	}
+}
+
+func TestVNetDNSName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		dbName   string
+		wantName string
+	}{
+		{
+			name:   "short name",
+			dbName: "my-postgres",
+		},
+		{
+			name:   "long name",
+			dbName: "very-long-database-name-that-exceeds-normal-dns-label-limits-and-needs-hashing",
+		},
+		{
+			name:   "minimal name",
+			dbName: "a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := VNetDNSName(tt.dbName)
+
+			// Must start with "db-" prefix.
+			require.True(t, strings.HasPrefix(result, "db-"), "expected db- prefix, got %q", result)
+
+			// Must be lowercase (DNS-safe).
+			require.Equal(t, strings.ToLower(result), result, "VNet DNS name must be lowercase")
+
+			// Must be deterministic.
+			require.Equal(t, result, VNetDNSName(tt.dbName))
+		})
+	}
+
+	// Different names must produce different DNS names.
+	require.NotEqual(t, VNetDNSName("db-one"), VNetDNSName("db-two"))
+}
+
+func TestVNetDNSNameDeterministic(t *testing.T) {
+	t.Parallel()
+
+	// Verify the output matches a hand-computed value so the algorithm
+	// doesn't silently change (which would break VNet lookups).
+	name := "my-postgres"
+	hash := sha256.Sum256([]byte(name))
+	want := "db-" + strings.ToLower(
+		base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8]),
+	)
+	require.Equal(t, want, VNetDNSName(name))
+}
+
+func TestCheckAndSetDefaultsSetsVNetDNSLabel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("label is set when labels map is nil", func(t *testing.T) {
+		db, err := NewDatabaseV3(Metadata{
+			Name: "test-db",
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "localhost:5432",
+		})
+		require.NoError(t, err)
+
+		labels := db.GetStaticLabels()
+		require.Contains(t, labels, VNetDNSNameLabel)
+		require.Equal(t, VNetDNSName("test-db"), labels[VNetDNSNameLabel])
+	})
+
+	t.Run("label is set when labels map already has entries", func(t *testing.T) {
+		db, err := NewDatabaseV3(Metadata{
+			Name:   "test-db",
+			Labels: map[string]string{"env": "prod"},
+		}, DatabaseSpecV3{
+			Protocol: "postgres",
+			URI:      "localhost:5432",
+		})
+		require.NoError(t, err)
+
+		labels := db.GetStaticLabels()
+		require.Equal(t, "prod", labels["env"])
+		require.Equal(t, VNetDNSName("test-db"), labels[VNetDNSNameLabel])
+	})
 }

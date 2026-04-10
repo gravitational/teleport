@@ -1174,6 +1174,9 @@ const (
 	// over time and should not be used as part of a role's deny rules.
 	TeleportDynamicLabelPrefix = "dynamic/"
 
+	// VNetDNSNameLabel is a DNS-safe, deterministic label for database names, used by VNet.
+	VNetDNSNameLabel = TeleportInternalLabelPrefix + "vnet-dns-name"
+
 	// DiscoveredNameLabel is a resource metadata label name used to identify
 	// the discovered name of a resource, i.e. the name of a resource before a
 	// uniquely distinguishing suffix is added by the discovery service.

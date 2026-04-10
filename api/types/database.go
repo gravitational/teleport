@@ -18,6 +18,8 @@ package types
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -727,6 +729,13 @@ func ValidateDatabaseName(name string) error {
 	return ValidateResourceName(validDatabaseNameRegexp, name)
 }
 
+// VNetDNSName returns the VNet DNS name for a given database name.
+func VNetDNSName(name string) string {
+	hash := sha256.Sum256([]byte(name))
+	base32Encoding := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8])
+	return "db-" + strings.ToLower(base32Encoding)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
@@ -737,6 +746,12 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if err := ValidateDatabaseName(d.GetName()); err != nil {
 		return trace.Wrap(err, "invalid database name")
 	}
+
+	if d.Metadata.Labels == nil {
+		d.Metadata.Labels = make(map[string]string)
+	}
+
+	d.Metadata.Labels[VNetDNSNameLabel] = VNetDNSName(d.GetName())
 
 	for key := range d.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
