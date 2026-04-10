@@ -281,7 +281,7 @@ const cfg = {
     // /web/accessgraph` and `/web/accessgraph/integrations/new`
     // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
 
-    return [this.routes.accessGraph.dashboard];
+    return [this.routes.accessGraph.dashboard, this.routes.cloud.root];
   },
 
   getWindowUpgradeStartUrl(clusterId: string) {

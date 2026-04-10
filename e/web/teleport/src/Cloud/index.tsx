@@ -1,1 +1,1 @@
-export { Cloud as default } from './Cloud';
+export { Cloud } from './Cloud';

@@ -1,5 +1,3 @@
-import { lazy } from 'react';
-
 import {
   Add,
   Chart,
@@ -26,6 +24,7 @@ import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { Account as AccountE } from 'e-teleport/Account';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
 import { PassthroughPage } from 'e-teleport/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
+import { Cloud } from 'e-teleport/Cloud';
 import cfg from 'e-teleport/config';
 import { DeviceTrust } from 'e-teleport/DeviceTrust';
 import { Discover as DiscoverE } from 'e-teleport/Discover';
@@ -59,8 +58,6 @@ import { RolesE } from './Roles/RolesE';
 // ****************************
 // Resource Features
 // ****************************
-
-const Cloud = lazy(() => import('e-teleport/Cloud'));
 
 class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
   route = {

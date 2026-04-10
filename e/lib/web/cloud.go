@@ -319,8 +319,10 @@ func (p *Plugin) getCloudAssetHandle(w http.ResponseWriter, r *http.Request, par
 			headersWritten = true
 		}
 
-		if _, err := w.Write(chunk.Data); err != nil {
-			return nil, trace.Wrap(err)
+		if len(chunk.Data) > 0 {
+			if _, err := w.Write(chunk.Data); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 

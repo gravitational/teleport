@@ -17,6 +17,7 @@ import { getErrorMessage } from 'shared/utils/error';
 import cfg, { EnterpriseConfig } from 'e-teleport/config';
 import CloudService from 'e-teleport/services/cloud';
 import useTeleportE from 'e-teleport/useTeleportE';
+import { useNoMinWidth } from 'teleport/Main';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { loadCloud } from './loader';
@@ -49,6 +50,7 @@ function CloudLoading() {
 }
 
 export function Cloud() {
+  useNoMinWidth();
   const theme = useTheme();
   const { clusterId } = useStickyClusterId();
   const ctx = useTeleportE();
