@@ -973,11 +973,11 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
-	unscopedCtx, ok := p.Ctx.UnscopedContext()
-	if !ok {
-		return trace.AccessDenied("scoped identities do not support session moderation")
-	}
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
+		unscopedCtx, ok := p.Ctx.UnscopedContext()
+		if !ok {
+			return trace.AccessDenied("scoped identities do not support session moderation")
+		}
 		roles := unscopedCtx.Checker.Roles()
 
 		accessContext := moderation.SessionAccessContext{

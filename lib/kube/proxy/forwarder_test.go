@@ -911,7 +911,6 @@ func TestAuthenticate(t *testing.T) {
 					ap,
 					tt.roleKubeGroups,
 					tt.roleKubeUsers,
-					nil,
 					tt.scope,
 				)
 				checkerCtx, err := services.NewScopedAccessCheckerContext(f.ctx, &services.AccessInfo{ScopePin: scopePin}, "local", ap)
@@ -996,7 +995,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func setupScopedKubeRoleWithAssignment(t *testing.T, ap *mockAccessPoint, groups, users []string, labels []*labelsv1.Label, scope string) *scopesv1.Pin {
+func setupScopedKubeRoleWithAssignment(t *testing.T, ap *mockAccessPoint, groups, users []string, scope string) *scopesv1.Pin {
 	t.Helper()
 
 	scopeAsName := strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")

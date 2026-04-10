@@ -1097,6 +1097,12 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.DebugContext(ctx, "Skipping authorization for a remote kubernetes cluster name",
 			"auth_context", logutils.StringerAttr(actx),
 		)
+		unscopedCtx, isUnscoped := actx.ScopedContext.UnscopedContext()
+		if !isUnscoped {
+			return trace.AccessDenied("scoped identities do not support remote clusters")
+		}
+		actx.sessionTTL = unscopedCtx.Checker.AdjustSessionTTL(actx.sessionTTL)
+		actx.clientIdleTimeout = unscopedCtx.Checker.AdjustClientIdleTimeout(actx.sessionTTL)
 		return nil
 	}
 	if actx.kubeClusterName == "" {
@@ -1105,6 +1111,12 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.DebugContext(ctx, "Skipping authorization due to unknown kubernetes cluster name",
 			"auth_context", logutils.StringerAttr(actx),
 		)
+		unscopedCtx, isUnscoped := actx.ScopedContext.UnscopedContext()
+		if !isUnscoped {
+			return trace.AccessDenied("scoped identities do not support remote clusters")
+		}
+		actx.sessionTTL = unscopedCtx.Checker.AdjustSessionTTL(actx.sessionTTL)
+		actx.clientIdleTimeout = unscopedCtx.Checker.AdjustClientIdleTimeout(actx.sessionTTL)
 		return nil
 	}
 
