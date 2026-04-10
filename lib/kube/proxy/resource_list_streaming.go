@@ -229,6 +229,9 @@ func extractTableRowMeta(item json.RawMessage) (name, namespace string, err erro
 	if env.Object == nil {
 		return "", "", trace.BadParameter("table row has no embedded object")
 	}
+	if env.Object.Metadata.Name == "" {
+		return "", "", trace.BadParameter("table row embedded object has no name")
+	}
 	return env.Object.Metadata.Name, env.Object.Metadata.Namespace, nil
 }
 
