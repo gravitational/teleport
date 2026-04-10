@@ -128,13 +128,11 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 		processed, known := set[aws.ToString(shard.ShardId)]
 		_, parentPending := set[aws.ToString(shard.ParentShardId)]
 
-		// First do cleanup of any tombstoned shards.
 		if closed && known && processed {
+			// Cleanup of any tombstoned shards.
 			b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
 			delete(set, aws.ToString(shard.ShardId))
-		}
-
-		if parentPending && !closed && !known {
+		} else if parentPending && !closed && !known {
 			b.logger.Log(ctx, logutils.TraceLevel, "Not starting poll for shard with known parent until parent is closed", "shard_id", aws.ToString(shard.ShardId), "parent_shard_id", aws.ToString(shard.ParentShardId))
 		}
 
@@ -318,7 +316,7 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 		iterator = out.NextShardIterator
 		if iterator == nil {
 			// Fast exit if the shard is closed.
-			b.logger.DebugContext(ctx, "Shard is closed", "shard_id", shardID)
+			b.logger.DebugContext(ctx, "Done processing shard", "shard_id", shardID)
 			return shardClosedError{}
 		}
 
