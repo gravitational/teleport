@@ -54,18 +54,19 @@ func TestWaitReady(t *testing.T) {
 		<-proc.done
 	})
 
-	t.Run("process cancellation", func(t *testing.T) {
+	t.Run("process error", func(t *testing.T) {
 		defer goleak.VerifyNone(t)
 
 		proc := &Process{
-			cmd:  exec.Command("sh", "-c", "exit 0"),
+			cmd:  exec.Command("sh", "-c", "exit 255"),
 			done: make(chan struct{}),
 		}
 		require.NoError(t, proc.start(t.Context()))
 
 		childErr, err := proc.waitReady(t.Context())
 		require.Error(t, err)
-		require.Contains(t, childErr, "networking process exited before signaling ready")
+		require.ErrorContains(t, err, "networking process exited before signaling ready")
+		require.Empty(t, childErr)
 		<-proc.done
 	})
 
@@ -87,8 +88,9 @@ func TestWaitReady(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
-		_, err := proc.waitReady(ctx)
+		childErr, err := proc.waitReady(ctx)
 		require.ErrorIs(t, err, context.Canceled)
+		require.Empty(t, childErr)
 		<-proc.done
 	})
 }
