@@ -72,6 +72,9 @@ func (o *OutputConfig) CheckAndSetDefaults() error {
 	if o.AppName == "" {
 		return trace.BadParameter("app_name must not be empty")
 	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 
 	return nil
 }

@@ -84,6 +84,18 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "kubernetes_cluster must not be empty",
 		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:         destination.NewMemory(),
+					Roles:               []string{"access"},
+					KubernetesCluster:   "my-cluster",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

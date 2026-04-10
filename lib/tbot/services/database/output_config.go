@@ -137,6 +137,9 @@ func (o *OutputConfig) CheckAndSetDefaults() error {
 	if !slices.Contains(databaseFormats, o.Format) {
 		return trace.BadParameter("unrecognized format (%s)", o.Format)
 	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 
 	return nil
 }

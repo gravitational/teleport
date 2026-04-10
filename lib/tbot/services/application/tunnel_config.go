@@ -111,6 +111,9 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 	if s.clock == nil {
 		s.clock = clockwork.NewRealClock()
 	}
+	if s.DelegationSessionID != "" && len(s.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 
 	return nil
 }

@@ -97,6 +97,18 @@ func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "ssh_config: unrecognized value \"invalid\"",
 		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *OutputConfig {
+				return &OutputConfig{
+					Destination:         destination.NewMemory(),
+					Roles:               []string{"access"},
+					SSHConfigMode:       SSHConfigModeOn,
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

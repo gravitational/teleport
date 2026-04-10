@@ -107,6 +107,9 @@ func (s *TunnelConfig) CheckAndSetDefaults() error {
 	if _, err := url.Parse(s.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
+	if s.DelegationSessionID != "" && len(s.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 	return nil
 }
 

@@ -85,6 +85,9 @@ func (o *OutputV1Config) CheckAndSetDefaults() error {
 	if o.KubernetesCluster == "" {
 		return trace.BadParameter("kubernetes_cluster must not be empty")
 	}
+	if o.DelegationSessionID != "" && len(o.Roles) > 0 {
+		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
+	}
 	return nil
 }
 
