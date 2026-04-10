@@ -62,7 +62,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::{debug, error};
+use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -821,14 +821,24 @@ impl Client {
         sdr: tdp::SharedDirectoryRemove,
     ) -> ClientResult<()> {
         debug!("received tdp: {:?}", sdr);
-        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await?;
-        Self::write_rdpdr(
-            write_stream,
-            x224_processor,
-            RdpdrPdu::ClientDeviceListRemove(pdu),
-        )
-        .await?;
-        Ok(())
+        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await;
+
+        match pdu {
+            Ok(remove) => {
+                Self::write_rdpdr(
+                    write_stream,
+                    x224_processor,
+                    RdpdrPdu::ClientDeviceListRemove(remove),
+                )
+                .await?;
+                Ok(())
+            }
+            Err(ClientError::UnknownDevice(id)) => {
+                warn!("attempted to remove unknown device id: {:?}", id);
+                Ok(())
+            }
+            Err(other) => Err(other),
+        }
     }
 
     async fn handle_tdp_sd_info_response(
