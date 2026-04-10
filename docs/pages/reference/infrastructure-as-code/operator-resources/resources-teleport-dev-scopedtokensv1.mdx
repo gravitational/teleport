@@ -39,7 +39,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
-|join_method|string|The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.|
+|join_method|string|The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.|
 |kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
 |oracle|[object](#specoracle)|The Oracle-specific configuration used with the "oracle" join method.|
 |roles|[]string|The list of roles associated with the token. They will be converted to metadata in the SSH and X509 certificates issued to the user of the token.|

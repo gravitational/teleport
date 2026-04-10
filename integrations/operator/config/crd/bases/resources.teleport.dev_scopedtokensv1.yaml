@@ -227,7 +227,7 @@ spec:
                 type: object
               join_method:
                 description: The joining method required in order to use this token.
-                  Supported joining methods for scoped tokens only include 'token'.
+                  Note that not all join methods support joining with scoped tokens.
                 type: string
               kubernetes:
                 description: The Kubernetes-specific configuration used with the "kubernetes"
