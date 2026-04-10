@@ -225,6 +225,11 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 		}
 		return "", osErr
 	}
+	// Acquiring a file lock on a nonexistant session recording will create an
+	// empty file, treat that as not existing.
+	if info.Size() == 0 {
+		return "", nil
+	}
 	return info.ModTime().String(), nil
 }
 

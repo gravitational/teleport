@@ -416,7 +416,7 @@ func (h *Handler) gcsRetrier(ctx context.Context, objectPath string) (io.ReadClo
 }
 
 func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
-	return "", trace.NotImplemented("GetRecordingVersion not implemented for GCS")
+	return "", nil
 }
 
 func (h *Handler) recordingPath(sessionID session.ID) string {
