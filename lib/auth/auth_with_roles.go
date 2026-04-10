@@ -2339,12 +2339,11 @@ func (r *resourceChecker) CanAccess(ctx context.Context, resource types.Resource
 // - types.KindWindowsDesktop
 // - types.KindApp with IsAWSConsole() == true
 func (r *resourceChecker) GetAllowedLoginsForResource(ctx context.Context, resource services.AccessCheckable) ([]string, error) {
-	scope := scopes.Root
-	scopedResource, ok := resource.(services.ScopedAccessCheckable)
-	if ok {
-		scope = cmp.Or(scopedResource.GetScope(), scopes.Root)
+	switch target := resource.(type) {
+	case types.Server:
+		return r.scopedCtx.CheckerContext.GetPossibleLoginsForSSHServer(ctx, target)
 	}
-	for checker, err := range r.scopedCtx.CheckerContext.CheckersForResourceScope(ctx, scope) {
+	for checker, err := range r.scopedCtx.CheckerContext.CheckersForResourceScope(ctx, scopes.Root) {
 		if err != nil {
 			continue
 		}

@@ -21,10 +21,13 @@ package services
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -312,4 +315,31 @@ func (c *ScopedAccessCheckerContext) Traits() wrappers.Traits {
 // This should not be used outside of certificate generation logic.
 func (c *ScopedAccessCheckerContext) CertParams() *CertificateParameterContext {
 	return &CertificateParameterContext{ctx: c}
+}
+
+// GetPossibleLoginsForSSHServer returns a list of all possible logins for the given SSH server.
+// For both scoped and unscoped identities, this returns the aggregate of all logins provided by each assigned role.
+// Scoped identities will source from all attached roles discoverable in their scope pin.
+func (c *ScopedAccessCheckerContext) GetPossibleLoginsForSSHServer(ctx context.Context, target types.Server) ([]string, error) {
+	if !c.isScoped() {
+		return c.unscopedChecker.GetAllowedLoginsForResource(target)
+	}
+
+	logins := make(map[string]struct{})
+	for checker, err := range c.CheckersForResourceScope(ctx, target.GetScope()) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := checker.SSH().CanAccessSSHServer(target); err != nil {
+			if IsAccessExplicitlyDenied(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+		for _, login := range checker.SSH().getScopedLogins() {
+			logins[login] = struct{}{}
+		}
+	}
+
+	return slices.Sorted(maps.Keys(logins)), nil
 }
