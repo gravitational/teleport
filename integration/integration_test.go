@@ -1823,7 +1823,7 @@ type disconnectTestCase struct {
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
-	idleTimeout := 10 * time.Second
+	idleTimeout := 4 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
 	netConfig.SetClientIdleTimeout(idleTimeout)
 
@@ -1834,12 +1834,18 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	term := NewTerminal(100000)
-	sessionCtx, cancelSession := context.WithTimeout(t.Context(), 4*idleTimeout)
-	defer cancelSession()
+	term := NewTerminal(250)
 
 	sessionErr := make(chan error, 1)
+	t.Cleanup(func() {
+		require.Error(t, waitForError(sessionErr, 10*time.Second))
+	})
+
+	sessionCtx, cancelSession := context.WithCancel(t.Context())
+	defer cancelSession()
+
 	openSession := func() {
+		defer cancelSession()
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
@@ -1854,27 +1860,24 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdout = term
 		cl.Stdin = term
 
-		sessionErr <- cl.SSH(sessionCtx, nil)
+		// Print a ready marker, then echo each line of stdin back to the client.
+		const clientIdleKeepaliveCommand = `sh -c 'echo __READY__; exec cat'`
+		sessionErr <- cl.SSH(sessionCtx, []string{clientIdleKeepaliveCommand})
 	}
 
 	go openSession()
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.NoError(collect, enterInput(sessionCtx, term, "echo txlxport | sed 's/x/e/g' \r\n", "teleport"))
-	}, 10*time.Second, 2*time.Second)
+	require.NoError(t, waitForTerminalOutput(sessionCtx, term, ".*__READY__.*"))
 
-	var firstAckAt time.Time
-	var lastAckAt time.Time
+	// Keep the session alive by writing and reading from the terminal within the idle timeout.
+	start := time.Now()
 	for i := 0; ; i++ {
-		require.NoError(t, enterInput(sessionCtx, term, "echo txlxport"+strconv.Itoa(i)+" | sed 's/x/e/g' \r\n", "teleport"+strconv.Itoa(i)))
-		lastAckAt = time.Now()
+		msg := "keepalive-" + strconv.Itoa(i)
+		require.NoError(t, enterInput(sessionCtx, term, msg+"\r\n", msg))
 
-		if firstAckAt.IsZero() {
-			firstAckAt = lastAckAt
-		}
-
-		if lastAckAt.Sub(firstAckAt) > idleTimeout*3/2 {
-			break
+		if time.Since(start) > idleTimeout*2 {
+			// The session survived beyond the idle timeout, success.
+			return
 		}
 
 		select {
@@ -1883,10 +1886,6 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 			require.FailNowf(t, "timeout", "session ended before exceeding idle timeout: %v", sessionCtx.Err())
 		}
 	}
-
-	cancelSession()
-	err := waitForError(sessionErr, time.Second*15)
-	require.Error(t, err)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
@@ -2127,9 +2126,13 @@ func timeNow() string {
 // the supplied regexp string.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
-	abortTime := time.Now().Add(2 * time.Second)
+	return waitForTerminalOutput(ctx, person, pattern)
+}
+
+func waitForTerminalOutput(ctx context.Context, person *Terminal, pattern string) error {
+	abortTime := time.Now().Add(10 * time.Second)
 	for {
-		output := replaceNewlines(person.Output(100000))
+		output := replaceNewlines(person.Output(1000))
 		matched, _ := regexp.MatchString(pattern, output)
 		if matched {
 			return nil
@@ -2137,6 +2140,8 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 		select {
 		case <-time.After(50 * time.Millisecond):
 		case <-ctx.Done():
+			// cancellation means that we don't care about the input being
+			// confirmed anymore; not equivalent to a timeout.
 			return nil
 		}
 		if time.Now().After(abortTime) {
