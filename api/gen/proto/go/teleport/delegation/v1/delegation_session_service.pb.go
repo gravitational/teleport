@@ -49,7 +49,7 @@ type GenerateCertsRequest struct {
 	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
 	// Types that are valid to be assigned to Routing:
 	//
-	//	*GenerateCertsRequest_KubernetesCluster
+	//	*GenerateCertsRequest_RouteToKubernetes
 	//	*GenerateCertsRequest_RouteToDatabase
 	//	*GenerateCertsRequest_RouteToApp
 	Routing       isGenerateCertsRequest_Routing `protobuf_oneof:"routing"`
@@ -122,13 +122,13 @@ func (x *GenerateCertsRequest) GetRouting() isGenerateCertsRequest_Routing {
 	return nil
 }
 
-func (x *GenerateCertsRequest) GetKubernetesCluster() string {
+func (x *GenerateCertsRequest) GetRouteToKubernetes() *RouteToKubernetes {
 	if x != nil {
-		if x, ok := x.Routing.(*GenerateCertsRequest_KubernetesCluster); ok {
-			return x.KubernetesCluster
+		if x, ok := x.Routing.(*GenerateCertsRequest_RouteToKubernetes); ok {
+			return x.RouteToKubernetes
 		}
 	}
-	return ""
+	return nil
 }
 
 func (x *GenerateCertsRequest) GetRouteToDatabase() *RouteToDatabase {
@@ -153,9 +153,9 @@ type isGenerateCertsRequest_Routing interface {
 	isGenerateCertsRequest_Routing()
 }
 
-type GenerateCertsRequest_KubernetesCluster struct {
-	// Name of the Kubernetes cluster the certificates will be used to access.
-	KubernetesCluster string `protobuf:"bytes,5,opt,name=kubernetes_cluster,json=kubernetesCluster,proto3,oneof"`
+type GenerateCertsRequest_RouteToKubernetes struct {
+	// Route of the Kubernetes cluster the certificates will be used to access.
+	RouteToKubernetes *RouteToKubernetes `protobuf:"bytes,5,opt,name=route_to_kubernetes,json=routeToKubernetes,proto3,oneof"`
 }
 
 type GenerateCertsRequest_RouteToDatabase struct {
@@ -168,11 +168,57 @@ type GenerateCertsRequest_RouteToApp struct {
 	RouteToApp *RouteToApp `protobuf:"bytes,7,opt,name=route_to_app,json=routeToApp,proto3,oneof"`
 }
 
-func (*GenerateCertsRequest_KubernetesCluster) isGenerateCertsRequest_Routing() {}
+func (*GenerateCertsRequest_RouteToKubernetes) isGenerateCertsRequest_Routing() {}
 
 func (*GenerateCertsRequest_RouteToDatabase) isGenerateCertsRequest_Routing() {}
 
 func (*GenerateCertsRequest_RouteToApp) isGenerateCertsRequest_Routing() {}
+
+// RouteToKubernetes contains Kubernetes access routing information.
+type RouteToKubernetes struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kubernetes cluster name.
+	ClusterName   string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RouteToKubernetes) Reset() {
+	*x = RouteToKubernetes{}
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RouteToKubernetes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RouteToKubernetes) ProtoMessage() {}
+
+func (x *RouteToKubernetes) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RouteToKubernetes.ProtoReflect.Descriptor instead.
+func (*RouteToKubernetes) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RouteToKubernetes) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
 
 // RouteToDatabase contains database access routing information.
 type RouteToDatabase struct {
@@ -193,7 +239,7 @@ type RouteToDatabase struct {
 
 func (x *RouteToDatabase) Reset() {
 	*x = RouteToDatabase{}
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[1]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -205,7 +251,7 @@ func (x *RouteToDatabase) String() string {
 func (*RouteToDatabase) ProtoMessage() {}
 
 func (x *RouteToDatabase) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[1]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -218,7 +264,7 @@ func (x *RouteToDatabase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteToDatabase.ProtoReflect.Descriptor instead.
 func (*RouteToDatabase) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RouteToDatabase) GetServiceName() string {
@@ -281,7 +327,7 @@ type RouteToApp struct {
 
 func (x *RouteToApp) Reset() {
 	*x = RouteToApp{}
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[2]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -293,7 +339,7 @@ func (x *RouteToApp) String() string {
 func (*RouteToApp) ProtoMessage() {}
 
 func (x *RouteToApp) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[2]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,7 +352,7 @@ func (x *RouteToApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteToApp.ProtoReflect.Descriptor instead.
 func (*RouteToApp) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RouteToApp) GetName() string {
@@ -378,7 +424,7 @@ type GenerateCertsResponse struct {
 
 func (x *GenerateCertsResponse) Reset() {
 	*x = GenerateCertsResponse{}
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[3]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -390,7 +436,7 @@ func (x *GenerateCertsResponse) String() string {
 func (*GenerateCertsResponse) ProtoMessage() {}
 
 func (x *GenerateCertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[3]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -403,7 +449,7 @@ func (x *GenerateCertsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateCertsResponse.ProtoReflect.Descriptor instead.
 func (*GenerateCertsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GenerateCertsResponse) GetSsh() []byte {
@@ -424,17 +470,19 @@ var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.Fi
 
 const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" +
 	"\n" +
-	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa7\x03\n" +
+	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd3\x03\n" +
 	"\x14GenerateCertsRequest\x122\n" +
 	"\x15delegation_session_id\x18\x01 \x01(\tR\x13delegationSessionId\x12$\n" +
 	"\x0essh_public_key\x18\x02 \x01(\fR\fsshPublicKey\x12$\n" +
 	"\x0etls_public_key\x18\x03 \x01(\fR\ftlsPublicKey\x124\n" +
-	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12/\n" +
-	"\x12kubernetes_cluster\x18\x05 \x01(\tH\x00R\x11kubernetesCluster\x12U\n" +
+	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12[\n" +
+	"\x13route_to_kubernetes\x18\x05 \x01(\v2).teleport.delegation.v1.RouteToKubernetesH\x00R\x11routeToKubernetes\x12U\n" +
 	"\x11route_to_database\x18\x06 \x01(\v2'.teleport.delegation.v1.RouteToDatabaseH\x00R\x0frouteToDatabase\x12F\n" +
 	"\froute_to_app\x18\a \x01(\v2\".teleport.delegation.v1.RouteToAppH\x00R\n" +
 	"routeToAppB\t\n" +
-	"\arouting\"\x9e\x01\n" +
+	"\arouting\"6\n" +
+	"\x11RouteToKubernetes\x12!\n" +
+	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\"\x9e\x01\n" +
 	"\x0fRouteToDatabase\x12!\n" +
 	"\fservice_name\x18\x01 \x01(\tR\vserviceName\x12\x1a\n" +
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1a\n" +
@@ -472,25 +520,27 @@ func file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP() 
 	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescData
 }
 
-var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any{
 	(*GenerateCertsRequest)(nil),  // 0: teleport.delegation.v1.GenerateCertsRequest
-	(*RouteToDatabase)(nil),       // 1: teleport.delegation.v1.RouteToDatabase
-	(*RouteToApp)(nil),            // 2: teleport.delegation.v1.RouteToApp
-	(*GenerateCertsResponse)(nil), // 3: teleport.delegation.v1.GenerateCertsResponse
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
+	(*RouteToKubernetes)(nil),     // 1: teleport.delegation.v1.RouteToKubernetes
+	(*RouteToDatabase)(nil),       // 2: teleport.delegation.v1.RouteToDatabase
+	(*RouteToApp)(nil),            // 3: teleport.delegation.v1.RouteToApp
+	(*GenerateCertsResponse)(nil), // 4: teleport.delegation.v1.GenerateCertsResponse
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
 }
 var file_teleport_delegation_v1_delegation_session_service_proto_depIdxs = []int32{
-	4, // 0: teleport.delegation.v1.GenerateCertsRequest.expires:type_name -> google.protobuf.Timestamp
-	1, // 1: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
-	2, // 2: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
-	0, // 3: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
-	3, // 4: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5, // 0: teleport.delegation.v1.GenerateCertsRequest.expires:type_name -> google.protobuf.Timestamp
+	1, // 1: teleport.delegation.v1.GenerateCertsRequest.route_to_kubernetes:type_name -> teleport.delegation.v1.RouteToKubernetes
+	2, // 2: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
+	3, // 3: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
+	0, // 4: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
+	4, // 5: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
+	5, // [5:6] is the sub-list for method output_type
+	4, // [4:5] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_delegation_v1_delegation_session_service_proto_init() }
@@ -499,7 +549,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 		return
 	}
 	file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[0].OneofWrappers = []any{
-		(*GenerateCertsRequest_KubernetesCluster)(nil),
+		(*GenerateCertsRequest_RouteToKubernetes)(nil),
 		(*GenerateCertsRequest_RouteToDatabase)(nil),
 		(*GenerateCertsRequest_RouteToApp)(nil),
 	}
@@ -509,7 +559,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

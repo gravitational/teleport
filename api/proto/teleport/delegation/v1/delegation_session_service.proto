@@ -43,8 +43,8 @@ message GenerateCertsRequest {
   google.protobuf.Timestamp expires = 4;
 
   oneof routing {
-    // Name of the Kubernetes cluster the certificates will be used to access.
-    string kubernetes_cluster = 5;
+      // Route of the Kubernetes cluster the certificates will be used to access.
+    RouteToKubernetes route_to_kubernetes = 5;
 
     // Route to the database the certificates will be used to access.
     RouteToDatabase route_to_database = 6;
@@ -52,6 +52,12 @@ message GenerateCertsRequest {
     // Route to the application the certificates will be used to access.
     RouteToApp route_to_app = 7;
   }
+}
+
+// RouteToKubernetes contains Kubernetes access routing information.
+message RouteToKubernetes {
+  // Kubernetes cluster name.
+  string cluster_name = 1;
 }
 
 // RouteToDatabase contains database access routing information.

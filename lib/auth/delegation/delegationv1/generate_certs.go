@@ -258,8 +258,8 @@ func (s *SessionService) generateCertificates(
 
 	// Add the protocol-specific routing hints to the certificate.
 	switch routing := req.Routing.(type) {
-	case *delegationv1.GenerateCertsRequest_KubernetesCluster:
-		certReq.KubernetesCluster = routing.KubernetesCluster
+	case *delegationv1.GenerateCertsRequest_RouteToKubernetes:
+		certReq.KubernetesCluster = routing.RouteToKubernetes.GetClusterName()
 	case *delegationv1.GenerateCertsRequest_RouteToApp:
 		route := routing.RouteToApp
 
