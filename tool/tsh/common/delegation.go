@@ -51,7 +51,7 @@ func onDelegationCreateSession(cf *CLIConf) error {
 		return tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 			ctx := cf.Context
 
-			mfaResp, err := mfa.PerformAdminActionMFACeremony(ctx, clt.PerformMFACeremony, true)
+			mfaResp, err := mfa.PerformAdminActionMFACeremony(ctx, clt.PerformMFACeremony, false)
 			if err == nil {
 				ctx = mfa.ContextWithMFAResponse(ctx, mfaResp)
 			} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
