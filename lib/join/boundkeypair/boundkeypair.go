@@ -420,18 +420,26 @@ type lastRotatedAtMutator struct {
 	expectPrevValue *time.Time
 }
 
+func timePointerEqual(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.Equal(*b)
+}
+
 func (m *lastRotatedAtMutator) validate(
 	spec *types.ProvisionTokenSpecV2BoundKeypair,
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
-	switch {
-	case m.expectPrevValue == nil && status.LastRotatedAt == nil:
-		// no issue
-	case m.expectPrevValue != nil && status.LastRotatedAt == nil:
-		fallthrough
-	case m.expectPrevValue == nil && status.LastRotatedAt != nil:
-		fallthrough
-	case !m.expectPrevValue.Equal(*status.LastRotatedAt):
+	if m.expectPrevValue == nil && status.LastRotatedAt == nil {
+		// Current value is empty, desired value is empty, nothing to do.
+		return nil
+	}
+
+	// If the field differs from the expected value in any way, reject
+	// E.g. nil vs not nil, or the value itself differs.
+	if !timePointerEqual(m.expectPrevValue, status.LastRotatedAt) {
 		return trace.AccessDenied("unexpected backend state")
 	}
 
