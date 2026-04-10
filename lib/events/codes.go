@@ -134,9 +134,9 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
-	// AppSessionRequestCode is the LLM app request/response success code.
+	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
 	AppSessionLLMRequestSuccessCode = "T2014I"
-	// AppSessionRequestCode is the LLM app request/response success code.
+	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
 
 	// AppCreateCode is the app.create event code.
