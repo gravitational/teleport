@@ -239,6 +239,19 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that create_host_user_mode is a recognized value
+	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
+		var hostUserMode types.CreateHostUserMode
+		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
+		}
+	}
+
+	// verify that max_sessions is non-negative
+	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
+		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)

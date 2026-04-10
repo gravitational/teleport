@@ -314,6 +314,86 @@ func TestValidateRole(t *testing.T) {
 			strongOk: false,
 			weakOk:   true,
 		},
+		{
+			name: "invalid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							Mode: "invalid-mode",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							Mode: "keep",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "negative max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(-1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "positive max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
 	}
 
 	for _, tt := range tts {
@@ -1149,7 +1229,21 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				{Name: "env", Values: []string{"prod"}},
 			},
-			ClientIdleTimeout: "1h",
+			ClientIdleTimeout:   "1h",
+			PermitX11Forwarding: proto.Bool(true),
+			FileCopy:            proto.Bool(true),
+			ForwardAgent:        proto.Bool(true),
+			PortForwarding: &scopedaccessv1.SSHPortForwarding{
+				Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+				Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+			},
+			HostUserCreation: &scopedaccessv1.CreateHostUser{
+				Mode:   "keep",
+				Groups: []string{"wheel"},
+				Shell:  "/bin/bash",
+			},
+			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
+			MaxSessions: proto.Int64(10),
 		},
 	}
 
