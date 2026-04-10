@@ -82,10 +82,12 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 
 	ctx, cancel := context.WithCancel(context.Background())
