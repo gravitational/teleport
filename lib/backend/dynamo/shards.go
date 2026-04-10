@@ -107,9 +107,6 @@ func (b *Backend) deleteShardsWithParents(ctx context.Context, shards []streamty
 }
 
 func (b *Backend) pollStreams(externalCtx context.Context) error {
-	const shardReadyForDeletion = true
-	const shardActive = false
-
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
 
@@ -119,48 +116,44 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	}
 	b.logger.DebugContext(ctx, "Found latest event stream", "stream_arn", aws.ToString(streamArn))
 
-	// turn this into a tombstone
 	set := make(map[string]bool)
+	// The set uses sentinel values to mark when a state is ready for deletion. The shard is only removed
+	// once DynamoDB confirms the shard is closed to avoid reopenning the shard and processing duplicate events.
+	const shardReadyForDeletion = true
+	const shardActive = false
 	eventsC := make(chan shardEvent)
 
-	shouldStartPoll := func(shard streamtypes.Shard) bool {
-		sid := aws.ToString(shard.ShardId)
-		if _, ok := set[sid]; ok {
-			// already being polled
-			return false
+	filterShards := func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
+		closed := shard.SequenceNumberRange.EndingSequenceNumber != nil
+		processed, known := set[aws.ToString(shard.ShardId)]
+		_, parentPending := set[aws.ToString(shard.ParentShardId)]
+
+		// First do cleanup of any tombstoned shards.
+		if closed && known && processed {
+			b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
+			delete(set, aws.ToString(shard.ShardId))
 		}
-		if _, ok := set[aws.ToString(shard.ParentShardId)]; ok {
-			b.logger.Log(ctx, logutils.TraceLevel, "Skipping child shard, still polling parent", "child_shard_id", sid, "parent_shard_id", aws.ToString(shard.ParentShardId))
-			// still processing parent
-			return false
+
+		if parentPending && !closed && !known {
+			b.logger.Log(ctx, logutils.TraceLevel, "Not starting poll for shard with known parent until parent is closed", "shard_id", aws.ToString(shard.ShardId), "parent_shard_id", aws.ToString(shard.ParentShardId))
 		}
-		return true
+
+		// For a shard to be a valid candidate for processing it must:
+		// 1. Not be closed
+		// 2. Not already be known
+		// 3. Must not have a parent shard that is still active
+		return shard, !closed && !known && !parentPending
 	}
 
 	refreshShards := func(init bool) error {
-		newUnknownShards, err := iterstream.Collect(iterstream.FilterMap(
-			b.fetchShards(ctx, streamArn),
-			func(shard streamtypes.Shard) (streamtypes.Shard, bool) {
-				active := shard.SequenceNumberRange.EndingSequenceNumber == nil
-				processed, known := set[aws.ToString(shard.ShardId)]
-
-				// First do cleanup of any tombstoned shards.
-				if !active && known && processed {
-					b.logger.DebugContext(ctx, "Cleaning up closed shard", "shard_id", aws.ToString(shard.ShardId))
-					delete(set, aws.ToString(shard.ShardId))
-				}
-
-				// Only include if active and not already known.
-				return shard, active && !known
-			},
-		))
+		candidateShards, err := iterstream.Collect(iterstream.FilterMap(b.fetchShards(ctx, streamArn), filterShards))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// In the case where both a parent and child shard are present in the list of active shards
 		// we want to ignore the child because the set marker may not be set yet for the parent shard.
-		shards := b.deleteShardsWithParents(ctx, newUnknownShards)
+		shards := b.deleteShardsWithParents(ctx, candidateShards)
 
 		var initC chan error
 		if init {
@@ -169,21 +162,16 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			initC = make(chan error, len(shards))
 		}
 
-		started := 0
-		for i := range shards {
-			if !shouldStartPoll(shards[i]) {
-				continue
-			}
-			shardID := aws.ToString(shards[i].ShardId)
+		for _, shard := range shards {
+			shardID := aws.ToString(shard.ShardId)
 			b.logger.DebugContext(ctx, "Adding active shard", "shard_id", shardID)
 			set[shardID] = shardActive
-			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
-			started++
+			go b.asyncPollShard(ctx, streamArn, shard, eventsC, initC)
 		}
 
 		if init {
 			// block on shard iterator registration.
-			for range started {
+			for range shards {
 				select {
 				case err = <-initC:
 					if err != nil {
