@@ -164,6 +164,18 @@ type sessionTestPack struct {
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
 }
 
+func (p *sessionTestPack) authenticateUser(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.user = p.createUser(t, name, roleSpec)
+	p.adminActionAuthState = mfaState
+}
+
 func (p *sessionTestPack) createUser(
 	t *testing.T,
 	name string,
