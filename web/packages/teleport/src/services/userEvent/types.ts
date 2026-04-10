@@ -445,3 +445,11 @@ export type CreateNewRoleSaveClickEvent = UserEventWithData<
   CaptureEvent.CreateNewRoleSaveClickEvent,
   CreateNewRoleSaveClickEventData
 >;
+
+export type CloudPanelEventRequest = {
+  event: 'tp.ui.cloudpanel';
+  eventData: {
+    eventName: string;
+    properties?: Record<string, unknown>;
+  };
+};

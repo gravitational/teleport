@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.usageevents.v1;
 
+import "google/protobuf/struct.proto";
 import "teleport/accesslist/v1/accesslist.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1;usageeventsv1";
@@ -689,6 +690,15 @@ message UIAccessListIntegrateEvent {
   AccessListIntegrate integrate = 2;
 }
 
+// CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+// Validated server-side against a known event schema in prehog.
+message CloudPanelEvent {
+  // event_name identifies the event (e.g. "tp.ui.page_view")
+  string event_name = 1;
+  // properties contains event-specific data
+  map<string, google.protobuf.Value> properties = 2;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 //
@@ -1141,6 +1151,10 @@ message UsageEventOneOf {
     UIAccessListCompleteEvent ui_access_list_complete_event = 72;
     UIAccessListIntegrateEvent ui_access_list_integrate_event = 73;
     UIAccessListCustomEvent ui_access_list_custom_event = 74;
+
+    // CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+    // Validated server-side against a known event schema in prehog.
+    CloudPanelEvent cloud_panel_event = 75;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

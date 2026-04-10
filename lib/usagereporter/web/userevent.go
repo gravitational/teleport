@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"slices"
 
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -83,6 +84,8 @@ const (
 	uiIntegrationEnrollLinkClickEvent     = "tp.ui.integrationEnroll.linkClick"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+
+	cloudPanelEvent = "tp.ui.cloudpanel"
 
 	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
 
@@ -224,6 +227,7 @@ type CreateUserEventRequest struct {
 	// EventData contains the event's metadata.
 	// This field dependes on the Event name, hence the json.RawMessage
 	EventData *json.RawMessage `json:"eventData"`
+
 }
 
 // IntegrationEnrollEventData contains the required properties
@@ -593,7 +597,66 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			},
 		}, nil
+	case cloudPanelEvent:
+		if req.EventData == nil {
+			return nil, trace.BadParameter("missing eventData for cloud panel event")
+		}
+		var data struct {
+			EventName  string                 `json:"eventName"`
+			Properties map[string]interface{} `json:"properties"`
+		}
+		if err := json.Unmarshal([]byte(*req.EventData), &data); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		if data.EventName == "" {
+			return nil, trace.BadParameter("missing eventName in eventData")
+		}
+		protoProperties, err := toGogoValues(data.Properties)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_CloudPanelEvent{
+				CloudPanelEvent: &usageeventsv1.CloudPanelEvent{
+					EventName:  data.EventName,
+					Properties: protoProperties,
+				},
+			},
+		}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)
 }
+
+// toGogoValues converts a map of Go interface values to gogo protobuf Value types.
+// JSON numbers decode as float64, which is preserved as NumberValue.
+func toGogoValues(m map[string]interface{}) (map[string]*gogotypes.Value, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	result := make(map[string]*gogotypes.Value, len(m))
+	for k, v := range m {
+		gv, err := toGogoValue(v)
+		if err != nil {
+			return nil, trace.BadParameter("property %q: %v", k, err)
+		}
+		result[k] = gv
+	}
+	return result, nil
+}
+
+func toGogoValue(v interface{}) (*gogotypes.Value, error) {
+	switch t := v.(type) {
+	case nil:
+		return &gogotypes.Value{Kind: &gogotypes.Value_NullValue{}}, nil
+	case bool:
+		return &gogotypes.Value{Kind: &gogotypes.Value_BoolValue{BoolValue: t}}, nil
+	case float64:
+		return &gogotypes.Value{Kind: &gogotypes.Value_NumberValue{NumberValue: t}}, nil
+	case string:
+		return &gogotypes.Value{Kind: &gogotypes.Value_StringValue{StringValue: t}}, nil
+	default:
+		return nil, trace.BadParameter("unsupported value type %T", v)
+	}
+}
+

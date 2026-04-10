@@ -22,7 +22,9 @@ import (
 	"slices"
 	"strings"
 
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -2160,6 +2162,21 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 
+	case *usageeventsv1.UsageEventOneOf_CloudPanelEvent:
+		data := e.CloudPanelEvent
+		if data.EventName == "" {
+			return nil, trace.BadParameter("missing event_name in cloud panel event")
+		}
+		props, err := gogoToStructpbMap(data.Properties)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ret := &CloudPanelEvent{
+			EventName:  data.EventName,
+			Properties: props,
+		}
+		return ret, nil
+
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -2217,5 +2234,57 @@ func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 				CreationMethod:      e.CreationMethod,
 			},
 		},
+	}
+}
+
+// CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+// Validated server-side in prehog against a known event schema.
+type CloudPanelEvent prehogv1a.CloudPanelEvent
+
+// Anonymize anonymizes the event. No PII fields — properties contain only
+// paths, UTM params, and alert identifiers.
+func (e *CloudPanelEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_CloudPanelEvent{
+			CloudPanelEvent: &prehogv1a.CloudPanelEvent{
+				EventName:  e.EventName,
+				Properties: e.Properties,
+			},
+		},
+	}
+}
+
+// gogoToStructpbMap converts a map of gogo protobuf Values to google structpb Values.
+// The two libraries represent google.protobuf.Value differently in Go despite identical wire formats.
+func gogoToStructpbMap(m map[string]*gogotypes.Value) (map[string]*structpb.Value, error) {
+	if len(m) == 0 {
+		return nil, nil
+	}
+	result := make(map[string]*structpb.Value, len(m))
+	for k, gv := range m {
+		sv, err := gogoToStructpbValue(gv)
+		if err != nil {
+			return nil, trace.BadParameter("property %q: %v", k, err)
+		}
+		result[k] = sv
+	}
+	return result, nil
+}
+
+func gogoToStructpbValue(gv *gogotypes.Value) (*structpb.Value, error) {
+	if gv == nil {
+		return structpb.NewNullValue(), nil
+	}
+	switch kind := gv.Kind.(type) {
+	case *gogotypes.Value_NullValue:
+		return structpb.NewNullValue(), nil
+	case *gogotypes.Value_BoolValue:
+		return structpb.NewBoolValue(kind.BoolValue), nil
+	case *gogotypes.Value_NumberValue:
+		return structpb.NewNumberValue(kind.NumberValue), nil
+	case *gogotypes.Value_StringValue:
+		return structpb.NewStringValue(kind.StringValue), nil
+	default:
+		return nil, trace.BadParameter("unsupported value kind %T", gv.Kind)
 	}
 }

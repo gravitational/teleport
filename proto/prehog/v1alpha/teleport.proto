@@ -21,6 +21,7 @@ syntax = "proto3";
 package prehog.v1alpha;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
 // a successful user login
@@ -1988,6 +1989,17 @@ message UIAccessListCustomEvent {
   AccessListStepStatus status = 2;
 }
 
+// CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+// Validated server-side against a known event schema in prehog.
+message CloudPanelEvent {
+  // anonymized
+  string user_name = 1;
+  // event_name identifies the event (e.g. "tp.ui.page_view")
+  string event_name = 2;
+  // properties contains event-specific data
+  map<string, google.protobuf.Value> properties = 3;
+}
+
 // UIAccessListIntegrateEvent is emitted when a user leaves the wizard
 // to enroll an integration by clicking on a CTA button in the wizard.
 message UIAccessListCompleteEvent {
@@ -2206,6 +2218,10 @@ message SubmitEventRequest {
     UIAccessListCompleteEvent ui_access_list_complete_event = 116;
     UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
     UIAccessListCustomEvent ui_access_list_custom_event = 118;
+
+    // CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+    // Validated server-side against a known event schema in prehog.
+    CloudPanelEvent cloud_panel_event = 119;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

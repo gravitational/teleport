@@ -32,6 +32,7 @@ import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { Timestamp } from "../../google/protobuf/timestamp_pb";
+import { Value } from "../../google/protobuf/struct_pb";
 import { Duration } from "../../google/protobuf/duration_pb";
 /**
  * a successful user login
@@ -3408,6 +3409,34 @@ export interface UIAccessListCustomEvent {
     status?: AccessListStepStatus;
 }
 /**
+ * CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+ * Validated server-side against a known event schema in prehog.
+ *
+ * @generated from protobuf message prehog.v1alpha.CloudPanelEvent
+ */
+export interface CloudPanelEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * event_name identifies the event (e.g. "tp.ui.page_view")
+     *
+     * @generated from protobuf field: string event_name = 2;
+     */
+    eventName: string;
+    /**
+     * properties contains event-specific data
+     *
+     * @generated from protobuf field: map<string, google.protobuf.Value> properties = 3;
+     */
+    properties: {
+        [key: string]: Value;
+    };
+}
+/**
  * UIAccessListIntegrateEvent is emitted when a user leaves the wizard
  * to enroll an integration by clicking on a CTA button in the wizard.
  *
@@ -4160,6 +4189,15 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118;
          */
         uiAccessListCustomEvent: UIAccessListCustomEvent;
+    } | {
+        oneofKind: "cloudPanelEvent";
+        /**
+         * CloudPanelEvent is a flexible event type for cloudpanel UI analytics.
+         * Validated server-side against a known event schema in prehog.
+         *
+         * @generated from protobuf field: prehog.v1alpha.CloudPanelEvent cloud_panel_event = 119;
+         */
+        cloudPanelEvent: CloudPanelEvent;
     } | {
         oneofKind: undefined;
     };
@@ -12883,6 +12921,89 @@ class UIAccessListCustomEvent$Type extends MessageType<UIAccessListCustomEvent> 
  */
 export const UIAccessListCustomEvent = new UIAccessListCustomEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class CloudPanelEvent$Type extends MessageType<CloudPanelEvent> {
+    constructor() {
+        super("prehog.v1alpha.CloudPanelEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "event_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "properties", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => Value } }
+        ]);
+    }
+    create(value?: PartialMessage<CloudPanelEvent>): CloudPanelEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.eventName = "";
+        message.properties = {};
+        if (value !== undefined)
+            reflectionMergePartial<CloudPanelEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CloudPanelEvent): CloudPanelEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string event_name */ 2:
+                    message.eventName = reader.string();
+                    break;
+                case /* map<string, google.protobuf.Value> properties */ 3:
+                    this.binaryReadMap3(message.properties, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap3(map: CloudPanelEvent["properties"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof CloudPanelEvent["properties"] | undefined, val: CloudPanelEvent["properties"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = Value.internalBinaryRead(reader, reader.uint32(), options);
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for field prehog.v1alpha.CloudPanelEvent.properties");
+            }
+        }
+        map[key ?? ""] = val ?? Value.create();
+    }
+    internalBinaryWrite(message: CloudPanelEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string event_name = 2; */
+        if (message.eventName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.eventName);
+        /* map<string, google.protobuf.Value> properties = 3; */
+        for (let k of globalThis.Object.keys(message.properties)) {
+            writer.tag(3, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k);
+            writer.tag(2, WireType.LengthDelimited).fork();
+            Value.internalBinaryWrite(message.properties[k], writer, options);
+            writer.join().join();
+        }
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.CloudPanelEvent
+ */
+export const CloudPanelEvent = new CloudPanelEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class UIAccessListCompleteEvent$Type extends MessageType<UIAccessListCompleteEvent> {
     constructor() {
         super("prehog.v1alpha.UIAccessListCompleteEvent", [
@@ -13115,7 +13236,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 115, name: "ui_access_list_start_event", kind: "message", oneof: "event", T: () => UIAccessListStartEvent },
             { no: 116, name: "ui_access_list_complete_event", kind: "message", oneof: "event", T: () => UIAccessListCompleteEvent },
             { no: 117, name: "ui_access_list_integrate_event", kind: "message", oneof: "event", T: () => UIAccessListIntegrateEvent },
-            { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent }
+            { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent },
+            { no: 119, name: "cloud_panel_event", kind: "message", oneof: "event", T: () => CloudPanelEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -13813,6 +13935,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiAccessListCustomEvent: UIAccessListCustomEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListCustomEvent)
                     };
                     break;
+                case /* prehog.v1alpha.CloudPanelEvent cloud_panel_event */ 119:
+                    message.event = {
+                        oneofKind: "cloudPanelEvent",
+                        cloudPanelEvent: CloudPanelEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).cloudPanelEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -14170,6 +14298,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118; */
         if (message.event.oneofKind === "uiAccessListCustomEvent")
             UIAccessListCustomEvent.internalBinaryWrite(message.event.uiAccessListCustomEvent, writer.tag(118, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.CloudPanelEvent cloud_panel_event = 119; */
+        if (message.event.oneofKind === "cloudPanelEvent")
+            CloudPanelEvent.internalBinaryWrite(message.event.cloudPanelEvent, writer.tag(119, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

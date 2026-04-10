@@ -22,6 +22,7 @@ import api from 'teleport/services/api';
 import { AccessListEventRequest } from './accessListEvents';
 import {
   CaptureEvent,
+  CloudPanelEventRequest,
   CreateNewRoleSaveClickEvent,
   CreateNewRoleSaveClickEventData,
   CtaEvent,
@@ -46,7 +47,8 @@ function captureEvent({
     | CtaEventRequest
     | FeatureRecommendationEventRequest
     | CreateNewRoleSaveClickEvent
-    | AccessListEventRequest;
+    | AccessListEventRequest
+    | CloudPanelEventRequest;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -103,6 +105,21 @@ export const userEventService = {
       event: {
         event: CaptureEvent.CreateNewRoleSaveClickEvent,
         eventData,
+      },
+    });
+  },
+
+  captureCloudPanelEvent(cloudEvent: {
+    event: string;
+    properties?: Record<string, unknown>;
+  }) {
+    captureEvent({
+      event: {
+        event: 'tp.ui.cloudpanel',
+        eventData: {
+          eventName: cloudEvent.event,
+          properties: cloudEvent.properties,
+        },
       },
     });
   },
