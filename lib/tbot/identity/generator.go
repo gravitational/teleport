@@ -434,8 +434,8 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 	return &proto.Certs{
 		SSH:        certsRsp.GetSsh(),
 		TLS:        certsRsp.GetTls(),
-		SSHCACerts: certsRsp.GetSshCas(),
-		TLSCACerts: certsRsp.GetTlsCas(),
+		SSHCACerts: o.currentIdentity.SSHCACertBytes,
+		TLSCACerts: o.currentIdentity.TLSCACertsBytes,
 	}, nil
 }
 
