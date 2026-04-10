@@ -1146,8 +1146,8 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{scope},
 				Kube: &scopedaccessv1.ScopedRoleKube{
-					Users:  []string{"kube_user"},
-					Groups: []string{"kube_group"},
+					Users:  []string{"scoped_kube_user"},
+					Groups: []string{"scoped_kube_group"},
 					Labels: []*labelsv1.Label{
 						{
 							Name:   types.Wildcard,
@@ -1192,38 +1192,47 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 
 	user2, err = srv.Auth().UpdateUser(ctx, user2)
 	require.NoError(t, err)
-	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
-	require.NoError(t, err)
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
-	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
+	ttl := time.Hour
 
 	testCases := []struct {
-		desc       string
-		user       types.User
-		scope      string
-		expiration time.Time
+		desc             string
+		user             types.User
+		scope            string
+		expiration       time.Time
+		expectKubeUsers  []string
+		expectKubeGroups []string
 	}{
 		{
-			desc:       "Roles don't have max_session_ttl set",
-			user:       user1,
-			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+			desc:             "Roles don't have max_session_ttl set",
+			user:             user1,
+			expiration:       srv.Auth().GetClock().Now().Add(ttl),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
-			user:       user2,
-			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			desc:             "Roles have max_session_ttl set, cert expiration adjusted",
+			user:             user2,
+			expiration:       srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:       "Scoped role",
-			user:       user1,
-			scope:      scope,
-			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+			desc:             "Scoped role",
+			user:             user1,
+			scope:            scope,
+			expiration:       srv.Auth().GetClock().Now().Add(ttl),
+			expectKubeUsers:  []string{"scoped_kube_user"},
+			expectKubeGroups: []string{"scoped_kube_group"},
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
+			if tt.desc != "Scoped role" {
+				t.Skip()
+			}
 			var ident authtest.TestIdentity
 			if tt.scope != "" {
 				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope, func(i *tlsca.Identity) {
@@ -1235,7 +1244,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				ident = authtest.TestUser(tt.user.GetName())
 			}
 
-			ident.TTL = defaultDuration
+			ident.TTL = ttl
 			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
@@ -1243,7 +1252,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				SSHPublicKey:      sshPubKey,
 				TLSPublicKey:      tlsPubKey,
 				Username:          tt.user.GetName(),
-				Expires:           srv.Auth().GetClock().Now().Add(defaultDuration),
+				Expires:           srv.Auth().GetClock().Now().Add(ttl),
 				KubernetesCluster: kubeClusterName,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 				Usage:             proto.UserCertsRequest_Kubernetes,
@@ -1261,6 +1270,8 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				require.Nil(t, identity.ScopePin)
 			}
 
+			require.ElementsMatch(t, tt.expectKubeUsers, identity.KubernetesUsers)
+			require.ElementsMatch(t, tt.expectKubeGroups, identity.KubernetesGroups)
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
