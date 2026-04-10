@@ -31,47 +31,45 @@ import (
 
 // newAtomicWriteTestBackend builds a backend suitable for the atomic write test suite. Once all backends implement AtomicWrite,
 // it will be integrated into the main backend interface and we can get rid of this separate helper.
-func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
-	opts, err := test.ApplyOptions(options)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+func newAtomicWriteTestBackend(etcdEndpoint string) func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	return func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+		opts, err := test.ApplyOptions(options)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if opts.MirrorMode {
+			return nil, nil, test.ErrMirrorNotSupported
+		}
+
+		// No need to check target backend - all Etcd backends create by this test
+		// point to the same datastore.
+
+		bk, err := New(context.Background(), commonEtcdParams(etcdEndpoint), commonEtcdOptions...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// we can't fiddle with clocks inside the etcd client, so instead of creating
+		// and returning a fake clock, we wrap the real clock used by the etcd client
+		// in a FakeClock interface that sleeps instead of instantly advancing.
+		sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
+
+		return bk, sleepingClock, nil
 	}
-
-	if opts.MirrorMode {
-		return nil, nil, test.ErrMirrorNotSupported
-	}
-
-	// No need to check target backend - all Etcd backends create by this test
-	// point to the same datastore.
-
-	bk, err := New(context.Background(), commonEtcdParams, commonEtcdOptions...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// we can't fiddle with clocks inside the etcd client, so instead of creating
-	// and returning a fake clock, we wrap the real clock used by the etcd client
-	// in a FakeClock interface that sleeps instead of instantly advancing.
-	sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
-
-	return bk, sleepingClock, nil
 }
 
 // TestAtomicWriteSuite runs the main atomic write test suite.
 func TestAtomicWriteSuite(t *testing.T) {
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 
-	test.RunAtomicWriteComplianceSuite(t, newAtomicWriteTestBackend)
+	test.RunAtomicWriteComplianceSuite(t, newAtomicWriteTestBackend(etcdEndpoint))
 }
 
 // TestAtomicWriteShim runs the classic test suite using a shim that reimplements all single-item writes as calls
 // to AtomicWrite.
 func TestAtomicWriteShim(t *testing.T) {
-	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
-	}
+	etcdEndpoint := requireSerializedExternalEtcdOrParallelEmbedEtcd(t)
 
-	test.RunBackendComplianceSuiteWithAtomicWriteShim(t, newAtomicWriteTestBackend)
+	test.RunBackendComplianceSuiteWithAtomicWriteShim(t, newAtomicWriteTestBackend(etcdEndpoint))
 }
