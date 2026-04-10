@@ -1670,6 +1670,11 @@ func TestDelegationSessionWithoutResourceIDsDoesNotDenyRuleChecks(t *testing.T) 
 	role := newRole(func(rv *types.RoleV6) {
 		rv.SetRules(types.Allow, []types.Rule{
 			types.NewRule(types.KindToken, []string{types.VerbCreate}),
+			{
+				Resources: []string{types.KindSession},
+				Verbs:     []string{types.VerbList},
+				Where:     `contains(session.participants, "guest")`,
+			},
 		})
 	})
 
@@ -1682,6 +1687,66 @@ func TestDelegationSessionWithoutResourceIDsDoesNotDenyRuleChecks(t *testing.T) 
 
 	err = checker.GuessIfAccessIsPossible(&Context{}, apidefaults.Namespace, types.KindToken, types.VerbCreate)
 	require.NoError(t, err)
+
+	cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+	require.NoError(t, err)
+	require.Equal(t, &types.WhereExpr{
+		Contains: types.WhereExpr2{
+			L: &types.WhereExpr{Field: "participants"},
+			R: &types.WhereExpr{Literal: "guest"},
+		},
+	}, cond)
+}
+
+func TestDelegationSessionExtractConditionForIdentifier(t *testing.T) {
+	role := newRole(func(rv *types.RoleV6) {
+		rv.SetRules(types.Allow, []types.Rule{
+			{
+				Resources: []string{types.KindSession},
+				Verbs:     []string{types.VerbList},
+				Where:     `contains(session.participants, "guest")`,
+			},
+		})
+	})
+
+	t.Run("unrelated resource kind denies extraction", func(t *testing.T) {
+		checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+			DelegationSessionID: "delegation-session",
+			AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+				{
+					ClusterName: "cluster",
+					Kind:        types.KindApp,
+					Name:        "hr-system",
+				},
+			}),
+		}, "cluster", NewRoleSet(role))
+
+		cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+		require.True(t, trace.IsAccessDenied(err))
+		require.Nil(t, cond)
+	})
+
+	t.Run("matching resource kind delegates to role set", func(t *testing.T) {
+		checker := NewAccessCheckerWithRoleSet(&AccessInfo{
+			DelegationSessionID: "delegation-session",
+			AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+				{
+					ClusterName: "cluster",
+					Kind:        types.KindSession,
+					Name:        "session-id",
+				},
+			}),
+		}, "cluster", NewRoleSet(role))
+
+		cond, err := checker.ExtractConditionForIdentifier(&Context{}, apidefaults.Namespace, types.KindSession, types.VerbList, SessionIdentifier)
+		require.NoError(t, err)
+		require.Equal(t, &types.WhereExpr{
+			Contains: types.WhereExpr2{
+				L: &types.WhereExpr{Field: "participants"},
+				R: &types.WhereExpr{Literal: "guest"},
+			},
+		}, cond)
+	})
 }
 
 // mockRoleGetter implements RoleGetter for testing

@@ -612,6 +612,15 @@ func (a *accessChecker) GuessIfAccessIsPossible(ctx RuleContext, namespace strin
 	return a.RoleSet.GuessIfAccessIsPossible(ctx, namespace, resource, verb)
 }
 
+// ExtractConditionForIdentifier returns a restrictive filter expression
+// for list queries based on the rules' `where` conditions.
+func (a *accessChecker) ExtractConditionForIdentifier(ctx RuleContext, namespace, resource, verb, identifier string) (*types.WhereExpr, error) {
+	if a.blockedInDelegationSession(resource, verb) {
+		return nil, trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
+	}
+	return a.RoleSet.ExtractConditionForIdentifier(ctx, namespace, resource, verb, identifier)
+}
+
 // CheckAccess checks if the identity for this AccessChecker has access to the given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Immediately return an error regardless of potential preconditions. This is to maintain backwards compatibility
