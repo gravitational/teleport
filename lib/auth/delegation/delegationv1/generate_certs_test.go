@@ -38,13 +38,11 @@ import (
 )
 
 var (
-	sshCACertificates = [][]byte{[]byte("SSH CA CERTIFICATE")}
-	sshCertificate    = []byte("SSH CERTIFICATE")
-	sshPublicKey      = []byte("SSH PUBLIC KEY")
+	sshCertificate = []byte("SSH CERTIFICATE")
+	sshPublicKey   = []byte("SSH PUBLIC KEY")
 
-	tlsCACertificates = [][]byte{[]byte("TLS CA CERTIFICATE")}
-	tlsCertificate    = []byte("TLS CERTIFICATE")
-	tlsPublicKey      = []byte("TLS PUBLIC KEY")
+	tlsCertificate = []byte("TLS CERTIFICATE")
+	tlsPublicKey   = []byte("TLS PUBLIC KEY")
 )
 
 func TestSessionService_GenerateCerts(t *testing.T) {
@@ -135,10 +133,8 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Equal(t, "payroll-agent", req.BotName)
 
 				return &proto.Certs{
-					TLS:        tlsCertificate,
-					SSH:        sshCertificate,
-					TLSCACerts: tlsCACertificates,
-					SSHCACerts: sshCACertificates,
+					TLS: tlsCertificate,
+					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
@@ -161,10 +157,8 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t,
 				&delegationv1pb.GenerateCertsResponse{
-					Ssh:    sshCertificate,
-					Tls:    tlsCertificate,
-					SshCas: sshCACertificates,
-					TlsCas: tlsCACertificates,
+					Ssh: sshCertificate,
+					Tls: tlsCertificate,
 				},
 				rsp,
 			)
@@ -218,10 +212,8 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Empty(t, params.GetAllowedResourceAccessIDs())
 
 				return &proto.Certs{
-					TLS:        tlsCertificate,
-					SSH:        sshCertificate,
-					TLSCACerts: tlsCACertificates,
-					SSHCACerts: sshCACertificates,
+					TLS: tlsCertificate,
+					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
@@ -244,10 +236,8 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t,
 				&delegationv1pb.GenerateCertsResponse{
-					Ssh:    sshCertificate,
-					Tls:    tlsCertificate,
-					SshCas: sshCACertificates,
-					TlsCas: tlsCACertificates,
+					Ssh: sshCertificate,
+					Tls: tlsCertificate,
 				},
 				rsp,
 			)
@@ -448,10 +438,8 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Equal(t, 1*time.Hour, req.TTL) // This is the session expiry, not the requested TTL.
 
 				return &proto.Certs{
-					TLS:        tlsCertificate,
-					SSH:        sshCertificate,
-					TLSCACerts: tlsCACertificates,
-					SSHCACerts: sshCACertificates,
+					TLS: tlsCertificate,
+					SSH: sshCertificate,
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")

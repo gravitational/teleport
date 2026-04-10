@@ -106,10 +106,4 @@ message GenerateCertsResponse {
 
   // TLS X.509 certificate (PEM-encoded).
   bytes tls = 2;
-
-  // SSH certificate authorities.
-  repeated bytes ssh_cas = 3;
-
-  // TLS certificate authorities.
-  repeated bytes tls_cas = 4;
 }

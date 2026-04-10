@@ -371,11 +371,7 @@ type GenerateCertsResponse struct {
 	// SSH certificated marshaled in the authorized keys format.
 	Ssh []byte `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// TLS X.509 certificate (PEM-encoded).
-	Tls []byte `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
-	// SSH certificate authorities.
-	SshCas [][]byte `protobuf:"bytes,3,rep,name=ssh_cas,json=sshCas,proto3" json:"ssh_cas,omitempty"`
-	// TLS certificate authorities.
-	TlsCas        [][]byte `protobuf:"bytes,4,rep,name=tls_cas,json=tlsCas,proto3" json:"tls_cas,omitempty"`
+	Tls           []byte `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -424,20 +420,6 @@ func (x *GenerateCertsResponse) GetTls() []byte {
 	return nil
 }
 
-func (x *GenerateCertsResponse) GetSshCas() [][]byte {
-	if x != nil {
-		return x.SshCas
-	}
-	return nil
-}
-
-func (x *GenerateCertsResponse) GetTlsCas() [][]byte {
-	if x != nil {
-		return x.TlsCas
-	}
-	return nil
-}
-
 var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.FileDescriptor
 
 const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" +
@@ -471,12 +453,10 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\faws_role_arn\x18\x06 \x01(\tR\n" +
 	"awsRoleArn\x12%\n" +
 	"\x0eazure_identity\x18\a \x01(\tR\razureIdentity\x12.\n" +
-	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\"m\n" +
+	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\";\n" +
 	"\x15GenerateCertsResponse\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
-	"\x03tls\x18\x02 \x01(\fR\x03tls\x12\x17\n" +
-	"\assh_cas\x18\x03 \x03(\fR\x06sshCas\x12\x17\n" +
-	"\atls_cas\x18\x04 \x03(\fR\x06tlsCas2\x88\x01\n" +
+	"\x03tls\x18\x02 \x01(\fR\x03tls2\x88\x01\n" +
 	"\x18DelegationSessionService\x12l\n" +
 	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
 

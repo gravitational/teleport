@@ -250,7 +250,6 @@ func (s *SessionService) generateCertificates(
 
 		DisallowReissue: true,
 		Renewable:       false,
-		IncludeHostCA:   true,
 
 		BotName:             callerIdentity.BotName,
 		BotInstanceID:       callerIdentity.BotInstanceID,
@@ -318,10 +317,8 @@ func (s *SessionService) generateCertificates(
 		return nil, trace.Wrap(err)
 	}
 	return &delegationv1.GenerateCertsResponse{
-		Ssh:    certs.SSH,
-		Tls:    certs.TLS,
-		SshCas: certs.SSHCACerts,
-		TlsCas: certs.TLSCACerts,
+		Ssh: certs.SSH,
+		Tls: certs.TLS,
 	}, nil
 }
 
