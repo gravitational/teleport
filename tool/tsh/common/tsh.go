@@ -1059,7 +1059,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Beams.
-	beams := app.Command("beams", "View, manage and run beams. Beams are convenient, sandboxed environments for AI agents.").Alias("beam")
+	beams := app.Command("beams", "View, manage and run beams. Beams are convenient, sandboxed environments for AI agents.").Alias("beam").Alias(beamsHelp)
 	beams.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	beamsAdd := beams.Command("add", "Start a new beam, and optionally connect to it via SSH.")
 	beamsAdd.Flag("console", "Connect to the beam via SSH after creation.").Default("true").BoolVar(&cf.BeamConsole)

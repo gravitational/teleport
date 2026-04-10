@@ -49,6 +49,28 @@ EXAMPLES:
   Check with your Teleport cluster administrator that your user's roles should have nodes available.
   `
 
+	beamsHelp = `
+Getting Started:
+
+  Beams are ephemeral, isolated runtimes for AI agents. Each beam is a
+  short-lived Firecracker micro-VM provisioned with a Teleport-issued identity
+  and connected to your infrastructure and inference services — with no secrets,
+  no static API keys, and full audit coverage.
+
+  Create a beam and connect to it:
+  $ tsh beams add
+
+  List your beams:
+  $ tsh beams ls
+
+  Copy files to/from a beam:
+  $ tsh beams cp local-file.txt <beam-id>:/remote/path
+
+  Publish a beam's HTTP service (port 8080) as a Teleport app:
+  $ tsh beams publish <beam-id>
+
+  For more information, see https://goteleport.com/docs/ver/19.x/beams/`
+
 	dbListHelp = `
 Examples:
   Search databases with keywords:
