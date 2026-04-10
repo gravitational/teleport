@@ -567,7 +567,7 @@ linters:
       # enforce this rule everywhere.
       - linters:
           - forcetypeassert
-        path-except: lib/tlsca/ca\.go
+        path-except: ^lib/tlsca/ca\.go$
 
     paths:
       - (^|/)node_modules/
