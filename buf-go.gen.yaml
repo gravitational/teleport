@@ -32,6 +32,9 @@ plugins:
       # needed by teleport/lib/teleterm/v1/usage_events.proto because we use
       # managed mode for the go package name there
       - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
+      # needed by proto/accessraph/v1alpha/access_graph_service.go because it imports it for
+      # usage events
+      - Mprehog/v1alpha/teleport.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
     strategy: all
   - local:
       - go
@@ -43,4 +46,7 @@ plugins:
       # needed by teleport/lib/teleterm/v1/usage_events.proto because we use
       # managed mode for the go package name there
       - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
+      # needed by proto/accessraph/v1alpha/access_graph_service.go because it imports it for
+      # usage events
+      - Mprehog/v1alpha/teleport.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
     strategy: all

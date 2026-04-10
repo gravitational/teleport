@@ -40,7 +40,26 @@ interface StoryProps {
   activeClusterExpired: boolean;
   deviceTrust: 'enrolled' | 'required-not-enrolled' | 'not-enrolled';
   showProfileErrors: boolean;
+  roles: string[];
 }
+
+function withUuidSuffix(roles: string[]): string[] {
+  return roles.map(role => `${role}-${crypto.randomUUID().split('-').at(0)}`);
+}
+
+const baseRoles = [
+  'circle-mark-app-access',
+  'grafana-lite-app-access',
+  'grafana-gold-app-access',
+  'release-lion-app-access',
+  'release-fox-app-access',
+  'sales-center-lorem-app-access',
+  'sales-center-ipsum-db-access',
+  'sales-center-shop-app-access',
+  'sales-center-floor-db-access',
+];
+
+const roles = withUuidSuffix(baseRoles);
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/Identity',
@@ -76,6 +95,7 @@ const meta: Meta<StoryProps> = {
             ? new Date()
             : new Date(Date.now() + 24 * 60 * 60 * 1000)
         ),
+        roles: props.roles || clusters[0].loggedInUser.roles,
         isDeviceTrusted: props.deviceTrust === 'enrolled',
         trustedDeviceRequirement:
           props.deviceTrust === 'required-not-enrolled'
@@ -130,17 +150,7 @@ const clusterOrange = makeRootCluster({
   name: 'orange-psv-eindhoven-eredivisie-production-lorem-ipsum',
   loggedInUser: makeLoggedInUser({
     name: 'ruud-van-nistelrooy-van-der-sar',
-    roles: [
-      'circle-mark-app-access',
-      'grafana-lite-app-access',
-      'grafana-gold-app-access',
-      'release-lion-app-access',
-      'release-fox-app-access',
-      'sales-center-lorem-app-access',
-      'sales-center-ipsum-db-access',
-      'sales-center-shop-app-access',
-      'sales-center-floor-db-access',
-    ],
+    roles,
   }),
   uri: '/clusters/orange',
 });
@@ -227,6 +237,13 @@ export const OneClusterWithNoActiveCluster: StoryObj<StoryProps> = {
 export const OneClusterWithActiveCluster: StoryObj<StoryProps> = {
   args: {
     clusters: ['violet'],
+  },
+};
+
+export const ManyRoles: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['violet'],
+    roles: Array.from({ length: 30 }, () => withUuidSuffix(baseRoles)).flat(),
   },
 };
 

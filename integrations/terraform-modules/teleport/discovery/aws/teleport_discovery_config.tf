@@ -19,6 +19,7 @@ locals {
       regions              = coalesce(var.match_aws_regions, ["*"])
       tags                 = coalesce(var.match_aws_tags, { "*" : ["*"] })
       setup_access_for_arn = ""
+      kube_app_discovery   = false
     }
   ]
 
@@ -56,6 +57,9 @@ locals {
       } : {},
       contains(matcher.types, "eks") && matcher.setup_access_for_arn != "" ? {
         setup_access_for_arn = matcher.setup_access_for_arn
+      } : {},
+      contains(matcher.types, "eks") ? {
+        kube_app_discovery = matcher.kube_app_discovery
       } : {}
     )
   ]
