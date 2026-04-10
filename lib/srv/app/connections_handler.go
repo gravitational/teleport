@@ -658,7 +658,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		case app.IsTCP():
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
-			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, tlsConn, app, err))
 		default:
 			c.setConnAuth(tlsConn, err)
 		}
