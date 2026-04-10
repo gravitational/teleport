@@ -811,9 +811,11 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !subSet && !ownerSet && !repoSet {
+		enterpriseSet := rule.Enterprise != ""
+		enterpriseIDSet := rule.EnterpriseID != ""
+		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
 			return trace.BadParameter(
-				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
+				`allow rule for %q must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`,
 				JoinMethodGitHub,
 			)
 		}
