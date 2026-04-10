@@ -176,6 +176,7 @@ func DefaultNewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if len(cfg.Endpoint) != 0 {
 		args = append(args, option.WithoutAuthentication(), option.WithEndpoint(cfg.Endpoint), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 	} else if len(cfg.CredentialsPath) != 0 {
+		//nolint:staticcheck // SA1019. option.WithCredentialsFile kept for backwards compatibility.
 		args = append(args, option.WithCredentialsFile(cfg.CredentialsPath))
 	}
 

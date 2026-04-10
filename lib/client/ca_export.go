@@ -466,7 +466,7 @@ func exportGitHubCAs(keySet *types.CAKeySet, req ExportAuthoritiesRequest) (stri
 
 		// GitHub only needs the keys like "ssh-rsa xxx" so print them without
 		// cert-authority for easier copy-and-paste.
-		ret.WriteString(fmt.Sprintf("%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration))
+		fmt.Fprintf(&ret, "%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration)
 	}
 	return ret.String(), nil
 }
