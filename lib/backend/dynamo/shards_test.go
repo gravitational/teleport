@@ -555,7 +555,7 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 
 func TestBackend_deleteShardsWithParents(t *testing.T) {
 	tests := []struct {
-		name   string // description of this test case
+		name   string
 		params backend.Params
 		shards []streamtypes.Shard
 		want   []streamtypes.Shard
