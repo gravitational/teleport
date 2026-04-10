@@ -442,7 +442,7 @@ func Test_extractTableRowMeta(t *testing.T) {
 	}{
 		{"valid", `{"object":{"metadata":{"name":"svc","namespace":"default"}}}`, "svc", "default", false},
 		{"missing object", `{"cells":["a"]}`, "", "", true},
-		{"missing metadata in object", `{"object":{"kind":"Pod"}}`, "", "", false},
+		{"missing metadata in object", `{"object":{"kind":"Pod"}}`, "", "", true},
 		{"empty object", `{}`, "", "", true},
 		{"invalid JSON", `{broken`, "", "", true},
 	}
