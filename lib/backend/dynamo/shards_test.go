@@ -33,11 +33,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -547,7 +547,7 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
 
 	for key, count := range tracker.receivedEvents {
-		assert.Equal(t, 1, count, "Duplicate events (%v) recieved for key %q", count, key)
+		assert.Equal(t, 1, count, "Duplicate events (%v) received for key %q", count, key)
 	}
 
 	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
