@@ -205,7 +205,7 @@ func (s *SessionService) generateCertificates(
 			// TODO(boxofrad): support kubernetes resources, which have constraints
 			// that may need to "compile down" into many ResourceIDs.
 			if res.GetKind() == types.KindKubernetesCluster {
-				return nil, trace.NotImplemented("Support for delegating access to Kubernetes resources is not yet implemented")
+				return nil, trace.NotImplemented("support for delegating access to Kubernetes resources is not yet implemented")
 			}
 			id := types.ResourceID{
 				ClusterName: clusterName.GetClusterName(),
@@ -430,7 +430,7 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 	if unauthorizedResources.Len() != 0 {
 		idStrings := unauthorizedResources.Elements()
 		sort.Strings(idStrings)
-		return trace.AccessDenied("User does not have permission to delegate access to all of the required resources, missing resources: [%s]", strings.Join(idStrings, ", "))
+		return trace.AccessDenied("user does not have permission to delegate access to all of the required resources, missing resources: [%s]", strings.Join(idStrings, ", "))
 	}
 
 	return nil
