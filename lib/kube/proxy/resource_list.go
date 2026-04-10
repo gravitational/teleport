@@ -158,11 +158,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	select {
 	case <-hc.wroteHeader:
 	case <-done:
-		// Check if headers were captured before the goroutine finished.
-		// Both channels can be ready simultaneously for fast responses, and Go's select picks randomly.
-		select {
-		case <-hc.wroteHeader:
-		default:
+		if hc.status == 0 {
 			return http.StatusBadGateway, trace.ConnectionProblem(nil, "upstream closed without response")
 		}
 	}
