@@ -28,7 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
 // providerTimeout is the maximum time allowed to fetch provider metadata before
