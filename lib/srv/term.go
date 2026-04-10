@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
 const (
@@ -660,8 +661,9 @@ func (t *remoteTerminal) Wait() ExecResult {
 	var sshExitErr *ssh.ExitError
 	if errors.As(err, &sshExitErr) {
 		result.Code = sshExitErr.ExitStatus()
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
 	} else if err != nil {
-		result.Code = teleport.RemoteCommandFailure
+		result.Code = reexecconstants.RemoteCommandFailure
 		result.Error = err
 	}
 

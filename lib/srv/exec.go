@@ -496,8 +496,9 @@ func (e *remoteExec) Wait() ExecResult {
 	var sshExitErr *ssh.ExitError
 	if errors.As(err, &sshExitErr) {
 		result.Code = sshExitErr.ExitStatus()
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
 	} else if err != nil {
-		result.Code = teleport.RemoteCommandFailure
+		result.Code = reexecconstants.RemoteCommandFailure
 		result.Error = err
 	}
 
