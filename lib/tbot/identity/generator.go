@@ -325,7 +325,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 			return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
 		}
 		switch {
-		case req.RouteToApp.Name != "":
+		case req.GetRouteToApp().Name != "":
 			route := req.GetRouteToApp()
 			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
 				RouteToApp: &delegationv1.RouteToApp{
@@ -339,7 +339,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 					GcpServiceAccount: route.GetGCPServiceAccount(),
 				},
 			}
-		case req.RouteToDatabase.ServiceName != "":
+		case req.GetRouteToDatabase().ServiceName != "":
 			route := req.GetRouteToDatabase()
 			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
 				RouteToDatabase: &delegationv1.RouteToDatabase{
@@ -350,10 +350,10 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 					Roles:       route.GetRoles(),
 				},
 			}
-		case req.KubernetesCluster != "":
+		case req.GetKubernetesCluster() != "":
 			certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
 				RouteToKubernetes: &delegationv1.RouteToKubernetes{
-					ClusterName: req.KubernetesCluster,
+					ClusterName: req.GetKubernetesCluster(),
 				},
 			}
 		}
