@@ -1,0 +1,297 @@
+---
+title: Certificate Authority Overrides
+description: Learn how to create and manage Certificate Authority Overrides.
+tags:
+ - how-to
+ - platform-wide
+ - resiliency
+enterprise: true
+---
+
+Certificate Authority Overrides let a cluster administrator override a
+self-signed Teleport CA certificate with a certificate signed by an external
+certificate authority. In practice, that Teleport CA becomes a subordinate CA in
+an external trust chain.
+
+Teleport continues to manage the CA private keys. Override certificates must
+target existing CA public keys, so Teleport must generate the CSRs for the
+overrides.
+
+Teleport stores CA overrides in the `cert_authority_override` resource.
+
+<Admonition type="info">
+Certificate Authority Overrides are currently in active development. The
+released feature set is considered stable, but additional CA support and user
+experience improvements are planned for future releases.
+
+The current implementation has a few limitations:
+
+- Only selected CAs are supported.
+- Some commands that interact with CAs are not yet aware of overrides.
+  For example:
+  - `tctl get cas/windows` still returns the self-signed CA certificate.
+    Use `tctl get ca_overrides/windows` to get override data.
+  - CA rotation does not account for active overrides. Administrators must track
+    active overrides and manually create new overrides at the appropriate steps
+    during rotation.
+</Admonition>
+
+## How it works
+
+Teleport maintains several CAs, each with its own self-signed certificates and
+private keys. A CA override replaces a self-signed CA certificate with an
+externally signed one, while keeping the private key managed by Teleport.
+
+When Teleport finds an enabled override for a CA certificate, it signs newly
+issued credentials with the existing private key and uses the override
+certificate as the issuing CA certificate.
+
+To create a CA override, you must first generate a CSR from Teleport, sign the
+CSR using an external CA, and then create the `cert_authority_override`
+resource.
+
+The `cert_authority_override` resource targets a CA with the following fields:
+
+- `sub_kind`: the CA type to override, such as `windows` or `db_client`.
+- `metadata.name`: the Teleport cluster name.
+
+## Supported CAs and downstream trust
+
+- `db_client`: most databases only need to trust the external root CA and
+  intermediate CAs. They do not need to trust the override CA certificate
+  directly.
+- `windows`: NTAuth needs to trust the override CA certificate directly.
+  Follow the
+  [AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
+  or
+  [local](../../../enroll-resources/desktop-access/getting-started.mdx#step-14-prepare-windows)
+  guides, adding or replacing the self-signed Teleport CA certificate with the
+  override certificate.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+
+- All Auth Service instances and related services, such as Windows Desktop
+  Service and Database Service instances, must be upgraded to the same CA
+  override-aware Teleport version.
+- For safety, back up your cluster state before starting and retain downstream
+  trust to the self-signed CA certificates until the upgrade is fully verified.
+
+## Step 1. Prepare the override certificate CSR
+
+The `windows` CA is used as an example. Replace with your target CA, as
+appropriate.
+
+Prepare the CSR using `tctl`:
+
+```code
+$ tctl auth create-override-csr --type=windows
+-----BEGIN CERTIFICATE REQUEST-----
+(...)
+-----END CERTIFICATE REQUEST-----
+```
+
+If you have multiple active or additional keys, such as in HSM deployments or
+during CA rotation, this command prints multiple PEMs. You may use the `--out`
+flag to print each CSR to its own file.
+
+You may customize the certificate subject:
+
+```code
+$ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
+```
+
+## Step 1.1. Prepare CSRs for multi-Auth, HSM-enabled clusters
+
+In multi-Auth, HSM-enabled clusters, run `tctl` locally against each Auth
+Service instance. Each Auth Service instance generates CSRs for the keys it can
+access.
+
+For example:
+
+```code
+# Access the first Auth instance.
+# Modify the command below as appropriate.
+tsh ssh user@Auth1
+
+# Generate the CSRs.
+# Modify as desired.
+tctl auth create-override-csr --type=windows
+
+# Second Auth instance.
+tsh ssh user@Auth2
+tctl auth create-override-csr --type=windows
+
+# Repeat for each remaining Auth Service instance.
+```
+
+When writing the override resource, make sure the final
+`spec.certificate_overrides` contains one entry for each certificate issued from
+those CSRs. See steps 4 and 4.1.
+
+## Step 2. Issue override certificates using your external CA
+
+Using the CSRs from step 1, issue the override certificates with your external
+CA.
+
+The certificates must meet the following requirements:
+
+- KeyUsage: `keyCertSign` and `cRLSign`.
+- BasicConstraintsValid: `true`.
+- IsCA: `true`.
+- Subject: The Teleport cluster name must be present in either the `O` field
+  (first element) or in the OID `1.3.9999.4.1`.
+  CSRs from step 1 always have a valid subject.
+
+## Step 3. Configure downstream trust
+
+Using the certificates acquired in step 2, configure downstream trust before
+proceeding. We recommend retaining trust in the self-signed Teleport CA for a
+grace period, until you have verified normal cluster use.
+
+See the [Supported CAs](#supported-cas-and-downstream-trust) section for notes on each CA.
+
+## Step 4. Create the certificate overrides
+
+After issuing certificates and configuring downstream trust, create the
+certificate overrides.
+
+Find your cluster name:
+
+```shell
+$ tctl get cas/windows | yq '.spec.cluster_name'
+mycluster
+```
+
+Prepare the `ca_override_windows.yaml` file, assigning
+<Var name="cluster-name" /> to your cluster name.
+
+Add one entry under `spec.certificate_overrides` for each override certificate.
+Replace the example PEM with your override certificate PEM.
+
+```yaml
+kind: cert_authority_override
+sub_kind: windows
+version: v1
+metadata:
+  name: <Var name="cluster-name" />
+spec:
+  certificate_overrides:
+  - certificate: |-
+      -----BEGIN CERTIFICATE-----
+      (...)
+      -----END CERTIFICATE-----
+```
+
+Create the override:
+
+```code
+$ tctl create ca_override_windows.yaml
+```
+
+<Admonition type="tip">
+You may create a disabled override and enable it later.
+
+This is useful for environments with staged rollouts, so overrides may be
+created in a disabled state until downstream services are ready to accept them.
+Set `disabled` to `false` when you are ready to enable the override.
+
+```yaml
+kind: cert_authority_override
+sub_kind: windows
+version: v1
+metadata:
+  name: <Var name="cluster-name" />
+spec:
+  certificate_overrides:
+  - certificate: |-
+      -----BEGIN CERTIFICATE-----
+      (...)
+      -----END CERTIFICATE-----
+    disabled: true
+```
+</Admonition>
+
+## Step 4.1. Create certificate overrides on multi-Auth, HSM-enabled clusters
+
+In multi-Auth, HSM-enabled clusters, each `certificate_override` entry must be
+added by the corresponding Auth Service instance, which is the Auth Service
+instance that has access to the relevant private key.
+
+Start with an empty CA override created by any Auth Service instance:
+
+```yaml
+kind: cert_authority_override
+sub_kind: windows
+version: v1
+metadata:
+  name: <Var name="cluster-name" />
+spec: {}
+```
+
+```code
+$ tctl create ca_override_windows.yaml
+```
+
+Then, on each Auth Service instance, edit the CA override with `tctl edit`.
+
+```shell
+# Modify the command below as appropriate.
+tsh ssh user@Auth1
+
+tctl edit ca_overrides/windows
+```
+
+Add the corresponding `certificate_override` stanza, then save and exit.
+
+```yaml
+kind: cert_authority_override
+sub_kind: windows
+version: v1
+metadata:
+  name: <Var name="cluster-name" />
+spec:
+  certificate_overrides:
+  - certificate: |-
+      -----BEGIN CERTIFICATE-----
+      (...)
+      -----END CERTIFICATE-----
+  - certificate: |-
+      -----BEGIN CERTIFICATE-----
+      (...)
+      -----END CERTIFICATE-----
+```
+
+## Step 5. Exercise the CA override
+
+Exercise the override by attempting a connection with the appropriate protocol
+(RDP for `windows`, `tsh db connect` for `db_client`, etc).
+
+Using the `windows` CA as an example, start a new desktop session from your
+Teleport Proxy. If downstream trust is configured correctly, the session should
+start successfully.
+
+To confirm that the override is in use, inspect the "Windows Desktop Session
+Started" event for the new session. You should see the "ca_override" stanza with
+`"active": true` and a corresponding `public_key_hash`. ("Database Session
+Started" events are modified similarly.)
+
+<details>
+<summary>Session Started sample event</summary>
+
+```json
+{
+  "ca_override": {
+    "active": true,
+    "public_key_hash": "f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc"
+  },
+  "cluster_name": "mycluster",
+  "code": "TDP00I",
+  "desktop_name": "example-desktop",
+  "ei": 1,
+  "event": "windows.desktop.session.start",
+  "success": true
+}
+```
+</details>
