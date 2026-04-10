@@ -131,7 +131,7 @@ type fnCacheEntry struct {
 	loaded chan struct{}
 }
 
-// Shutdown expires all items in the cache. If the OnExpires
+// Shutdown expires all items in the cache. If the OnExpiry
 // callback was set in the FnCacheConfig it will be called once
 // per item in the cache.
 func (c *FnCache) Shutdown(ctx context.Context) {
