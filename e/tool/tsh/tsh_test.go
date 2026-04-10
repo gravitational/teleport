@@ -58,18 +58,6 @@ func TestMain(m *testing.M) {
 
 // TestNodeAccess tests 'tsh ssh' and 'tsh scp' functionality with various security features enabled.
 func TestNodeAccess(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}
-
-	// TODO(tross): remove once injected modules are consumed by all components.
-	modulestest.SetTestModules(t, *testModules)
-
 	ctx := context.Background()
 	a := createAgent(t)
 
@@ -94,6 +82,15 @@ func TestNodeAccess(t *testing.T) {
 		testserver.WithSSHLabel("env", "staging"),
 		testserver.WithSSHPublicAddrs("localhost"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			testModules := &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.DeviceTrust: {Enabled: true},
+					},
+				},
+			}
+
 			cfg.PluginRegistry = plugin.NewRegistry()
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{

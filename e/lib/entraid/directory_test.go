@@ -96,6 +96,7 @@ func (c *fakeGraphClient) GetApplication(ctx context.Context, appID string) (*ms
 }
 
 func TestDirectoryReconciler(t *testing.T) {
+	t.Parallel()
 	sortTraits := func(u types.User) {
 		for _, v := range u.GetTraits() {
 			sort.Strings(v)
@@ -365,6 +366,7 @@ func userMap(u types.User) map[entraUniqueID]types.User {
 }
 
 func Test_getGroupNameBuilderFunc(t *testing.T) {
+	t.Parallel()
 	const (
 		groupID        = "uuid"
 		samAccountName = "foo"
@@ -604,6 +606,7 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 }
 
 func TestUserSync(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
 	t.Run("Create user succeeds", func(t *testing.T) {
@@ -836,6 +839,7 @@ func TestUserSync(t *testing.T) {
 }
 
 func TestGroupFilters(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
 	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
@@ -995,6 +999,7 @@ func TestGroupFilters(t *testing.T) {
 }
 
 func TestInvalidGroupIsSkipped(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
 	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
@@ -1076,6 +1081,7 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 // discard filters altogether and instead only reconcile
 // items that are already synced to Teleport.
 func TestUnknownFilter(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
 	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
@@ -1162,6 +1168,7 @@ func TestUnknownFilter(t *testing.T) {
 }
 
 func TestNestedMembership(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	graphClient := newFakeGraphClient()
 	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
@@ -1220,9 +1227,6 @@ type directoryReconcilerEnv struct {
 const ssoConnectorID = "my-sso-connector"
 
 func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConnector) directoryReconcilerEnv {
-	testModules := modulestest.EnterpriseModules()
-	modulestest.SetTestModules(t, *testModules)
-
 	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	bk := backend.NewSanitizer(mem)
@@ -1230,7 +1234,7 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	require.NoError(t, err)
 	alSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: bk,
-		Modules: testModules,
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 

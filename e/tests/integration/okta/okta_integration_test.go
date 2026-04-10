@@ -21,7 +21,6 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
@@ -247,12 +246,11 @@ func TestAccessRequest(t *testing.T) {
 	reviewer := fakeOkta.provisionedUsers[5]
 	requester := fakeOkta.provisionedUsers[4]
 
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithHTTPClient(fakeOkta.Client().Transport),
+		common.WithModules(modulestest.EnterpriseModules()),
 	)
 
 	tctlCmd := sut.GetTCTL(t)

@@ -368,18 +368,6 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	t.Helper()
 	ctx := context.Background()
 
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}
-
-	// TODO(tross): remove once injected modules are consumed by all components.
-	modulestest.SetTestModules(t, *testModules)
-
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorWebauthn,
@@ -394,6 +382,15 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			testModules := &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.DeviceTrust: {Enabled: true},
+					},
+				},
+			}
+
 			cfg.PluginRegistry = plugin.NewRegistry()
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{

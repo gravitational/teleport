@@ -35,6 +35,7 @@ import (
 )
 
 func TestGetAccessGraph(t *testing.T) {
+	t.Parallel()
 	const teleportUsername = "foo"
 
 	tests := []struct {
@@ -159,6 +160,7 @@ func TestGetAccessGraph(t *testing.T) {
 var expectedListIntegrationsResponse string
 
 func TestGetAccessGraphIntegrations(t *testing.T) {
+	t.Parallel()
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -341,6 +343,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 }
 
 func TestAccessGraphSettings(t *testing.T) {
+	t.Parallel()
 	unmarshal := func(t require.TestingT, resp *roundtrip.Response) accessgraphui.AccessGraphSettings {
 		var got accessgraphui.AccessGraphSettings
 		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
@@ -470,17 +473,7 @@ func TestAccessGraphSettings(t *testing.T) {
 // TestAccessGraphCertAuth verifies the mTLS certificate-based authentication
 // flow for the Access Graph API (Usage=usage:access_graph_api certs).
 func TestAccessGraphCertAuth(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				entitlements.App:    {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
 	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
@@ -547,7 +540,15 @@ func TestAccessGraphCertAuth(t *testing.T) {
 			s := newWebSuite(t,
 				withClock(clock),
 				withAccessGraphFeatures(features),
-				withModules(testModules),
+				withModules(&modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.Policy: {Enabled: true},
+							entitlements.App:    {Enabled: true},
+						},
+					},
+				}),
 				withAccessGraphValidation(tt.validate),
 			)
 
@@ -599,6 +600,7 @@ func TestAccessGraphCertAuth(t *testing.T) {
 }
 
 func TestAccessGraphEndpoints(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		rbacVerbs   []string

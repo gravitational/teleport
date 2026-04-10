@@ -51,8 +51,6 @@ type AccessMonitoringSuite struct {
 
 func (s *AccessMonitoringSuite) SetupTest() {
 	t := s.T()
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	t.Cleanup(cancel)
 
@@ -204,7 +202,8 @@ func (s *AccessMonitoringSuite) TestAccessRequestDenied() {
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
+		Dir:     t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

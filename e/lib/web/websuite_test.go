@@ -188,9 +188,6 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 
 	if options.modules == nil {
 		options.modules = modulestest.OSSModules()
-	} else {
-		// TODO(tross): remove once modules injected and consumed by all components.
-		modulestest.SetTestModules(t, *options.modules)
 	}
 
 	u, err := user.Current()

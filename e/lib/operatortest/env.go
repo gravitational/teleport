@@ -32,7 +32,6 @@ func startAuthServer(t *testing.T) *client.Client {
 			AdvancedAccessWorkflows: true,
 		},
 	}
-	modulestest.SetTestModules(t, *testModules)
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 		// Disable the retry interval to make tests unblock when

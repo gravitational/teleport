@@ -34,6 +34,7 @@ import (
 )
 
 func TestAWSICCreatePlugin(t *testing.T) {
+	t.Parallel()
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 
@@ -128,6 +129,7 @@ func TestAWSICCreatePlugin(t *testing.T) {
 }
 
 func TestAWSICPluginPreValidation(t *testing.T) {
+	t.Parallel()
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 
@@ -194,6 +196,7 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 }
 
 func TestAWSICPluginValidatePermissions(t *testing.T) {
+	t.Parallel()
 	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	form := url.Values{
@@ -223,6 +226,7 @@ func TestAWSICPluginValidatePermissions(t *testing.T) {
 }
 
 func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
+	t.Parallel()
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ctx := wSuite.ctx
@@ -357,22 +361,19 @@ func withICClient(c icsdk.Client) icSuitOpt {
 func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
 	t.Helper()
 
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-			Cloud: true,
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
-		withModules(testModules),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+				Cloud: true,
+			},
+		}),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 	testSCIMServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -561,6 +562,7 @@ func newOIDCIntegration(t *testing.T) *types.IntegrationV1 {
 }
 
 func TestAWSICRegionValidation(t *testing.T) {
+	t.Parallel()
 	hasRegionValidationError := func(t *testing.T, region string, err error) {
 		t.Helper()
 		require.Error(t, err)
@@ -608,6 +610,7 @@ func TestAWSICRegionValidation(t *testing.T) {
 }
 
 func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
+	t.Parallel()
 	const errorMsg = "invalid credential"
 	tests := []struct {
 		name     string
@@ -655,6 +658,7 @@ func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
 }
 
 func TestMissingIntegrationCreateAccess(t *testing.T) {
+	t.Parallel()
 	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	// "foo" is username of a user created with aPack. This user is

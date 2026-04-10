@@ -22,22 +22,20 @@ import (
 )
 
 func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
-
-	testModules := modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{entitlements.Identity: {Enabled: true}},
-		},
-	}
-	modulestest.SetTestModules(t, testModules)
 
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{Clock: clock})
 	require.NoError(t, err)
 	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend:                     bk,
-		Modules:                     &testModules,
+		Backend: bk,
+		Modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{entitlements.Identity: {Enabled: true}},
+			},
+		},
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
 	})
 	require.NoError(t, err)
@@ -110,17 +108,15 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 // Test statusReconcilerConfig.reconcile can survive the situation where the owner or member
 // access_list doesn't exist.
 func Test_statusReconciler_reconcile_missingOwnerAndMemberLists(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
-
-	testModules := modulestest.EnterpriseModules()
-	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{Clock: clock})
 	require.NoError(t, err)
 	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend:                     bk,
-		Modules:                     testModules,
+		Modules:                     modulestest.EnterpriseModules(),
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
 	})
 	require.NoError(t, err)

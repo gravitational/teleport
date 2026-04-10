@@ -223,18 +223,6 @@ func TestReportAuthorizedKeys(t *testing.T) {
 }
 
 func TestReportPrivateKeys(t *testing.T) {
-	// Set the build to Enterprise (required by a few OSS checks) and enable the
-	// device trust feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust:            {Enabled: true},
-				entitlements.MobileDeviceManagement: {Enabled: true},
-			},
-		},
-	})
-
 	var (
 		deviceID = uuid.NewString()
 	)
@@ -378,6 +366,15 @@ func TestReportPrivateKeys(t *testing.T) {
 				t,
 				withPrivateKeys(tt.storedPrivateKeys),
 				withDevice(deviceID, tt.registeredDevice),
+				withModules(&modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.DeviceTrust:            {Enabled: true},
+							entitlements.MobileDeviceManagement: {Enabled: true},
+						},
+					},
+				}),
 			)
 			dev := tt.registeredDevice
 			var err error

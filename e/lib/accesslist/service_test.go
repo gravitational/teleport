@@ -888,17 +888,6 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	testModules := modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-			Cloud: true,
-		},
-	}
-	modulestest.SetTestModules(t, testModules)
-
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
@@ -906,8 +895,16 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	userSvc, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
 	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend:                     backend,
-		Modules:                     &testModules,
+		Backend: backend,
+		Modules: &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+				Cloud: true,
+			},
+		},
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
 	})
 	require.NoError(t, err)

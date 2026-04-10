@@ -44,15 +44,7 @@ var (
 )
 
 func TestSAML(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	tests := []struct {
 		name                string
 		rawConnector        string
@@ -78,7 +70,13 @@ func TestSAML(t *testing.T) {
 			ctx := t.Context()
 			s := newWebSuite(t,
 				withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
-				withModules(testModules),
+				withModules(&modulestest.Modules{
+					TestFeatures: modules.Features{
+						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+							entitlements.SAML: {Enabled: true},
+						},
+					},
+				}),
 			)
 			input := tc.rawConnector
 
@@ -102,18 +100,17 @@ func TestSAML(t *testing.T) {
 }
 
 func TestSAMLNoEphemeralUser(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
+	t.Parallel()
 	ctx := t.Context()
 	s := newWebSuite(t,
 		withClock(clockwork.NewFakeClockAt(time.Date(2017, 5, 10, 18, 53, 0, 0, time.UTC))),
-		withModules(testModules),
+		withModules(&modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.SAML: {Enabled: true},
+				},
+			},
+		}),
 	)
 	input := fixtures.SAMLOktaConnectorV2
 

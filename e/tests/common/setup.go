@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -45,6 +46,7 @@ func InitSUT(t *testing.T, opts ...Option) *SUT {
 	options := &sutOptions{
 		license: "../../fixtures/license-eub.pem",
 		clock:   clockwork.NewRealClock(),
+		modules: modulestest.OSSModules(),
 	}
 
 	for _, opt := range opts {
@@ -58,11 +60,13 @@ func InitSUT(t *testing.T, opts ...Option) *SUT {
 		cfg.NodeName = options.clusterName + "-node"
 	}
 	cfg.Logger = options.logger
+	cfg.Modules = options.modules
 	teleport := helpers.NewInstance(t, cfg)
 
 	teleport.ProcessProvider = &entProcessProvider{}
 
 	serviceConfig := newTeleportConfig(t)
+	serviceConfig.Modules = options.modules
 
 	serviceConfig.InsecureMode = options.insecureMode
 	serviceConfig.Auth.BootstrapResources = options.resources

@@ -26,10 +26,12 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestGroupImportAndEmitStatus(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	var (
@@ -364,7 +366,9 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 
 			fixture := icfixture.NewFixture(t,
 				icfixture.WithStatusSink(statusSink),
-				icfixture.WithAWSState(&mockState))
+				icfixture.WithAWSState(&mockState),
+				icfixture.WithModules(modulestest.EnterpriseModules()),
+			)
 
 			fixture.CreatePluginResource(t, icfixture.WithGroupFilters(tc.groupFilters))
 			createRoles(t, ctx, fixture.Auth)
@@ -403,6 +407,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 // the group filter. In that case, REIMPORT_REQUESTED status is used to override group
 // status code, which re-triggers group import.
 func TestGroupImportTriggers(t *testing.T) {
+	t.Parallel()
 	fixture := icfixture.NewFixture(t, icfixture.WithStartedCache)
 	ctx := fixture.Ctx
 	fixture.CreatePluginResource(t,
@@ -530,6 +535,7 @@ func accessListsHaveNoProvisioningState(ctx context.Context, svc services.Downst
 }
 
 func TestGroupDeletesAreSuppressed(t *testing.T) {
+	t.Parallel()
 	logger := slog.Default()
 	ctx := t.Context()
 
@@ -547,7 +553,9 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 	fixture := icfixture.NewFixture(t,
 		icfixture.WithAWSState(&awsICState),
 		icfixture.WithStartedCache,
-		icfixture.WithWriteThroughStatusSink)
+		icfixture.WithWriteThroughStatusSink,
+		icfixture.WithModules(modulestest.EnterpriseModules()),
+	)
 
 	fixture.CreatePluginResource(t)
 
@@ -819,6 +827,7 @@ func createUsers(t *testing.T, ctx context.Context, userService UsersService) {
 }
 
 func TestMaybeImportGroupAndGroupMembersPropagatesError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	statusSink := &integration.FakeStatusSink{}
 	mockedData := icsdk.NewMockedAWSState()

@@ -154,21 +154,23 @@ func TestCreateAccessRequest_ConstrainedResource(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
-		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+			GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -360,21 +362,23 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
-		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+			GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -489,21 +493,23 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
-		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+			GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -611,21 +617,23 @@ func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
-		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+			GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -786,21 +794,23 @@ func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
 }
 
 func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
-		GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn:  accessrequest.GenerateAccessRequestPromotions,
+			GenerateLongTermResourceGroupingFn: accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
 
@@ -1419,23 +1429,21 @@ func (m *mockedAccessRequestAPIGetter) SubmitAccessReview(ctx context.Context, p
 }
 
 func TestSuggestAccessLists(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
-		withModules(testModules),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
+		}),
 	)
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
@@ -1568,24 +1576,22 @@ func TestSuggestAccessLists(t *testing.T) {
 }
 
 func TestPromoteAccessRequest(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	ctx := context.Background()
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
-		withModules(testModules),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
+		}),
 	)
 
 	authServer := s.testAuthServer.AuthServer.AuthServer
@@ -1735,21 +1741,23 @@ func TestPromoteAccessRequest(t *testing.T) {
 }
 
 func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestSuggestedReviewersFn: accessrequest.GenerateAccessRequestSuggestedReviewers,
-		GenerateLongTermResourceGroupingFn:        accessrequest.GenerateLongTermResourceGrouping,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	clock := clockwork.NewRealClock()
-	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond), withModules(testModules))
+	s := newWebSuite(t,
+		withClock(clock),
+		withRunWhileLockedRetryInterval(100*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestSuggestedReviewersFn: accessrequest.GenerateAccessRequestSuggestedReviewers,
+			GenerateLongTermResourceGroupingFn:        accessrequest.GenerateLongTermResourceGrouping,
+		}),
+	)
 
 	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
 	t.Cleanup(cancel)
@@ -2036,22 +2044,20 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 }
 
 func TestPromoteAccessRequest_NoMemberOnFailure(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			AdvancedAccessWorkflows: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-		GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	ctx := t.Context()
 	s := newWebSuite(t,
 		withRunWhileLockedRetryInterval(-1*time.Millisecond),
-		withModules(testModules),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AdvancedAccessWorkflows: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+			GenerateAccessRequestPromotionsFn: accessrequest.GenerateAccessRequestPromotions,
+		}),
 	)
 
 	authServer := s.testAuthServer.AuthServer.AuthServer

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -65,6 +66,7 @@ type fixtureOptions struct {
 	authOptions   []auth.ServerOption
 	clock         clockwork.Clock
 	getStatusSink func(services.Plugins) common.StatusSink
+	modules       *modulestest.Modules
 }
 
 type FixtureOption func(*fixtureOptions)
@@ -79,8 +81,10 @@ func WithStartedCache(fixtureOpts *fixtureOptions) {
 	WithAuthOption(WithCache(CacheArgs{Started: true}))(fixtureOpts)
 }
 
-func WithUnstartedCache(fixtureOpts *fixtureOptions) {
-	WithAuthOption(WithCache(CacheArgs{Started: false}))(fixtureOpts)
+func WithModules(m *modulestest.Modules) FixtureOption {
+	return func(fixtureOpts *fixtureOptions) {
+		fixtureOpts.modules = m
+	}
 }
 
 func WithCache(args CacheArgs) auth.ServerOption {
@@ -121,6 +125,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		awsState:      nil, // use default mock state unless otherwise directed
 		clock:         clockwork.NewRealClock(),
 		getStatusSink: func(services.Plugins) common.StatusSink { return &integration.FakeStatusSink{} },
+		modules:       modulestest.OSSModules(),
 	}
 	for _, optFn := range opts {
 		optFn(&args)
@@ -153,6 +158,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		HostUUID:               uuid.NewString(),
 		Clock:                  args.clock,
+		Modules:                args.modules,
 	}, args.authOptions...)
 	require.NoError(t, err, "creating Auth server")
 	cleanup := sync.OnceFunc(func() { require.NoError(t, auth.Close()) })

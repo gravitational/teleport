@@ -58,19 +58,11 @@ func requireEvent(ch <-chan *PrincipalEvent, verb Verb, validatePrincipal princi
 }
 
 func TestResourceMonitor(t *testing.T) {
+	t.Parallel()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	slog.SetDefault(
 		slog.New(logutils.NewSlogTextHandler(
 			os.Stderr, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
 
 	logger := slog.Default().With("test", t.Name())
 
@@ -78,7 +70,17 @@ func TestResourceMonitor(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// GIVEN a test cluster
-	fixture := test.NewFixture(t, test.WithStartedCache)
+	fixture := test.NewFixture(t,
+		test.WithStartedCache,
+		test.WithModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessLists: {Enabled: true},
+				},
+			},
+		}),
+	)
 	eventCh := make(chan *PrincipalEvent)
 	defer close(eventCh)
 

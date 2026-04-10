@@ -44,7 +44,6 @@ import (
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -1870,12 +1868,7 @@ func TestOIDCLicense(t *testing.T) {
 }
 
 func TestValidateOIDCResponseMFA(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC: {Enabled: true},
-		}},
-	})
-
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	suite := newOIDCSuite(t,
 		overrideClock(clock),

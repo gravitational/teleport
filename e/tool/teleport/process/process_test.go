@@ -23,6 +23,7 @@ import (
 )
 
 func TestProxyWithoutLicense(t *testing.T) {
+	t.Parallel()
 	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.Auth.Enabled = false
@@ -41,6 +42,7 @@ func TestProxyWithoutLicense(t *testing.T) {
 // DataDir, but that is sufficient for this test. Creating an auth server
 // requires more extensive config that is not really needed here.
 func TestModulesSetBeforeAuth(t *testing.T) {
+	t.Parallel()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: "local",
 	})
@@ -75,6 +77,7 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 }
 
 func TestMissingLicenseError(t *testing.T) {
+	t.Parallel()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type: "local",
 	})
@@ -134,15 +137,16 @@ func TestFallbackFeaturesFromLicense(t *testing.T) {
 }
 
 func TestNewAnonimizer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
-		testModules modulestest.Modules
+		testModules *modulestest.Modules
 		license     *licensefile.LicenseFile
 		wantKey     string
 	}{
 		{
 			name: "uses CloudAnonymizationKey when present",
-			testModules: modulestest.Modules{
+			testModules: &modulestest.Modules{
 				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
 			},
 			license: &licensefile.LicenseFile{
@@ -152,7 +156,7 @@ func TestNewAnonimizer(t *testing.T) {
 		},
 		{
 			name:        "uses license AnonymizationKey when no cloud key is present",
-			testModules: modulestest.Modules{},
+			testModules: &modulestest.Modules{},
 			license: &licensefile.LicenseFile{
 				KeyPair: &liblicense.License{AnonymizationKey: []byte("license-key")},
 			},
@@ -160,7 +164,7 @@ func TestNewAnonimizer(t *testing.T) {
 		},
 		{
 			name:        "uses cluster ID when neither cloud key nor license key is present",
-			testModules: modulestest.Modules{},
+			testModules: &modulestest.Modules{},
 			license:     &licensefile.LicenseFile{KeyPair: &liblicense.License{}},
 			wantKey:     "cluster-id",
 		},
@@ -171,13 +175,10 @@ func TestNewAnonimizer(t *testing.T) {
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir:       t.TempDir(),
 				ClusterID: "cluster-id",
-				Modules:   &tt.testModules,
+				Modules:   tt.testModules,
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-			// TODO(tross): remove this once auth accepts modules.
-			modulestest.SetTestModules(t, tt.testModules)
 
 			anonymizer, err := newAnonimizer(testAuthServer.AuthServer, tt.license)
 			require.NoError(t, err)

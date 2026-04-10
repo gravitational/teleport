@@ -19,11 +19,9 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -45,6 +43,7 @@ var userMonitorCmpOpts = []cmp.Option{
 }
 
 func TestReconcile(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		roles          []types.Role
@@ -164,14 +163,7 @@ func TestReconcile(t *testing.T) {
 }
 
 func TestProcessEvent(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
-
+	t.Parallel()
 	const userName = "test"
 
 	type updateFn func(*testing.T, *auth.Server) types.Event
@@ -623,8 +615,9 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 	t.Helper()
 
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Dir:     t.TempDir(),
+		Clock:   clockwork.NewFakeClock(),
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

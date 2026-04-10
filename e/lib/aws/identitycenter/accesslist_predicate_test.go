@@ -14,16 +14,15 @@ import (
 )
 
 func TestAccessListPredicate(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	fixture := ictest.NewFixture(t, ictest.WithModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.AccessLists: {Enabled: true},
 			},
 		},
-	})
-
-	fixture := ictest.NewFixture(t)
+	}))
 	ctx := fixture.Ctx
 
 	allowRole, err := fixture.Auth.CreateRole(ctx,

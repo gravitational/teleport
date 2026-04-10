@@ -45,6 +45,7 @@ type opts struct {
 	storedPrivateKeys    []*accessgraphsecretsv1pb.PrivateKey
 	storedAuthorizedKeys []*accessgraphsecretsv1pb.AuthorizedKey
 	device               *device
+	modules              *modulestest.Modules
 }
 
 type device struct {
@@ -53,6 +54,12 @@ type device struct {
 }
 
 type option func(*opts)
+
+func withModules(m *modulestest.Modules) option {
+	return func(o *opts) {
+		o.modules = m
+	}
+}
 
 func withAuthorizer(authorizer authz.Authorizer) option {
 	return func(o *opts) {
@@ -84,7 +91,9 @@ func withDevice(deviceID string, dev dttestenv.FakeDevice) option {
 func setup(t *testing.T, ops ...option) env {
 	t.Helper()
 
-	o := opts{}
+	o := opts{
+		modules: modulestest.OSSModules(),
+	}
 	for _, op := range ops {
 		op(&o)
 	}
@@ -182,7 +191,7 @@ func setup(t *testing.T, ops ...option) env {
 		},
 		DeviceAssertionServer: fakeSvc.Service.CreateAssertCeremony,
 		UsageReporter:         usageReporter,
-		Modules:               modulestest.EnterpriseModules(),
+		Modules:               o.modules,
 	})
 	require.NoError(t, err)
 

@@ -266,10 +266,8 @@ func TestOAuthPluginStart(t *testing.T) {
 }
 
 func TestPluginUpdate(t *testing.T) {
-	testModules := modulestest.EnterpriseModules()
-	modulestest.SetTestModules(t, *testModules)
-
-	s := newWebSuite(t, withModules(testModules))
+	t.Parallel()
+	s := newWebSuite(t, withModules(modulestest.EnterpriseModules()))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "plugin")
 	cases := []struct {
@@ -310,16 +308,14 @@ func TestPluginUpdate(t *testing.T) {
 }
 
 func TestPluginCleanup(t *testing.T) {
-	testModules := modulestest.EnterpriseModules()
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	// We define a real clock here, so we don't run into cases of
 	// `backend.RunWhileLocked()` never retrying lock acquisition.
 	clock := clockwork.NewRealClock()
 	s := newWebSuite(t,
 		withClock(clock),
 		withRunWhileLockedRetryInterval(100*time.Millisecond),
-		withModules(testModules),
+		withModules(modulestest.EnterpriseModules()),
 	)
 	webPack := s.newAuthWebPack(t, "foo")
 

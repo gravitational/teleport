@@ -31,6 +31,7 @@ import (
 
 // TestACLList tests access lists CLI for displaying access lists.
 func TestACLList(t *testing.T) {
+	t.Parallel()
 	client := setupACLSuite(t)
 
 	mustCreateAccessList(t, client, "past-due", time.Now().UTC().Add(-24*time.Hour))
@@ -56,6 +57,7 @@ func TestACLList(t *testing.T) {
 
 // TestACLReviews tests access lists CLI for managing access list reviews.
 func TestACLReviews(t *testing.T) {
+	t.Parallel()
 	client := setupACLSuite(t)
 
 	const accessListName = "test"
@@ -109,21 +111,18 @@ func TestACLReviews(t *testing.T) {
 func setupACLSuite(t *testing.T) *authclient.Client {
 	t.Helper()
 
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	}
-
-	// TODO(tross): remove once injected modules are consumed by all components.
-	modulestest.SetTestModules(t, *testModules)
-
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			testModules := &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.AccessLists: {Enabled: true},
+					},
+				},
+			}
+
 			cfg.PluginRegistry = plugin.NewRegistry()
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{

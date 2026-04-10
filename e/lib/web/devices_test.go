@@ -17,17 +17,15 @@ import (
 )
 
 func TestListDevices_byAssetTag(t *testing.T) {
-	testModules := &modulestest.Modules{
+	t.Parallel()
+	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DeviceTrust: {Enabled: true},
 			},
 		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
-	s := newWebSuite(t, withModules(testModules))
+	}))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -96,17 +94,15 @@ func TestListDevices_byAssetTag(t *testing.T) {
 }
 
 func TestListDevices_paginated(t *testing.T) {
-	testModules := &modulestest.Modules{
+	t.Parallel()
+	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DeviceTrust: {Enabled: true},
 			},
 		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
-	s := newWebSuite(t, withModules(testModules))
+	}))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 	authClient := s.newAdminAuthClient(s.ctx, t)
@@ -224,17 +220,15 @@ func unmarshalWebResponse(t *testing.T, resp []byte) *ui.ListDevicesResponse {
 }
 
 func TestListDevices_errors(t *testing.T) {
-	testModules := &modulestest.Modules{
+	t.Parallel()
+	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.DeviceTrust: {Enabled: true},
 			},
 		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
-	s := newWebSuite(t, withModules(testModules))
+	}))
 	webPack := s.newAuthWebPack(t, "foo")
 	endpoint := webPack.clt.Endpoint("enterprise", "devices")
 

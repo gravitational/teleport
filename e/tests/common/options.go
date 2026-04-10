@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -22,10 +23,16 @@ type sutOptions struct {
 	logger        *slog.Logger
 	appConfig     servicecfg.AppsConfig
 	insecureMode  bool
+	modules       *modulestest.Modules
 }
 
 type Option func(*sutOptions)
 
+func WithModules(m *modulestest.Modules) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.modules = m
+	}
+}
 func WithInsecure() func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.insecureMode = true

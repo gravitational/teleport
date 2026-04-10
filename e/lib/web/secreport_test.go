@@ -22,21 +22,22 @@ import (
 )
 
 func TestSecurityReports(t *testing.T) {
-	testModules := &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	}
-	modulestest.SetTestModules(t, *testModules)
-
+	t.Parallel()
 	svcMock := &mockSecurityReportsService{}
 	plug := &mockPlugin{
 		service: svcMock,
 	}
-	s := newWebSuite(t, withPlugin(plug), withModules(testModules))
+	s := newWebSuite(t,
+		withPlugin(plug),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DeviceTrust: {Enabled: true},
+				},
+			},
+		}),
+	)
 	webPack := s.newAuthWebPack(t, "alice")
 
 	t.Run("GetReportState", func(t *testing.T) {

@@ -16,9 +16,6 @@ import (
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -82,8 +79,6 @@ type Opts struct {
 }
 
 // MustNew creates a new [E] or panics.
-// Prefer [NewUsingT] when enabling the Device Trust env, as it configures
-// [modulestest.Modules] automatically.
 func MustNew(opts *Opts) *E {
 	env, err := New(opts)
 	if err != nil {
@@ -94,22 +89,7 @@ func MustNew(opts *Opts) *E {
 
 // NewUsingT creates a new [E], automatically fails on errors and automatically
 // registers [E.Close] on cleanup.
-// If opts.DeviceTrustEnv is set, [NewUsingT] sets the build type to Enterprise.
 func NewUsingT(t *testing.T, opts *Opts) *E {
-	// Configure device trust settings?
-	if opts != nil && opts.DeviceTrustEnv {
-		// Set build type and features.
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.DeviceTrust:            {Enabled: true},
-					entitlements.MobileDeviceManagement: {Enabled: true},
-				},
-			},
-		})
-	}
-
 	env, err := New(opts)
 	if err != nil {
 		t.Fatalf("Failed to create Jamf testenv.E: %v", err)

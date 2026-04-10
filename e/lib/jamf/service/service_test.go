@@ -24,9 +24,6 @@ import (
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/mdm"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -46,17 +43,6 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 	// each sync operation is effectively a loop over all devices.
 	numDevs := b.N
 	b.Logf("Benchmarking with an inventory of %v devices", numDevs)
-
-	// Enable Enterprise build.
-	modulestest.SetTestModules(b, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust:            {Enabled: true},
-				entitlements.MobileDeviceManagement: {Enabled: true},
-			},
-		},
-	})
 
 	// Create test environment.
 	clock := clockwork.NewRealClock()

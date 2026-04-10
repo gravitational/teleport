@@ -22,6 +22,7 @@ import (
 )
 
 func TestEntraIDCreatePlugin(t *testing.T) {
+	t.Parallel()
 	env := createEntraIDTEnv(t)
 	connectorName := createEntraConnector(t, env.s)
 
@@ -163,6 +164,7 @@ func TestEntraIDCreatePlugin(t *testing.T) {
 }
 
 func TestEntraIDValidatePlugin(t *testing.T) {
+	t.Parallel()
 	env := createEntraIDTEnv(t)
 	connectorName := createEntraConnector(t, env.s)
 
@@ -234,6 +236,7 @@ func TestEntraIDValidatePlugin(t *testing.T) {
 }
 
 func TestEntraIDUpdatePlugin(t *testing.T) {
+	t.Parallel()
 	env := createEntraIDTEnv(t)
 	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
@@ -344,6 +347,7 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 }
 
 func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
+	t.Parallel()
 	env := createEntraIDTEnv(t)
 	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
@@ -483,7 +487,7 @@ type entraIDTEnv struct {
 
 func createEntraIDTEnv(t *testing.T) entraIDTEnv {
 	t.Helper()
-	testModules := &modulestest.Modules{
+	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -491,10 +495,7 @@ func createEntraIDTEnv(t *testing.T) entraIDTEnv {
 				entitlements.SAML:     {Enabled: true},
 			},
 		},
-	}
-
-	modulestest.SetTestModules(t, *testModules)
-	s := newWebSuite(t, withModules(testModules))
+	}))
 	// Set entitlements
 	features := s.webPlugin.h.GetClusterFeatures()
 	features.Entitlements = map[string]*proto.EntitlementInfo{
