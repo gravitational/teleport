@@ -183,7 +183,7 @@ func (a *ServerWithRoles) currentUserAction(ctx context.Context, username string
 		var isUnscoped bool
 		unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext()
 		if !isUnscoped {
-			if !authz.ScopedIsCurrentUser(a.scopedContext, username) {
+			if authz.ScopedIsCurrentUser(a.scopedContext, username) {
 				return nil
 			}
 			return trace.AccessDenied("scoped users can not modify users other than themselves")
@@ -2151,7 +2151,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		// but got removed shortly afterwards in:
 		//   https://github.com/gravitational/teleport/pull/1224
 		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList); err != nil {
-			return nil, trace.Wrap(err)
+			if !errors.Is(err, services.ErrScopedIdentity) {
+				return nil, trace.Wrap(err)
+			}
+			if err := a.preAuthorizeScopedAction(req.ResourceType, types.VerbList, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.KindDatabaseServer,
 		types.KindDatabaseService,
@@ -2165,7 +2170,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+			if !errors.Is(err, services.ErrScopedIdentity) {
+				return nil, trace.Wrap(err)
+			}
+			if err := a.preAuthorizeScopedAction(req.ResourceType, types.VerbList, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -6550,7 +6560,7 @@ func (a *ServerWithRoles) Close() error {
 
 func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if a.scopedContext != nil {
-		return a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
 			return checker.Kube().CanAccessCluster(cluster)
 		})
 	}
