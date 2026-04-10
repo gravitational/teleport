@@ -532,6 +532,10 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 		return patched, nil
 	case *joining.Token:
 		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
+				return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
+			}
+
 			for _, mutator := range mutators {
 				// Compute the equivalent spec/status for each mutator. No
 				// mutators currently effect the fields another depends on, but
