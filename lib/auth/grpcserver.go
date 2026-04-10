@@ -4969,12 +4969,23 @@ func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+
+	var swr *ServerWithRoles
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		scopedAuth, err := g.scopedAuthenticate(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		swr = scopedAuth.ServerWithRoles
+	} else {
+		swr = auth.ServerWithRoles
 	}
 
-	resp, err := auth.ListResources(ctx, *req)
+	resp, err := swr.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
