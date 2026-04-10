@@ -20,9 +20,14 @@ import { login, logout } from '@gravitational/e2e/helpers/login';
 import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 import {
+  defaultDevice,
   setCurrentDevice,
   WebAuthnDevice,
 } from '@gravitational/e2e/helpers/webauthn';
+
+test.afterEach(() => {
+  setCurrentDevice(defaultDevice);
+});
 
 test('account settings', async ({ page }, testInfo) => {
   const username = `testuser-${testInfo.workerIndex}`;
@@ -39,7 +44,17 @@ test('account settings', async ({ page }, testInfo) => {
   await expect(mfaDevices.first()).toContainText('webauthn-device');
 
   await page.getByRole('button', { name: 'Add a Passkey' }).click();
+  // Sanity check to make sure that the opposite expectation below is actually
+  // meaningful.
+  await expect(
+    page.getByRole('heading', { name: 'Verify Identity' })
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Verify my identity' }).click();
+  // Wait until the ceremony is fully completed and it's OK to switch to the
+  // new MFA device.
+  await expect(
+    page.getByRole('heading', { name: 'Verify Identity' })
+  ).not.toBeVisible();
 
   setCurrentDevice(new WebAuthnDevice());
   await page.getByRole('button', { name: 'Create a Passkey' }).click();
@@ -50,6 +65,7 @@ test('account settings', async ({ page }, testInfo) => {
   await expect(passkeyDevices).toHaveCount(1);
   await expect(passkeyDevices.first()).toContainText('new-passkey');
 
+  // Log out and in again, this time with the new MFA device.
   await logout(page);
   await login(page, username, defaultPassword);
 });

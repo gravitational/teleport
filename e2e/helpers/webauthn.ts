@@ -377,7 +377,7 @@ export class WebAuthnDevice {
   }
 }
 
-const defaultDevice = new WebAuthnDevice(webauthnCredentialId);
+export const defaultDevice = new WebAuthnDevice(webauthnCredentialId);
 let currentDevice = defaultDevice;
 
 /**
