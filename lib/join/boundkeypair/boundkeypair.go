@@ -514,6 +514,10 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 	switch token.(type) {
 	case *types.ProvisionTokenV2:
 		patched, err := params.AuthService.PatchToken(ctx, token.GetName(), func(pt types.ProvisionToken) (types.ProvisionToken, error) {
+			if pt.GetBoundKeypairStatus() == nil {
+				return nil, trace.BadParameter("bound keypair tokens must have non-nil status.bound_keypair")
+			}
+
 			// Apply all mutators. Individual mutators may make additional
 			// assertions to ensure invariants haven't changed.
 			for _, mutator := range mutators {
