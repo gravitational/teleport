@@ -100,14 +100,14 @@ type ResourceLister interface {
 
 // CertGenerator is used to generate delegation certificates.
 type CertGenerator interface {
-	Generate(ctx context.Context, req cert.Request) (*proto.Certs, error)
+	GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error)
 }
 
 // CertGeneratorFunc allows you to use a function as a CertGenerator.
 type CertGeneratorFunc func(context.Context, cert.Request) (*proto.Certs, error)
 
 // Generate satisfies the CertGenerator interface.
-func (fn CertGeneratorFunc) Generate(ctx context.Context, req cert.Request) (*proto.Certs, error) {
+func (fn CertGeneratorFunc) GenerateUserCerts(ctx context.Context, req cert.Request) (*proto.Certs, error) {
 	return fn(ctx, req)
 }
 

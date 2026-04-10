@@ -313,7 +313,7 @@ func (s *SessionService) generateCertificates(
 		certReq.DBRoles = route.GetRoles()
 	}
 
-	certs, err := s.certGenerator.Generate(ctx, certReq)
+	certs, err := s.certGenerator.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -6286,7 +6286,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ResourceLister:    cfg.AuthServer,
 		RoleGetter:        cfg.AuthServer,
 		UserGetter:        cfg.AuthServer,
-		CertGenerator:     delegationv1.CertGeneratorFunc(cfg.AuthServer.generateUserCert),
+		CertGenerator:     cfg.AuthServer,
 		ClusterNameGetter: cfg.AuthServer,
 		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
 		Logger:            cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
