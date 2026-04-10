@@ -5468,16 +5468,8 @@ type ProvisionTokenSpecV2GitHub_Rule struct {
 	// The type of ref, for example: "branch".
 	RefType string `protobuf:"bytes,8,opt,name=RefType,proto3" json:"ref_type,omitempty"`
 	// The name of the enterprise in which the repository is stored.
-	//
-	// This field supports "glob-style" matching:
-	// - Use '*' to match zero or more characters.
-	// - Use '?' to match any single character.
 	Enterprise string `protobuf:"bytes,9,opt,name=Enterprise,proto3" json:"enterprise,omitempty"`
 	// The ID of the enterprise in which the repository is stored.
-	//
-	// This field supports "glob-style" matching:
-	// - Use '*' to match zero or more characters.
-	// - Use '?' to match any single character.
 	EnterpriseID         string   `protobuf:"bytes,10,opt,name=EnterpriseID,proto3" json:"enterprise_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
