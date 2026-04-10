@@ -20,6 +20,8 @@ package filesessions
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"iter"
@@ -217,7 +219,7 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 		SessionID: sessionID,
 		Temporary: uploadID != "",
 	})
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
 		osErr := trace.ConvertSystemError(err)
 		if trace.IsNotFound(osErr) {
@@ -225,12 +227,23 @@ func (l *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID,
 		}
 		return "", osErr
 	}
-	// Acquiring a file lock on a nonexistant session recording will create an
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	// Acquiring a file lock on a nonexistent session recording will create an
 	// empty file, treat that as not existing.
 	if info.Size() == 0 {
 		return "", nil
 	}
-	return info.ModTime().String(), nil
+
+	h := sha256.New()
+	_, err = f.WriteTo(h)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 type fileUploadConfig struct {

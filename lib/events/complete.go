@@ -209,9 +209,11 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		case <-periodic.Next():
 			u.PerformPeriodicCheck(ctx)
 		case <-reuploadCh:
-			if err := u.CheckReuploads(ctx); err != nil {
-				u.log.WarnContext(ctx, "Failed to check reuploads.", "error", err)
-			}
+			u.withSemaphore(ctx, func() {
+				if err := u.CheckReuploads(ctx); err != nil {
+					u.log.WarnContext(ctx, "Failed to check reuploads.", "error", err)
+				}
+			})
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
@@ -220,7 +222,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	}
 }
 
-func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+func (u *UploadCompleter) withSemaphore(ctx context.Context, f func()) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
@@ -244,11 +246,17 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 			return
 		}
 	}
-	if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
-		u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
-	} else if err != nil {
-		u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
-	}
+	f()
+}
+
+func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+	u.withSemaphore(ctx, func() {
+		if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+			u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
+		} else if err != nil {
+			u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
+		}
+	})
 }
 
 // CheckUploads fetches uploads and completes any abandoned uploads
@@ -358,7 +366,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		if u.cfg.EnsureSessionEndEvent {
+		if u.cfg.EnsureSessionEndEvent && !upload.Temporary {
 			go func() {
 				select {
 				case <-ctx.Done():
