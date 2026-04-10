@@ -27,7 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -143,7 +143,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
-				Expires:             timestamppb.New(time.Now().Add(5 * time.Minute)),
+				Ttl:                 durationpb.New(5 * time.Minute),
 				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
 					RouteToApp: &delegationv1pb.RouteToApp{
 						Name:        "hr-system",
@@ -222,7 +222,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
-				Expires:             timestamppb.New(time.Now().Add(5 * time.Minute)),
+				Ttl:                 durationpb.New(5 * time.Minute),
 				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
 					RouteToApp: &delegationv1pb.RouteToApp{
 						Name:        "hr-system",
@@ -252,7 +252,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			DelegationSessionId: uuid.NewString(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
-			Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+			Ttl:                 durationpb.New(1 * time.Hour),
 		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
@@ -290,7 +290,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
-			Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+			Ttl:                 durationpb.New(1 * time.Hour),
 		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
@@ -328,7 +328,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
-			Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+			Ttl:                 durationpb.New(1 * time.Hour),
 		})
 		require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 	})
@@ -370,7 +370,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
-				Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+				Ttl:                 durationpb.New(1 * time.Hour),
 			})
 			require.ErrorIs(t, err, delegationv1.ErrDelegationUnauthorized)
 		})
@@ -403,7 +403,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 			DelegationSessionId: session.GetMetadata().GetName(),
 			SshPublicKey:        sshPublicKey,
 			TlsPublicKey:        tlsPublicKey,
-			Expires:             timestamppb.New(time.Now().Add(1 * time.Hour)),
+			Ttl:                 durationpb.New(1 * time.Hour),
 		})
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
@@ -466,7 +466,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				DelegationSessionId: session.GetMetadata().GetName(),
 				SshPublicKey:        sshPublicKey,
 				TlsPublicKey:        tlsPublicKey,
-				Expires:             timestamppb.New(time.Now().Add(365 * 24 * 1 * time.Hour)),
+				Ttl:                 durationpb.New(365 * 24 * 1 * time.Hour),
 				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
 					RouteToApp: &delegationv1pb.RouteToApp{
 						Name:        "hr-system",

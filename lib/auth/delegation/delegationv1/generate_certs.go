@@ -95,14 +95,8 @@ func (s *SessionService) GenerateCerts(
 	if req.GetSshPublicKey() == nil && req.GetTlsPublicKey() == nil {
 		return nil, trace.BadParameter("at least one of ssh_public_key or tls_public_key is required")
 	}
-	if req.GetExpires() == nil {
-		return nil, trace.BadParameter("expires: is required")
-	}
-
-	expires := req.GetExpires().AsTime()
-	now := time.Now()
-	if !now.Before(expires) {
-		return nil, trace.BadParameter("expires: must be in the future (expires=%s, current_time=%s)", expires, now)
+	if req.GetTtl() == nil || req.GetTtl().AsDuration() == 0 {
+		return nil, trace.BadParameter("ttl: is required")
 	}
 
 	// Read user login state from the backend to get current roles, traits, and
@@ -228,7 +222,7 @@ func (s *SessionService) generateCertificates(
 	)
 
 	ttl := min(
-		time.Until(req.GetExpires().AsTime()),
+		req.GetTtl().AsDuration(),
 		time.Until(session.GetMetadata().GetExpires().AsTime()),
 		defaults.MaxRenewableCertTTL,
 	)

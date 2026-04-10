@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.delegation.v1;
 
-import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
 
@@ -39,11 +39,11 @@ message GenerateCertsRequest {
   // TLS public key in PEM-encoded PKCS#1 or PKIX format.
   bytes tls_public_key = 3;
 
-  // Desired time of expiry (may be adjusted based on session TTL, etc).
-  google.protobuf.Timestamp expires = 4;
+  // Desired time-to-live of certificate (may be adjusted based on session TTL, etc).
+  google.protobuf.Duration ttl = 4;
 
   oneof routing {
-      // Route of the Kubernetes cluster the certificates will be used to access.
+    // Route of the Kubernetes cluster the certificates will be used to access.
     RouteToKubernetes route_to_kubernetes = 5;
 
     // Route to the database the certificates will be used to access.

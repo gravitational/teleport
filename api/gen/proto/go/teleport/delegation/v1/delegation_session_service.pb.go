@@ -23,7 +23,7 @@ package delegationv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -45,8 +45,8 @@ type GenerateCertsRequest struct {
 	SshPublicKey []byte `protobuf:"bytes,2,opt,name=ssh_public_key,json=sshPublicKey,proto3" json:"ssh_public_key,omitempty"`
 	// TLS public key in PEM-encoded PKCS#1 or PKIX format.
 	TlsPublicKey []byte `protobuf:"bytes,3,opt,name=tls_public_key,json=tlsPublicKey,proto3" json:"tls_public_key,omitempty"`
-	// Desired time of expiry (may be adjusted based on session TTL, etc).
-	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
+	// Desired time-to-live of certificate (may be adjusted based on session TTL, etc).
+	Ttl *durationpb.Duration `protobuf:"bytes,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// Types that are valid to be assigned to Routing:
 	//
 	//	*GenerateCertsRequest_RouteToKubernetes
@@ -108,9 +108,9 @@ func (x *GenerateCertsRequest) GetTlsPublicKey() []byte {
 	return nil
 }
 
-func (x *GenerateCertsRequest) GetExpires() *timestamppb.Timestamp {
+func (x *GenerateCertsRequest) GetTtl() *durationpb.Duration {
 	if x != nil {
-		return x.Expires
+		return x.Ttl
 	}
 	return nil
 }
@@ -470,12 +470,12 @@ var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.Fi
 
 const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" +
 	"\n" +
-	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd3\x03\n" +
+	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\"\xca\x03\n" +
 	"\x14GenerateCertsRequest\x122\n" +
 	"\x15delegation_session_id\x18\x01 \x01(\tR\x13delegationSessionId\x12$\n" +
 	"\x0essh_public_key\x18\x02 \x01(\fR\fsshPublicKey\x12$\n" +
-	"\x0etls_public_key\x18\x03 \x01(\fR\ftlsPublicKey\x124\n" +
-	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12[\n" +
+	"\x0etls_public_key\x18\x03 \x01(\fR\ftlsPublicKey\x12+\n" +
+	"\x03ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\x12[\n" +
 	"\x13route_to_kubernetes\x18\x05 \x01(\v2).teleport.delegation.v1.RouteToKubernetesH\x00R\x11routeToKubernetes\x12U\n" +
 	"\x11route_to_database\x18\x06 \x01(\v2'.teleport.delegation.v1.RouteToDatabaseH\x00R\x0frouteToDatabase\x12F\n" +
 	"\froute_to_app\x18\a \x01(\v2\".teleport.delegation.v1.RouteToAppH\x00R\n" +
@@ -527,10 +527,10 @@ var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any
 	(*RouteToDatabase)(nil),       // 2: teleport.delegation.v1.RouteToDatabase
 	(*RouteToApp)(nil),            // 3: teleport.delegation.v1.RouteToApp
 	(*GenerateCertsResponse)(nil), // 4: teleport.delegation.v1.GenerateCertsResponse
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 5: google.protobuf.Duration
 }
 var file_teleport_delegation_v1_delegation_session_service_proto_depIdxs = []int32{
-	5, // 0: teleport.delegation.v1.GenerateCertsRequest.expires:type_name -> google.protobuf.Timestamp
+	5, // 0: teleport.delegation.v1.GenerateCertsRequest.ttl:type_name -> google.protobuf.Duration
 	1, // 1: teleport.delegation.v1.GenerateCertsRequest.route_to_kubernetes:type_name -> teleport.delegation.v1.RouteToKubernetes
 	2, // 2: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
 	3, // 3: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
