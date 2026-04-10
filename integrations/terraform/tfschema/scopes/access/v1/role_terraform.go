@@ -146,6 +146,42 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"file_copy": {
+							Description: "FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"forward_agent": {
+							Description: "ForwardAgent enables SSH agent forwarding.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"host_sudoers": {
+							Description: "Sudoers is a list of entries to include in a users sudoer file",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"host_user_creation": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"groups": {
+									Description: "Groups is a list of host groups to add the user to.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+								},
+								"mode": {
+									Description: "Mode specifies how the host user should be created.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"shell": {
+									Description: "Shell is the shell to set for the user.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "HostUserCreation configures the creation of host users.",
+							Optional:    true,
+						},
 						"labels": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"name": {
@@ -166,6 +202,40 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Description: "Logins is the list of OS logins this role permits on matching nodes.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"max_sessions": {
+							Description: "MaxSessions defines the maximum number of concurrent sessions per connection.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"permit_x11_forwarding": {
+							Description: "PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"port_forwarding": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"local": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+										Description: "",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									}}),
+									Description: "Allow for local port forwarding.",
+									Optional:    true,
+								},
+								"remote": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": {
+										Description: "",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+									}}),
+									Description: "Allow for remote port forwarding.",
+									Optional:    true,
+								},
+							}),
+							Description: "SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.",
+							Optional:    true,
 						},
 					}),
 					Description: "Ssh specifies controls that govern SSH access.",
@@ -552,6 +622,10 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									tf := v
 									obj.Ssh = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.ScopedRoleSSH{}
 									obj := obj.Ssh
+									obj.PermitX11Forwarding = nil
+									obj.ForwardAgent = nil
+									obj.MaxSessions = nil
+									obj.FileCopy = nil
 									{
 										a, ok := tf.Attrs["logins"]
 										if !ok {
@@ -666,6 +740,282 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 													t = string(v.Value)
 												}
 												obj.ClientIdleTimeout = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["permit_x11_forwarding"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.permit_x11_forwarding"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.permit_x11_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												if !v.Null && !v.Unknown {
+													obj.PermitX11Forwarding = &t
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["forward_agent"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.forward_agent"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.forward_agent", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												if !v.Null && !v.Unknown {
+													obj.ForwardAgent = &t
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["port_forwarding"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.port_forwarding"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.PortForwarding = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.PortForwarding = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHPortForwarding{}
+													obj := obj.PortForwarding
+													{
+														a, ok := tf.Attrs["local"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.port_forwarding.local"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.Local = nil
+																if !v.Null && !v.Unknown {
+																	tf := v
+																	obj.Local = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHLocalPortForwarding{}
+																	obj := obj.Local
+																	obj.Enabled = nil
+																	{
+																		a, ok := tf.Attrs["enabled"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																			} else {
+																				var t bool
+																				if !v.Null && !v.Unknown {
+																					t = bool(v.Value)
+																				}
+																				if !v.Null && !v.Unknown {
+																					obj.Enabled = &t
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["remote"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.port_forwarding.remote"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+															} else {
+																obj.Remote = nil
+																if !v.Null && !v.Unknown {
+																	tf := v
+																	obj.Remote = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.SSHRemotePortForwarding{}
+																	obj := obj.Remote
+																	obj.Enabled = nil
+																	{
+																		a, ok := tf.Attrs["enabled"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																			} else {
+																				var t bool
+																				if !v.Null && !v.Unknown {
+																					t = bool(v.Value)
+																				}
+																				if !v.Null && !v.Unknown {
+																					obj.Enabled = &t
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["host_user_creation"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.host_user_creation"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.HostUserCreation = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.HostUserCreation = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1.CreateHostUser{}
+													obj := obj.HostUserCreation
+													{
+														a, ok := tf.Attrs["mode"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.host_user_creation.mode"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Mode = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["groups"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.host_user_creation.groups"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.groups", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+															} else {
+																obj.Groups = make([]string, len(v.Elems))
+																if !v.Null && !v.Unknown {
+																	for k, a := range v.Elems {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.groups", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Groups[k] = t
+																		}
+																	}
+																}
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["shell"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.host_user_creation.shell"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.Shell = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["max_sessions"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.max_sessions"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.max_sessions", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t int64
+												if !v.Null && !v.Unknown {
+													t = int64(v.Value)
+												}
+												if !v.Null && !v.Unknown {
+													obj.MaxSessions = &t
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["host_sudoers"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.host_sudoers"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_sudoers", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.HostSudoers = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.host_sudoers", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.HostSudoers[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["file_copy"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.file_copy"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.file_copy", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												if !v.Null && !v.Unknown {
+													obj.FileCopy = &t
+												}
 											}
 										}
 									}
@@ -1484,6 +1834,428 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 											v.Value = string(obj.ClientIdleTimeout)
 											v.Unknown = false
 											tf.Attrs["client_idle_timeout"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["permit_x11_forwarding"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.permit_x11_forwarding"})
+										} else {
+											v, ok := tf.Attrs["permit_x11_forwarding"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.permit_x11_forwarding", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.permit_x11_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+											}
+											v.Null = obj.PermitX11Forwarding == nil
+											if obj.PermitX11Forwarding != nil {
+												v.Value = *obj.PermitX11Forwarding
+											}
+											v.Unknown = false
+											tf.Attrs["permit_x11_forwarding"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["forward_agent"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.forward_agent"})
+										} else {
+											v, ok := tf.Attrs["forward_agent"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.forward_agent", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.forward_agent", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+											}
+											v.Null = obj.ForwardAgent == nil
+											if obj.ForwardAgent != nil {
+												v.Value = *obj.ForwardAgent
+											}
+											v.Unknown = false
+											tf.Attrs["forward_agent"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["port_forwarding"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["port_forwarding"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.PortForwarding == nil {
+													v.Null = true
+												} else {
+													obj := obj.PortForwarding
+													tf := &v
+													{
+														a, ok := tf.AttrTypes["local"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.local"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																v, ok := tf.Attrs["local"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																if !ok {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																		AttrTypes: o.AttrTypes,
+																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																	}
+																} else {
+																	if v.Attrs == nil {
+																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																	}
+																}
+																if obj.Local == nil {
+																	v.Null = true
+																} else {
+																	obj := obj.Local
+																	tf := &v
+																	{
+																		t, ok := tf.AttrTypes["enabled"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled"})
+																		} else {
+																			v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.port_forwarding.local.enabled", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.local.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																				}
+																			}
+																			v.Null = obj.Enabled == nil
+																			if obj.Enabled != nil {
+																				v.Value = *obj.Enabled
+																			}
+																			v.Unknown = false
+																			tf.Attrs["enabled"] = v
+																		}
+																	}
+																}
+																v.Unknown = false
+																tf.Attrs["local"] = v
+															}
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["remote"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.remote"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+															} else {
+																v, ok := tf.Attrs["remote"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																if !ok {
+																	v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																		AttrTypes: o.AttrTypes,
+																		Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																	}
+																} else {
+																	if v.Attrs == nil {
+																		v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																	}
+																}
+																if obj.Remote == nil {
+																	v.Null = true
+																} else {
+																	obj := obj.Remote
+																	tf := &v
+																	{
+																		t, ok := tf.AttrTypes["enabled"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled"})
+																		} else {
+																			v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.port_forwarding.remote.enabled", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.port_forwarding.remote.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																				}
+																			}
+																			v.Null = obj.Enabled == nil
+																			if obj.Enabled != nil {
+																				v.Value = *obj.Enabled
+																			}
+																			v.Unknown = false
+																			tf.Attrs["enabled"] = v
+																		}
+																	}
+																}
+																v.Unknown = false
+																tf.Attrs["remote"] = v
+															}
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["port_forwarding"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["host_user_creation"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.host_user_creation"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["host_user_creation"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.HostUserCreation == nil {
+													v.Null = true
+												} else {
+													obj := obj.HostUserCreation
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["mode"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.host_user_creation.mode"})
+														} else {
+															v, ok := tf.Attrs["mode"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.host_user_creation.mode", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.mode", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Mode) == ""
+															}
+															v.Value = string(obj.Mode)
+															v.Unknown = false
+															tf.Attrs["mode"] = v
+														}
+													}
+													{
+														a, ok := tf.AttrTypes["groups"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.host_user_creation.groups"})
+														} else {
+															o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.groups", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+															} else {
+																c, ok := tf.Attrs["groups"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																if !ok {
+																	c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																		ElemType: o.ElemType,
+																		Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups)),
+																		Null:     true,
+																	}
+																} else {
+																	if c.Elems == nil {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																	}
+																}
+																if obj.Groups != nil {
+																	t := o.ElemType
+																	if len(obj.Groups) != len(c.Elems) {
+																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Groups))
+																	}
+																	for k, a := range obj.Groups {
+																		v, ok := tf.Attrs["groups"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																			if err != nil {
+																				diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.host_user_creation.groups", err})
+																			}
+																			v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.groups", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
+																			v.Null = string(a) == ""
+																		}
+																		v.Value = string(a)
+																		v.Unknown = false
+																		c.Elems[k] = v
+																	}
+																	if len(obj.Groups) > 0 {
+																		c.Null = false
+																	}
+																}
+																c.Unknown = false
+																tf.Attrs["groups"] = c
+															}
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["shell"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.host_user_creation.shell"})
+														} else {
+															v, ok := tf.Attrs["shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.host_user_creation.shell", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_user_creation.shell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.Shell) == ""
+															}
+															v.Value = string(obj.Shell)
+															v.Unknown = false
+															tf.Attrs["shell"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["host_user_creation"] = v
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["max_sessions"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.max_sessions"})
+										} else {
+											v, ok := tf.Attrs["max_sessions"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.max_sessions", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.max_sessions", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+											}
+											v.Null = obj.MaxSessions == nil
+											if obj.MaxSessions != nil {
+												v.Value = *obj.MaxSessions
+											}
+											v.Unknown = false
+											tf.Attrs["max_sessions"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["host_sudoers"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.host_sudoers"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_sudoers", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["host_sudoers"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.HostSudoers)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.HostSudoers))
+													}
+												}
+												if obj.HostSudoers != nil {
+													t := o.ElemType
+													if len(obj.HostSudoers) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.HostSudoers))
+													}
+													for k, a := range obj.HostSudoers {
+														v, ok := tf.Attrs["host_sudoers"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.host_sudoers", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.host_sudoers", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.HostSudoers) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["host_sudoers"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["file_copy"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.file_copy"})
+										} else {
+											v, ok := tf.Attrs["file_copy"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.file_copy", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.file_copy", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+											}
+											v.Null = obj.FileCopy == nil
+											if obj.FileCopy != nil {
+												v.Value = *obj.FileCopy
+											}
+											v.Unknown = false
+											tf.Attrs["file_copy"] = v
 										}
 									}
 								}

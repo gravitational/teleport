@@ -29,8 +29,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
-	client "github.com/gravitational/teleport/integrations/terraform/provider/client"
 	"github.com/gravitational/teleport/lib/scopes/access"
+
+	"github.com/gravitational/teleport/integrations/terraform/provider/client"
 )
 
 func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
@@ -41,7 +42,7 @@ func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
 	checkDestroyed := func(state *terraform.State) error {
 		accessClient := client.NewAccessClient(s.client.ScopedAccessServiceClient())
 
-		_, err := accessClient.GetScopedRoleAssignment(ctx, "dc6961fa-cbfb-4024-83f1-f6168310638b")
+		_, err := accessClient.GetScopedRoleAssignment(ctx, "dc6968fb-cbfb-4024-83f1-f6168310638b")
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
 		}

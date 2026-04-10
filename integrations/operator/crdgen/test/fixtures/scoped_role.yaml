@@ -13,3 +13,28 @@ spec:
       verbs:
         - "read"
         - "list"
+  ssh:
+    logins:
+      - "root"
+    labels:
+      - name: "env"
+        values:
+          - "staging"
+    client_idle_timeout: "30m"
+    permit_x11_forwarding: true
+    forward_agent: false
+    file_copy: true
+    max_sessions: 5
+    host_sudoers:
+      - "ALL=(ALL) NOPASSWD: ALL"
+    port_forwarding:
+      local:
+        enabled: true
+      remote:
+        enabled: false
+    host_user_creation:
+      mode: "keep"
+      groups:
+        - "wheel"
+        - "docker"
+      shell: "/bin/bash"
