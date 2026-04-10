@@ -901,7 +901,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 		logInstances.WriteString(getID(inst) + ", ")
 	}
 	if len(instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs truncated", len(instances)-10))
+		fmt.Fprintf(&logInstances, "... + %d instance IDs truncated", len(instances)-10)
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())

@@ -410,6 +410,9 @@ linters:
         text: grpc.WithReturnConnectionError is deprecated
       - linters:
           - staticcheck
+        text: aws-sdk-go is deprecated\. Use aws-sdk-go-v2
+      - linters:
+          - staticcheck
         text: 'BlockUntil is deprecated: New code should prefer BlockUntilContext'
       - linters:
           - forbidigo
