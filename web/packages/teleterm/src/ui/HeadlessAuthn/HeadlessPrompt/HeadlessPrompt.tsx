@@ -101,12 +101,13 @@ export function HeadlessPrompt({
           <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
-      {updateHeadlessStateAttempt.status === 'error' && (
-        <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
-          Could not update the headless command state
-        </Alerts.Danger>
-      )}
-      <DialogContent>
+      <DialogContent mb={1}>
+        {updateHeadlessStateAttempt.status === 'error' && (
+          <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
+            Could not update the headless command state
+          </Alerts.Danger>
+        )}
+
         <P>
           Someone initiated a headless command from <b>{clientIp}</b>.
         </P>
@@ -114,44 +115,44 @@ export function HeadlessPrompt({
         <P3 color="text.slightlyMuted">
           Request ID: {headlessAuthenticationId}
         </P3>
+        {waitForMfa && (
+          <>
+            <P>Complete MFA verification to approve the Headless Login.</P>
+
+            <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
+            <Box textAlign="center" style={{ position: 'relative' }}>
+              <Text bold>Insert your security key and tap it</Text>
+              <LinearProgress />
+            </Box>
+
+            <Flex justifyContent="flex-end" mt={4} gap={3}>
+              {/*
+                The Reject button is there so that if skipping confirmation is enabled (see
+                HeadlessAuthenticationService) then the user still has the ability to reject the
+                request from the screen that prompts for key touch.
+              */}
+              <ButtonSecondary
+                type="button"
+                onClick={() => {
+                  abortApproval();
+                  onReject();
+                }}
+              >
+                Reject
+              </ButtonSecondary>
+              <ButtonSecondary
+                type="button"
+                onClick={() => {
+                  abortApproval();
+                  onCancel();
+                }}
+              >
+                Cancel
+              </ButtonSecondary>
+            </Flex>
+          </>
+        )}
       </DialogContent>
-      {waitForMfa && (
-        <DialogContent mb={2}>
-          <P>Complete MFA verification to approve the Headless Login.</P>
-
-          <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
-          <Box textAlign="center" style={{ position: 'relative' }}>
-            <Text bold>Insert your security key and tap it</Text>
-            <LinearProgress />
-          </Box>
-
-          <Flex justifyContent="flex-end" mt={4} gap={3}>
-            {/*
-              The Reject button is there so that if skipping confirmation is enabled (see
-              HeadlessAuthenticationService) then the user still has the ability to reject the
-              request from the screen that prompts for key touch.
-            */}
-            <ButtonSecondary
-              type="button"
-              onClick={() => {
-                abortApproval();
-                onReject();
-              }}
-            >
-              Reject
-            </ButtonSecondary>
-            <ButtonSecondary
-              type="button"
-              onClick={() => {
-                abortApproval();
-                onCancel();
-              }}
-            >
-              Cancel
-            </ButtonSecondary>
-          </Flex>
-        </DialogContent>
-      )}
       {!waitForMfa && (
         <DialogFooter>
           <ButtonSecondary
