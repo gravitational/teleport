@@ -52,6 +52,13 @@ func (s *SessionService) CreateDelegationSession(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(boxofrad): Eventually, we'll need to support this to allow for agents
+	// that sub-delegate to other agents, but the authorization logic around that
+	// needs more thought, so we'll just disable it for now.
+	if authCtx.Identity.GetIdentity().DelegationSessionID != "" {
+		return nil, trace.AccessDenied("cannot create a delegation session from within a delegation session")
+	}
+
 	if req.GetTtl() == nil {
 		return nil, trace.BadParameter("ttl: is required")
 	}
