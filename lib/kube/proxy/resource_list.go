@@ -188,15 +188,13 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 				w.WriteHeader(status)
 
 				filterErr := sf.filter(src, dst)
-				dst.Close()
-				src.Close()
 
 				// Once headers are sent, we can't signal errors to the client.
 				// A mid-stream failure results in a truncated response.
 				// Log instead of returning the error to prevent the caller from
 				// attempting to write an error response over the already-committed stream.
-				if filterErr != nil {
-					f.log.ErrorContext(ctx, "Streaming filter failed mid-write, client received truncated response", "error", filterErr)
+				if streamErr := trace.NewAggregate(filterErr, dst.Close(), src.Close()); streamErr != nil {
+					f.log.ErrorContext(ctx, "Streaming filter failed mid-write, client received truncated response", "error", streamErr)
 				}
 				return status, nil // No error returned
 			}
