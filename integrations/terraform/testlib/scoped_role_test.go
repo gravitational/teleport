@@ -30,6 +30,7 @@ import (
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	client "github.com/gravitational/teleport/integrations/terraform/provider/client"
+	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func (s *TerraformSuiteOSS) TestScopedRole() {
@@ -56,7 +57,7 @@ func (s *TerraformSuiteOSS) TestScopedRole() {
 			{
 				Config: s.getFixture("scoped_role_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", types.KindScopedRole),
+					resource.TestCheckResourceAttr(name, "kind", access.KindScopedRole),
 					resource.TestCheckResourceAttr(name, "scope", "/staging"),
 					resource.TestCheckResourceAttr(name, "spec.assignable_scopes.0", "/staging/aa"),
 					resource.TestCheckResourceAttr(name, "spec.rules.0.resources.0", "scoped_token"),
@@ -97,7 +98,7 @@ func (s *TerraformSuiteOSS) TestImportScopedRole() {
 	name := r + "." + id
 
 	role := &accessv1.ScopedRole{
-		Kind:    types.KindScopedRole,
+		Kind:    access.KindScopedRole,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: id,
@@ -132,7 +133,7 @@ func (s *TerraformSuiteOSS) TestImportScopedRole() {
 				ImportState:   true,
 				ImportStateId: id,
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
-					require.Equal(t, types.KindScopedRole, state[0].Attributes["kind"])
+					require.Equal(t, access.KindScopedRole, state[0].Attributes["kind"])
 					require.Equal(t, "/staging", state[0].Attributes["scope"])
 					require.Equal(t, "/staging/aa", state[0].Attributes["spec.assignable_scopes.0"])
 					return nil

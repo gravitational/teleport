@@ -29,6 +29,7 @@ injected_fields:
 # These fields will be excluded
 exclude_fields:
   - "ScopedRoleAssignment.metadata.id"
+  - "ScopedRoleAssignment.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -45,7 +46,6 @@ required_fields:
   - "ScopedRoleAssignment.sub_kind"
   - "ScopedRoleAssignment.scope"
   - "ScopedRoleAssignment.spec"
-  - "ScopedRoleAssignment.spec.user"
   - "ScopedRoleAssignment.spec.assignments"
 
 sensitive_fields:

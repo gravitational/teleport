@@ -772,7 +772,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
 							types.NewRule(types.KindScopedToken, RW()),
-							types.NewRule(types.KindScopedRole, RW()),
+							types.NewRule(access.KindScopedRole, RW()),
 							types.NewRule(access.KindScopedRoleAssignment, RW()),
 						},
 					},

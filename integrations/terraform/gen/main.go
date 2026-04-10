@@ -904,7 +904,7 @@ var (
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
 		TerraformResourceType: "teleport_scoped_role",
 		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
 		ForceSetKind:          "apitypes.KindScopedRole",
 	}
 
