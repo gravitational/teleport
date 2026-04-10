@@ -19,6 +19,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"maps"
@@ -326,7 +327,7 @@ func (c *ScopedAccessCheckerContext) GetPossibleLoginsForSSHServer(ctx context.C
 	}
 
 	logins := make(map[string]struct{})
-	for checker, err := range c.CheckersForResourceScope(ctx, target.GetScope()) {
+	for checker, err := range c.CheckersForResourceScope(ctx, cmp.Or(target.GetScope(), scopes.Root)) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
