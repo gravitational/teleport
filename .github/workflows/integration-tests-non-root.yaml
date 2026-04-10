@@ -55,7 +55,7 @@ jobs:
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
