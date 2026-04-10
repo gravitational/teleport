@@ -2920,3 +2920,7 @@ func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+func (m *AppSessionLLMRequest) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
