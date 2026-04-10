@@ -25,7 +25,7 @@ import (
 	"log/slog"
 	"time"
 
-	docker "github.com/docker/docker/client"
+	docker "github.com/moby/moby/client"
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -56,7 +56,7 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 		return nil, trace.Wrap(err, "determining container ID")
 	}
 
-	client, err := docker.NewClientWithOpts(
+	client, err := docker.New(
 		docker.WithHost(a.cfg.Addr),
 		docker.WithAPIVersionNegotiation(),
 		docker.WithTimeout(1*time.Second),
@@ -65,7 +65,7 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 		return nil, trace.Wrap(err, "creating docker client")
 	}
 
-	container, err := client.ContainerInspect(ctx, ctr.ID)
+	res, err := client.ContainerInspect(ctx, ctr.ID, docker.ContainerInspectOptions{})
 	if err != nil {
 		return nil, trace.Wrap(err, "inspecting container")
 	}
@@ -73,10 +73,10 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 	return &workloadidentityv1pb.WorkloadAttrsDocker{
 		Attested: true,
 		Container: &workloadidentityv1pb.WorkloadAttrsDockerContainer{
-			Name:        container.Name,
-			Image:       container.Config.Image,
-			ImageDigest: container.Image,
-			Labels:      container.Config.Labels,
+			Name:        res.Container.Name,
+			Image:       res.Container.Config.Image,
+			ImageDigest: res.Container.Image,
+			Labels:      res.Container.Config.Labels,
 		},
 	}, nil
 }
