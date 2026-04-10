@@ -171,9 +171,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	shutdownCh := make(chan struct{})
 	defer func() {
 		close(shutdownCh)
-		// Send Terminate and close the raw connection.
-		server.Send(&pgproto3.Terminate{})
-		server.Flush()
 		if err := hijackedConn.Conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
 			e.Log.ErrorContext(e.Context, "Failed to close connection.", "error", err)
 		}
@@ -336,6 +333,10 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		message, err := client.Receive()
 		if err != nil {
 			log.ErrorContext(e.Context, "Failed to receive message from client.", "error", err)
+			server.Send(&pgproto3.Terminate{})
+			if flushErr := server.Flush(); flushErr != nil {
+				log.DebugContext(e.Context, "Failed to send Terminate to server.", "error", flushErr)
+			}
 			clientErrCh <- err
 			return
 		}
@@ -356,6 +357,10 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		case *pgproto3.FunctionCall:
 			e.auditFuncCallMessage(sessionCtx, msg)
 		case *pgproto3.Terminate:
+			server.Send(message)
+			if flushErr := server.Flush(); flushErr != nil {
+				log.DebugContext(e.Context, "Failed to send Terminate to server.", "error", flushErr)
+			}
 			clientErrCh <- nil
 			return
 		}

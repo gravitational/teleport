@@ -83,6 +83,8 @@ type TestServer struct {
 	log       *slog.Logger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
+	// pingCount tracks internal ping queries from pgconn.
+	pingCount uint32
 	// parametersCh receives startup message connection parameters.
 	parametersCh chan map[string]string
 	// storedProcedures are the stored procedures created on the server.
@@ -186,7 +188,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
 	s.log.DebugContext(context.Background(), "Starting test Postgres server.", "address", s.listener.Addr())
-	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.")
+	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.", "query_count", s.QueryCount(), "ping_count", atomic.LoadUint32(&s.pingCount))
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -390,7 +392,11 @@ func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
 }
 
 func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uint32) error {
-	atomic.AddUint32(&s.queryCount, 1)
+	if strings.TrimSpace(query) == "-- ping" {
+		atomic.AddUint32(&s.pingCount, 1)
+	} else {
+		atomic.AddUint32(&s.queryCount, 1)
+	}
 	if query == TestLongRunningQuery {
 		return trace.Wrap(s.fakeLongRunningQuery(client, pid))
 	}
@@ -982,6 +988,7 @@ func (s *TestServer) Port() string {
 }
 
 // QueryCount returns the number of queries the server has received.
+// It excludes internal ping queries from pgconn.
 func (s *TestServer) QueryCount() uint32 {
 	return atomic.LoadUint32(&s.queryCount)
 }
