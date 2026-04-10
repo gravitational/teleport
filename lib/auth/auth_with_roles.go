@@ -1748,13 +1748,13 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 			return false, nil
 		}
 
-		resourceScope := scopedRes.GetScope()
+		resourceScope := cmp.Or(scopedRes.GetScope(), scopes.Root)
 		if err := a.scopedContext.CheckerContext.Decision(ctx, resourceScope, func(checker *services.ScopedAccessChecker) error {
 			switch res := resource.(type) {
 			case *types.ServerV2:
 				return checker.SSH().CanAccessSSHServer(res)
 			case *types.KubernetesServerV3:
-				return checker.Kube().CanAccessServer(res)
+				return checker.Kube().CanAccessCluster(res.GetCluster())
 			case *types.KubernetesClusterV3:
 				return checker.Kube().CanAccessCluster(res)
 			default:
@@ -2342,7 +2342,7 @@ func (r *resourceChecker) GetAllowedLoginsForResource(ctx context.Context, resou
 	scope := scopes.Root
 	scopedResource, ok := resource.(services.ScopedAccessCheckable)
 	if ok {
-		scope = scopedResource.GetScope()
+		scope = cmp.Or(scopedResource.GetScope(), scopes.Root)
 	}
 	for checker, err := range r.scopedCtx.CheckerContext.CheckersForResourceScope(ctx, scope) {
 		if err != nil {
@@ -6569,7 +6569,7 @@ func (a *ServerWithRoles) Close() error {
 
 func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if a.scopedContext != nil {
-		return a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
 			return checker.Kube().CanAccessCluster(cluster)
 		})
 	}
@@ -7276,7 +7276,7 @@ func (a *ServerWithRoles) checkAccessToNode(ctx context.Context, node types.Serv
 			services.AccessState{MFAVerified: true})
 	}
 
-	return a.scopedContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(node.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
 		return checker.SSH().CanAccessSSHServer(node)
 	})
 }
