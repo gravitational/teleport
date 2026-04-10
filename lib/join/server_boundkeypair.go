@@ -63,11 +63,6 @@ func (s *Server) handleBoundKeypairJoin(
 ) (*messages.BotResult, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
-	if clientInit.SystemRole != types.RoleBot.String() {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
-	}
 
 	// Scoped tokens currently validate against being created with the bot role, but just in case
 	// we'll check and return a more helpful error message if one happens to make it through.
@@ -115,6 +110,30 @@ func (s *Server) handleBoundKeypairJoin(
 		}
 		return botCerts, botInstanceID, nil
 	}
+	generateHostCerts := func(ctx context.Context, claims any) (*messages.Certificates, string, error) {
+		certsParams, err := makeHostCertsParams(
+			ctx,
+			diag,
+			authCtx,
+			boundKeypairInit.ClientParams.HostParams,
+			configuredJoinMethod(token),
+			claims,
+		)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		certs, err := s.cfg.AuthService.GenerateHostCertsForJoin(ctx, token, certsParams)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		certificates, err := convertCerts(certs)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return certificates, certsParams.HostID, nil
+	}
 	return boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:          s.cfg.AuthService,
 		AuthCtx:              authCtx,
@@ -125,6 +144,7 @@ func (s *Server) handleBoundKeypairJoin(
 		IssueChallenge:       issueChallenge,
 		IssueRotationRequest: issueRotationRequest,
 		GenerateBotCerts:     generateBotCerts,
+		GenerateHostCerts:    generateHostCerts,
 		Clock:                s.cfg.AuthService.GetClock(),
 		Logger:               log,
 	})
@@ -167,12 +187,19 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		// These are verified at the gRPC layer by the legacy join service.
 		BotInstanceID: req.JoinRequest.BotInstanceID,
 		BotGeneration: uint64(req.JoinRequest.BotGeneration),
+		HostID:        req.JoinRequest.HostID,
 	}
 
-	// Only bot joining is supported at the moment - unique ID verification is
-	// required and this is currently only implemented for bots.
+	// Only bot joining is supported through the legacy join service adapter.
+	// Bound keypair requires secure host UUIDs which are only available in the
+	// new join service.
 	if req.JoinRequest.Role != types.RoleBot {
-		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
+		return nil, trace.BadParameter("bound keypair joining for agents requires use of the new join service")
+	} else {
+		// Bots cannot have a HostID, so clear any ID present on the request.
+		// The bound keypair implementation depends on having a trustworthy ID
+		// which this value is not.
+		authCtx.HostID = ""
 	}
 
 	provisionToken, err := a.ValidateToken(ctx, req.JoinRequest.Token)
@@ -230,6 +257,14 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		return botCerts, botInstanceID, nil
 	}
 
+	generateHostCerts := func(ctx context.Context, claims any) (*messages.Certificates, string, error) {
+		// Bound keypair requires that a unique identifier is securely generated
+		// by the server. As the legacy join service allows joining agents to
+		// specify their own unique ID, we cannot allow agents to join with
+		// bound keypair via the legacy join service.
+		return nil, "", trace.NotImplemented("bound keypair joining for agents is not supported by the legacy join service")
+	}
+
 	botResult, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:                 a,
 		AuthCtx:                     authCtx,
@@ -241,6 +276,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		IssueRotationRequest:        adaptBoundKeypairRotationRequest(challengeResponse),
 		CreateBoundKeypairValidator: createBoundKeypairValidator,
 		GenerateBotCerts:            generateBotCerts,
+		GenerateHostCerts:           generateHostCerts,
 		Clock:                       a.GetClock(),
 		Logger:                      log,
 	})
