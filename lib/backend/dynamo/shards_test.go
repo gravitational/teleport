@@ -19,6 +19,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -549,4 +551,69 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
 	require.Empty(t, missingRecived, "Missing %d events that were successfully written. Missing event keys: %v", len(missingRecived), missingRecived)
 	require.Empty(t, unexpectedReceived, "Received %d unexpected events that were not written. Unexpected event keys: %v", len(unexpectedReceived), unexpectedReceived)
+}
+
+func TestBackend_deleteShardsWithParents(t *testing.T) {
+	tests := []struct {
+		name   string // description of this test case
+		params backend.Params
+		shards []streamtypes.Shard
+		want   []streamtypes.Shard
+	}{
+		{
+			name: "no parents",
+			shards: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-orphan1")},
+				{ShardId: aws.String("shardId-orphan2")},
+			},
+			want: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-orphan1")},
+				{ShardId: aws.String("shardId-orphan2")},
+			},
+		},
+
+		{
+			name: "parents in the list",
+			shards: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-parent1")},
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+			want: []streamtypes.Shard{
+				{ShardId: aws.String("shardId-parent1")},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+		},
+
+		{
+			name: "parents outside the list",
+			shards: []streamtypes.Shard{
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+			want: []streamtypes.Shard{
+				{
+					ShardId:       aws.String("shardId-child1"),
+					ParentShardId: aws.String("shardId-parent1"),
+				},
+				{ShardId: aws.String("shardId-orphan1")},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Dummy backend instance just to call the method under test.
+			b := &Backend{
+				logger: slog.With(teleport.ComponentKey, BackendName),
+			}
+			got := b.deleteShardsWithParents(context.Background(), tt.shards)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
