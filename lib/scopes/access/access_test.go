@@ -597,7 +597,7 @@ func TestValidateAsssignment(t *testing.T) {
 				},
 				Version: types.V1,
 			},
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{

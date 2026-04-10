@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -409,10 +408,6 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
 	default:
 		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
-	}
-
-	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {
