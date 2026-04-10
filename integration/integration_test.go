@@ -1820,55 +1820,12 @@ type disconnectTestCase struct {
 	verifyError errorVerifier
 }
 
-// repeatingReader is an [io.ReadCloser] that produces the
-// provided output at the configured interval until closed.
-// For example, all calls to Read on the following reader will
-// block for a minute and then return "hi" to the caller. Once
-// Closed an `io.EOF` will be returned from Read
-//
-// r := repeatingReader{output: hi, interval:time.Minute}
-// n, err := r.Read(out)
-type repeatingReader struct {
-	output   string
-	interval time.Duration
-	closed   chan struct{}
-}
-
-func newRepeatingReader(output string, interval time.Duration) repeatingReader {
-	return repeatingReader{
-		interval: interval,
-		output:   output,
-		closed:   make(chan struct{}),
-	}
-}
-
-func (r repeatingReader) Read(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	select {
-	case <-time.After(r.interval):
-	case <-r.closed:
-		return 0, io.EOF
-	}
-
-	end := min(len(r.output), len(p))
-
-	n := copy(p, r.output[:end])
-	return n, nil
-}
-
-func (r repeatingReader) Close() error {
-	close(r.closed)
-	return nil
-}
-
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
+	idleTimeout := 10 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(3 * time.Second)
+	netConfig.SetClientIdleTimeout(idleTimeout)
 
 	tconf := suite.defaultServiceConfig()
 	tconf.SSH.Enabled = true
@@ -1877,48 +1834,59 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	var output bytes.Buffer
+	term := NewTerminal(100000)
+	sessionCtx, cancelSession := context.WithTimeout(t.Context(), 4*idleTimeout)
+	defer cancelSession()
 
-	// SSH into the server, and stay active for longer than
-	// the client idle timeout.
-	sessionErr := make(chan error)
+	sessionErr := make(chan error, 1)
 	openSession := func() {
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
 			Host:                 Host,
+			Interactive:          true,
 			DisableSSHResumption: true,
 		})
 		if err != nil {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
-		cl.Stdout = &output
-		// Execute a command faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
-		defer func() { reader.Close() }()
-		cl.Stdin = reader
+		cl.Stdout = term
+		cl.Stdin = term
 
-		// Terminate the session after 2x the idle timeout
-		ctx, cancel := context.WithTimeout(t.Context(), netConfig.GetClientIdleTimeout()*2)
-		defer cancel()
-		sessionErr <- cl.SSH(ctx, nil)
+		sessionErr <- cl.SSH(sessionCtx, nil)
 	}
 
 	go openSession()
 
-	// Wait for the sessions to end - we expect an error
-	// since we are canceling the context.
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assert.NoError(collect, enterInput(sessionCtx, term, "echo txlxport | sed 's/x/e/g' \r\n", "teleport"))
+	}, 10*time.Second, 2*time.Second)
+
+	var firstAckAt time.Time
+	var lastAckAt time.Time
+	for i := 0; ; i++ {
+		require.NoError(t, enterInput(sessionCtx, term, "echo txlxport"+strconv.Itoa(i)+" | sed 's/x/e/g' \r\n", "teleport"+strconv.Itoa(i)))
+		lastAckAt = time.Now()
+
+		if firstAckAt.IsZero() {
+			firstAckAt = lastAckAt
+		}
+
+		if lastAckAt.Sub(firstAckAt) > idleTimeout*3/2 {
+			break
+		}
+
+		select {
+		case <-time.After(idleTimeout / 3):
+		case <-sessionCtx.Done():
+			require.FailNowf(t, "timeout", "session ended before exceeding idle timeout: %v", sessionCtx.Err())
+		}
+	}
+
+	cancelSession()
 	err := waitForError(sessionErr, time.Second*15)
 	require.Error(t, err)
-
-	// Ensure that the session was alive beyond the idle timeout by
-	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout, then there should be at least 30 occurrences
-	// since the command is run more frequently the idle timeout.
-	require.NotEmpty(t, output)
-	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
@@ -2159,20 +2127,16 @@ func timeNow() string {
 // the supplied regexp string.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
-	abortTime := time.Now().Add(10 * time.Second)
-	var matched bool
-	var output string
+	abortTime := time.Now().Add(2 * time.Second)
 	for {
-		output = replaceNewlines(person.Output(1000))
-		matched, _ = regexp.MatchString(pattern, output)
+		output := replaceNewlines(person.Output(100000))
+		matched, _ := regexp.MatchString(pattern, output)
 		if matched {
 			return nil
 		}
 		select {
-		case <-time.After(time.Millisecond * 50):
+		case <-time.After(50 * time.Millisecond):
 		case <-ctx.Done():
-			// cancellation means that we don't care about the input being
-			// confirmed anymore; not equivalent to a timeout.
 			return nil
 		}
 		if time.Now().After(abortTime) {
