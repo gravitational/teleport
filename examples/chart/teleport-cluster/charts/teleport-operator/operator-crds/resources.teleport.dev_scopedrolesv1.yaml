@@ -57,46 +57,6 @@ spec:
                       own value. Must be a valid Go duration string (e.g. "30m", "1h").
                     type: string
                 type: object
-              kube:
-                description: The kubernetes specific configuration for a scoped role.
-                nullable: true
-                properties:
-                  client_idle_timeout:
-                    description: Overrides the defaults block idle timeout specifically
-                      for kube sessions. Must be a valid Go duration string (e.g.
-                      "30m", "1h"). If empty, the defaults block value (or global
-                      default) applies.
-                    type: string
-                  groups:
-                    description: The list of kubernetes groups this role allows.
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                  labels:
-                    description: The map of kubernetes cluster labels used for RBAC.
-                    items:
-                      properties:
-                        name:
-                          description: The name of the label.
-                          type: string
-                        values:
-                          description: The values associated with the label.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                      type: object
-                    nullable: true
-                    type: array
-                  users:
-                    description: An optional list of impersonatable kubernetes users
-                      this role allows.
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                type: object
               rules:
                 description: Rules describes basic resource:verb permissions (e.g.
                   scoped_role:read).

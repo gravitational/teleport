@@ -20,16 +20,17 @@ package provider
 import (
 	"context"
 	"fmt"
-	apitypes "github.com/gravitational/teleport/api/types"
+	apitypes "github.com/gravitational/teleport/lib/scopes/access"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1"
 )
@@ -104,24 +105,14 @@ func (r resourceTeleportScopedRole) Create(ctx context.Context, req tfsdk.Create
 		var scopedRoleI *accessv1.ScopedRole
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		scopedRoleI, err = r.p.Client.GetScopedRole(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(ctx.Err()), "scoped_role"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(err), "scoped_role"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading ScopedRole (tried %d times) - state outdated, please import resource", tries)
@@ -219,7 +210,6 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 	}
 	scopedRoleResource := scopedRole
 
-	scopedRoleResource.Kind = apitypes.KindScopedRole
 
 	
 	name := scopedRoleResource.Metadata.Name
@@ -238,15 +228,7 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 		var scopedRoleI *accessv1.ScopedRole
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		scopedRoleI, err = r.p.Client.GetScopedRole(ctx, name)
@@ -258,11 +240,9 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(ctx.Err()), "scoped_role"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRole", trace.Wrap(err), "scoped_role"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ScopedRole (tried %d times) - state outdated, please import resource", tries)

@@ -7,10 +7,6 @@ description: This page describes the supported values of the teleport_scoped_rol
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-{/* Disable the outdated name check since data source fields occasionally need
-to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This page describes the supported values of the `teleport_scoped_role` data source of the
 Teleport Terraform provider.
 
@@ -54,7 +50,6 @@ Required:
 Optional:
 
 - `defaults` (Attributes) Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence. (see [below for nested schema](#nested-schema-for-specdefaults))
-- `kube` (Attributes) The kubernetes specific configuration for a scoped role. (see [below for nested schema](#nested-schema-for-speckube))
 - `rules` (Attributes List) Rules describes basic resource:verb permissions (e.g. scoped_role:read). (see [below for nested schema](#nested-schema-for-specrules))
 - `ssh` (Attributes) Ssh specifies controls that govern SSH access. (see [below for nested schema](#nested-schema-for-specssh))
 
@@ -63,24 +58,6 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
-
-
-### Nested Schema for `spec.kube`
-
-Optional:
-
-- `client_idle_timeout` (String) Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
-- `groups` (List of String) The list of kubernetes groups this role allows.
-- `labels` (Attributes List) The map of kubernetes cluster labels used for RBAC. (see [below for nested schema](#nested-schema-for-speckubelabels))
-- `users` (List of String) An optional list of impersonatable kubernetes users this role allows.
-
-### Nested Schema for `spec.kube.labels`
-
-Optional:
-
-- `name` (String) The name of the label.
-- `values` (List of String) The values associated with the label.
-
 
 
 ### Nested Schema for `spec.rules`

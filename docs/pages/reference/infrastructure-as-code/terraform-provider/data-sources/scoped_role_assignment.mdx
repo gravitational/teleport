@@ -7,10 +7,6 @@ description: This page describes the supported values of the teleport_scoped_rol
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-{/* Disable the outdated name check since data source fields occasionally need
-to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This page describes the supported values of the `teleport_scoped_role_assignment` data source of the
 Teleport Terraform provider.
 
@@ -47,7 +43,12 @@ Optional:
 Required:
 
 - `assignments` (Attributes List) Assignments is a list of individual role @ scope assignments. (see [below for nested schema](#nested-schema-for-specassignments))
-- `user` (String) User is the user to whom all contained assignments apply.
+
+Optional:
+
+- `bot_name` (String) Name of the Bot to whom all contained assignments apply. Mutually exclusive with `user`.
+- `bot_scope` (String) Scope of the Bot to whom all contained assignments apply. Required if `bot_name` is set. If specified, assignment scopes must be equal or descendent of this scope.
+- `user` (String) User is the user to whom all contained assignments apply. Mutually exclusive with `bot_name`.
 
 ### Nested Schema for `spec.assignments`
 

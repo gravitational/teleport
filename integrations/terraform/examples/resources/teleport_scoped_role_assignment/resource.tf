@@ -23,7 +23,9 @@
 resource "teleport_scoped_role_assignment" "example" {
   version  = "v1"
   sub_kind = "dynamic"
-  metadata = {}
+  metadata = {
+    name = "dc6961fa-cbfb-4024-83f1-f6168310638b"
+  }
 
   scope = "/staging"
 
@@ -31,7 +33,7 @@ resource "teleport_scoped_role_assignment" "example" {
     user = "will"
     assignments = [{
       role  = "example-scoped-role"
-      scope = "/staging/aaaa"
+      scope = "/staging/aa"
     }]
   }
 }
