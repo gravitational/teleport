@@ -328,7 +328,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Optional:    true,
 				},
 				"join_method": {
-					Description: "The joining method required in order to use this token. Supported joining methods for scoped tokens only include 'token'.",
+					Description: "The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
