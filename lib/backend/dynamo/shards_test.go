@@ -291,7 +291,7 @@ type eventTracker struct {
 	writtenEvents map[string]bool
 
 	receiveMu      sync.Mutex
-	receivedEvents map[string]bool
+	receivedEvents map[string]int
 	lastEventTime  time.Time
 }
 
@@ -299,7 +299,7 @@ func newEventTracker(t *testing.T) *eventTracker {
 	now := time.Now()
 	return &eventTracker{
 		writtenEvents:  make(map[string]bool),
-		receivedEvents: make(map[string]bool),
+		receivedEvents: make(map[string]int),
 		lastEventTime:  now,
 		startTime:      now,
 		t:              t,
@@ -325,10 +325,7 @@ func (et *eventTracker) receiveEvents(ctx context.Context, watcher backend.Watch
 func (et *eventTracker) handleReceivedEvent(event backend.Event) {
 	keyStr := event.Item.Key.String()
 	et.receiveMu.Lock()
-	if _, exists := et.receivedEvents[keyStr]; exists {
-		et.t.Logf("Duplicate event received for key %q", keyStr)
-	}
-	et.receivedEvents[keyStr] = true
+	et.receivedEvents[keyStr]++
 	et.lastEventTime = time.Now()
 	et.receiveMu.Unlock()
 }
@@ -548,6 +545,11 @@ func verifyNoEventLoss(t *testing.T, tracker *eventTracker) {
 	defer tracker.writeMu.Unlock()
 
 	t.Logf("Total events received: %d/%d written", len(tracker.receivedEvents), len(tracker.writtenEvents))
+
+	for key, count := range tracker.receivedEvents {
+		assert.Equal(t, 1, count, "Duplicate events (%v) recieved for key %q", count, key)
+	}
+
 	missingRecived, unexpectedReceived := diffKeys(tracker.writtenEvents, tracker.receivedEvents)
 	require.Empty(t, missingRecived, "Missing %d events that were successfully written. Missing event keys: %v", len(missingRecived), missingRecived)
 	require.Empty(t, unexpectedReceived, "Received %d unexpected events that were not written. Unexpected event keys: %v", len(unexpectedReceived), unexpectedReceived)
