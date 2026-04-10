@@ -239,6 +239,11 @@ func (m *consumeRecoveryMutator) validate(
 		return trace.AccessDenied("unexpected backend state")
 	}
 
+	if spec.Recovery == nil {
+		// Token is invalid, reject
+		return trace.AccessDenied("unexpected backend state")
+	}
+
 	// Ensure the allowed join count has at least not decreased, but allow
 	// for collision with potentially increased values.
 	if spec.Recovery.Limit < m.expectMinRecoveryLimit {
