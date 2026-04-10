@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -370,9 +371,14 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// UserKeyAuth implements SSH client authentication using public keys and is
-// called by the server every time the client connects.
-func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
+// PublicKeyCallback performs full certificate and RBAC checks for a proposed SSH public key.
+//
+// This method is intended to be used as the PublicKeyCallback in ssh.ServerConfig before the client proves key
+// possession. It decides whether the offered key could be accepted once ownership is proven.
+//
+// If the certificate is valid and authorized, this callback returns permissions that will be passed through to
+// VerifiedPublicKeyCallback. If the certificate is invalid or unauthorized, it returns a non-nil error.
+func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
@@ -399,7 +405,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 			"valid_principals", cert.ValidPrincipals,
 			"valid_after", cert.ValidAfter,
 			"valid_before", cert.ValidBefore,
-			"permissions", cert.Permissions,
+			"critical_options", cert.CriticalOptions,
+			"extensions", cert.Extensions,
 			"reserved", cert.Reserved,
 		),
 	)
@@ -704,8 +711,121 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		"git_forwarding_permit", gitForwardingPermit,
 	)
 
-	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
-	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
+	return outputPermissions, nil
+}
+
+// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
+//
+// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
+// possession. Key acceptance decisions are performed in PublicKeyCallback.
+func (h *AuthHandlers) VerifiedPublicKeyCallback(
+	conn ssh.ConnMetadata,
+	key ssh.PublicKey,
+	perms *ssh.Permissions,
+	_ string,
+) (*ssh.Permissions, error) {
+	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
+	// entry to be unset, so grant access.
+	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
+	if !ok {
+		return perms, nil
+	}
+
+	permit := &decisionpb.SSHAccessPermit{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If no preconditions are set, allow the connection to proceed without additional checks.
+	preconds := permit.GetPreconditions()
+	if len(preconds) == 0 {
+		return perms, nil
+	}
+
+	cert, ok := key.(*ssh.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
+	}
+
+	id, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
+	}
+
+	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions. Assume
+	// that it is required until we can verify that it is not.
+	requiresKeyboardInteractive := true
+
+	for _, precond := range preconds {
+		switch precond.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+			if requiresKeyboardInteractive, err = requiresInBandMFA(id, conn); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+		default:
+			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
+			return nil, trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	// If we have determined that keyboard-interactive authentication is not required to satisfy any outstanding
+	// preconditions, allow the connection to proceed. Otherwise, proceed to the keyboard-interactive callback to
+	// evaluate the remaining preconditions.
+	if !requiresKeyboardInteractive {
+		return perms, nil
+	}
+
+	return h.KeyboardInteractiveAuth(
+		context.Background(),
+		preconds,
+		id,
+		perms,
+	)
+}
+
+func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) {
+	// If the certificate indicates that hardware MFA was used, we can trust that MFA was completed and allow the
+	// connection to proceed without performing in-band MFA checks, even if the client doesn't support in-band MFA.
+	if id.PrivateKeyPolicy.MFAVerified() {
+		return false, nil
+	}
+
+	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
+	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
+		return false, trace.Wrap(err)
+	}
+
+	var (
+		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
+		isLegacyClient      = !inBandMFASupported
+		isRegularSSHCert    = id.MFAVerified == ""
+		isPerSessionMFACert = !isRegularSSHCert
+	)
+
+	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
+	// legacy clients is no longer supported.
+	if isLegacyClient {
+		if forceInBandMFA {
+			// In-band MFA is required and the client doesn't support in-band MFA, deny.
+			return false, trace.AccessDenied(
+				"This connection requires in-band MFA, but your SSH client does not support it. " +
+					"Please update your Teleport SSH client to the latest version to connect.",
+			)
+		}
+
+		if isPerSessionMFACert {
+			// In-band MFA is optional, and the client is using a legacy per-session MFA certificate, allow
+			// during the RFD 234 transition period.
+			return false, nil
+		}
+
+		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
+		return false, services.ErrSessionMFARequired
+	}
+
+	// Client must proceed with in-band MFA checks to satisfy the precondition.
+	return true, nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -896,7 +1016,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 	ctx := a.c.Server.Context()
 
 	if clusterName != ca.GetClusterName() {
-		// we don't currently support cross-cluster git forwarding (see comments in UserKeyAuth for details).
+		// we don't currently support cross-cluster git forwarding (see comments in PublicKeyCallback for details).
 		return nil, trace.BadParameter("evaluateGitForwarding called with non-local identity (this is a bug)")
 	}
 

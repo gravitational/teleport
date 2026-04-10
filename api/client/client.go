@@ -86,6 +86,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -6250,4 +6251,9 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 // gRPC connection.
 func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
 	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].
+func (c *Client) IssuanceClient() issuancev1pb.IssuanceServiceClient {
+	return issuancev1pb.NewIssuanceServiceClient(c.conn)
 }

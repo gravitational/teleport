@@ -102,6 +102,10 @@ func (c *ScopedAccessCheckerContext) ScopePin() (*scopesv1.Pin, bool) {
 // yields a single checker wrapping the full unscoped context.
 //
 // This is the mechanism that *must* be used for getting checkers when checking access to a resource.
+//
+// Callers may pass an empty string ("") as scope to indicate an unscoped resource. This will not be treated as a
+// root scope resource - i.e. identities with privileges assigned in the root scope will not be able to access the
+// resource.
 func (c *ScopedAccessCheckerContext) CheckersForResourceScope(ctx context.Context, scope string) stream.Stream[*ScopedAccessChecker] {
 	if !c.isScoped() {
 		return stream.Once(NewScopedAccessCheckerFromUnscoped(c.unscopedChecker))

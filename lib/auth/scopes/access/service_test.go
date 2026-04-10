@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -140,10 +141,17 @@ func newBackendPack(t *testing.T) *backendPack {
 	service := local.NewScopedAccessService(backend)
 	classicService := local.NewAccessService(backend)
 	events := local.NewEventsService(backend)
+	aclService, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
 
 	cache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
-		Events: events,
-		Reader: service,
+		Events:           events,
+		Reader:           service,
+		AccessListEvents: events,
+		AccessListReader: aclService,
 	})
 	require.NoError(t, err)
 
@@ -470,6 +478,14 @@ func TestAssignmentBasics(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := t.Context()
+	newForgedStatus := func() *scopedaccessv1.ScopedRoleAssignmentStatus {
+		return &scopedaccessv1.ScopedRoleAssignmentStatus{
+			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+				CreatorKind: scopedaccess.CreatorKindAccessList,
+				CreatorName: "forged-access-list",
+			},
+		}
+	}
 
 	bk := newBackendPack(t)
 	defer bk.Close()
@@ -580,11 +596,13 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected successful create
 	a1 := newScopedRoleAssignmentAtScope("staging-admin", "/staging")
+	a1.Status = newForgedStatus()
 	carsp, err := srv.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: a1,
 	})
 	require.NoError(t, err)
 	require.Equal(t, a1.GetMetadata().GetName(), carsp.GetAssignment().GetMetadata().GetName())
+	require.Nil(t, carsp.GetAssignment().GetStatus())
 
 	// wait for assignments to be populated into cache
 	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
@@ -665,12 +683,14 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// add a label and update
 	ca3rsp.Assignment.Metadata.Labels = map[string]string{"key": "val"}
+	ca3rsp.Assignment.Status = newForgedStatus()
 	ua3rsp, err := srv.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
 		Assignment: ca3rsp.GetAssignment(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, a3.GetMetadata().GetName(), ua3rsp.GetAssignment().GetMetadata().GetName())
 	require.NotEqual(t, ca3rsp.GetAssignment().GetMetadata().GetRevision(), ua3rsp.GetAssignment().GetMetadata().GetRevision())
+	require.Nil(t, ua3rsp.GetAssignment().GetStatus())
 
 	// observe change in cache
 	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
@@ -710,14 +730,17 @@ func TestAssignmentBasics(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Nil(t, garsp.GetAssignment().GetMetadata().GetLabels())
+	require.Nil(t, garsp.GetAssignment().GetStatus())
 
 	// verify expected successful upsert (creates new assignment)
 	a4 := newScopedRoleAssignmentAtScope("staging-admin", "/staging")
+	a4.Status = newForgedStatus()
 	ua4rsp, err := srv.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
 		Assignment: a4,
 	})
 	require.NoError(t, err)
 	require.Equal(t, a4.GetMetadata().GetName(), ua4rsp.GetAssignment().GetMetadata().GetName())
+	require.Nil(t, ua4rsp.GetAssignment().GetStatus())
 
 	// wait for upserted assignment to appear in cache
 	waitForAssignmentCondition(t, bk.cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
@@ -731,12 +754,21 @@ func TestAssignmentBasics(t *testing.T) {
 
 	// verify expected successful upsert (updates existing assignment)
 	ua4rsp.Assignment.Metadata.Labels = map[string]string{"upserted": "true"}
+	ua4rsp.Assignment.Status = newForgedStatus()
 	ua4rsp2, err := srv.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
 		Assignment: ua4rsp.GetAssignment(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, a4.GetMetadata().GetName(), ua4rsp2.GetAssignment().GetMetadata().GetName())
 	require.Equal(t, "true", ua4rsp2.GetAssignment().GetMetadata().GetLabels()["upserted"])
+	require.Nil(t, ua4rsp2.GetAssignment().GetStatus())
+
+	garsp, err = bk.service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		Name:    a4.GetMetadata().GetName(),
+		SubKind: a4.GetSubKind(),
+	})
+	require.NoError(t, err)
+	require.Nil(t, garsp.GetAssignment().GetStatus())
 
 	// verify expected denied upsert (out of scope)
 	a5 := newScopedRoleAssignmentAtScope("prod-admin", "/prod")
