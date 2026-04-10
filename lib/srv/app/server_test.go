@@ -19,6 +19,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -39,7 +40,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -182,10 +183,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
-	s.hostUUID = config.HostUUID
-	if s.hostUUID == "" {
-		s.hostUUID = uuid.New().String()
-	}
+	s.hostUUID = cmp.Or(config.HostUUID, uuid.New().String())
 	s.login = config.Login
 
 	var err error
@@ -422,25 +420,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
-	if !config.ManualStart {
-		err = s.appServer.Start(s.closeContext)
-		require.NoError(t, err)
-
-		// Explicitly send a heartbeat for any statically defined apps.
-		for _, app := range apps {
-			select {
-			case sender := <-inventoryHandle.Sender():
-				appServer, err := s.appServer.getServerInfo(app)
-				require.NoError(t, err)
-				require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
-					AppServer: appServer,
-				}))
-			case <-time.After(20 * time.Second):
-				t.Fatal("timed out waiting for inventory handle sender")
-			}
-		}
-	}
-
 	t.Cleanup(func() {
 		s.appServer.Close()
 
@@ -448,6 +427,27 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		// actions to proceed
 		s.appServer.Wait()
 	})
+
+	if config.ManualStart {
+		return s
+	}
+
+	err = s.appServer.Start(s.closeContext)
+	require.NoError(t, err)
+
+	// Explicitly send a heartbeat for any statically defined apps.
+	for _, app := range apps {
+		select {
+		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
+			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
+				AppServer: appServer,
+			}))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
+	}
 
 	return s
 }
@@ -515,7 +515,7 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
+	require.Empty(t, gocmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"), cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures")))
 
 	// Check the expiry time is correct.
@@ -589,7 +589,7 @@ func TestShutdown(t *testing.T) {
 				if !assert.Len(t, appServers, 1) {
 					return
 				}
-				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+				if !assert.Empty(t, gocmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
 					return
 				}
 			}, 10*time.Second, 100*time.Millisecond)
@@ -608,7 +608,7 @@ func TestShutdown(t *testing.T) {
 				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, appServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, gocmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
@@ -1165,7 +1165,7 @@ func TestRequestAuditEvents(t *testing.T) {
 						AppName:       app.Metadata.Name,
 					},
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1189,7 +1189,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					Method:     "GET",
 					Path:       "/",
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1242,7 +1242,7 @@ func TestRequestAuditEvents(t *testing.T) {
 			AppName:       app.Metadata.Name,
 		},
 	}
-	require.Empty(t, cmp.Diff(
+	require.Empty(t, gocmp.Diff(
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),

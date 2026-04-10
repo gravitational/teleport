@@ -468,25 +468,34 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	return nil
 }
 
-// cleanupOrphanedAppServers deletes app server heartbeat records
-// belonging to this host that no longer correspond to a running app.
-// This handles the case where an app is removed from config and the
-// agent is reloaded: the old heartbeat record is orphaned because no
-// process deletes it, and it lingers until TTL expiry.
+// cleanupOrphanedAppServers deletes app server heartbeat
+// records belonging to this host that no longer correspond
+// to a running app.
+//
+// When an app is removed from config and the agent is
+// reloaded via SIGHUP, the removed app's heartbeat record
+// is not deleted. It lingers in the auth backend until TTL
+// expiry (up to 15 minutes). This method runs on startup
+// to clean up those orphaned records immediately.
+//
+// For agents with dynamic apps (ResourceMatchers), cleanup
+// waits for the first successful reconciliation so that
+// s.apps includes dynamic apps before deciding what is
+// orphaned. If reconciliation does not complete within a
+// timeout, cleanup is skipped entirely to avoid mistakenly
+// deleting valid dynamic app records.
 func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
-	// If the resource watcher is active, wait for the first
-	// reconciliation so s.apps includes dynamic apps. Without
-	// this, cleanup would incorrectly delete heartbeat records
-	// for dynamic apps not yet reconciled. Use a timeout so
-	// cleanup still runs if the watcher never delivers an
-	// initial resource set (e.g. auth is slow at startup).
+	// Bail out if reconciliation does not complete within a
+	// reasonable time. Without a full picture of dynamic apps
+	// we could mistakenly delete valid records.
 	if s.watcher != nil {
 		timer := time.NewTimer(2 * time.Minute)
 		defer timer.Stop()
 		select {
 		case <-s.reconcileDone:
 		case <-timer.C:
-			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation before orphan cleanup, proceeding with static apps only.")
+			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation, skipping orphan cleanup.")
+			return
 		case <-s.closeContext.Done():
 			return
 		case <-ctx.Done():
@@ -511,11 +520,10 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 		return
 	}
 
-	if s.closeContext.Err() != nil {
-		return
-	}
-
 	for _, server := range servers {
+		if s.closeContext.Err() != nil {
+			return
+		}
 		if server.GetHostID() != s.c.HostID {
 			continue
 		}
