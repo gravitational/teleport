@@ -1400,14 +1400,15 @@ var (
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
 		types.KindMCP:                    {},
+		types.KindLLM:                    {},
 	}
 
 	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
 )
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
-	// MCP are apps internally atm.
-	if kind == types.KindMCP {
+	// MCP and LLM are apps internally atm.
+	if kind == types.KindMCP || kind == types.KindLLM {
 		kind = types.KindApp
 	}
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {

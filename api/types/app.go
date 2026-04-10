@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"iter"
 	"net/url"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
@@ -75,6 +77,8 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
+	// IsLLM returns true if this app represents a LLM inference endpoint.
+	IsLLM() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -306,6 +310,11 @@ func (a *AppV3) IsMCP() bool {
 	return IsAppMCP(a.Spec.URI)
 }
 
+// IsLLM returns true if app is an LLM inference endpoint.
+func (a *AppV3) IsLLM() bool {
+	return strings.HasPrefix(a.Spec.URI, SchemeLLMEndpoint+"://")
+}
+
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
 }
@@ -322,6 +331,9 @@ func (a *AppV3) GetProtocol() string {
 	}
 	if a.IsMCP() {
 		return "MCP"
+	}
+	if a.IsLLM() {
+		return "LLM"
 	}
 	return "HTTP"
 }
@@ -435,6 +447,8 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
 		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
 			a.Spec.URI = SchemeMCPStdio + "://"
+		case a.Spec.LLM != nil:
+			a.Spec.URI = SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
@@ -479,15 +493,19 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(a.Spec.TCPPorts) != 0 {
-		if err := a.checkTCPPorts(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if a.IsMCP() {
+	switch {
+	case a.IsMCP():
 		a.SetSubKind(SubKindMCP)
 		if err := a.checkMCP(); err != nil {
+			return trace.Wrap(err)
+		}
+	case a.IsLLM():
+		a.SetSubKind(SubKindLLM)
+		if err := a.checkLLM(); err != nil {
+			return trace.Wrap(err)
+		}
+	case len(a.Spec.TCPPorts) != 0:
+		if err := a.checkTCPPorts(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -510,16 +528,19 @@ func (a *AppV3) checkTCPPorts() error {
 		return trace.BadParameter("invalid app URI format: %v", err)
 	}
 
+	switch {
 	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
 	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
+	case uri.Scheme != "tcp":
 		return nil
-	}
-
-	if uri.Port() != "" {
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'mcp' configuration", a.GetName())
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("TCP app %q cannot specify 'inference' configuration", a.GetName())
+	case uri.Port() != "":
 		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
 	}
 
@@ -533,6 +554,13 @@ func (a *AppV3) checkTCPPorts() error {
 }
 
 func (a *AppV3) checkMCP() error {
+	switch {
+	case a.Spec.LLM != nil:
+		return trace.BadParameter("MCP server %q cannot specify 'inference' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("MCP server %q cannot specify 'tcp_ports' configuration", a.GetName())
+	}
+
 	switch GetMCPServerTransportType(a.Spec.URI) {
 	case MCPTransportStdio:
 		return trace.Wrap(a.checkMCPStdio())
@@ -558,6 +586,71 @@ func (a *AppV3) checkMCPStdio() error {
 	if a.Spec.MCP.RunAsHostUser == "" {
 		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
 	}
+	return nil
+}
+
+// supportedFormatInferenceProviders determines which provider can serve an API
+// format.
+var supportedFormatInferenceProviders = map[LLM_Format][]LLM_Provider{
+	LLM_FORMAT_ANTHROPIC: {LLM_PROVIDER_ANTHROPIC, LLM_PROVIDER_AWS_BEDROCK},
+	LLM_FORMAT_OPENAI:    {LLM_PROVIDER_OPENAI},
+}
+
+func (a *AppV3) checkLLM() error {
+	switch {
+	case a.Spec.URI != SchemeLLMEndpoint+"://":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'uri' configuration", a.GetName())
+	case a.Spec.LLM == nil:
+		return trace.BadParameter("Inference endpoint %q must specify 'inference' configuration", a.GetName())
+	case a.Spec.Cloud != "":
+		return trace.BadParameter("Inference endpoint %q cannot specify 'cloud' configuration", a.GetName())
+	case a.Spec.MCP != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'mcp' configuration", a.GetName())
+	case len(a.Spec.TCPPorts) != 0:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
+	case a.Spec.Rewrite != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
+	}
+
+	llm := a.Spec.LLM
+	switch {
+	case llm.Format == LLM_FORMAT_UNSPECIFIED:
+		return trace.BadParameter("Inference endpoint %q is missing 'format'", a.GetName())
+	case llm.Provider == LLM_PROVIDER_UNSPECIFIED:
+		return trace.BadParameter("Inference endpoint %q is missing 'provider'", a.GetName())
+	}
+
+	// Ensure the combination between Format and Provider is supported.
+	providers, ok := supportedFormatInferenceProviders[llm.Format]
+	if !ok {
+		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'", a.GetName(), llm.Format.DisplayName())
+	}
+
+	if !slices.Contains(providers, llm.Provider) {
+		providersStrings := iterutils.Map(func(provider LLM_Provider) string {
+			return provider.DisplayName()
+		}, slices.Values(providers))
+
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format.DisplayName(), strings.Join(slices.Collect(providersStrings), ","))
+	}
+
+	for _, model := range llm.Models {
+		if model.Name == "" {
+			return trace.BadParameter("Inference endpoint %q 'models' elements must include the 'name' property", a.GetName())
+		}
+	}
+
+	// Ensure fallback model is present on the models list.
+	if llm.FallbackModel != "" {
+		if len(llm.Models) == 0 {
+			return trace.BadParameter("Inference endpoint %q specifies a 'fallback_model', but 'models' is empty. The 'fallback_model' must be defined in the 'models' list", a.GetName())
+		}
+
+		if !slices.ContainsFunc(llm.Models, func(model *LLM_Model) bool { return model.Name == llm.FallbackModel }) {
+			return trace.BadParameter("Inference endpoint %q doesn't specify the model used in 'fallback_model'. Update the 'models' list to include the missing model or update the 'fallback_model' to one item of the list", a.GetName())
+		}
+	}
+
 	return nil
 }
 
@@ -704,5 +797,203 @@ func GetMCPServerTransportType(uri string) string {
 		return MCPTransportHTTP
 	default:
 		return ""
+	}
+}
+
+const (
+	// LLMFormatOpenAIString represents the OpenAI LLM API format.
+	LLMFormatOpenAIString = "openai"
+	// LLMFormatAnthropicString represents the Anthropic LLM API format.
+	LLMFormatAnthropicString = "anthropic"
+)
+
+// DisplayName is the human-readable display name of the LLM format.
+func (h LLM_Format) DisplayName() string {
+	enc, err := h.encode()
+	if err != nil {
+		return ""
+	}
+	return enc
+}
+
+// UnmarshalYAML supports parsing LLM_Format from string.
+func (h *LLM_Format) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	format, err := DecodeLLMFormat(val)
+	*h = format
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals LLM_Format to yaml.
+func (h *LLM_Format) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals LLM_Format to json bytes.
+func (h *LLM_Format) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing LLM_Format from string.
+func (h *LLM_Format) UnmarshalJSON(data []byte) error {
+	var val any
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	format, err := DecodeLLMFormat(val)
+	*h = format
+	return trace.Wrap(err)
+}
+
+func (h LLM_Format) encode() (string, error) {
+	switch h {
+	case LLM_FORMAT_UNSPECIFIED:
+		return "", nil
+	case LLM_FORMAT_OPENAI:
+		return LLMFormatOpenAIString, nil
+	case LLM_FORMAT_ANTHROPIC:
+		return LLMFormatAnthropicString, nil
+	}
+
+	return "", trace.BadParameter("invalid llm api format %v", h)
+}
+
+// DecodeLLMFormat decodes a value into LLM_Format.
+func DecodeLLMFormat(val any) (LLM_Format, error) {
+	var str string
+	switch val := val.(type) {
+	case string:
+		str = val
+	default:
+		return LLM_FORMAT_UNSPECIFIED, trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		return LLM_FORMAT_UNSPECIFIED, nil
+	case LLMFormatOpenAIString:
+		return LLM_FORMAT_OPENAI, nil
+	case LLMFormatAnthropicString:
+		return LLM_FORMAT_ANTHROPIC, nil
+	default:
+		return LLM_FORMAT_UNSPECIFIED, trace.BadParameter("invalid llm api format %v", val)
+	}
+}
+
+const (
+	// LLMProviderOpenAIString represents the OpenAI LLM inference provider.
+	LLMProviderOpenAIString = "openai"
+	// LLMProviderAnthropicString represents the Anthropic LLM inference provider.
+	LLMProviderAnthropicString = "anthropic"
+	// LLMProviderAWSBedrockString represents the AWS Bedrock LLM inference provider.
+	LLMProviderAWSBedrockString = "bedrock"
+)
+
+// DisplayName is the human-readable display name of the LLM provider.
+func (h LLM_Provider) DisplayName() string {
+	enc, err := h.encode()
+	if err != nil {
+		return ""
+	}
+	return enc
+}
+
+// UnmarshalYAML supports parsing LLM_Provider from string.
+func (h *LLM_Provider) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	provider, err := DecodeLLMProvider(val)
+	*h = provider
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals LLM_Provider to yaml.
+func (h *LLM_Provider) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals LLM_Provider to json bytes.
+func (h *LLM_Provider) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing LLM_Provider from string.
+func (h *LLM_Provider) UnmarshalJSON(data []byte) error {
+	var val any
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	provider, err := DecodeLLMProvider(val)
+	*h = provider
+	return trace.Wrap(err)
+}
+
+func (h LLM_Provider) encode() (string, error) {
+	switch h {
+	case LLM_PROVIDER_UNSPECIFIED:
+		return "", nil
+	case LLM_PROVIDER_OPENAI:
+		return LLMProviderOpenAIString, nil
+	case LLM_PROVIDER_ANTHROPIC:
+		return LLMProviderAnthropicString, nil
+	case LLM_PROVIDER_AWS_BEDROCK:
+		return LLMProviderAWSBedrockString, nil
+	}
+
+	return "", trace.BadParameter("invalid llm provider %v", h)
+}
+
+// DecodeLLMProvider decodes a value into LLM_Provider.
+func DecodeLLMProvider(val any) (LLM_Provider, error) {
+	var str string
+	switch val := val.(type) {
+	case string:
+		str = val
+	default:
+		return LLM_PROVIDER_UNSPECIFIED, trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch str {
+	case "":
+		return LLM_PROVIDER_UNSPECIFIED, nil
+	case LLMProviderOpenAIString:
+		return LLM_PROVIDER_OPENAI, nil
+	case LLMProviderAnthropicString:
+		return LLM_PROVIDER_ANTHROPIC, nil
+	case LLMProviderAWSBedrockString:
+		return LLM_PROVIDER_AWS_BEDROCK, nil
+	default:
+		return LLM_PROVIDER_UNSPECIFIED, trace.BadParameter("invalid llm provider %v", val)
 	}
 }

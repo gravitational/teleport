@@ -6298,6 +6298,7 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 
 		createTestAppServerV3(t, srv.Auth(), name, nil)
 		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
+		createTestLLMAppServer(t, srv.Auth(), "llm-"+name, nil)
 	}
 
 	// create user and client
@@ -6336,11 +6337,18 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 			Kinds: []string{types.KindApp},
 		})
 		require.NoError(t, err)
-		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
+		require.Len(t, resp.Resources, 15) // 5 app + 5 mcp server + 5 llm endpoints
 	})
 	t.Run("KindMCP", func(t *testing.T) {
 		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Kinds: []string{types.KindMCP},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
+	t.Run("KindLLM", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindLLM},
 		})
 		require.NoError(t, err)
 		require.Len(t, resp.Resources, 5)
@@ -11238,6 +11246,24 @@ func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels
 	)
 	require.NoError(t, err)
 	return createTestAppServerFromApp(t, auth, mcp)
+}
+
+func createTestLLMAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	llm, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			LLM: &types.LLM{
+				Format:   types.LLM_FORMAT_ANTHROPIC,
+				Provider: types.LLM_PROVIDER_ANTHROPIC,
+			},
+		},
+	)
+	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, llm)
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {

@@ -421,6 +421,10 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return true
 		}
 
+		if _, ok := kinds[types.KindLLM]; ok && r.GetSubKind() == types.KindLLM {
+			return true
+		}
+
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
 	case types.KindKubeServer:
@@ -455,13 +459,14 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return ok
 		}
 
-		if _, ok := kinds[types.KindMCP]; ok {
-			type appGetter interface {
-				GetApp() types.Application
-			}
-			if appServer, ok := r.(appGetter); ok && appServer.GetApp().GetSubKind() == types.SubKindMCP {
-				return true
-			}
+		type appGetter interface {
+			GetApp() types.Application
+		}
+		if appServer, ok := r.(appGetter); ok {
+			_, isMCP := kinds[types.KindMCP]
+			_, isLLM := kinds[types.KindLLM]
+			subkind := appServer.GetApp().GetSubKind()
+			return (isMCP && subkind == types.SubKindMCP) || (isLLM && subkind == types.SubKindLLM)
 		}
 		return false
 	default:

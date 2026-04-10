@@ -659,6 +659,9 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
 			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
+		case app.IsLLM():
+			// TODO(gabrielcorado): implement inference endpoint unauthorized connection handler.
+			return nil, trace.AccessDenied("app access denied")
 		default:
 			c.setConnAuth(tlsConn, err)
 		}
@@ -691,6 +694,11 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			App:        app,
 		}
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
+
+	case app.IsLLM():
+		defer cancel(nil)
+		// TODO(gabrielcorado): implement inference endpoint handler.
+		return nil, trace.NotImplemented("LLM access is not implemented")
 
 	default:
 		// Transfer release ownership to the cleanup function so
