@@ -124,6 +124,7 @@ var ports utils.PortList
 const initTestSentinel = "init_test"
 
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	handleReexec()
 
 	var err error
@@ -236,11 +237,6 @@ func handleReexec() {
 			utils.FatalError(err)
 		}
 		os.Exit(0)
-	}
-
-	// Re-exec teleport commands. Used to test tsh ssh command.
-	if reexec.IsReexec() {
-		reexec.RunAndExit(os.Args[1])
 	}
 }
 
