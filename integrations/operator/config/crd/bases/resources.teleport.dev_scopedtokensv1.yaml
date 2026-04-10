@@ -184,6 +184,44 @@ spec:
                 description: The joining method required in order to use this token.
                   Supported joining methods for scoped tokens only include 'token'.
                 type: string
+              kubernetes:
+                description: The Kubernetes-specific configuration used with the "kubernetes"
+                  join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: A list of Rules for allowing use of this token. A
+                      node must match at least one allow rule in order to use this
+                      token.
+                    items:
+                      properties:
+                        service_account:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  oidc:
+                    description: The configuration specific to the `oidc` type.
+                    nullable: true
+                    properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
+                      issuer:
+                        type: string
+                    type: object
+                  static_jwks:
+                    description: The configuration specific to the `static_jwks` type.
+                    nullable: true
+                    properties:
+                      jwks:
+                        type: string
+                    type: object
+                  type:
+                    description: 'Controls which behavior should be used for validating
+                      the Kubernetes Service Account token. Supported values: - `in_cluster`
+                      - `static_jwks` - `oidc`'
+                    type: string
+                type: object
               oracle:
                 description: The Oracle-specific configuration used with the "oracle"
                   join method.
