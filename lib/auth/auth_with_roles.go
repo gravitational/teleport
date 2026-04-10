@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1532,13 +1533,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	// TODO (eriktate): remove this once ListUnifiedResources supports scoped identities. For now it shouldn't be
 	// possible to get here with a scoped identity, but we're guarding against the possibility just in case.
-	var scopedCheckerCtx *services.ScopedAccessCheckerContext
-	if a.scopedContext != nil {
-		scopedCheckerCtx = a.scopedContext.CheckerContext
-	} else {
-		scopedCheckerCtx = services.NewScopedAccessCheckerContextFromUnscoped(a.context.Checker)
-	}
-	resourceLister.accessChecker, err = newResourceAccessChecker(scopedCheckerCtx, types.KindUnifiedResource)
+	scopedCtx := cmp.Or(a.scopedContext, authz.ScopedContextFromUnscopedContext(&a.context))
+	resourceLister.accessChecker, err = newResourceAccessChecker(scopedCtx, types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1752,8 +1748,7 @@ func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *p
 			return false, nil
 		}
 
-		resourceScope := cmp.Or(scopedRes.GetScope(), scopes.Root)
-
+		resourceScope := scopedRes.GetScope()
 		if err := a.scopedContext.CheckerContext.Decision(ctx, resourceScope, func(checker *services.ScopedAccessChecker) error {
 			switch res := resource.(type) {
 			case *types.ServerV2:
@@ -1889,7 +1884,7 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 // but does not already have access to.
 // Extra roles are determined from the user's search_as_roles and
 // preview_as_roles if [req] requested that each be used.
-func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*services.ScopedAccessCheckerContext, error) {
+func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.ScopedContext, error) {
 	unscopedCtx, ok := a.resolveUnscopedAuthContext()
 	if !ok {
 		return nil, trace.AccessDenied("extended search context is not supported for scoped identities")
@@ -1904,11 +1899,7 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 	}
 	if len(extraRoles) == 0 {
 		// Return the current auth context unmodified.
-		if a.scopedContext != nil {
-			return a.scopedContext.CheckerContext, nil
-		} else {
-			return services.NewScopedAccessCheckerContextFromUnscoped(unscopedCtx.Checker), nil
-		}
+		return cmp.Or(a.scopedContext, authz.ScopedContextFromUnscopedContext(unscopedCtx)), nil
 	}
 
 	clusterName, err := a.authServer.GetClusterName(ctx)
@@ -1922,7 +1913,7 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	return services.NewScopedAccessCheckerContextFromUnscoped(extendedContext.Checker), nil
+	return authz.ScopedContextFromUnscopedContext(extendedContext), nil
 }
 
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
@@ -2111,10 +2102,10 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		baseContext := a.scopedContext.CheckerContext
-		a.scopedContext.CheckerContext = extendedContext
+		baseContext := a.scopedContext
+		a.scopedContext = extendedContext
 		defer func() {
-			a.scopedContext.CheckerContext = baseContext
+			a.scopedContext = baseContext
 		}()
 	}
 
@@ -2198,7 +2189,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// the next key.
 	req.Limit++
 
-	resourceChecker, err := newResourceAccessChecker(a.scopedContext.CheckerContext, req.ResourceType)
+	resourceChecker, err := newResourceAccessChecker(a.scopedContext, req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2262,7 +2253,23 @@ type resourceCheckerI interface {
 // resourceChecker is a pass through checker that utilizes the provided [services.AccessChecker] to
 // check access to an untyped resource.
 type resourceChecker struct {
-	scopedCheckerCtx *services.ScopedAccessCheckerContext
+	scopedCtx *authz.ScopedContext
+}
+
+func (r *resourceChecker) unscopedCheckAccess(resource services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
+	unscopedCtx, isUnscoped := r.scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		return trace.Wrap(services.ErrScopedIdentity)
+	}
+	return unscopedCtx.Checker.CheckAccess(resource, state, matchers...)
+}
+
+func (r *resourceChecker) unscopedCheckAccessToSAMLIdP(resource types.ResourceWithLabels, authPref readonly.AuthPreference, state services.AccessState, matchers ...services.RoleMatcher) error {
+	unscopedCtx, isUnscoped := r.scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		return trace.Wrap(services.ErrScopedIdentity)
+	}
+	return unscopedCtx.Checker.CheckAccessToSAMLIdP(resource, authPref, state, matchers...)
 }
 
 // CanAccess handles providing the proper services.AccessCheckable resource
@@ -2274,50 +2281,50 @@ func (r *resourceChecker) CanAccess(ctx context.Context, resource types.Resource
 	switch rr := resource.(type) {
 	case types.AppServer:
 		if rr.GetSubKind() == types.KindIdentityCenterAccount {
-			return r.scopedCheckerCtx.UnscopedCheckAccess(rr.GetApp(), state, services.NewIdentityCenterAppMatcher(rr.GetApp()))
+			return r.unscopedCheckAccess(rr.GetApp(), state, services.NewIdentityCenterAppMatcher(rr.GetApp()))
 		}
 
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr.GetApp(), state)
+		return r.unscopedCheckAccess(rr.GetApp(), state)
 	case types.KubeServer:
-		return r.scopedCheckerCtx.Decision(ctx, rr.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return r.scopedCtx.CheckerContext.Decision(ctx, rr.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.Kube().CanAccessCluster(rr.GetCluster())
 		})
 	case types.DatabaseServer:
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr.GetDatabase(), state)
+		return r.unscopedCheckAccess(rr.GetDatabase(), state)
 	case types.DatabaseService:
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr, state)
+		return r.unscopedCheckAccess(rr, state)
 	case types.Database:
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr, state)
+		return r.unscopedCheckAccess(rr, state)
 	case types.Server:
-		return r.scopedCheckerCtx.Decision(ctx, rr.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return r.scopedCtx.CheckerContext.Decision(ctx, rr.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.SSH().CanAccessSSHServer(rr)
 		})
 	case types.WindowsDesktop:
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr, state)
+		return r.unscopedCheckAccess(rr, state)
 	case types.WindowsDesktopService:
-		return r.scopedCheckerCtx.UnscopedCheckAccess(rr, state)
+		return r.unscopedCheckAccess(rr, state)
 	case types.UserGroup:
 		// Because usergroup only has ResourceWithLabels, it looks like this will match
 		// everything. To get around this, we'll match on it last and then double check
 		// that the kind is equal to usergroup. If it's not, we'll fall through and return
 		// the bad parameter as expected.
 		if rr.GetKind() == types.KindUserGroup {
-			return r.scopedCheckerCtx.UnscopedCheckAccess(rr, state)
+			return r.unscopedCheckAccess(rr, state)
 		}
 	case types.SAMLIdPServiceProvider:
-		return r.scopedCheckerCtx.UnscopedCheckAccessToSAMLIdP(rr,
+		return r.unscopedCheckAccessToSAMLIdP(rr,
 			nil, /* cluster auth preference will be checked during connection */
 			state,
 		)
 	case types.Resource153UnwrapperT[services.IdentityCenterAccount]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
-			return r.scopedCheckerCtx.UnscopedCheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+			return r.unscopedCheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(rr.UnwrapT()))
 		}
 	case types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
-			return r.scopedCheckerCtx.UnscopedCheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
+			return r.unscopedCheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 	}
 
@@ -2337,7 +2344,7 @@ func (r *resourceChecker) GetAllowedLoginsForResource(ctx context.Context, resou
 	if ok {
 		scope = scopedResource.GetScope()
 	}
-	for checker, err := range r.scopedCheckerCtx.CheckersForResourceScope(ctx, scope) {
+	for checker, err := range r.scopedCtx.CheckerContext.CheckersForResourceScope(ctx, scope) {
 		if err != nil {
 			continue
 		}
@@ -2347,7 +2354,7 @@ func (r *resourceChecker) GetAllowedLoginsForResource(ctx context.Context, resou
 }
 
 // newResourceAccessChecker creates a resourceChecker for the provided resource type
-func newResourceAccessChecker(scopedCheckerCtx *services.ScopedAccessCheckerContext, resource string) (*resourceChecker, error) {
+func newResourceAccessChecker(scopedCtx *authz.ScopedContext, resource string) (*resourceChecker, error) {
 	switch resource {
 	case types.KindAppServer,
 		types.KindDatabaseServer,
@@ -2362,7 +2369,7 @@ func newResourceAccessChecker(scopedCheckerCtx *services.ScopedAccessCheckerCont
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
-		return &resourceChecker{scopedCheckerCtx: scopedCheckerCtx}, nil
+		return &resourceChecker{scopedCtx: scopedCtx}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
@@ -2550,7 +2557,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				return r, nil
 			}
 
-			resourceChecker, err := newResourceAccessChecker(a.scopedContext.CheckerContext, req.ResourceType)
+			resourceChecker, err := newResourceAccessChecker(a.scopedContext, req.ResourceType)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -6560,7 +6567,7 @@ func (a *ServerWithRoles) Close() error {
 
 func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	if a.scopedContext != nil {
-		return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+		return a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.Kube().CanAccessCluster(cluster)
 		})
 	}
