@@ -3753,7 +3753,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if req.RouteToCluster != clusterName {
 		unscoped := certParams.UnscopedCertParams()
 		if unscoped == nil {
-			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
+			return nil, trace.WrapWithMessage(services.ErrScopedIdentity, "cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
 		}
 
 		// Authorize access to a remote cluster.
@@ -3900,8 +3900,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		gcpAccounts           []string
 	)
 
-	// only unscoped identities currently support kube groups/users.
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
+		// only unscoped identities need to include the kube groups/users.
 		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
@@ -7833,7 +7833,28 @@ func MFARequiredToBool(m proto.MFARequired) (required bool) {
 	}
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+// getMFARequiredForScopedCtx returns the [services.MFARequired] decision for the given scoped auth context.
+// When unscoped, it returns the MFA requirement as defined by the context's role set.
+// When scoped, it always returns [services.MFARequiredNever] unless the cluster auth preferences dictate that
+// per-session MFA is required. This always results in an error until scopes support MFA.
+func (a *Server) getMFARequiredForScopedCtx(ctx context.Context, scopedCtx *authz.ScopedContext) (services.MFARequired, error) {
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return services.MFARequiredAlways, trace.Wrap(err)
+	}
+
+	if unscopedCtx, isUnscoped := scopedCtx.UnscopedContext(); isUnscoped {
+		return unscopedCtx.Checker.GetAccessState(authPref).MFARequired, nil
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO (eriktate/scopes): implement scoped MFA
+		return services.MFARequiredAlways, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+	return services.MFARequiredNever, nil
+}
+
+func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedContext, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -7841,12 +7862,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 	}()
 
-	authPref, err := a.GetAuthPreference(ctx)
+	mfaRequired, err := a.getMFARequiredForScopedCtx(ctx, scopedCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch state := checker.GetAccessState(authPref); state.MFARequired {
+	switch mfaRequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{
 			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -7857,6 +7877,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		// This should be an impossible state because if this were a scoped identity we would have either returned
+		// an error due to cluster-level per-session MFA being enabled or returned MFARequiredNever due to scoped
+		// identities not supporting it. We return an error here to prevent progressing in an unpredictable state
+		return nil, trace.AccessDenied("scoped identities must not require per-session MFA")
+	}
+	checker := unscopedCtx.Checker
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:

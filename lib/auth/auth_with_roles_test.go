@@ -22,9 +22,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -1094,7 +1097,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1126,11 +1129,17 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test user1.
-	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	// Create test user2.
-	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
@@ -1148,31 +1157,101 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
+	getScopeAsName := func(scope string) string {
+		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
+	}
+
+	scope := "/test"
+	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: getScopeAsName(scope) + "-role",
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"scoped_kube_user"},
+					Groups: []string{"scoped_kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	role := roleResp.GetRole()
+	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user1.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: role.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 
 	testCases := []struct {
-		desc       string
-		user       types.User
-		expiration time.Time
+		desc             string
+		user             types.User
+		scope            string
+		expiration       time.Time
+		expectKubeUsers  []string
+		expectKubeGroups []string
 	}{
 		{
-			desc:       "Roles don't have max_session_ttl set",
-			user:       user1,
-			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+			desc:             "Roles don't have max_session_ttl set",
+			user:             user1,
+			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
-			user:       user2,
-			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			desc:             "Roles have max_session_ttl set, cert expiration adjusted",
+			user:             user2,
+			expiration:       srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
+		},
+		{
+			// scopes don't support max_session_ttl
+			desc:       "Scoped role, no max_session_ttl set",
+			user:       user1,
+			scope:      scope,
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			user := authtest.TestUser(tt.user.GetName())
-			user.TTL = defaultDuration
-			client, err := srv.NewClient(user)
+			var ident authtest.TestIdentity
+			if tt.scope != "" {
+				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope)
+			} else {
+				ident = authtest.TestUser(tt.user.GetName())
+			}
+			ident.TTL = defaultDuration
+			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1191,6 +1270,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
+			if tt.scope != "" {
+				require.Equal(t, tt.scope, identity.ScopePin.Scope)
+			} else {
+				require.Nil(t, identity.ScopePin)
+			}
+
+			// Verify kube fields are set
+			require.ElementsMatch(t, tt.expectKubeUsers, identity.KubernetesUsers)
+			require.ElementsMatch(t, tt.expectKubeGroups, identity.KubernetesGroups)
 
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
@@ -12255,6 +12343,232 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 			result := <-resultCh
 			require.NoError(t, result.err)
 			require.NotNil(t, result.hello)
+		})
+	}
+}
+
+// assert that common user cert generation cases are properly handled for scoped identities
+func TestScopedUserCertGeneration(t *testing.T) {
+	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "true")
+	clock := clockwork.NewFakeClock()
+	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				entitlements.K8s:    {Enabled: true},
+			},
+		},
+	}), withClock(clock))
+	ctx := t.Context()
+
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	username := "scoped-user"
+	scope := "/test"
+	scopedAccess := srv.Auth().ScopedAccess()
+	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: username,
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"kube_user"},
+					Groups: []string{"kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	scopedRole := roleResp.GetRole()
+	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
+	ident := authtest.TestScopedUser(username, scope)
+	client, err := srv.NewClient(ident)
+	require.NoError(t, err)
+
+	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	tts := []struct {
+		name       string
+		req        proto.UserCertsRequest
+		assertErr  func(t *testing.T, err error)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "valid request",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+		},
+		{
+			name: "session TTL for non-disk flow",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour * 24 * 7),
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				roAuthPref, err := srv.Auth().GetReadOnlyAuthPreference(ctx)
+				require.NoError(t, err)
+
+				// expiry should get shortened to default set for the cluster
+				notAfter := clock.Now().UTC().Add(roAuthPref.GetDefaultSessionTTL().Duration())
+				diff := notAfter.Sub(cert.NotAfter)
+				// ignore small differences from parsing
+				require.Less(t, max(diff, -diff), time.Second)
+			},
+		},
+		{
+			name: "with impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          "some-other-user",
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.ErrorContains(t, err, "impersonation is not allowed")
+			},
+		},
+		{
+			name: "with role impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				UseRoleRequests:   true,
+				RoleRequests:      []string{role.GetName()},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "impersonation not permitted")
+			},
+		},
+		{
+			name: "app session creation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name: "app-name",
+				},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "creating app session")
+				require.ErrorContains(t, err, "scoped identities not supported")
+			},
+		},
+		{
+			name: "for non-kube usage",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+			},
+		},
+		{
+			// this is a separate test case from the previous because there are other
+			// checks specific to access graph that should start failing  if the restriction
+			// on usage is every removed
+			name: "for access graph",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+				Usage:        proto.UserCertsRequest_AccessGraphAPI,
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
+				// user cert gen
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
+				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			certs, err := client.GenerateUserCerts(ctx, tt.req)
+			if tt.assertErr != nil {
+				tt.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.assertCert != nil {
+				b, _ := pem.Decode(certs.TLS)
+				cert, err := x509.ParseCertificate(b.Bytes)
+				require.NoError(t, err)
+
+				tt.assertCert(t, cert)
+			}
 		})
 	}
 }

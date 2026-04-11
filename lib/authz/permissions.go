@@ -2093,6 +2093,12 @@ func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
 }
 
+// ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
+func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
+	_, isLocal := scopedContext.Identity.(LocalUser)
+	return isLocal && scopedContext.User.GetName() == username
+}
+
 // IsRemoteUser checks if the identity is a remote user.
 func IsRemoteUser(authContext Context) bool {
 	_, ok := authContext.UnmappedIdentity.(RemoteUser)
