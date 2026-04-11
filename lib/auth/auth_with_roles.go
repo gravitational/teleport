@@ -3538,26 +3538,26 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 // `req.AccessRequests` and potentially shorten `req.Expires` based on the
 // access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	if req.Username != a.context.User.GetName() {
+	if req.Username != a.getUser().GetName() {
 		if isRoleImpersonation(*req) {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding role requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		if len(req.AccessRequests) > 0 {
 			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert for another user while adding access requests",
-				"user", a.context.User.GetName(),
+				"user", a.getUser().GetName(),
 				"requested_user", req.Username,
 			)
-			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.context.User.GetName(), req.Username)
+			return nil, trace.AccessDenied("User %v tried to issue a cert for %v and added access requests. This is not supported.", a.getUser().GetName(), req.Username)
 		}
 		return a.desiredAccessInfoForImpersonation(user)
 	}
 	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
-			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.context.User.GetName())
+			a.authServer.logger.WarnContext(ctx, "User tried to issue a cert with both role and access requests", "user", a.getUser().GetName())
 			return nil, trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 		}
 		return a.desiredAccessInfoForRoleRequest(req, user)
@@ -3601,7 +3601,7 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 // desiredAccessInfoForUser returns the desired AccessInfo
 // cert request which may contain access requests.
 func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *proto.UserCertsRequest, user services.UserState) (*services.AccessInfo, error) {
-	currentIdentity := a.context.Identity.GetIdentity()
+	currentIdentity := a.getIdentity()
 
 	// Start with the base AccessInfo for current logged-in identity, before
 	// considering new or dropped access requests. This will include roles from
