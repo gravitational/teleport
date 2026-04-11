@@ -201,6 +201,8 @@ jobs:
 
       # --- Upload ------------------------------------------------------------
       # Generate release server manifests
+      # OSS Only releases only have the "teleport" product, but enterprise releases have both "teleport" and "teleport-ent" products.
+      # Make sure to use the correct product tags when generating manifests for the release server.
       - name: Generate release server manifests
         env:
           RELCLI_VERSION: ${{ env.RELCLI_VERSION }}
@@ -217,6 +219,7 @@ jobs:
 
           ls -lah
 
+          # OSS Only Artifacts
           "${RELCLI_PATH}" generate-manifest \
             --path "teleport-v${TELEPORT_VERSION}-darwin-universal-bin.tar.gz" \
             --products 'teleport' --os 'darwin' --architecture 'universal' \
@@ -227,12 +230,9 @@ jobs:
             --products 'teleport' --os 'darwin' --architecture 'universal' \
             --description "MacOS Universal .pkg installer"
 
-          "${RELCLI_PATH}" generate-manifest \
-            --path "teleport-tools-${TELEPORT_VERSION}.pkg" \
-            --products 'teleport' --os 'darwin' --architecture 'universal' \
-            --description "MacOS Universal Client Tools .pkg installer"
-
           if [[ "${RELEASE}" == 'enterprise' ]]; then
+            # Artifacts that are common between OSS and Enterprise releases should be tagged with both "teleport" and "teleport-ent" products.
+
             "${RELCLI_PATH}" generate-manifest \
               --path "Teleport Connect-${TELEPORT_VERSION}.dmg" \
               --products 'teleport' --products 'teleport-ent' \
@@ -245,6 +245,13 @@ jobs:
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect in-app Update"
 
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-tools-${TELEPORT_VERSION}.pkg" \
+              --products 'teleport' --products 'teleport-ent' \
+              --os 'darwin' --architecture 'universal' \
+              --description "MacOS Universal Client Tools .pkg installer"
+
+            # Enterprise only Artifacts - make sure to tag these with the "teleport-ent" product for the release server
             "${RELCLI_PATH}" generate-manifest \
               --path "teleport-ent-v${TELEPORT_VERSION}-darwin-universal-bin.tar.gz" \
               --products 'teleport-ent' --os 'darwin' --architecture 'universal' \
@@ -268,6 +275,12 @@ jobs:
               --products 'teleport' \
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect in-app Update"
+
+            "${RELCLI_PATH}" generate-manifest \
+              --path "teleport-tools-${TELEPORT_VERSION}.pkg" \
+              --products 'teleport' \
+              --os 'darwin' --architecture 'universal' \
+              --description "MacOS Universal Client Tools .pkg installer"
           fi
 
           ls -lah
