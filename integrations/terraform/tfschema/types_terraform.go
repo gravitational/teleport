@@ -4911,6 +4911,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 						"client_secret": {
 							Description: "ClientSecret is the client secret to use for OAuth client credentials grant.",
 							Optional:    true,
+							Sensitive:   true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
