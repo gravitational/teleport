@@ -4904,12 +4904,12 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 				"oauth": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"client_id": {
-							Description: "",
+							Description: "ClientID is the client ID to use for OAuth client credentials grant.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"client_secret": {
-							Description: "",
+							Description: "ClientSecret is the client secret to use for OAuth client credentials grant.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

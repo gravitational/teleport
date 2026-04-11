@@ -483,11 +483,12 @@ func FillSAMLOAuthClientSecretFromExisting(ctx context.Context, connector types.
 		return trace.BadParameter("failed to restore OAuth credentials, existing SAML connector %q has no OAuth credentials configured. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
 	}
 
-	if connector.GetOAuthClientCredentials() == nil {
+	connectorOAuthCreds := connector.GetOAuthClientCredentials()
+	if connectorOAuthCreds == nil {
 		return trace.BadParameter("failed to restore OAuth credentials, incoming connector has no OAuth client credentials configured. " + ErrMsgHowToFixMissingOAuthClientSecret)
 	}
 
-	if existingOAuthCreds.ClientId != connector.GetOAuthClientCredentials().ClientId {
+	if existingOAuthCreds.ClientId != connectorOAuthCreds.ClientId {
 		return trace.BadParameter("failed to restore OAuth credentials, client ID on SAML connector %q does not match the existing one. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
 	}
 

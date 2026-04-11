@@ -199,8 +199,12 @@ spec:
                 nullable: true
                 properties:
                   client_id:
+                    description: ClientID is the client ID to use for OAuth client
+                      credentials grant.
                     type: string
                   client_secret:
+                    description: ClientSecret is the client secret to use for OAuth
+                      client credentials grant.
                     type: string
                 type: object
               preferred_request_binding:

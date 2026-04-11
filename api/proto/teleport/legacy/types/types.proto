@@ -5805,9 +5805,11 @@ message SAMLConnectorSpecV2 {
   }
 }
 
-// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant flow.
+// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
 message OAuthClientCredentials {
+  // ClientID is the client ID to use for OAuth client credentials grant.
   string client_id = 1;
+  // ClientSecret is the client secret to use for OAuth client credentials grant.
   string client_secret = 2;
 }
 

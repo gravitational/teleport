@@ -167,7 +167,7 @@ func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
 		return true
 	}
 
-	// Handle equality for Credentials oneof.
+	// Handle equality for OAuthClientCredentials.
 	var thisCreds, thatCreds *OAuthClientCredentials
 	if o != nil {
 		thisCreds = o.GetOAuthClientCredentials()
@@ -617,8 +617,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	entra := o.GetEntraIDGroupsProvider()
-	if entra != nil {
+	if entra := o.GetEntraIDGroupsProvider(); entra != nil {
 		if err := entra.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}

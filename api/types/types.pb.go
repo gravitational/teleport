@@ -14874,9 +14874,11 @@ func (*SAMLConnectorSpecV2) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant flow.
+// OAuthClientCredentials holds the credentials to use for OAuth client credentials grant.
 type OAuthClientCredentials struct {
-	ClientId             string   `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// ClientID is the client ID to use for OAuth client credentials grant.
+	ClientId string `protobuf:"bytes,1,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// ClientSecret is the client secret to use for OAuth client credentials grant.
 	ClientSecret         string   `protobuf:"bytes,2,opt,name=client_secret,json=clientSecret,proto3" json:"client_secret,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
