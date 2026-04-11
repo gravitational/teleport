@@ -56,6 +56,17 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
 	}
 
+	// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
+	// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
+	// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
+	// the client secret and creating an unusable connector.
+	oauthCreds := connector.GetOAuthClientCredentials()
+	if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
+		if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
@@ -68,17 +79,6 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if connector.GetSigningKeyPair().PrivateKey == "" {
 		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
-	// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
-	// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
-	// the client secret and creating an unusable connector.
-	oauthCreds := connector.GetOAuthClientCredentials()
-	if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
-		if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -115,6 +115,17 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
 	}
 
+	// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
+	// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
+	// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
+	// the client secret and creating an unusable connector.
+	oauthCreds := connector.GetOAuthClientCredentials()
+	if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
+		if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
@@ -129,17 +140,6 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if connector.GetSigningKeyPair().PrivateKey == "" {
 		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// If someone is applying a SAML connector obtained with `tctl get` without secrets, the OAuth client credentials
-	// may be present but the client secret is an empty string. In this case, we want to look up the existing SAML
-	// connector and populate the client secret from it if it's the same client ID. This avoids accidentally clearing
-	// the client secret and creating an unusable connector.
-	oauthCreds := connector.GetOAuthClientCredentials()
-	if oauthCreds != nil && oauthCreds.ClientId != "" && oauthCreds.ClientSecret == "" {
-		if err := services.FillSAMLOAuthClientSecretFromExisting(ctx, connector, a.Services); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
