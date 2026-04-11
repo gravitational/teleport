@@ -71,6 +71,25 @@ roles:
 |roles|A list of static teleport roles to map to.|[]string|
 |value|An attribute statement value to match.|string|
 
+## Entra ID Groups Provider
+
+Configures out-of-band user groups provider.  For OIDC, it works by following through the groups claim source, which is sent for "groups" claim when the user's group membership exceeds 200 max item limit.  For SAML, it works by following through the "groups.link" SAML attribute, which is sent instead of the "groups" SAML attribute, when the user's group membership exceeds 150 max item limit.
+
+
+Example:
+
+```yaml
+disabled: true
+group_type: "string"
+graph_endpoint: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|disabled|Specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|Boolean|
+|graph_endpoint|A Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|string|
+|group_type|A user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|string|
+
 ## Metadata
 
 Resource metadata
@@ -159,10 +178,13 @@ user_matchers:
   - "string"
   - "string"
 include_subject: true
+entra_id_groups_provider: # [...]
+: # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
+|Credentials|Configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API.  Types that are valid to be assigned to Credentials: 	*SAMLConnectorSpecV2_Oauth|[is SAML Connector Spec V2_Credentials](#is-saml-connector-spec-v2_credentials)|
 |acs|A URL for assertion consumer service on the service provider (Teleport's side).|string|
 |allow_idp_initiated|A flag that indicates if the connector can be used for IdP-initiated logins.|Boolean|
 |assertion_key_pair|A key pair used for decrypting SAML assertions.|[Asymmetric Key Pair](#asymmetric-key-pair)|
@@ -173,6 +195,7 @@ include_subject: true
 |display|Controls how this connector is displayed.|string|
 |entity_descriptor|XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|string|
 |entity_descriptor_url|A URL that supplies a configuration XML.|string|
+|entra_id_groups_provider|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the "groups.link" SAML assertion attribute, which is sent instead of the "groups" attribute, when the user's group membership exceeds 150 max item limit.|[Entra ID Groups Provider](#entra-id-groups-provider)|
 |force_authn|Specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.|[SAML Force Authn](#saml-force-authn)|
 |include_subject|A flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.|Boolean|
 |issuer|The identity provider issuer.|string|
@@ -212,4 +235,9 @@ insecure_allowed_cidr_ranges:
 |---|---|---|
 |allowed_https_hostnames|A list of hostnames allowed for https client redirect URLs|[]string|
 |insecure_allowed_cidr_ranges|A list of CIDRs allowed for HTTP or HTTPS client redirect URLs|[]string|
+
+## is SAML Connector Spec V2_Credentials
+
+
+
 
