@@ -1788,6 +1788,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				return
 			}
 
+			stop := scx.MaintainActivity()
+
 			reqCtx := tracessh.ContextFromRequest(req)
 			ctx, span := s.tracerProvider.Tracer("ssh").Start(
 				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
@@ -1799,10 +1801,12 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 					semconv.RPCSystemKey.String("ssh"),
 				),
 			)
+
 			// some functions called inside dispatch() may handle replies to SSH channel requests internally,
 			// rather than leaving the reply to be handled inside this loop. in that case, those functions must
 			// set req.WantReply to false so that two replies are not sent.
 			if err := s.dispatch(ctx, trackingChan, req, scx); err != nil {
+				stop()
 				s.replyError(ctx, trackingChan, req, err)
 				span.End()
 				return
@@ -1812,6 +1816,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 					scx.Logger.WarnContext(ctx, "Failed to reply to request", "request_type", req.Type, "error", err)
 				}
 			}
+			stop()
 			span.End()
 		case result := <-scx.ExecResultCh:
 			scx.Logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)

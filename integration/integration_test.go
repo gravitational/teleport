@@ -1873,13 +1873,6 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	}()
 	waitForOutput(t, "__READY__")
 
-	// With the session established, write to the terminal to refresh the client idle timeout
-	// before proceeding to the test below.
-	// TODO(Joerger): We can remove this once we address the issue causing the client idle timeout timer
-	// to start progressing during session establishment.
-	term.Type("start\r\n")
-	waitForOutput(t, "start")
-
 	// Keep the session alive by writing/reading with the terminal within the idle timeout.
 	keepaliveInterval := idleTimeout / 3
 	keepaliveTicker := time.NewTicker(keepaliveInterval)

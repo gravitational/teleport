@@ -601,6 +601,53 @@ func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
 	return newTrackingChannel(ch, c)
 }
 
+// MaintainActivity maintains activity in order to avoid tripping a client idle
+// timeout while the server is preventing client activity, e.g. during session
+// establishment. The returned stop function should be run by the caller to stop
+// activity updates once the server action is complete.
+func (c *ServerContext) MaintainActivity() (stop func()) {
+	clientIdleTimeout := c.getClientIdleTimeout()
+	if clientIdleTimeout == 0 {
+		return func() {}
+	}
+
+	updateInterval := clientIdleTimeout / 5
+	if updateInterval <= 0 {
+		updateInterval = clientIdleTimeout
+	}
+
+	done := make(chan struct{})
+	ticker := time.NewTicker(updateInterval)
+	go func() {
+		c.UpdateClientActivity()
+		defer c.UpdateClientActivity()
+
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				c.UpdateClientActivity()
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
+func (c *ServerContext) getClientIdleTimeout() time.Duration {
+	switch {
+	case c.Identity.AccessPermit != nil:
+		return c.Identity.AccessPermit.ClientIdleTimeout.AsDuration()
+	case c.Identity.ProxyingPermit != nil:
+		return c.Identity.ProxyingPermit.ClientIdleTimeout
+	case c.Identity.GitForwardingPermit != nil:
+		return c.Identity.GitForwardingPermit.ClientIdleTimeout
+	default:
+		return 0
+	}
+}
+
 // AddCloser adds any closer in ctx that will be called
 // whenever server closes session channel
 func (c *ServerContext) AddCloser(closer io.Closer) {
