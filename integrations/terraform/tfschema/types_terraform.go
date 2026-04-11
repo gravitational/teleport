@@ -4822,6 +4822,27 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"entra_id_groups_provider": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"disabled": {
+							Description: "Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"graph_endpoint": {
+							Description: "GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint (\"https://graph.windows.net\"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint (\"https://graph.microsoft.com\"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"group_type": {
+							Description: "GroupType is a user group type filter. Defaults to \"security-groups\". Value can be \"security-groups\", \"directory-roles\", \"all-groups\".",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the \"groups.link\" SAML assertion attribute, which is sent instead of the \"groups\" attribute, when the user's group membership exceeds 150 max item limit.",
+					Optional:    true,
+				},
 				"force_authn": {
 					Description: "ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.",
 					Optional:    true,
@@ -4878,6 +4899,22 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 						},
 					}),
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
+					Optional:    true,
+				},
+				"oauth": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"client_id": {
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_secret": {
+							Description: "",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "",
 					Optional:    true,
 				},
 				"preferred_request_binding": {
@@ -47632,6 +47669,7 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 				if !v.Null && !v.Unknown {
 					tf := v
 					obj := &obj.Spec
+					obj.Credentials = nil
 					{
 						a, ok := tf.Attrs["issuer"]
 						if !ok {
@@ -48313,6 +48351,127 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 									t = bool(v.Value)
 								}
 								obj.IncludeSubject = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["entra_id_groups_provider"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.EntraIdGroupsProvider = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.EntraIdGroupsProvider = &github_com_gravitational_teleport_api_types.EntraIDGroupsProvider{}
+									obj := obj.EntraIdGroupsProvider
+									{
+										a, ok := tf.Attrs["disabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.disabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Disabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["group_type"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.group_type"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.group_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.GroupType = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["graph_endpoint"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.graph_endpoint"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.graph_endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.GraphEndpoint = t
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["oauth"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								if !v.Null && !v.Unknown {
+									b := &github_com_gravitational_teleport_api_types.OAuthClientCredentials{}
+									obj.Credentials = &github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth{Oauth: b}
+									obj := b
+									tf := v
+									{
+										a, ok := tf.Attrs["client_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth.client_id"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ClientId = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["client_secret"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.oauth.client_secret"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ClientSecret = t
+											}
+										}
+									}
+								}
 							}
 						}
 					}
@@ -49626,6 +49785,184 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							v.Value = bool(obj.IncludeSubject)
 							v.Unknown = false
 							tf.Attrs["include_subject"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["entra_id_groups_provider"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["entra_id_groups_provider"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.EntraIdGroupsProvider == nil {
+									v.Null = true
+								} else {
+									obj := obj.EntraIdGroupsProvider
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["disabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.disabled"})
+										} else {
+											v, ok := tf.Attrs["disabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.entra_id_groups_provider.disabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.disabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Disabled) == false
+											}
+											v.Value = bool(obj.Disabled)
+											v.Unknown = false
+											tf.Attrs["disabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["group_type"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.group_type"})
+										} else {
+											v, ok := tf.Attrs["group_type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.entra_id_groups_provider.group_type", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.group_type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.GroupType) == ""
+											}
+											v.Value = string(obj.GroupType)
+											v.Unknown = false
+											tf.Attrs["group_type"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["graph_endpoint"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.graph_endpoint"})
+										} else {
+											v, ok := tf.Attrs["graph_endpoint"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.entra_id_groups_provider.graph_endpoint", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.entra_id_groups_provider.graph_endpoint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.GraphEndpoint) == ""
+											}
+											v.Value = string(obj.GraphEndpoint)
+											v.Unknown = false
+											tf.Attrs["graph_endpoint"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["entra_id_groups_provider"] = v
+							}
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["oauth"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth"})
+						} else {
+							obj, ok := obj.Credentials.(*github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth)
+							if !ok {
+								obj = &github_com_gravitational_teleport_api_types.SAMLConnectorSpecV2_Oauth{}
+							}
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["oauth"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.Oauth == nil {
+									v.Null = true
+								} else {
+									obj := obj.Oauth
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["client_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth.client_id"})
+										} else {
+											v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.oauth.client_id", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ClientId) == ""
+											}
+											v.Value = string(obj.ClientId)
+											v.Unknown = false
+											tf.Attrs["client_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["client_secret"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.oauth.client_secret"})
+										} else {
+											v, ok := tf.Attrs["client_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.oauth.client_secret", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.oauth.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ClientSecret) == ""
+											}
+											v.Value = string(obj.ClientSecret)
+											v.Unknown = false
+											tf.Attrs["client_secret"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["oauth"] = v
+							}
 						}
 					}
 				}
