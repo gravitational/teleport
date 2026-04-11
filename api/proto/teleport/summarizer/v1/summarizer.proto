@@ -348,6 +348,20 @@ enum NeedsReviewReason {
   NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED = 2;
 }
 
+// AccessRequestAlignment represents the alignment of session activity with the stated access request reason.
+enum AccessRequestAlignment {
+  // AccessRequestAlignmentUnspecified is the default value and indicates that the alignment of session activity with the access request reason is not specified.
+  ACCESS_REQUEST_ALIGNMENT_UNSPECIFIED = 0;
+  // AccessRequestAlignmentAligned indicates that session activity is fully aligned with the stated access request reason.
+  ACCESS_REQUEST_ALIGNMENT_ALIGNED = 1;
+  // AccessRequestAlignmentPartiallyAligned indicates that session activity is partially aligned with the stated access request reason.
+  ACCESS_REQUEST_ALIGNMENT_PARTIALLY_ALIGNED = 2;
+  // AccessRequestAlignmentMisaligned indicates that session activity is misaligned with the stated access request reason.
+  ACCESS_REQUEST_ALIGNMENT_MISALIGNED = 3;
+  // AccessRequestAlignmentUnrelated indicates that session activity is unrelated to the stated access request reason.
+  ACCESS_REQUEST_ALIGNMENT_UNRELATED = 4;
+}
+
 // EnhancedSummary represents an enhanced summary of a session recording,
 // with structured data extracted from the session.
 message EnhancedSummary {
@@ -367,4 +381,13 @@ message EnhancedSummary {
   repeated CommandAnalysis commands = 7;
   // NeedsFurtherReview indicates the reason why the session needs further review.
   optional NeedsReviewReason needs_further_review = 8;
+  // RiskScoreReasons contains a list of reasons that contributed to the overall risk score of the session.
+  repeated string risk_score_reasons = 9;
+  // AccessRequestAlignment indicates whether session activity aligns with the stated access request reason.
+  AccessRequestAlignment access_request_alignment = 10;
+  // AccessRequestAssessment is a free-text explanation of how session activity  relates to the stated access request
+  // reason. Empty if no access request.
+  string access_request_assessment = 11;
+  // AccessRequestIds contains a list of access request IDs related to this session, if any.
+  repeated string access_request_ids = 12;
 }
