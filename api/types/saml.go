@@ -135,6 +135,8 @@ type SAMLConnector interface {
 	IsEntraIDGroupsProviderDisabled() bool
 	// GetOAuthClientCredentials returns the OAuth client credentials.
 	GetOAuthClientCredentials() *OAuthClientCredentials
+	// SetOAuthClientCredentials sets the OAuth client credentials.
+	SetOAuthClientCredentials(*OAuthClientCredentials)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -194,6 +196,7 @@ func (o *SAMLConnectorV2) SetRevision(rev string) {
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()
 	k2 := o.GetEncryptionKeyPair()
+	k3 := o.GetOAuthClientCredentials()
 	o2 := *o
 	if k1 != nil {
 		q1 := *k1
@@ -205,8 +208,10 @@ func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 		q2.PrivateKey = ""
 		o2.SetEncryptionKeyPair(&q2)
 	}
-	if o.GetOAuthClientCredentials() != nil {
-		o2.Spec.Credentials = nil
+	if k3 != nil {
+		q3 := *k3
+		q3.ClientSecret = ""
+		o2.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: &q3}
 	}
 	return &o2
 }
@@ -503,6 +508,14 @@ func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
 
 func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
 	return r.Spec.GetOauth()
+}
+
+func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredentials) {
+	if creds == nil {
+		r.Spec.Credentials = nil
+		return
+	}
+	r.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: creds}
 }
 
 func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {

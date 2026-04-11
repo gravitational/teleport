@@ -47,7 +47,10 @@ type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
 
-const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
+const (
+	ErrMsgHowToFixMissingPrivateKey        = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
+	ErrMsgHowToFixMissingOAuthClientSecret = "You must specify the OAuth credentials (obtain the existing one with `tctl get saml --with-secrets`)."
+)
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
@@ -460,5 +463,34 @@ func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLCon
 		return trace.BadParameter("failed to update the SAML connector, the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
 	}
 	connector.SetSigningKeyPair(existingSkp)
+	return nil
+}
+
+// FillSAMLOAuthClientSecretFromExisting looks up the existing SAML connector and populates the OAuth client secret on credentials of the given SAML connector.
+// This must be called only if the SAML connector has OAuth credentials configured with a client ID but no client secret.
+func FillSAMLOAuthClientSecretFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
+	connectorName := connector.GetName()
+	existing, err := sg.GetSAMLConnector(ctx, connectorName, true)
+	switch {
+	case trace.IsNotFound(err):
+		return trace.BadParameter("failed to restore OAuth credentials, SAML connector %q does not exist", connectorName)
+	case err != nil:
+		return trace.BadParameter("failed to restore OAuth credentials, looking up existing SAML connector %q failed: %v", connectorName, err)
+	}
+
+	existingOAuthCreds := existing.GetOAuthClientCredentials()
+	if existingOAuthCreds == nil {
+		return trace.BadParameter("failed to restore OAuth credentials, existing SAML connector %q has no OAuth credentials configured. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
+	}
+
+	if connector.GetOAuthClientCredentials() == nil {
+		return trace.BadParameter("failed to restore OAuth credentials, incoming connector has no OAuth client credentials configured. " + ErrMsgHowToFixMissingOAuthClientSecret)
+	}
+
+	if existingOAuthCreds.ClientId != connector.GetOAuthClientCredentials().ClientId {
+		return trace.BadParameter("failed to restore OAuth credentials, client ID on SAML connector %q does not match the existing one. "+ErrMsgHowToFixMissingOAuthClientSecret, connectorName)
+	}
+
+	connector.SetOAuthClientCredentials(existingOAuthCreds)
 	return nil
 }

@@ -246,6 +246,94 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 	}
 }
 
+func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
+	t.Parallel()
+
+	existingOAuthCreds := &types.OAuthClientCredentials{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+	}
+
+	existingConnectorName := "existing"
+	existingConnectors := mockSAMLGetter{
+		existingConnectorName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: existingOAuthCreds},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		connectorName string
+		connectorSpec types.SAMLConnectorSpecV2
+		assertErr     require.ErrorAssertionFunc
+		assertResult  require.ValueAssertionFunc
+	}{
+		{
+			name:          "existing connector with matching ClientId",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.NoError,
+			assertResult: func(t require.TestingT, value any, args ...any) {
+				require.Implements(t, (*types.SAMLConnector)(nil), value)
+				connector := value.(types.SAMLConnector)
+				oauthCreds := connector.GetOAuthClientCredentials()
+				require.Equal(t, existingOAuthCreds, oauthCreds)
+			},
+		},
+		{
+			name:          "connector not found",
+			connectorName: "non-existing",
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name:          "incoming connector has no OAuth credentials",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{},
+			assertErr:     require.Error,
+		},
+		{
+			name:          "existing connector OAuth ClientId doesn't match",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "another-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			connector := &types.SAMLConnectorV2{
+				Metadata: types.Metadata{Name: tc.connectorName},
+				Spec:     tc.connectorSpec,
+			}
+
+			err := FillSAMLOAuthClientSecretFromExisting(ctx, connector, existingConnectors)
+			tc.assertErr(t, err)
+			if tc.assertResult != nil {
+				tc.assertResult(t, connector)
+			}
+		})
+	}
+}
+
 // roleSet is a basic set of roles keyed by role name. It implements the
 // RoleGetter interface, returning the role if it exists, or a trace.NotFound
 // error if it does not exist.
