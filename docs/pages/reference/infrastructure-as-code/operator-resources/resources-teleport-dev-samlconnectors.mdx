@@ -39,10 +39,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |display|string|Display controls how this connector is displayed.|
 |entity_descriptor|string|EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.|
 |entity_descriptor_url|string|EntityDescriptorURL is a URL that supplies a configuration XML.|
+|entra_id_groups_provider|[object](#specentra_id_groups_provider)|EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the "groups.link" SAML assertion attribute, which is sent instead of the "groups" attribute, when the user's group membership exceeds 150 max item limit.|
 |force_authn|string or integer|ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO. Can be either the string or the integer representation of each option.|
 |include_subject|boolean|IncludeSubject is a flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.|
 |issuer|string|Issuer is the identity provider issuer.|
 |mfa|[object](#specmfa)|MFASettings contains settings to enable SSO MFA checks through this auth connector.|
+|oauth|[object](#specoauth)||
 |preferred_request_binding|string|PreferredRequestBinding is a preferred SAML request binding method. Value must be either "http-post" or "http-redirect". In general, the SAML identity provider lists request binding methods it supports. And the SAML service provider uses one of the IdP supported request binding method that it prefers. But we never honored request binding value provided by the IdP and always used http-redirect binding as a default. Setting up PreferredRequestBinding value lets us preserve existing auth connector behavior and only use http-post binding if it is explicitly configured.|
 |provider|string|Provider is the external identity provider.|
 |service_provider_issuer|string|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
@@ -73,6 +75,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
 |insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
 
+### spec.entra_id_groups_provider
+
+|Field|Type|Description|
+|---|---|---|
+|disabled|boolean|Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.|
+|graph_endpoint|string|GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.|
+|group_type|string|GroupType is a user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".|
+
 ### spec.mfa
 
 |Field|Type|Description|
@@ -84,6 +94,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |force_authn|string or integer|ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions. Can be either the string or the integer representation of each option.|
 |issuer|string|Issuer is the identity provider issuer. Usually set from EntityDescriptor.|
 |sso|string|SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.|
+
+### spec.oauth
+
+|Field|Type|Description|
+|---|---|---|
+|client_id|string||
+|client_secret|string||
 
 ### spec.signing_key_pair
 
