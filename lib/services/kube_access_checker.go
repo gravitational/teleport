@@ -47,5 +47,5 @@ func (c *KubeAccessChecker) GetGroupsAndUsers(ttl time.Duration, overrideTTL boo
 		return c.checker.unscopedChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 	}
 
-	return c.checker.role.GetSpec().GetKube().GetGroups(), c.checker.role.GetSpec().GetKube().GetUsers(), nil
+	return c.checker.scopedCompatChecker.CheckKubeGroupsAndUsers(ttl, overrideTTL, matchers...)
 }
