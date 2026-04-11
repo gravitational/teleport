@@ -496,6 +496,7 @@ sensitive_fields:
     - "OIDCConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.GoogleServiceAccount"
     - "TrustedClusterV2.Spec.Token"
+    - "OAuthClientCredentials.ClientSecret"
 
 # These suffixes for custom methods called when field has custom_type flag. By default they might be weird.
 suffixes:
