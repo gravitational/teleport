@@ -1788,7 +1788,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 					continue
 				}
 				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
+					rm, err := MatcherFromConstraints(raid.GetConstraints(), resource)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -2525,7 +2525,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
 			}
-			constraintMatcher, err := MatcherFromConstraints(constraints)
+			constraintMatcher, err := MatcherFromConstraints(constraints, resource)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

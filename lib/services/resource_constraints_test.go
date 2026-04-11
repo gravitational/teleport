@@ -19,6 +19,7 @@
 package services
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -168,7 +169,7 @@ func TestMatcherFromConstraints_SSH_BuildsAnyOf(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -195,7 +196,7 @@ func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -210,31 +211,33 @@ func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 	require.False(t, ok)
 }
 
-func roleAllowingDatabaseUsersAndNames(users, names []string) types.Role {
+func roleAllowingDatabase(mut func(rv *types.RoleV6)) types.Role {
 	return newRole(func(rv *types.RoleV6) {
 		rv.Spec.Allow.DatabaseLabels = types.Labels{types.Wildcard: {types.Wildcard}}
 		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
-		rv.Spec.Allow.DatabaseUsers = append([]string{}, users...)
-		rv.Spec.Allow.DatabaseNames = append([]string{}, names...)
+		mut(rv)
+	})
+}
+
+func roleAllowingDatabaseUsersAndNames(users, names []string) types.Role {
+	return roleAllowingDatabase(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DatabaseUsers = slices.Clone(users)
+		rv.Spec.Allow.DatabaseNames = slices.Clone(names)
 	})
 }
 
 func roleAllowingDatabaseRoles(roles []string) types.Role {
-	return newRole(func(rv *types.RoleV6) {
-		rv.Spec.Allow.DatabaseLabels = types.Labels{types.Wildcard: {types.Wildcard}}
-		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
-		rv.Spec.Allow.DatabaseRoles = append([]string{}, roles...)
+	return roleAllowingDatabase(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DatabaseRoles = slices.Clone(roles)
 		rv.Spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_KEEP
 	})
 }
 
 func roleAllowingDatabaseAll(users, names, roles []string) types.Role {
-	return newRole(func(rv *types.RoleV6) {
-		rv.Spec.Allow.DatabaseLabels = types.Labels{types.Wildcard: {types.Wildcard}}
-		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
-		rv.Spec.Allow.DatabaseUsers = append([]string{}, users...)
-		rv.Spec.Allow.DatabaseNames = append([]string{}, names...)
-		rv.Spec.Allow.DatabaseRoles = append([]string{}, roles...)
+	return roleAllowingDatabase(func(rv *types.RoleV6) {
+		rv.Spec.Allow.DatabaseUsers = slices.Clone(users)
+		rv.Spec.Allow.DatabaseNames = slices.Clone(names)
+		rv.Spec.Allow.DatabaseRoles = slices.Clone(roles)
 		rv.Spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_KEEP
 	})
 }
@@ -355,7 +358,7 @@ func TestMatcherFromConstraints_Database_UsersOnly(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -379,7 +382,7 @@ func TestMatcherFromConstraints_Database_NamesOnly(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -404,7 +407,7 @@ func TestMatcherFromConstraints_Database_UsersAndNames(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -436,7 +439,7 @@ func TestMatcherFromConstraints_Database_RolesOnly(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -464,7 +467,7 @@ func TestMatcherFromConstraints_Database_UsersNamesAndRoles(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -836,7 +839,7 @@ func TestMatcherFromConstraints_Database_WildcardUsers(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -864,7 +867,7 @@ func TestMatcherFromConstraints_Database_WildcardNames(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -889,7 +892,7 @@ func TestMatcherFromConstraints_Database_WildcardRoles(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc)
+	m, err := MatcherFromConstraints(rc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
@@ -1080,5 +1083,401 @@ func TestDatabaseConstraints_EndToEnd(t *testing.T) {
 		roles, err := unconstrained.CheckDatabaseRoles(database, nil)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"reader", "writer", "admin"}, roles)
+	})
+}
+
+// newAWSIAMDatabase creates a database where RequireAWSIAMRolesAsUsers() is true,
+// using DynamoDB protocol with AWS account ID and region metadata.
+func newAWSIAMDatabase(t *testing.T, name string) types.Database {
+	t.Helper()
+	db, err := types.NewDatabaseV3(types.Metadata{Name: name}, types.DatabaseSpecV3{
+		Protocol: "dynamodb",
+		URI:      "dynamodb.us-east-1.amazonaws.com",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, db.RequireAWSIAMRolesAsUsers())
+	return db
+}
+
+func TestWithConstraints_Database_AWSIAMAlternativeNames(t *testing.T) {
+	const (
+		shortName = "Admin"
+		fullARN   = "arn:aws:iam::123456789012:role/Admin"
+	)
+
+	db := newAWSIAMDatabase(t, "test-dynamodb")
+
+	// Role allows the short name; constraint specifies the short name too.
+	// A connection using the full ARN should still pass because the matcher
+	// resolves alternative names.
+	role := roleAllowingDatabaseUsersAndNames([]string{shortName}, nil)
+
+	t.Run("constraint=short, connection=fullARN, role=short", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{shortName},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		// Connection with full ARN — the databaseUserMatcher has alternativeNames=[short].
+		matcher := NewDatabaseUserMatcher(db, fullARN)
+		ok, err := guard(matcher).Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "full ARN should match constraint with short name via alternativeNames")
+	})
+
+	t.Run("constraint=fullARN, connection=short, role=fullARN", func(t *testing.T) {
+		roleWithARN := roleAllowingDatabaseUsersAndNames([]string{fullARN}, nil)
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{fullARN},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		// Connection with short name — the databaseUserMatcher has alternativeNames=[fullARN].
+		matcher := NewDatabaseUserMatcher(db, shortName)
+		ok, err := guard(matcher).Match(roleWithARN, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "short name should match constraint with full ARN via alternativeNames")
+	})
+
+	t.Run("constraint=short, connection=different, role=short", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{shortName},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		matcher := NewDatabaseUserMatcher(db, "OtherRole")
+		ok, err := guard(matcher).Match(role, types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok, "unrelated role should be denied")
+	})
+}
+
+func TestWithConstraints_Database_CaseInsensitive(t *testing.T) {
+	// CockroachDB has case-insensitive usernames.
+	db, err := types.NewDatabaseV3(types.Metadata{Name: "test-cockroach"}, types.DatabaseSpecV3{
+		Protocol: "cockroachdb",
+		URI:      "localhost:26257",
+	})
+	require.NoError(t, err)
+	require.True(t, db.IsUsernameCaseInsensitive())
+
+	role := roleAllowingDatabaseUsersAndNames([]string{"Admin"}, nil)
+	rc := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Database{
+			Database: &types.DatabaseResourceConstraints{
+				Users: []string{"admin"},
+			},
+		},
+	}
+	guard := WithConstraints(rc)
+
+	// Connection with different case — should match due to case insensitivity.
+	matcher := NewDatabaseUserMatcher(db, "ADMIN")
+	ok, err := guard(matcher).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.True(t, ok, "case-insensitive match should succeed")
+
+	// Unrelated user should still fail.
+	matcher2 := NewDatabaseUserMatcher(db, "other")
+	ok, err = guard(matcher2).Match(role, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok, "unrelated user should be denied")
+}
+
+func TestMatcherFromConstraints_Database_AWSIAMWithDatabase(t *testing.T) {
+	const (
+		shortName = "Admin"
+		fullARN   = "arn:aws:iam::123456789012:role/Admin"
+	)
+
+	db := newAWSIAMDatabase(t, "test-dynamodb")
+
+	t.Run("constraint=short resolves to fullARN role match", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{shortName},
+				},
+			},
+		}
+
+		// With database parameter, NewDatabaseUserMatcher is used which resolves alternative names.
+		m, err := MatcherFromConstraints(rc, db)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+
+		// Role allows the full ARN — the matcher should resolve short->full.
+		roleWithARN := roleAllowingDatabaseUsersAndNames([]string{fullARN}, nil)
+		ok, err := m.Match(roleWithARN, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "constraint with short name should match role with full ARN via database-aware matcher")
+
+		// Role allows an unrelated user — should not match.
+		roleOther := roleAllowingDatabaseUsersAndNames([]string{"OtherRole"}, nil)
+		ok, err = m.Match(roleOther, types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("constraint=fullARN resolves to short name role match", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{fullARN},
+				},
+			},
+		}
+
+		m, err := MatcherFromConstraints(rc, db)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+
+		// Role allows the short name — the matcher should resolve full->short.
+		roleWithShort := roleAllowingDatabaseUsersAndNames([]string{shortName}, nil)
+		ok, err := m.Match(roleWithShort, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "constraint with full ARN should match role with short name via database-aware matcher")
+	})
+
+	t.Run("without database falls back to simpleDatabaseUserMatcher", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{shortName},
+				},
+			},
+		}
+
+		// Without database parameter, simpleDatabaseUserMatcher is used.
+		m, err := MatcherFromConstraints(rc, nil)
+		require.NoError(t, err)
+		require.NotNil(t, m)
+
+		// Role allows the full ARN — without database resolution, short name
+		// won't match the full ARN in the role.
+		roleWithARN := roleAllowingDatabaseUsersAndNames([]string{fullARN}, nil)
+		ok, err := m.Match(roleWithARN, types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok, "without database, short name should not resolve to full ARN")
+
+		// Role allows the short name directly — should match.
+		roleWithShort := roleAllowingDatabaseUsersAndNames([]string{shortName}, nil)
+		ok, err = m.Match(roleWithShort, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+}
+
+func TestDatabaseConstraints_EndToEnd_AWSIAMDatabase(t *testing.T) {
+	const (
+		shortName = "Admin"
+		fullARN   = "arn:aws:iam::123456789012:role/Admin"
+		otherRole = "ReadOnly"
+		otherARN  = "arn:aws:iam::123456789012:role/ReadOnly"
+	)
+
+	db := newAWSIAMDatabase(t, "prod-dynamodb")
+
+	// Role allows both short and full ARN forms.
+	role := &types.RoleV6{
+		Metadata: types.Metadata{Name: "db-aws", Namespace: "default"},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{"default"},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseUsers:  []string{shortName, otherRole},
+			},
+		},
+	}
+
+	constraints := &types.ResourceConstraints{
+		Details: &types.ResourceConstraints_Database{
+			Database: &types.DatabaseResourceConstraints{
+				Users: []string{shortName},
+			},
+		},
+	}
+
+	accessInfo := &AccessInfo{
+		Username: "alice",
+		Roles:    []string{"db-aws"},
+		AllowedResourceAccessIDs: []types.ResourceAccessID{
+			{
+				Id: types.ResourceID{
+					ClusterName: "cluster",
+					Kind:        types.KindDatabase,
+					Name:        "prod-dynamodb",
+				},
+				Constraints: constraints,
+			},
+		},
+	}
+	checker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", RoleSet{role})
+	state := AccessState{MFAVerified: true}
+
+	t.Run("connection with short name allowed by constraint", func(t *testing.T) {
+		err := checker.CheckAccess(db, state, NewDatabaseUserMatcher(db, shortName))
+		require.NoError(t, err)
+	})
+
+	t.Run("connection with full ARN allowed via alternativeNames", func(t *testing.T) {
+		err := checker.CheckAccess(db, state, NewDatabaseUserMatcher(db, fullARN))
+		require.NoError(t, err)
+	})
+
+	t.Run("connection with unconstrained user denied", func(t *testing.T) {
+		err := checker.CheckAccess(db, state, NewDatabaseUserMatcher(db, otherRole))
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("connection with unconstrained full ARN denied", func(t *testing.T) {
+		err := checker.CheckAccess(db, state, NewDatabaseUserMatcher(db, otherARN))
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+}
+
+// newAWSIAMRoleARNDatabase creates a database where SupportAWSIAMRoleARNAsUsers()
+// is true (MongoAtlas), for testing the partial ARN ↔ full ARN resolution path.
+func newAWSIAMRoleARNDatabase(t *testing.T, name string) types.Database {
+	t.Helper()
+	db, err := types.NewDatabaseV3(types.Metadata{Name: name}, types.DatabaseSpecV3{
+		Protocol: "mongodb",
+		URI:      "test.xxxxxxx.mongodb.net",
+		MongoAtlas: types.MongoAtlas{
+			Name: "instance",
+		},
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, db.SupportAWSIAMRoleARNAsUsers())
+	return db
+}
+
+func TestWithConstraints_Database_SupportAWSIAMRoleARN(t *testing.T) {
+	const (
+		partialARN = "role/Admin"
+		fullARN    = "arn:aws:iam::123456789012:role/Admin"
+	)
+
+	db := newAWSIAMRoleARNDatabase(t, "test-mongo-atlas")
+
+	t.Run("constraint=partial, connection=full, role=partial", func(t *testing.T) {
+		role := roleAllowingDatabaseUsersAndNames([]string{partialARN}, nil)
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{partialARN},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		// Connection uses full ARN; matcher resolves alternativeNames=[partial].
+		matcher := NewDatabaseUserMatcher(db, fullARN)
+		ok, err := guard(matcher).Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "full ARN should match constraint with partial ARN via alternativeNames")
+	})
+
+	t.Run("constraint=full, connection=partial, role=full", func(t *testing.T) {
+		role := roleAllowingDatabaseUsersAndNames([]string{fullARN}, nil)
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{fullARN},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		// Connection uses partial ARN; matcher resolves alternativeNames=[full].
+		matcher := NewDatabaseUserMatcher(db, partialARN)
+		ok, err := guard(matcher).Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "partial ARN should match constraint with full ARN via alternativeNames")
+	})
+
+	t.Run("regular user not affected by ARN resolution", func(t *testing.T) {
+		role := roleAllowingDatabaseUsersAndNames([]string{"regular-user"}, nil)
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{"regular-user"},
+				},
+			},
+		}
+		guard := WithConstraints(rc)
+
+		// Regular user (no role/ prefix) gets no alternativeNames.
+		matcher := NewDatabaseUserMatcher(db, "regular-user")
+		ok, err := guard(matcher).Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok, "regular user should match directly without ARN resolution")
+	})
+}
+
+func TestMatcherFromConstraints_Database_SupportAWSIAMRoleARN(t *testing.T) {
+	const (
+		partialARN = "role/Admin"
+		fullARN    = "arn:aws:iam::123456789012:role/Admin"
+	)
+
+	db := newAWSIAMRoleARNDatabase(t, "test-mongo-atlas")
+
+	t.Run("constraint=partial resolves to full ARN role match", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{partialARN},
+				},
+			},
+		}
+		m, err := MatcherFromConstraints(rc, db)
+		require.NoError(t, err)
+
+		// Role has full ARN — matcher should resolve partial→full.
+		role := roleAllowingDatabaseUsersAndNames([]string{fullARN}, nil)
+		ok, err := m.Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("constraint=full resolves to partial ARN role match", func(t *testing.T) {
+		rc := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Database{
+				Database: &types.DatabaseResourceConstraints{
+					Users: []string{fullARN},
+				},
+			},
+		}
+		m, err := MatcherFromConstraints(rc, db)
+		require.NoError(t, err)
+
+		// Role has partial ARN — matcher should resolve full→partial.
+		role := roleAllowingDatabaseUsersAndNames([]string{partialARN}, nil)
+		ok, err := m.Match(role, types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
 	})
 }
