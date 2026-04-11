@@ -151,6 +151,13 @@ func removeIgnoredFieldsFromStruct(name string, strct *types.Struct) types.Type 
 			continue
 		}
 
+		// Ignore Credentials on SAMLConnectorSpecV2; the oneof is not
+		// handled by goderive. It is up to SAMLConnectorSpecV2.IsEqual
+		// to account for this manually.
+		if name == "SAMLConnectorSpecV2" && fieldName == "Credentials" {
+			continue
+		}
+
 		filteredFields = append(filteredFields, field)
 		filteredTags = append(filteredTags, strct.Tag(i))
 

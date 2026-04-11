@@ -159,7 +159,31 @@ func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
 		return false
 	}
 
-	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
+	if !deriveTeleportEqualSAMLConnectorV2(o, otherv2) {
+		return false
+	}
+
+	if o == nil && otherv2 == nil {
+		return true
+	}
+
+	// Handle equality for Credentials oneof.
+	var thisCreds, thatCreds *OAuthClientCredentials
+	if o != nil {
+		thisCreds = o.GetOAuthClientCredentials()
+	}
+	if otherv2 != nil {
+		thatCreds = otherv2.GetOAuthClientCredentials()
+	}
+	if thisCreds == nil && thatCreds == nil {
+		return true
+	}
+	if thisCreds == nil || thatCreds == nil {
+		return false
+	}
+
+	return thisCreds.ClientId == thatCreds.ClientId &&
+		thisCreds.ClientSecret == thatCreds.ClientSecret
 }
 
 // GetVersion returns resource version
