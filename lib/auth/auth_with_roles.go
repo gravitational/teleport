@@ -164,11 +164,30 @@ func (a *ServerWithRoles) authorizeAction(resource string, verb string, extraVer
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	if authz.IsCurrentUser(a.context, username) {
+	unscopedCtx := &a.context
+	if a.scopedContext != nil {
+		var isUnscoped bool
+		unscopedCtx, isUnscoped = a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return a.currentScopedUserAction(username)
+		}
+	}
+
+	if authz.IsCurrentUser(*unscopedCtx, username) {
 		return nil
 	}
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
+	return unscopedCtx.Checker.CheckAccessToRule(&services.Context{User: a.getUser()},
 		apidefaults.Namespace, types.KindUser, types.VerbCreate)
+}
+
+// currentScopedUserAction is a special checker that allows certain actions for scoped users
+// even if they are not admins, e.g. update their own passwords, or generate certificates.
+// Otherwise it will reject because scoped users can not modify other users.
+func (a *ServerWithRoles) currentScopedUserAction(username string) error {
+	if authz.ScopedIsCurrentUser(a.scopedContext, username) {
+		return nil
+	}
+	return trace.Wrap(services.ErrScopedIdentity, "checking create access for users")
 }
 
 // authConnectorAction is a special checker that grants access to auth
