@@ -255,11 +255,15 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 	}
 
 	existingConnectorName := "existing"
+	existingConnectorNoCredsName := "existing-no-creds"
 	existingConnectors := mockSAMLGetter{
 		existingConnectorName: &types.SAMLConnectorV2{
 			Spec: types.SAMLConnectorSpecV2{
 				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: existingOAuthCreds},
 			},
+		},
+		existingConnectorNoCredsName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{},
 		},
 	}
 
@@ -303,6 +307,17 @@ func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 			connectorName: existingConnectorName,
 			connectorSpec: types.SAMLConnectorSpecV2{},
 			assertErr:     require.Error,
+		},
+		{
+			name:          "existing connector has no OAuth credentials",
+			connectorName: existingConnectorNoCredsName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorSpecV2_Oauth{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "another-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
 		},
 		{
 			name:          "existing connector OAuth ClientId doesn't match",
