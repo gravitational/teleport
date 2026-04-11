@@ -1,8 +1,5 @@
 # AGENTS.md
 
-## Mission
-Use Codex/LLMs to explore ideas, prototypes, and design alternatives only. Any LLM-produced code or content must not be committed to the repository.
-
 ## Review Guidelines
 - Focus only on critical security, reliability, performance, and scalability issues.
 - Ignore style, performance micro-optimizations, and readability nits unless they are tied to a significant failure
