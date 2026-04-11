@@ -5404,10 +5404,16 @@ func checkRoleFeatureSupport(mod modules.Modules, role types.Role) error {
 
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
+	if a.scopedContext != nil {
+		// scoped identities should not be able to fetch unscoped roles for any reason
+		if _, isUnscoped := a.scopedContext.UnscopedContext(); !isUnscoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "fetching unscoped role")
+		}
+	}
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if slices.Contains(a.context.User.GetRoles(), name) {
+	if slices.Contains(a.getUser().GetRoles(), name) {
 		role, err := a.authServer.GetRole(ctx, name)
 		if err != nil && trace.IsNotFound(err) {
 			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
