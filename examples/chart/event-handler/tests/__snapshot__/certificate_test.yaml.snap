@@ -7,7 +7,7 @@ should request certificates when certManager enabled:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 19.0.0-dev.gus-idempotent-oci-test.4
+        app.kubernetes.io/version: 19.0.0-dev.gus-idempotent-oci-test.5
         helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.gus-idempotent-oci-tes
       name: RELEASE-NAME-teleport-plugin-event-handler-server
       namespace: NAMESPACE
@@ -35,7 +35,7 @@ should request certificates when certManager enabled:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-event-handler
-        app.kubernetes.io/version: 19.0.0-dev.gus-idempotent-oci-test.4
+        app.kubernetes.io/version: 19.0.0-dev.gus-idempotent-oci-test.5
         helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev.gus-idempotent-oci-tes
       name: RELEASE-NAME-teleport-plugin-event-handler-client
       namespace: NAMESPACE
