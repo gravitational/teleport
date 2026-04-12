@@ -17,7 +17,8 @@ See the AWS EC2 auto-discovery [guide](../../../enroll-resources/auto-discovery/
 
 | Label                      | Description                                          |
 |----------------------------|------------------------------------------------------|
-| `teleport.dev/account-id`  | AWS account ID where the EC2 instance is running |
+| `teleport.dev/account-id`  | AWS account ID where the EC2 instance is running     |
+| `teleport.dev/aws-region`  | AWS region where the EC2 instance is running         |
 | `teleport.dev/instance-id` | AWS EC2 instance ID                                  |
 
 ### Databases
@@ -65,12 +66,12 @@ See the AWS EKS auto-discovery [guide](../../../enroll-resources/auto-discovery/
 
 See the Azure VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/azure-discovery.mdx).
 
-| Label                               | Description                                   |
-|-------------------------------------|-----------------------------------------------|
-| `teleport.internal/region`          | Azure region where the VM is running          |
-| `teleport.internal/resource-group`  | Azure resource group the VM belongs to        |
-| `teleport.internal/subscription-id` | Azure subscription ID where the VM is running |
-| `teleport.internal/vm-id`           | Azure VM ID                                   |
+| Label                          | Description                                   |
+|--------------------------------|-----------------------------------------------|
+| `teleport.dev/region`          | Azure region where the VM is running          |
+| `teleport.dev/resource-group`  | Azure resource group the VM belongs to        |
+| `teleport.dev/subscription-id` | Azure subscription ID where the VM is running |
+| `teleport.dev/vm-id`           | Azure VM ID                                   |
 
 
 ### Databases
@@ -116,16 +117,15 @@ See the Azure AKS auto-discovery [guide](../../../enroll-resources/auto-discover
 
 See the GCP VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/gcp-discovery.mdx).
 
-| Label                          | Description                         |
-|--------------------------------|-------------------------------------|
-| `teleport.dev/project-id`      | GCP project ID the VM is running in |
-| `teleport.internal/name`       | GCP VM name                         |
-| `teleport.internal/project-id` | GCP project ID the VM is running in |
-| `teleport.internal/zone`       | GCP zone where the VM is running    |
+| Label                     | Description                         |
+|---------------------------|-------------------------------------|
+| `teleport.dev/name`       | GCP VM name                         |
+| `teleport.dev/project-id` | GCP project ID the VM is running in |
+| `teleport.dev/zone`       | GCP zone where the VM is running    |
 
 ### Kubernetes clusters
 
-See the Azure AKS auto-discovery [guide](../../../enroll-resources/auto-discovery/kubernetes/google-cloud.mdx).
+See the GCP GKE auto-discovery [guide](../../../enroll-resources/auto-discovery/kubernetes/google-cloud.mdx).
 
 | Label                                     | Description                                                                                               |
 |-------------------------------------------|-----------------------------------------------------------------------------------------------------------|

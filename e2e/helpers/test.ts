@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from '@playwright/test';
-
+import { test as base } from './fixtures';
 import { AccountSettingsPage } from './pages/AccountSettings';
 import { AuthenticatedPage } from './pages/Authenticated';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';

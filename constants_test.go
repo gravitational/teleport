@@ -16,17 +16,17 @@
 
 package teleport
 
-import "github.com/gravitational/teleport/session/logutils"
+import "github.com/gravitational/teleport/session/logconstants"
 
-// static assertions that [logutils.ComponentKey] and [logutils.ComponentFields]
+// static assertions that [logconstants.ComponentKey] and [logconstants.ComponentFields]
 // are equal to the respective consts defined in this package; we can't just
 // define them to be equal because the true definition belongs here and we want
 // to avoid circular module requirements
 func _() {
-	const mustBeTrue = ComponentKey == logutils.ComponentKey
+	const mustBeTrue = ComponentKey == logconstants.ComponentKey
 	_ = map[bool]struct{}{false: struct{}{}, mustBeTrue: struct{}{}}
 }
 func _() {
-	const mustBeTrue = ComponentFields == logutils.ComponentFields
+	const mustBeTrue = ComponentFields == logconstants.ComponentFields
 	_ = map[bool]struct{}{false: struct{}{}, mustBeTrue: struct{}{}}
 }
