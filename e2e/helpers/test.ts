@@ -18,15 +18,27 @@
 
 import { test as base } from '@playwright/test';
 
+import { AccountSettingsPage } from './pages/AccountSettings';
+import { AuthenticatedPage } from './pages/Authenticated';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 
 export const CLUSTER_NAME = 'teleport-e2e';
 
 export const test = base.extend<{
   unifiedResourcesPage: UnifiedResourcesPage;
+  authenticatedPage: AuthenticatedPage;
+  accountSettingsPage: AccountSettingsPage;
 }>({
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
+  },
+
+  authenticatedPage: async ({ page }, use) => {
+    await use(new AuthenticatedPage(page));
+  },
+
+  accountSettingsPage: async ({ page }, use) => {
+    await use(new AccountSettingsPage(page));
   },
 });
 

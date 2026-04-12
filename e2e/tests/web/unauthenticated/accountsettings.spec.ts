@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { login, logout } from '@gravitational/e2e/helpers/login';
+import { login } from '@gravitational/e2e/helpers/login';
 import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
 import { expect, test } from '@gravitational/e2e/helpers/test';
 import {
@@ -29,43 +29,41 @@ test.afterEach(() => {
   setCurrentDevice(defaultDevice);
 });
 
-test('account settings', async ({ page }, testInfo) => {
+test('adding a new passkey', async ({
+  page,
+  authenticatedPage,
+  accountSettingsPage,
+}, testInfo) => {
   const username = `testuser-${testInfo.workerIndex}`;
   await signup(page, username, defaultPassword);
 
-  await page.goto('/');
-  await page.getByRole('button', { name: 'User Menu' }).click();
-  await page.getByRole('link', { name: 'Account Settings' }).click();
-  const passkeyDevices = page.getByTestId('passkey-list').locator('tbody tr');
-  const mfaDevices = page.getByTestId('mfa-list').locator('tbody tr');
-  await expect(passkeyDevices).toHaveCount(0);
-  await expect(mfaDevices).toHaveCount(1);
-  await expect(mfaDevices.first()).toContainText('Hardware Key');
-  await expect(mfaDevices.first()).toContainText('webauthn-device');
+  await authenticatedPage.goto();
+  await authenticatedPage.openAccountSettings();
+  await expect(accountSettingsPage.passkeyRows).toHaveCount(0);
+  await expect(accountSettingsPage.mfaRows).toHaveCount(1);
+  await expect(accountSettingsPage.mfaRows.first()).toContainText(
+    'Hardware Key'
+  );
+  await expect(accountSettingsPage.mfaRows.first()).toContainText(
+    'webauthn-device'
+  );
 
-  await page.getByRole('button', { name: 'Add a Passkey' }).click();
-  // Sanity check to make sure that the opposite expectation below is actually
-  // meaningful.
-  await expect(
-    page.getByRole('heading', { name: 'Verify Identity' })
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Verify my identity' }).click();
-  // Wait until the ceremony is fully completed and it's OK to switch to the
-  // new MFA device.
-  await expect(
-    page.getByRole('heading', { name: 'Verify Identity' })
-  ).not.toBeVisible();
+  await accountSettingsPage.addPasskey();
+  await accountSettingsPage.verifyIdentity();
 
   setCurrentDevice(new WebAuthnDevice());
-  await page.getByRole('button', { name: 'Create a Passkey' }).click();
+  await accountSettingsPage.createPasskey();
 
-  await page.getByLabel('Passkey Nickname').fill('new-passkey');
-  await page.getByRole('button', { name: 'Save the Passkey' }).click();
-  await expect(mfaDevices).toHaveCount(1);
-  await expect(passkeyDevices).toHaveCount(1);
-  await expect(passkeyDevices.first()).toContainText('new-passkey');
+  await accountSettingsPage.setPasskeyNickname('new-passkey');
+  await accountSettingsPage.savePasskey();
+  await expect(accountSettingsPage.mfaRows).toHaveCount(1);
+  await expect(accountSettingsPage.passkeyRows).toHaveCount(1);
+  await expect(accountSettingsPage.passkeyRows.first()).toContainText(
+    'new-passkey'
+  );
 
-  // Log out and in again, this time with the new MFA device.
-  await logout(page);
+  // Log out and in again, this time with the new MFA device, to test that it's
+  // actually working.
+  await authenticatedPage.logout();
   await login(page, username, defaultPassword);
 });
