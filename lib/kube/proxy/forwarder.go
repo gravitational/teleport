@@ -117,7 +117,7 @@ type ForwarderConfig struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 	// Authz authenticates user
-	Authz authz.Authorizer
+	ScopedAuthz authz.ScopedAuthorizer
 	// AuthClient is a auth server client.
 	AuthClient authclient.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
@@ -208,8 +208,8 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.CachingAuthClient == nil {
 		return trace.BadParameter("missing parameter CachingAuthClient")
 	}
-	if f.Authz == nil {
-		return trace.BadParameter("missing parameter Authz")
+	if f.ScopedAuthz == nil {
+		return trace.BadParameter("missing parameter ScopedAuthz")
 	}
 	if f.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
@@ -430,6 +430,7 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	authz.Context
+	scopedCtx         *authz.ScopedContext
 	kubeGroups        map[string]struct{}
 	kubeUsers         map[string]struct{}
 	kubeClusterLabels map[string]string
@@ -567,12 +568,12 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		return nil, trace.AccessDenied("%s", accessDeniedMsg)
 	}
 
-	userContext, err := f.cfg.Authz.Authorize(ctx)
+	scopedCtx, err := f.cfg.ScopedAuthz.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser)
+	authContext, err := f.setupContext(ctx, scopedCtx, req, isRemoteUser)
 	if err != nil {
 		f.log.WarnContext(ctx, "Unable to setup context", "error", err)
 		if trace.IsAccessDenied(err) {
@@ -782,7 +783,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 
 func (f *Forwarder) setupContext(
 	ctx context.Context,
-	authCtx authz.Context,
+	scopedCtx *authz.ScopedContext,
 	req *http.Request,
 	isRemoteUser bool,
 ) (*authContext, error) {
@@ -797,13 +798,7 @@ func (f *Forwarder) setupContext(
 	)
 	defer span.End()
 
-	roles := authCtx.Checker
-
-	// adjust session ttl to the smaller of two values: the session
-	// ttl requested in tsh or the session ttl for the role.
-	sessionTTL := roles.AdjustSessionTTL(time.Hour)
-
-	identity := authCtx.Identity.GetIdentity()
+	identity := scopedCtx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
@@ -856,15 +851,25 @@ func (f *Forwarder) setupContext(
 		return nil, trace.Wrap(err)
 	}
 
+	// These are the defaults for scoped identities. They will be adjusted
+	// in the authorize function once we know which role is being used to
+	// grant access.
+	sessionTTL := time.Hour
+	clientIdleTimeout := netConfig.GetClientIdleTimeout()
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if isUnscoped {
+		sessionTTL = unscopedCtx.Checker.AdjustSessionTTL(sessionTTL)
+		clientIdleTimeout = unscopedCtx.Checker.AdjustClientIdleTimeout(clientIdleTimeout)
+	}
 	return &authContext{
-		clientIdleTimeout:        roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		scopedCtx:                scopedCtx,
+		clientIdleTimeout:        clientIdleTimeout,
 		clientIdleTimeoutMessage: netConfig.GetClientIdleTimeoutMessage(),
 		sessionTTL:               sessionTTL,
-		Context:                  authCtx,
 		recordingConfig:          recordingConfig,
 		kubeClusterName:          kubeCluster,
 		certExpires:              identity.Expires,
-		disconnectExpiredCert:    authCtx.GetDisconnectCertExpiry(authPref),
+		disconnectExpiredCert:    scopedCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:       teleportClusterName,
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
