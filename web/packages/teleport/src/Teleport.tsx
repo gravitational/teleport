@@ -26,7 +26,6 @@ import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
@@ -35,7 +34,6 @@ import { AppLauncher } from './AppLauncher';
 import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
-import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
@@ -47,6 +45,20 @@ import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
 import { Welcome } from './Welcome';
+
+// Lazy-load components that depend on IronRDP WebAssembly so the rest of the
+// app still works when WebAssembly is unavailable (e.g. restrictive enterprise
+// browser policies).
+const DesktopSession = React.lazy(() =>
+  import('./DesktopSession').then(m => ({
+    default: m.DesktopSessionContainer,
+  }))
+);
+const ViewSessionRecordingRoute = React.lazy(() =>
+  import('teleport/SessionRecordings/view/ViewSessionRecordingRoute').then(
+    m => ({ default: m.ViewSessionRecordingRoute })
+  )
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
