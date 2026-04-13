@@ -168,11 +168,32 @@ func (a *ServerWithRoles) authorizeAction(resource string, verb string, extraVer
 // more expensive per-resource checks
 func (a *ServerWithRoles) preAuthorizeScopedAction(resource string, verbs ...string) error {
 	if a.scopedContext == nil {
-		return trace.AccessDenied("cannot pre authorize scoped action for unscoped context")
+		return trace.BadParameter("cannot pre authorize scoped action for unscoped context")
 	}
 
 	ruleCtx := a.scopedContext.RuleContext()
 	return trace.Wrap(a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, resource, verbs...))
+}
+
+// authorizeActionWithScopedPreAuth is the same as authorizeAction but with a fallback to scoped pre-auth when
+// authorizeAction returns ErrScopedIdentity
+func (a *ServerWithRoles) authorizeActionWithScopedPreAuth(resourceKind string, verbs ...string) error {
+	var verb string
+	var extraVerbs []string
+	if len(verbs) > 0 {
+		verb = verbs[0]
+	}
+	if len(verbs) > 1 {
+		extraVerbs = verbs[1:]
+	}
+
+	if err := a.authorizeAction(resourceKind, verb, extraVerbs...); err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			return a.preAuthorizeScopedAction(resourceKind, verbs...)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -6537,14 +6558,8 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(ctx context.Context, cluster 
 
 // GetKubernetesServers returns all registered kubernetes servers.
 func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	if err := a.authorizeAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := a.preAuthorizeScopedAction(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	servers, err := a.authServer.GetKubernetesServers(ctx)
@@ -7045,13 +7060,8 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return trace.Wrap(err)
-		}
-		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubernetesCluster, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
 	}
 	// Don't allow users create clusters they wouldn't have access to (e.g.
 	// non-matching labels).
@@ -7067,13 +7077,8 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return trace.Wrap(err)
-		}
-		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
@@ -7111,13 +7116,8 @@ func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string)
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	out, err := iterstream.Collect(
@@ -7141,13 +7141,8 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, "", trace.Wrap(err)
-		}
-		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
-			return nil, "", trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
 	return generic.CollectPageAndCursor(
@@ -7184,13 +7179,8 @@ func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name stri
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbDelete); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return trace.Wrap(err)
-		}
-		if err := a.preAuthorizeScopedAction(types.KindKubernetesCluster, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
-		}
+	if err := a.authorizeActionWithScopedPreAuth(types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 	// Make sure to only delete kubernetes cluster user has access to.
 	clusters, err := a.authServer.GetKubernetesClusters(ctx)
