@@ -106,26 +106,6 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
 
-	scx.cmdr, scx.cmdw, err = os.Pipe()
-	require.NoError(t, err)
-
-	logCfgWriter := srv.ChildLogConfig().Writer
-	if fileWriter, ok := logCfgWriter.(*os.File); ok {
-		scx.logw = fileWriter
-	} else {
-		require.NoError(t, scx.streamChildLogs(logCfgWriter))
-	}
-
-	scx.contr, scx.contw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.readyr, scx.readyw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.killShellr, scx.killShellw, err = os.Pipe()
-	require.NoError(t, err)
-	scx.AddCloser(scx.killShellw)
-
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".
 	// Note that outside of tests, we never check the error form scx.Close because this
