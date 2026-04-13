@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +26,7 @@ func TestMain(m *testing.M) {
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
+		reexec.RunAndExit(os.Args[1])
 		return
 	}
 
@@ -72,7 +73,7 @@ func TestStartTeleportExecXSession(t *testing.T) {
 
 	logger := slog.Default()
 	cfg := func() *XSessionConfig {
-		config := srv.ExecLogConfig{
+		config := reexec.ExecLogConfig{
 			Level: slog.LevelDebug,
 		}
 		return &XSessionConfig{

@@ -526,6 +526,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				Display:        backend.Display,
 				AuthorityFile:  backend.AuthorityFile.Name(),
 			})
+			defer cmd.Close()
 			go func() {
 				err := cmd.Wait()
 				if ctx.Err() != nil {

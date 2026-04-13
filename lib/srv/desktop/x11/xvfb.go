@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"math"
@@ -39,7 +40,7 @@ const (
 )
 
 func init() {
-	xgb.Logger = log.New(os.Stderr, "XGB", 0)
+	xgb.Logger = log.New(io.Discard, "", 0)
 }
 
 // Config contains configuration for X11 backend.

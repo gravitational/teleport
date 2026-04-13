@@ -475,7 +475,7 @@ func RunCommand() (exitErr error, err error) {
 		}
 	}
 
-	if c.Terminal {
+	if c.Terminal || c.ForceLoginShell {
 		uaccSession, err := uaccHandler.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
 		if err == nil {
 			defer func() {
