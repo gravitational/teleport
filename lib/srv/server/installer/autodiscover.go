@@ -322,7 +322,7 @@ func (ani *AutoDiscoverNodeInstaller) installAndConfigure(ctx context.Context) e
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			return trace.BadParameter("could not acquire lock file %s; either remove it or wait for the other installer to finish", lockFile)
 		}
-		return trace.Wrap(err, "acquiring install lock %s", lockFile)
+		return trace.Wrap(err, "acquiring install lock file %s", lockFile)
 	}
 	defer func() {
 		if err := unlockFn(); err != nil {
