@@ -161,7 +161,7 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
+	updated, err := o.assignmentSvc.UpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
 }
 
