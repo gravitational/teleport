@@ -259,16 +259,6 @@ export class WindowsManager {
       return;
     }
 
-    if (this.window.isMinimized()) {
-      this.window.restore();
-    }
-
-    if (this.window.isVisible()) {
-      this.window.focus();
-      return;
-    }
-
-    this.window.show();
     if (this.isInBackgroundMode) {
       this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
         isInBackgroundMode: false,
@@ -276,6 +266,15 @@ export class WindowsManager {
       void app.dock?.show();
       this.isInBackgroundMode = false;
     }
+
+    if (this.window.isMinimized()) {
+      this.window.restore();
+    }
+
+    // Menu bar clicks don't automatically make the app the active application on macOS.
+    app.focus({ steal: true });
+    // window.show() both makes the window visible and gives it focus.
+    this.window.show();
   }
 
   /**
