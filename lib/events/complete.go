@@ -362,7 +362,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			continue
 		}
 
-		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID, upload.ID)
+		uploadData := u.cfg.Uploader.GetUploadMetadata(ctx, upload.SessionID, upload.ID)
 
 		// It's possible that we don't have a session ID here. For example,
 		// an S3 multipart upload may have been completed by another auth

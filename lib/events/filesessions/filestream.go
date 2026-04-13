@@ -408,7 +408,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(s session.ID, uploadID string) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(_ context.Context, s session.ID, uploadID string) events.UploadMetadata {
 	metadata := events.UploadMetadata{
 		URL: fmt.Sprintf("%v://%v/%v", teleport.SchemeFile, h.uploadsPath(), string(s)),
 		StreamUpload: events.StreamUpload{

@@ -505,8 +505,8 @@ func (c *ErrorCountingSessionHandler) ListUploads(ctx context.Context) ([]events
 }
 
 // GetUploadMetadata calls [c.wrapped.GetUploadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
-	return c.wrapped.GetUploadMetadata(sessionID, uploadID)
+func (c *ErrorCountingSessionHandler) GetUploadMetadata(ctx context.Context, sessionID session.ID, uploadID string) events.UploadMetadata {
+	return c.wrapped.GetUploadMetadata(ctx, sessionID, uploadID)
 }
 
 func sanitizeErrForAlert(err error) string {

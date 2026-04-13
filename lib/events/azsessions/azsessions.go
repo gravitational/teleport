@@ -748,7 +748,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata implements [events.MultipartUploader].
-func (h *Handler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(ctx context.Context, sessionID session.ID, uploadID string) events.UploadMetadata {
 	return events.UploadMetadata{
 		URL: h.sessionBlob(sessionID).URL(),
 		StreamUpload: events.StreamUpload{

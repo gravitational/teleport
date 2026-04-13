@@ -407,7 +407,7 @@ func (m *MemoryUploader) StreamSessionThumbnail(ctx context.Context, sessionID s
 }
 
 // GetUploadMetadata gets the session upload metadata
-func (m *MemoryUploader) GetUploadMetadata(sid session.ID, uploadID string) events.UploadMetadata {
+func (m *MemoryUploader) GetUploadMetadata(_ context.Context, sid session.ID, uploadID string) events.UploadMetadata {
 	return events.UploadMetadata{
 		URL: "memory",
 		StreamUpload: events.StreamUpload{
@@ -571,7 +571,7 @@ func (m *MockUploader) GetRecordingVersion(ctx context.Context, sessionID sessio
 	return m.RecordingVersion, nil
 }
 
-func (m *MockUploader) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
+func (m *MockUploader) GetUploadMetadata(_ context.Context, sessionID session.ID, uploadID string) events.UploadMetadata {
 	metadata := events.UploadMetadata{
 		StreamUpload: m.ExistingUpload,
 	}

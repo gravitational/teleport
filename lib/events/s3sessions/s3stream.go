@@ -19,9 +19,11 @@
 package s3sessions
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -43,12 +45,21 @@ import (
 )
 
 // CreateUpload creates a multipart upload
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, _ ...events.CreateUploadOption) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	start := time.Now()
+	var options events.CreateUploadOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
+	upload := events.StreamUpload{
+		SessionID:      sessionID,
+		Temporary:      options.Temporary,
+		ReplaceVersion: options.ReplaceVersion,
+	}
 	input := &s3.CreateMultipartUploadInput{
 		Bucket: aws.String(h.Bucket),
-		Key:    aws.String(h.recordingPath(sessionID)),
+		Key:    aws.String(h.recordingPath(upload)),
 	}
 	if !h.Config.DisableServerSideEncryption {
 		input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
@@ -73,7 +84,11 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, _ ...e
 		"key", aws.ToString(resp.Key),
 	)
 
-	return &events.StreamUpload{SessionID: sessionID, ID: aws.ToString(resp.UploadId)}, nil
+	upload.ID = aws.ToString(resp.UploadId)
+	if err := h.writeMetadata(ctx, upload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &upload, nil
 }
 
 // UploadPart uploads part
@@ -85,7 +100,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	}
 
 	start := time.Now()
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.recordingPath(upload)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -135,7 +150,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 }
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.recordingPath(upload)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -171,7 +186,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	start := time.Now()
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.recordingPath(upload)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -198,6 +213,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		UploadId:        aws.String(upload.ID),
 		MultipartUpload: &types.CompletedMultipartUpload{Parts: completedParts},
 	}
+	if upload.ReplaceVersion == "" {
+		params.IfNoneMatch = aws.String("*")
+	} else {
+		params.IfMatch = aws.String(upload.ReplaceVersion)
+	}
 	_, err := h.client.CompleteMultipartUpload(ctx, params)
 	if err != nil {
 		return trace.Wrap(awsutils.ConvertS3Error(err),
@@ -210,7 +230,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.recordingPath(upload)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -273,11 +293,16 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 				// (replication rules, batch jobs, other software, etc.)
 				continue
 			}
-			uploads = append(uploads, events.StreamUpload{
-				ID:        aws.ToString(upload.UploadId),
-				SessionID: h.fromPath(aws.ToString(upload.Key)),
-				Initiated: aws.ToTime(upload.Initiated),
-			})
+			uploadID := aws.ToString(upload.UploadId)
+			up, err := h.readMetadata(ctx, uploadID)
+			if err != nil {
+				up = events.StreamUpload{
+					ID:        aws.ToString(upload.UploadId),
+					SessionID: h.fromPath(aws.ToString(upload.Key)),
+				}
+			}
+			up.Initiated = aws.ToTime(upload.Initiated)
+			uploads = append(uploads, up)
 		}
 	}
 
@@ -289,21 +314,28 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(ctx context.Context, sessionID session.ID, uploadID string) events.UploadMetadata {
 	sessionURL, err := url.JoinPath(teleport.SchemeS3+"://"+h.Bucket, h.Path, sessionID.String())
 	if err != nil {
 		// this should never happen, but if it does revert to legacy behavior
 		// which omitted h.Path
 		sessionURL = fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID)
 	}
-
-	return events.UploadMetadata{
+	metadata := events.UploadMetadata{
 		URL: sessionURL,
 		StreamUpload: events.StreamUpload{
 			ID:        uploadID,
 			SessionID: sessionID,
 		},
 	}
+	if uploadID != "" {
+		upload, err := h.readMetadata(ctx, uploadID)
+		if err == nil {
+			metadata.StreamUpload.Temporary = upload.Temporary
+			metadata.StreamUpload.ReplaceVersion = upload.ReplaceVersion
+		}
+	}
+	return metadata
 }
 
 // ReserveUploadPart reserves an upload part.
@@ -312,5 +344,41 @@ func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpl
 }
 
 func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
-	return "", nil
+	headOutput, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(h.Bucket),
+		Key: aws.String(h.recordingPath(events.StreamUpload{
+			ID:        uploadID,
+			SessionID: sessionID,
+			Temporary: uploadID != "",
+		})),
+	})
+	if err != nil {
+		awsErr := awsutils.ConvertS3Error(err)
+		if trace.IsNotFound(awsErr) {
+			return "", nil
+		}
+		return "", awsErr
+	}
+	return aws.ToString(headOutput.ETag), nil
+}
+
+func (h *Handler) writeMetadata(ctx context.Context, upload events.StreamUpload) error {
+	data, err := json.Marshal(upload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = h.uploadFile(ctx, h.uploadMetadataPath(upload.ID), bytes.NewReader(data))
+	return trace.Wrap(err)
+}
+
+func (h *Handler) readMetadata(ctx context.Context, uploadID string) (events.StreamUpload, error) {
+	reader, err := h.downloadFileRetrier(ctx, h.uploadMetadataPath(uploadID), nil /* version ID */)
+	if err != nil {
+		return events.StreamUpload{}, trace.Wrap(err)
+	}
+	var upload events.StreamUpload
+	if err := json.NewDecoder(reader).Decode(&upload); err != nil {
+		return events.StreamUpload{}, trace.Wrap(err)
+	}
+	return upload, nil
 }

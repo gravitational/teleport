@@ -323,7 +323,7 @@ func (h *Handler) Close() error {
 // Upload reads the content of a session recording from a reader and uploads it
 // to an S3 bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.recordingPath(events.StreamUpload{SessionID: sessionID}), reader)
 	return path, trace.Wrap(err)
 }
 
@@ -450,10 +450,11 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // ReadCloser for the content. Returns trace.NotFound error if the recording
 // is not found.
 func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
-	if uploadID != "" {
-		return nil, trace.NotImplemented("streaming temporary session recordings not supported for S3")
-	}
-	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
+	return h.downloadOriginalFile(ctx, h.recordingPath(events.StreamUpload{
+		ID:        uploadID,
+		SessionID: sessionID,
+		Temporary: uploadID != "",
+	}))
 }
 
 // StreamSessionSummary downloads a final session summary from an S3 bucket and
@@ -598,11 +599,12 @@ func (h *Handler) deleteBucket(ctx context.Context) error {
 	return awsutils.ConvertS3Error(err)
 }
 
-func (h *Handler) recordingPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".tar"
+func (h *Handler) recordingPath(upload events.StreamUpload) string {
+	subPath := string(upload.SessionID) + ".tar"
+	if upload.Temporary {
+		subPath = string(upload.SessionID) + ".temp.tar"
 	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(path.Join(h.Path, subPath), "/")
 }
 
 func (h *Handler) summaryPath(sessionID session.ID) string {
@@ -624,6 +626,11 @@ func (h *Handler) thumbnailPath(sessionID session.ID) string {
 		return string(sessionID) + ".thumbnail"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
+}
+
+func (h *Handler) uploadMetadataPath(uploadID string) string {
+	subPath := path.Join(uploadID + ".upload.json")
+	return strings.TrimPrefix(path.Join(h.Path, subPath), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

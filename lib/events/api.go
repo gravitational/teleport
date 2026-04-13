@@ -1245,7 +1245,7 @@ type MultipartUploader interface {
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 	// GetUploadMetadata gets the upload metadata
-	GetUploadMetadata(sessionID session.ID, uploadID string) UploadMetadata
+	GetUploadMetadata(ctx context.Context, sessionID session.ID, uploadID string) UploadMetadata
 }
 
 // UploadMetadata contains data about the session upload
@@ -1258,7 +1258,7 @@ type UploadMetadata struct {
 
 // UploadMetadataGetter gets the metadata for session upload
 type UploadMetadataGetter interface {
-	GetUploadMetadata(sid session.ID, uploadID string) UploadMetadata
+	GetUploadMetadata(ctx context.Context, sid session.ID, uploadID string) UploadMetadata
 }
 
 // SessionEventPreparer will set necessary event fields for session-related

@@ -227,7 +227,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 	log := slog.With("session_id", sid, "upload_id", uploadID)
 	// Note, that if the session ID does not match the upload ID,
 	// the request will fail
-	upload := s.cfg.Uploader.GetUploadMetadata(sid, uploadID).StreamUpload
+	upload := s.cfg.Uploader.GetUploadMetadata(ctx, sid, uploadID).StreamUpload
 	parts, err := s.cfg.Uploader.ListParts(ctx, upload)
 	if err == nil && len(parts) > 0 {
 		return NewProtoStream(ProtoStreamConfig{
