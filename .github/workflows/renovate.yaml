@@ -33,6 +33,9 @@ jobs:
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_PLATFORM_COMMIT: 'true'
+          RENOVATE_USE_BASE_BRANCH_CONFIG: 'merge'
+          RENOVATE_FORCE: >
+            {"baseBranchPatterns":["cthach/renovate-app-token"]}
         with:
           configurationFile: .github/renovate.json
           token: ${{ steps.generate_token.outputs.token }}
