@@ -17,15 +17,15 @@ limitations under the License.
 package types
 
 import (
-	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -628,26 +628,16 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// MarshalJSON implements [json.Marshaler] for the SAMLConnectorSpecV2, forcing
-// it to use the `jsonpb` marshaler, which understands how to pack values
-// generated from a protobuf `oneof` directive.
+// MarshalJSON implements [json.Marshaler] for the SAMLConnectorSpecV2.
+// It is required because the Spec.Credentials proto field is a oneof.
 func (o *SAMLConnectorSpecV2) MarshalJSON() ([]byte, error) {
-	m := jsonpb.Marshaler{}
-	var buf bytes.Buffer
-	if err := m.Marshal(&buf, o); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return buf.Bytes(), nil
+	return protojson.Marshal(protoadapt.MessageV2Of(o))
 }
 
-// UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2,
-// forcing it to use the `jsonpb` unmarshaler, which understands how to unpack
-// values generated from a protobuf `oneof` directive.
+// UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2.
+// It is required because the Spec.Credentials proto field is a oneof.
 func (o *SAMLConnectorSpecV2) UnmarshalJSON(b []byte) error {
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), o); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return protojson.Unmarshal(b, protoadapt.MessageV2Of(o))
 }
 
 // Check returns nil if all parameters are great, err otherwise
