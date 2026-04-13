@@ -1366,8 +1366,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
-			id.AgentScope = attr.Value.(string)
-
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AgentScope = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {

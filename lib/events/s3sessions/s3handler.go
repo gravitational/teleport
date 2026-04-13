@@ -35,7 +35,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmanagertypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
@@ -276,7 +277,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
-	uploader := manager.NewUploader(client) //nolint:staticcheck // TODO(tigrato)
+	uploader := transfermanager.New(client)
 
 	h := &Handler{
 		logger:   logger,
@@ -310,7 +311,7 @@ type Handler struct {
 	Config
 	// logger emits log messages
 	logger   *slog.Logger
-	uploader *manager.Uploader //nolint:staticcheck // TODO(tigrato)
+	uploader *transfermanager.Client
 	client   s3Client
 }
 
@@ -393,7 +394,7 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 		opt(&cfg)
 	}
 
-	uploadInput := &s3.PutObjectInput{
+	uploadInput := &transfermanager.UploadObjectInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
@@ -430,15 +431,15 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	}
 
 	if !h.Config.DisableServerSideEncryption {
-		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
+		uploadInput.ServerSideEncryption = tmanagertypes.ServerSideEncryptionAwsKms
 		if h.Config.SSEKMSKey != "" {
-			uploadInput.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
+			uploadInput.SSEKMSKeyID = aws.String(h.Config.SSEKMSKey)
 		}
 	}
 	if h.Config.ACL != "" {
-		uploadInput.ACL = awstypes.ObjectCannedACL(h.Config.ACL)
+		uploadInput.ACL = tmanagertypes.ObjectCannedACL(h.Config.ACL)
 	}
-	_, err := h.uploader.Upload(ctx, uploadInput) //nolint:staticcheck // TODO(tigrato)
+	_, err := h.uploader.UploadObject(ctx, uploadInput)
 	if err != nil {
 		return "", awsutils.ConvertS3Error(err)
 	}

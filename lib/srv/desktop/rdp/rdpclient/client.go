@@ -207,7 +207,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetHeight(), hello.ScreenSpec.GetHeight()))
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.

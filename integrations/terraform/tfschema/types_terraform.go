@@ -1550,6 +1550,16 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
+								"enterprise": {
+									Description: "The name of the enterprise in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"enterprise_id": {
+									Description: "The ID of the enterprise in which the repository is stored.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"environment": {
 									Description: "The name of the environment used by the job.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
@@ -15983,6 +15993,40 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["enterprise"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.GitHub.Allow.Enterprise"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.Allow.Enterprise", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Enterprise = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["enterprise_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.GitHub.Allow.EnterpriseID"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.Allow.EnterpriseID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.EnterpriseID = t
+																		}
+																	}
+																}
 															}
 															obj.Allow[k] = t
 														}
@@ -19277,6 +19321,50 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 																	v.Value = string(obj.RefType)
 																	v.Unknown = false
 																	tf.Attrs["ref_type"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["enterprise"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.GitHub.Allow.Enterprise"})
+																} else {
+																	v, ok := tf.Attrs["enterprise"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.GitHub.Allow.Enterprise", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.Allow.Enterprise", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Enterprise) == ""
+																	}
+																	v.Value = string(obj.Enterprise)
+																	v.Unknown = false
+																	tf.Attrs["enterprise"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["enterprise_id"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.GitHub.Allow.EnterpriseID"})
+																} else {
+																	v, ok := tf.Attrs["enterprise_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.GitHub.Allow.EnterpriseID", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.GitHub.Allow.EnterpriseID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.EnterpriseID) == ""
+																	}
+																	v.Value = string(obj.EnterpriseID)
+																	v.Unknown = false
+																	tf.Attrs["enterprise_id"] = v
 																}
 															}
 														}
