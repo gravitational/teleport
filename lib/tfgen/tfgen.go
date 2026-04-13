@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -192,31 +193,37 @@ func generateResource(
 	// a header field, while other resources expect these fields as top-level fields.
 	_, hasHeaderField := resource.(*headerResourceWrapper)
 	if hasHeaderField {
-		if header := msg.AttributeNamed("header"); header != nil {
+		if header := msg.AttributeNamed("header"); header != nil && !opts.fieldsToOmit["header"] {
 			tokens := messageToTokens(fieldPath{"header"}, header.Value, opts)
 			if tokens != nil {
 				resourceBlock.Body().SetAttributeRaw("header", tokens)
+				resourceBlock.Body().AppendNewline()
 			}
 		}
 	} else {
-		if v := resource.GetVersion(); v != "" {
+		appendNewLine := false
+		if v := resource.GetVersion(); v != "" && !opts.fieldsToOmit["version"] {
 			resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
+			appendNewLine = true
 		}
-		if v := resource.GetSubKind(); v != "" {
+		if v := resource.GetSubKind(); v != "" && !opts.fieldsToOmit["sub_kind"] {
 			resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
+			appendNewLine = true
 		}
-		resourceBlock.Body().AppendNewline()
-		if v := msg.AttributeNamed("metadata"); v != nil {
+		if appendNewLine {
+			resourceBlock.Body().AppendNewline()
+		}
+		if v := msg.AttributeNamed("metadata"); v != nil && !opts.fieldsToOmit["metadata"] {
 			tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
 			if tokens != nil {
 				resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+				resourceBlock.Body().AppendNewline()
 			}
 		}
 	}
-	resourceBlock.Body().AppendNewline()
 
 	// Spec object.
-	if v := msg.AttributeNamed("spec"); v != nil {
+	if v := msg.AttributeNamed("spec"); v != nil && !opts.fieldsToOmit["spec"] {
 		tokens := messageToTokens(fieldPath{"spec"}, v.Value, opts)
 		if tokens != nil {
 			resourceBlock.Body().SetAttributeRaw("spec", tokens)
@@ -249,6 +256,12 @@ func messageToTokens(
 	var tokens hclwrite.Tokens
 	for _, attr := range val.Message().Attributes {
 		fieldPath := append(path, attr.Name)
+		fieldPathStr := fieldPath.String()
+
+		if opts.fieldsToOmit[fieldPathStr] {
+			continue
+		}
+
 		comment, hasComment := opts.fieldComments[fieldPath.String()]
 
 		valueTokens := valueToTokens(
@@ -470,7 +483,26 @@ func valueToCty(
 		// map, other messages will be handled by messageToTokens.
 		messageVal := val.Message()
 		attrs := make(map[string]cty.Value)
+
+		// Check if this is a list item that has fields to omit.
+		var listItemsToOmit map[string]bool
+		if len(path) > 0 {
+			lastIndex := len(path) - 1
+			listFieldPath := path[:lastIndex].String()
+			indexPart := path[lastIndex] // [0], [1], etc.
+
+			if len(indexPart) > 2 && opts.fieldsToOmitFromListItems[listFieldPath] != nil {
+				// Validate that the indexPart looks like an index belonging to a list.
+				if indexPart[0] == '[' && indexPart[len(indexPart)-1] == ']' && unicode.IsDigit(rune(indexPart[1])) {
+					listItemsToOmit = opts.fieldsToOmitFromListItems[listFieldPath]
+				}
+			}
+		}
+
 		for _, attr := range messageVal.Attributes {
+			if listItemsToOmit[attr.Name] {
+				continue
+			}
 			if val := valueToCty(
 				append(path, attr.Name),
 				attr.Value,

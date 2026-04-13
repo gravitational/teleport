@@ -79,19 +79,59 @@ func WithDependsOn(reference string) GenerateOpt {
 	return func(o *generateOpts) { o.dependsOn = append(o.dependsOn, reference) }
 }
 
+// WithOmitField omits the given field from the generated output.
+//
+// "name" is the dot-syntax path to the field to omit e.g.:
+//   - `spec.ineligible_status`
+//   - `header.metadata.description`
+//
+// Does not handle fields within list items - use WithOmitFieldFromListItems.
+func WithOmitField(name string) GenerateOpt {
+	return func(o *generateOpts) { o.fieldsToOmit[name] = true }
+}
+
+// WithOmitFieldFromListItems omits the given fieldName from every element
+// of the given listFieldPath.
+//
+// "listFieldPath" is the dot-syntax path to the list field
+// e.g. `spec.owners`
+//
+// "fieldName" is the name of the field to omit from each element in list
+// e.g. `ineligible_status`
+//
+// For example, for resource "access_list", you have a list of owners and want
+// to omit the ineligible_status field from each owner, the syntax would be:
+// WithOmitFieldFromListItems("spec.owners", "ineligible_status")
+//
+// To omit multiple fields from the same list, use multiple
+// WithOmitFieldFromListItems with the same listFieldPath with different
+// fieldNames.
+func WithOmitFieldFromListItems(listFieldPath string, fieldName string) GenerateOpt {
+	return func(o *generateOpts) {
+		if o.fieldsToOmitFromListItems[listFieldPath] == nil {
+			o.fieldsToOmitFromListItems[listFieldPath] = make(map[string]bool)
+		}
+		o.fieldsToOmitFromListItems[listFieldPath][fieldName] = true
+	}
+}
+
 type generateOpts struct {
 	resourceType         string
 	resourceName         string
 	resourceBlockComment string
 	dependsOn            []string
 
-	fieldTransforms map[string]Transform
-	fieldComments   map[string]string
+	fieldTransforms           map[string]Transform
+	fieldComments             map[string]string
+	fieldsToOmit              map[string]bool
+	fieldsToOmitFromListItems map[string]map[string]bool
 }
 
 func newGenerateOpts() *generateOpts {
 	return &generateOpts{
-		fieldTransforms: make(map[string]Transform),
-		fieldComments:   make(map[string]string),
+		fieldTransforms:           make(map[string]Transform),
+		fieldComments:             make(map[string]string),
+		fieldsToOmit:              make(map[string]bool),
+		fieldsToOmitFromListItems: make(map[string]map[string]bool),
 	}
 }

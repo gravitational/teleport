@@ -256,6 +256,151 @@ func TestGenerate_AccessListMember(t *testing.T) {
 	)
 }
 
+func TestGenerate_WithOmitFields(t *testing.T) {
+	t.Parallel()
+
+	goldenTest(t, &types.RoleV6{
+		Kind:    types.KindRole,
+		SubKind: "some-subkind",
+		Version: "remove me",
+		Metadata: types.Metadata{
+			Name:        "example-role",
+			Description: "entire metadata should be removed",
+		},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{Logins: []string{"remove deny field"}},
+			Allow: types.RoleConditions{
+				Logins:     []string{"remove me", "remove me"},
+				KubeGroups: []string{"system:masters"},
+				Request: &types.AccessRequestConditions{
+					Roles:              []string{"remove me", "remove me"},
+					SuggestedReviewers: []string{"reviewer1", "reviewer2"},
+				},
+			},
+		},
+	},
+		// single field
+		tfgen.WithOmitField("version"),
+		// single field object
+		tfgen.WithOmitField("metadata"),
+		// one level nested field
+		tfgen.WithOmitField("spec.deny"),
+		// 2nd level nested field
+		tfgen.WithOmitField("spec.allow.logins"),
+		// multi-level nested field
+		tfgen.WithOmitField("spec.allow.request.roles"),
+		// no match, does nothing
+		tfgen.WithOmitField("i.dont.exist"),
+	)
+}
+
+func TestGenerate_AccessListMemberOmitField(t *testing.T) {
+	t.Parallel()
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{Name: "alpaca", Description: "remove me"},
+		accesslist.AccessListMemberSpec{
+			AccessList:       "some-access-list",
+			Name:             "alpaca",
+			Joined:           time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+			AddedBy:          "remove me",
+			Reason:           "remove me",
+			IneligibleStatus: "remove me",
+		},
+	)
+	require.NoError(t, err)
+
+	memberProto := accesslistconv.ToMemberProto(member)
+	goldenTest(t,
+		tfgen.WrapHeaderResource(memberProto),
+		tfgen.WithOmitField("spec.ineligible_status"),
+		tfgen.WithOmitField("spec.reason"),
+		tfgen.WithOmitField("spec.added_by"),
+		tfgen.WithOmitField("header.metadata.description"),
+		tfgen.WithOmitField("header.version"),
+	)
+}
+
+func TestGenerate_OmitFieldFromListItems(t *testing.T) {
+	t.Parallel()
+
+	goldenTest(t, &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name: "example-role",
+		},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				Rules: []types.Rule{{Resources: []string{"resource1"}, Verbs: []string{"verb1"}}},
+			},
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					{Where: "where1", Resources: []string{"remove me"}, Verbs: []string{"verb1"}},
+					{Where: "where2", Resources: []string{"remove me"}, Verbs: []string{"verb2"}},
+				},
+				KubeGroups: []string{"system:masters"},
+				Request: &types.AccessRequestConditions{
+					ClaimsToRoles: []types.ClaimMapping{
+						{Claim: "some claim", Value: "remove me", Roles: []string{"remove me"}},
+						{Claim: "some claim 2", Value: "remove me", Roles: []string{"remove me"}},
+					},
+					SuggestedReviewers: []string{"reviewer1", "reviewer2"},
+				},
+			},
+		},
+	},
+		// Omit a single field from list items
+		tfgen.WithOmitFieldFromListItems("spec.allow.rules", "resources"),
+		// Omit multiple fields from the same list items
+		tfgen.WithOmitFieldFromListItems("spec.allow.request.claims_to_roles", "value"),
+		tfgen.WithOmitFieldFromListItems("spec.allow.request.claims_to_roles", "roles"),
+
+		// List path does not exist, does nothing
+		tfgen.WithOmitFieldFromListItems("idontexist", "value"),
+		// List item field does not exist, does nothing
+		tfgen.WithOmitFieldFromListItems("spec.deny.rules", "i.dont.exist"),
+	)
+}
+
+func TestGenerate_AccessListOmitFields(t *testing.T) {
+	t.Parallel()
+
+	al, err := accesslist.NewAccessList(
+		header.Metadata{Name: "some-access-list"},
+		accesslist.Spec{
+			Title:       "My Access List",
+			Description: "An example access list for IaC",
+			Owners: []accesslist.Owner{
+				{Name: "llama", Description: "remove me"},
+				{Name: "alpaca", Description: "remove me"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"granted-role"},
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"member-role"},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+				Recurrence: accesslist.Recurrence{
+					Frequency:  accesslist.ThreeMonths,
+					DayOfMonth: accesslist.FirstDayOfMonth,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	alProto := tfgen.WrapHeaderResource(accesslistconv.ToProto(al))
+	goldenTest(t, alProto,
+		tfgen.WithOmitFieldFromListItems("spec.owners", "description"),
+		tfgen.WithOmitField("spec.audit.recurrence"),
+		tfgen.WithOmitFieldFromListItems("spec.owners", "ineligible_status"),
+		tfgen.WithOmitField("spec.grants"),
+	)
+}
+
 func TestGenerate_DependsOn_Single(t *testing.T) {
 	t.Parallel()
 
