@@ -456,12 +456,6 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	return trace.Wrap(joinErr)
 }
 
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-
-	return b
 }
 
 func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client) error {
