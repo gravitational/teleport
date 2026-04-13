@@ -637,7 +637,7 @@ func (o *SAMLConnectorSpecV2) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2.
 // It is required because the Spec.Credentials proto field is a oneof.
 func (o *SAMLConnectorSpecV2) UnmarshalJSON(b []byte) error {
-	return protojson.Unmarshal(b, protoadapt.MessageV2Of(o))
+	return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(b, protoadapt.MessageV2Of(o))
 }
 
 // Check returns nil if all parameters are great, err otherwise
