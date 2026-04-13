@@ -59,6 +59,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
@@ -173,6 +174,7 @@ type testPack struct {
 	plugin                  *local.PluginsService
 	appAuthConfigs          *local.AppAuthConfigService
 	workloadClusters        *local.WorkloadClusterService
+	summarizer              *local.SummarizerService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -539,6 +541,13 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.workloadClusters = workloadClusterSvc
 
+	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: p.backend,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -604,6 +613,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -876,6 +886,7 @@ func TestCompletenessInit(t *testing.T) {
 			AppAuthConfig:           p.appAuthConfigs,
 			StaticScopedToken:       p.clusterConfigS,
 			WorkloadClusterService:  p.workloadClusters,
+			Summarizer:              p.summarizer,
 		}))
 		require.NoError(t, err)
 
@@ -967,6 +978,7 @@ func TestCompletenessReset(t *testing.T) {
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
@@ -1134,6 +1146,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
@@ -1236,6 +1249,7 @@ func initStrategy(t *testing.T) {
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		WorkloadClusterService:  p.workloadClusters,
+		Summarizer:              p.summarizer,
 	}))
 	require.NoError(t, err)
 
@@ -1983,6 +1997,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
+		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
+		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
+		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
+		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 	}
 
 	for name, cfg := range cases {
@@ -2058,6 +2076,15 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceSecret]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferencePolicy]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

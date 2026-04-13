@@ -9,6 +9,7 @@ linters:
     - depguard
     - errorlint
     - forbidigo
+    - forcetypeassert
     - govet
     - ineffassign
     - misspell
@@ -561,6 +562,13 @@ linters:
           - forbidigo
         path: ^api/ssh/
         text: tracessh.NewClientConnWithTimeout
+
+      # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
+      # enforce this rule everywhere.
+      - linters:
+          - forcetypeassert
+        path-except: ^lib/tlsca/ca\.go$
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/
