@@ -847,6 +847,9 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 	return nil
 }
 
+// validates the given Kubernetes configuration and sets defaults if necessary. Additional validations applied
+// during marshal/write can be found in lib/services/provisioning.go:strongValidateProvisionTokenWithDefaults().
+// Scoped variants of these validations are found in lib/scopes/joining/token.go:validateKubernetes()
 func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("allow: at least one rule must be set")

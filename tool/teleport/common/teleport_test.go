@@ -77,15 +77,37 @@ func TestTeleportMain(t *testing.T) {
 	require.NoError(t, os.WriteFile(configFile, []byte(configData), 0660))
 
 	// generate the fixture bootstrap file
-	bootstrapEntries := []struct{ fileName, kind, name string }{
-		{"role.yaml", types.KindRole, "role_name"},
-		{"github.yaml", types.KindGithubConnector, "github"},
-		{"user.yaml", types.KindRole, "user"},
+	bootstrapEntries := []struct {
+		fileName string
+		kind     string
+		name     string
+		content  string
+	}{
+		{fileName: "role.yaml", kind: types.KindRole, name: "role_name"},
+		{fileName: "github.yaml", kind: types.KindGithubConnector, name: "github"},
+		{fileName: "user.yaml", kind: types.KindRole, name: "user"},
+		{
+			fileName: "workload-identity.yaml",
+			kind:     types.KindWorkloadIdentity,
+			name:     "example-workload-identity",
+			content: `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`,
+		},
 	}
 	var bootstrapData []byte
 	for _, entry := range bootstrapEntries {
-		data, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
-		require.NoError(t, err)
+		data := []byte(entry.content)
+		if entry.content == "" {
+			fileData, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
+			require.NoError(t, err)
+			data = fileData
+		}
 		bootstrapData = append(bootstrapData, data...)
 		bootstrapData = append(bootstrapData, "\n---\n"...)
 	}

@@ -151,6 +151,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
+		preferBrowser           bool
 		hasTouchIDCredentials   bool
 		authenticatorAttachment wancli.AuthenticatorAttachment
 		scope                   string
@@ -316,6 +317,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AllowStdinHijack = test.allowStdinHijack
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
+			tc.PreferBrowser = test.preferBrowser
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
 			inputReader := test.makeInputReader(password, otpKey, clock)
 			tc.StdinFunc = func() prompt.StdinReader { return inputReader }
@@ -335,6 +337,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+
+			// Only enable BrowserAuthentication for tests that explicitly request it
+			if test.preferBrowser != false {
+				authServer := sa.Auth.GetAuthServer()
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				authPref.SetAllowCLIAuthViaBrowser(true)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err)
+			}
 
 			// Test.
 			clock.Advance(30 * time.Second)
@@ -598,6 +610,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		// Disable by default and enable for tests that require it
+		AllowCLIAuthViaBrowser:  types.NewBoolOption(false),
 		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)
@@ -747,21 +761,19 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 		},
 	}
 
-	roleRevisions := make(map[string]string)
 	for _, role := range scopedRoles {
-		rsp, err := authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err = authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: role,
 		})
 		require.NoError(t, err)
-
-		roleRevisions[role.GetMetadata().GetName()] = rsp.GetRole().GetMetadata().GetRevision()
 	}
 
 	// assign both roles to user
 	for _, role := range scopedRoles {
 		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.NewString(),
 				},
@@ -776,9 +788,6 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 					},
 				},
 				Version: types.V1,
-			},
-			RoleRevisions: map[string]string{
-				role.GetMetadata().GetName(): roleRevisions[role.GetMetadata().GetName()],
 			},
 		})
 		require.NoError(t, err)

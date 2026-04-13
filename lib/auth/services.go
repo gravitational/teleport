@@ -34,13 +34,13 @@ import (
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.ProvisionerInternal
+	services.IdentityInternal
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Applications
+	services.ApplicationsInternal
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices

@@ -675,6 +675,10 @@ func makeRawField(field *ast.Field, packageName string, allDecls map[PackageInfo
 	// Indicate which package declared this field depending on whether the
 	// field's type name includes the name of another package.
 	pkg := packageName
+	// Unwrap any pointer indirection before checking for a cross-package selector.
+	if star, ok := field.Type.(*ast.StarExpr); ok {
+		field.Type = star.X
+	}
 	s, ok := field.Type.(*ast.SelectorExpr)
 	if ok {
 		i, ok := s.X.(*ast.Ident)

@@ -23,12 +23,22 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
+
+// SSHLogin describes an SSH login available on a server.
+type SSHLogin struct {
+	// Login is the SSH login name.
+	Login string `json:"login"`
+	// RequiresRequest indicates whether this login requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
+}
 
 // Server describes a server for webapp
 type Server struct {
@@ -48,12 +58,20 @@ type Server struct {
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
 	Labels []ui.Label `json:"tags"`
-	// SSHLogins is the list of logins this user can use on this server
+	// SSHLogins is the list of logins this user can use on this server.
+	// Kept as []string for backwards compatibility with older web UIs.
+	//
+	// TODO(kiosion): DELETE IN 20.0.0
 	SSHLogins []string `json:"sshLogins"`
+	// SSHLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
+	// Only populated when the handler has requestable login info.
+	SSHLoginDetails []SSHLogin `json:"sshLoginDetails,omitempty"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatureIDs supported by this Server and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -67,23 +85,46 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
-// MakeServer creates a server object for the web ui
-func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
+// MakeServerConfig contains parameters for converting Servers to UI representation.
+type MakeServerConfig struct {
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+	// Logins is the set of granted and/or requestable logins.
+	Logins *PrincipalSet
+	// RequiresRequest is whether the Server resource requires an Access Request to be usable.
+	RequiresRequest bool
+	// SupportedFeatures contains FeatureIDs supported by the Server.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
+}
+
+// MakeServer creates a server object for the web ui.
+// logins contains the full set of visible logins and the granted subset.
+// SSHLoginDetails is populated with per-login requiresRequest metadata derived
+// from the difference between logins.All and logins.Granted.
+func MakeServer(server types.Server, c MakeServerConfig) Server {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
+
+	var sshLogins []string
+	if c.Logins != nil {
+		sshLogins = c.Logins.All.Elements()
+	}
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
-		ClusterName:     clusterName,
+		ClusterName:     c.ClusterName,
 		Labels:          uiLabels,
 		Name:            server.GetName(),
 		Hostname:        server.GetHostname(),
 		Addr:            server.GetAddr(),
 		Tunnel:          server.GetUseTunnel(),
 		SubKind:         server.GetSubKind(),
-		RequiresRequest: requiresRequest,
-		SSHLogins:       logins,
+		RequiresRequest: c.RequiresRequest,
+		SSHLogins:       sshLogins,
+		SSHLoginDetails: buildSSHLoginDetails(c.Logins),
+	}
+
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
+		uiServer.SupportedFeatureIDs = f
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -99,6 +140,18 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 	}
 
 	return uiServer
+}
+
+func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
+	if logins == nil {
+		return nil
+	}
+	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
+		return SSHLogin{
+			Login:           login,
+			RequiresRequest: !logins.Granted.Contains(login),
+		}
+	})
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
@@ -140,9 +193,7 @@ type KubeCluster struct {
 
 // MakeKubeCluster creates a kube cluster object for the web ui
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
-	staticLabels := cluster.GetStaticLabels()
-	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -177,9 +228,7 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
-		staticLabels := cluster.GetStaticLabels()
-		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 

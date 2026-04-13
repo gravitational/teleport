@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -51,6 +52,10 @@ type SAMLService interface {
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
@@ -95,6 +100,10 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // UpdateSAMLConnector updates an existing SAML connector.
 func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
@@ -141,6 +150,10 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.

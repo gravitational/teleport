@@ -115,6 +115,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		for {
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
+			iterationDiscoveryConfigs := make(map[string]struct{})
 
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -151,11 +152,15 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
 
-					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
-						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
-						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() }) {
+					currentlyEnrolling := enrollingClusters[newCluster.GetAWSConfig().Name]
+					alreadyEnrolled := slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
+						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() })
 
+					if alreadyEnrolled {
 						resourcesEnrolledByGroup[resourceGroup] += 1
+					}
+
+					if currentlyEnrolling || alreadyEnrolled {
 						continue
 					}
 
@@ -164,6 +169,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				mu.Unlock()
 
 				for group, count := range resourcesFoundByGroup {
+					iterationDiscoveryConfigs[group.discoveryConfigName] = struct{}{}
 					s.awsEKSResourcesStatus.incrementFound(group, count)
 				}
 
@@ -200,18 +206,22 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
+
+			s.updateDiscoveryConfigStatus(slices.Collect(maps.Keys(iterationDiscoveryConfigs))...)
 		}
 	}()
 	return nil
 }
 
 func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
-	allFetchers := s.getKubeIntegrationFetchers()
-	if len(allFetchers) == 0 {
-		return
-	}
+	// TODO(marco): EKS discovery is highly async during enrollment part.
+	// now() does not represent the time when the cluster was discovered, but rather when starting a new iteration.
+	// This should be fixed, to ensure that we correctly track when discovered clusters are enrolled.
+	s.awsEKSResourcesStatus.iterationEnded(s.clock.Now())
+	discoveryConfigs := s.awsEKSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 
-	s.submitFetchersEvent(allFetchers)
+	allFetchers := s.getKubeIntegrationFetchers()
 
 	awsResultGroups := libslices.FilterMapUnique(
 		allFetchers,
@@ -225,14 +235,7 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 		},
 	)
 
-	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
-		return g.discoveryConfigName, true
-	})
-	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-	s.awsEKSResourcesStatus.reset()
-	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
-	}
+	s.awsEKSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
 
 	s.awsEKSTasks.reset()
 }

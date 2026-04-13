@@ -120,29 +120,69 @@ const (
 	// CommandCategoryOther indicates that the command does not fit into any of the
 	// other categories.
 	CommandCategory_COMMAND_CATEGORY_OTHER CommandCategory = 7
+	// CommandCategoryPackageManagement indicates that the command is related to
+	// package management, such as installing or updating packages.
+	CommandCategory_COMMAND_CATEGORY_PACKAGE_MANAGEMENT CommandCategory = 8
+	// CommandCategoryContainer indicates that the command is related to container
+	// operations, such as Docker or Kubernetes commands.
+	CommandCategory_COMMAND_CATEGORY_CONTAINER CommandCategory = 9
+	// CommandCategorySourceControl indicates that the command is related to source
+	// control, such as Git operations.
+	CommandCategory_COMMAND_CATEGORY_SOURCE_CONTROL CommandCategory = 10
+	// CommandCategoryScheduling indicates that the command is related to scheduling,
+	// such as cron or systemd timer operations.
+	CommandCategory_COMMAND_CATEGORY_SCHEDULING CommandCategory = 11
+	// CommandCategoryMonitoring indicates that the command is related to monitoring
+	// and observability.
+	CommandCategory_COMMAND_CATEGORY_MONITORING CommandCategory = 12
+	// CommandCategoryUserManagement indicates that the command is related to user
+	// and group management.
+	CommandCategory_COMMAND_CATEGORY_USER_MANAGEMENT CommandCategory = 13
+	// CommandCategoryTransfer indicates that the command is related to data transfer
+	// operations, such as scp or rsync.
+	CommandCategory_COMMAND_CATEGORY_TRANSFER CommandCategory = 14
+	// CommandCategoryDevelopment indicates that the command is related to development
+	// tools, such as compilers or build tools.
+	CommandCategory_COMMAND_CATEGORY_DEVELOPMENT CommandCategory = 15
 )
 
 // Enum value maps for CommandCategory.
 var (
 	CommandCategory_name = map[int32]string{
-		0: "COMMAND_CATEGORY_UNSPECIFIED",
-		1: "COMMAND_CATEGORY_FILE_OPERATION",
-		2: "COMMAND_CATEGORY_NETWORK",
-		3: "COMMAND_CATEGORY_PROCESS",
-		4: "COMMAND_CATEGORY_SYSTEM_CONFIG",
-		5: "COMMAND_CATEGORY_DATA_ACCESS",
-		6: "COMMAND_CATEGORY_AUTHENTICATION",
-		7: "COMMAND_CATEGORY_OTHER",
+		0:  "COMMAND_CATEGORY_UNSPECIFIED",
+		1:  "COMMAND_CATEGORY_FILE_OPERATION",
+		2:  "COMMAND_CATEGORY_NETWORK",
+		3:  "COMMAND_CATEGORY_PROCESS",
+		4:  "COMMAND_CATEGORY_SYSTEM_CONFIG",
+		5:  "COMMAND_CATEGORY_DATA_ACCESS",
+		6:  "COMMAND_CATEGORY_AUTHENTICATION",
+		7:  "COMMAND_CATEGORY_OTHER",
+		8:  "COMMAND_CATEGORY_PACKAGE_MANAGEMENT",
+		9:  "COMMAND_CATEGORY_CONTAINER",
+		10: "COMMAND_CATEGORY_SOURCE_CONTROL",
+		11: "COMMAND_CATEGORY_SCHEDULING",
+		12: "COMMAND_CATEGORY_MONITORING",
+		13: "COMMAND_CATEGORY_USER_MANAGEMENT",
+		14: "COMMAND_CATEGORY_TRANSFER",
+		15: "COMMAND_CATEGORY_DEVELOPMENT",
 	}
 	CommandCategory_value = map[string]int32{
-		"COMMAND_CATEGORY_UNSPECIFIED":    0,
-		"COMMAND_CATEGORY_FILE_OPERATION": 1,
-		"COMMAND_CATEGORY_NETWORK":        2,
-		"COMMAND_CATEGORY_PROCESS":        3,
-		"COMMAND_CATEGORY_SYSTEM_CONFIG":  4,
-		"COMMAND_CATEGORY_DATA_ACCESS":    5,
-		"COMMAND_CATEGORY_AUTHENTICATION": 6,
-		"COMMAND_CATEGORY_OTHER":          7,
+		"COMMAND_CATEGORY_UNSPECIFIED":        0,
+		"COMMAND_CATEGORY_FILE_OPERATION":     1,
+		"COMMAND_CATEGORY_NETWORK":            2,
+		"COMMAND_CATEGORY_PROCESS":            3,
+		"COMMAND_CATEGORY_SYSTEM_CONFIG":      4,
+		"COMMAND_CATEGORY_DATA_ACCESS":        5,
+		"COMMAND_CATEGORY_AUTHENTICATION":     6,
+		"COMMAND_CATEGORY_OTHER":              7,
+		"COMMAND_CATEGORY_PACKAGE_MANAGEMENT": 8,
+		"COMMAND_CATEGORY_CONTAINER":          9,
+		"COMMAND_CATEGORY_SOURCE_CONTROL":     10,
+		"COMMAND_CATEGORY_SCHEDULING":         11,
+		"COMMAND_CATEGORY_MONITORING":         12,
+		"COMMAND_CATEGORY_USER_MANAGEMENT":    13,
+		"COMMAND_CATEGORY_TRANSFER":           14,
+		"COMMAND_CATEGORY_DEVELOPMENT":        15,
 	}
 )
 
@@ -1673,7 +1713,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
-	"\x13SUMMARY_STATE_ERROR\x10\x03*\x9b\x02\n" +
+	"\x13SUMMARY_STATE_ERROR\x10\x03*\xb2\x04\n" +
 	"\x0fCommandCategory\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_FILE_OPERATION\x10\x01\x12\x1c\n" +
@@ -1682,7 +1722,16 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1eCOMMAND_CATEGORY_SYSTEM_CONFIG\x10\x04\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_DATA_ACCESS\x10\x05\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_AUTHENTICATION\x10\x06\x12\x1a\n" +
-	"\x16COMMAND_CATEGORY_OTHER\x10\a*\x80\x01\n" +
+	"\x16COMMAND_CATEGORY_OTHER\x10\a\x12'\n" +
+	"#COMMAND_CATEGORY_PACKAGE_MANAGEMENT\x10\b\x12\x1e\n" +
+	"\x1aCOMMAND_CATEGORY_CONTAINER\x10\t\x12#\n" +
+	"\x1fCOMMAND_CATEGORY_SOURCE_CONTROL\x10\n" +
+	"\x12\x1f\n" +
+	"\x1bCOMMAND_CATEGORY_SCHEDULING\x10\v\x12\x1f\n" +
+	"\x1bCOMMAND_CATEGORY_MONITORING\x10\f\x12$\n" +
+	" COMMAND_CATEGORY_USER_MANAGEMENT\x10\r\x12\x1d\n" +
+	"\x19COMMAND_CATEGORY_TRANSFER\x10\x0e\x12 \n" +
+	"\x1cCOMMAND_CATEGORY_DEVELOPMENT\x10\x0f*\x80\x01\n" +
 	"\tRiskLevel\x12\x1a\n" +
 	"\x16RISK_LEVEL_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eRISK_LEVEL_LOW\x10\x01\x12\x15\n" +

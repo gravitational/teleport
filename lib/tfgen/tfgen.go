@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,6 +41,55 @@ type Resource interface {
 	GetKind() string
 	GetSubKind() string
 	GetVersion() string
+}
+
+// HeaderResource is a resource that stores kind/version/metadata in a header.
+//
+// Use WrapHeaderResource to adapt resource to the Resource interface.
+// Unlike most Teleport resources where fields kind/version/metadata are top-level
+// some resources e.g. access_list, has these fields stored inside a "header" field.
+type HeaderResource interface {
+	proto.Message
+	GetHeader() *headerv1.ResourceHeader
+}
+
+// headerResourceWrapper wraps a HeaderResource to implement Resource interface.
+type headerResourceWrapper struct {
+	HeaderResource
+}
+
+func (w *headerResourceWrapper) GetKind() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetKind()
+	}
+	return ""
+}
+
+func (w *headerResourceWrapper) GetSubKind() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetSubKind()
+	}
+	return ""
+}
+
+func (w *headerResourceWrapper) GetVersion() string {
+	if h := w.GetHeader(); h != nil {
+		return h.GetVersion()
+	}
+	return ""
+}
+
+// ProtoReflect forwards to the underlying proto message so the wrapper
+// can be used with reflectMessage.
+func (w *headerResourceWrapper) ProtoReflect() protoreflect.Message {
+	return w.HeaderResource.ProtoReflect()
+}
+
+// WrapHeaderResource wraps a resource that has kind/version in a header
+// (e.g. access_list) to implement the Resource interface for use with
+// func Generate.
+func WrapHeaderResource(r HeaderResource) Resource {
+	return &headerResourceWrapper{r}
 }
 
 // Generate Terraform configuration for the given resource protobuf message, so
@@ -84,16 +134,27 @@ func generateResource(
 
 	resourceName := opts.resourceName
 	if resourceName == "" {
-		if v, ok := resource.(interface {
-			GetMetadata() *headerv1.Metadata
-		}); ok {
+		switch v := resource.(type) {
+		case interface{ GetMetadata() *headerv1.Metadata }:
+			// Some resources use a proto-generated headerv1.Metadata pointer.
 			resourceName = v.GetMetadata().GetName()
-		}
-		if v, ok := resource.(interface {
-			GetMetadata() types.Metadata
-		}); ok {
+		case interface{ GetMetadata() types.Metadata }:
+			// Some resources use the types.Metadata value type.
 			resourceName = v.GetMetadata().Name
+		case interface {
+			GetHeader() *headerv1.ResourceHeader
+		}:
+			// Some proto-generated resources (e.g. access_list) store
+			// metadata inside a header field.
+			if v.GetHeader() != nil {
+				resourceName = v.GetHeader().GetMetadata().GetName()
+			}
 		}
+	}
+
+	// Add any optinal comment about the resource at the top of the resourceBlock.
+	if opts.resourceBlockComment != "" {
+		file.Body().AppendUnstructuredTokens(commentToTokens(opts.resourceBlockComment))
 	}
 
 	resourceBlock := file.Body().AppendNewBlock(
@@ -101,25 +162,34 @@ func generateResource(
 		[]string{resourceType, resourceName},
 	)
 
-	// Top level fields: version and sub_kind.
-	if v := resource.GetVersion(); v != "" {
-		resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
-	}
-	if v := resource.GetSubKind(); v != "" {
-		resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
-	}
-	resourceBlock.Body().AppendNewline()
-
 	msg, err := reflectMessage(resource)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Metadata object.
-	if v := msg.AttributeNamed("metadata"); v != nil {
-		tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
-		if tokens != nil {
-			resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+	// Some resources (e.g. proto access_list) expect kind/version/metadata wrapped in
+	// a header field, while other resources expect these fields as top-level fields.
+	_, hasHeaderField := resource.(*headerResourceWrapper)
+	if hasHeaderField {
+		if header := msg.AttributeNamed("header"); header != nil {
+			tokens := messageToTokens(fieldPath{"header"}, header.Value, opts)
+			if tokens != nil {
+				resourceBlock.Body().SetAttributeRaw("header", tokens)
+			}
+		}
+	} else {
+		if v := resource.GetVersion(); v != "" {
+			resourceBlock.Body().SetAttributeValue("version", cty.StringVal(v))
+		}
+		if v := resource.GetSubKind(); v != "" {
+			resourceBlock.Body().SetAttributeValue("sub_kind", cty.StringVal(v))
+		}
+		resourceBlock.Body().AppendNewline()
+		if v := msg.AttributeNamed("metadata"); v != nil {
+			tokens := messageToTokens(fieldPath{"metadata"}, v.Value, opts)
+			if tokens != nil {
+				resourceBlock.Body().SetAttributeRaw("metadata", tokens)
+			}
 		}
 	}
 	resourceBlock.Body().AppendNewline()

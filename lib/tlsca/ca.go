@@ -201,6 +201,10 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken contains the name of the join token used when a Machine ID bot
 	// joins. It is empty for other identity types.
 	JoinToken string
@@ -235,6 +239,9 @@ type Identity struct {
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
+
+	// WebSessionID is the session ID of the web session associated with this identity, if any.
+	WebSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -410,6 +417,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:         devExts,
 		BotName:                  id.BotName,
 		BotInstanceID:            id.BotInstanceID,
+		BotInternal:              id.BotInternal,
 		JoinToken:                id.JoinToken,
 	}
 }
@@ -635,6 +643,14 @@ var (
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
+
+	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
+	// web session ID associated with this identity, if any.
+	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
+
+	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
+	// are for a bot internal identity, rather than an output certificate.
+	BotInternalASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 29}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -952,6 +968,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BotInternal {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BotInternalASN1ExtensionOID,
+				Value: types.True,
+			},
+		)
+	}
+
 	if id.JoinToken != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1096,6 +1121,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  ImmutableLabelHashASN1ExtensionOID,
 				Value: id.ImmutableLabelHash,
+			})
+	}
+
+	if id.WebSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  WebSessionIDASN1ExtensionOID,
+				Value: id.WebSessionID,
 			})
 	}
 
@@ -1313,6 +1346,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(BotInternalASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.BotInternal = val == types.True
+			}
 		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -1328,8 +1366,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				id.ScopePin = pin
 			}
 		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
-			id.AgentScope = attr.Value.(string)
-
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AgentScope = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1405,6 +1445,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.ImmutableLabelHash = val
+			}
+		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.WebSessionID = val
 			}
 		}
 	}
