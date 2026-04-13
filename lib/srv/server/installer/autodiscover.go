@@ -415,7 +415,7 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 		if !time.Now().Before(deadline) {
 			break
 		}
-		pollTimer.Reset(minDuration(a.readyzPollInterval, time.Until(deadline)))
+		pollTimer.Reset(min(a.readyzPollInterval, time.Until(deadline)))
 		select {
 		case <-pollTimer.C:
 			ready, err = a.readyzChecker.check(ctx)
