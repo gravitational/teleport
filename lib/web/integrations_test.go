@@ -691,6 +691,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 
 	t.Run("collects multiple discovery configs", func(t *testing.T) {
 		syncTime := time.Now()
+		kubeAppDiscoveryDisabled := false
 		dcForEC2 := &discoveryconfig.DiscoveryConfig{
 			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
 				Name: uuid.NewString(),
@@ -773,8 +774,9 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKS.GetName(),
-				LastSync:        &syncTime,
+				DiscoveryConfig:  dcForEKS.GetName(),
+				LastSync:         &syncTime,
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "eks",
@@ -782,7 +784,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig: dcForEKSWithoutStatus.GetName(),
+				DiscoveryConfig:  dcForEKSWithoutStatus.GetName(),
+				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
 			},
 			{
 				ResourceType: "rds",

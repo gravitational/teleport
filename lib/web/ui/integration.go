@@ -212,6 +212,9 @@ type IntegrationDiscoveryRule struct {
 	// LastSync contains the time when this rule was used.
 	// If empty, it indicates that the rule is not being used.
 	LastSync *time.Time `json:"lastSync,omitempty"`
+	// KubeAppDiscovery indicates whether Kubernetes App Discovery is enabled.
+	// Only set for EKS resource types.
+	KubeAppDiscovery *bool `json:"kubeAppDiscovery,omitempty"`
 }
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
