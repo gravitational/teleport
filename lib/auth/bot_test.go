@@ -502,6 +502,7 @@ func TestRegisterBotInstance(t *testing.T) {
 				PrivateKeyPolicy: "none",
 				BotName:          "test",
 				BotInstanceID:    ident.BotInstanceID,
+				BotInternal:      true,
 			},
 			CertificateAuthority: &events.CertificateAuthority{
 				Type:   "user",

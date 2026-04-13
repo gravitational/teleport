@@ -244,6 +244,22 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - scoped_role
+            verbs:
+              - list
+              - create
+              - readnosecrets
+              - update
+              - delete
+          - resources:
+              - scoped_role_assignment
+            verbs:
+              - list
+              - create
+              - readnosecrets
+              - update
+              - delete
       deny: {}
     version: v7
     ---

@@ -835,6 +835,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
 				},
 			},
 		},
