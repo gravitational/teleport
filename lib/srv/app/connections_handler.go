@@ -342,6 +342,9 @@ func (c *ConnectionsHandler) expireSessions() {
 // be passed to http.Serve to process as a HTTP request.
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	ctx, cancel := context.WithCancelCause(c.closeContext)
+	// HandleConnection owns the context. handleConnection passes cancel
+	// to TrackingReadConn, which may call it first with io.EOF when the
+	// connection closes. The second cancel call is a no-op.
 	defer cancel(nil)
 
 	// Wrap conn to detect when it is closed.
@@ -365,7 +368,10 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// Wait for connection to close.
+	// Wait for the connection to close. TCP and MCP handlers block until
+	// done, so waitConn is already closed by the time we get here. The HTTP
+	// handler returns immediately after handing the conn to http.Server, so
+	// this is where we block until the HTTP server closes it.
 	waitConn.Wait()
 }
 
@@ -668,8 +674,11 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// initialization to ensure value is present on the context.
 	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
 
-	// Application access supports plain TCP connections which are handled
-	// differently than HTTP requests from web apps.
+	// TCP and MCP handlers block until the session is done, so they return
+	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
+	// asynchronous: handleHTTPApp hands the conn to http.Server.Serve and
+	// returns immediately, so it returns a cleanup function and the caller
+	// blocks on waitConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
