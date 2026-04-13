@@ -359,3 +359,40 @@ func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutpu
 		},
 	}, nil
 }
+
+func (m *fakeClient) InvokeModel(
+	ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options),
+) (*bedrockruntime.InvokeModelOutput, error) {
+	var req struct {
+		InputText string `json:"inputText"`
+	}
+	if err := json.Unmarshal(params.Body, &req); err != nil {
+		return nil, err
+	}
+
+	switch req.InputText {
+	case "cause an error":
+		return nil, &smithy.OperationError{
+			ServiceID:     "Bedrock Runtime",
+			OperationName: "InvokeModel",
+			Err:           &smithy.GenericAPIError{Code: "dummy", Message: "OMG"},
+		}
+	case "invalid json response":
+		return &bedrockruntime.InvokeModelOutput{
+			Body: []byte("not valid json"),
+		}, nil
+	default:
+		resp := struct {
+			Embedding           []float32 `json:"embedding"`
+			InputTextTokenCount int       `json:"inputTextTokenCount"`
+		}{
+			Embedding:           []float32{0.1, 0.2, 0.3},
+			InputTextTokenCount: len(strings.Fields(req.InputText)),
+		}
+		body, err := json.Marshal(resp)
+		if err != nil {
+			return nil, err
+		}
+		return &bedrockruntime.InvokeModelOutput{Body: body}, nil
+	}
+}

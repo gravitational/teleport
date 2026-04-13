@@ -99,6 +99,7 @@ type Client interface {
 	Converse(
 		ctx context.Context, params *bedrockruntime.ConverseInput, optFns ...func(*bedrockruntime.Options),
 	) (*bedrockruntime.ConverseOutput, error)
+	InvokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error)
 }
 
 // InferenceProvider is an Amazon Bedrock inference provider that summarizes

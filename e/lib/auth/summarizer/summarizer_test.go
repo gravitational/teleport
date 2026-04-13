@@ -326,6 +326,10 @@ type fakeOpenAIClient struct {
 	clock *clockwork.FakeClock
 }
 
+func (m fakeOpenAIClient) GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m fakeOpenAIClient) NewChatCompletion(
 	ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
 ) (*openai.ChatCompletion, error) {

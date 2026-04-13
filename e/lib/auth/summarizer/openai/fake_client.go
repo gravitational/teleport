@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -12,6 +13,26 @@ import (
 )
 
 type fakeClient struct{}
+
+func (m *fakeClient) GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
+	text := input.Input.OfString.Value
+
+	switch text {
+	case "cause an error":
+		return nil, errors.New("embeddings API error")
+	default:
+		return &openai.CreateEmbeddingResponse{
+			Data: []openai.Embedding{
+				{
+					Embedding: []float64{0.1, 0.2, 0.3},
+				},
+			},
+			Usage: openai.CreateEmbeddingResponseUsage{
+				TotalTokens: int64(len(strings.Fields(text))),
+			},
+		}, nil
+	}
+}
 
 func (m *fakeClient) NewChatCompletion(
 	ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,

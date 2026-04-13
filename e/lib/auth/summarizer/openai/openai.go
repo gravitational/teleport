@@ -89,6 +89,7 @@ type Client interface {
 	NewChatCompletion(
 		ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
 	) (*openai.ChatCompletion, error)
+	GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error)
 }
 
 type defaultClientFactory struct{}
@@ -107,6 +108,9 @@ func (c *defaultClient) NewChatCompletion(
 	ctx context.Context, body openai.ChatCompletionNewParams, opts ...option.RequestOption,
 ) (*openai.ChatCompletion, error) {
 	return c.clt.Chat.Completions.New(ctx, body, opts...)
+}
+func (c *defaultClient) GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
+	return c.clt.Embeddings.New(ctx, input, opts...)
 }
 
 // InferenceProvider is an OpenAI inference provider that summarizes session
