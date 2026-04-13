@@ -475,11 +475,15 @@ workflow: "string"
 event_name: "string"
 sha: "string"
 run_id: "string"
+enterprise: "string"
+enterprise_id: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |actor|The username of the actor that initiated the workflow run.|string|
+|enterprise|The name of the enterprise that the repository belongs to, if any.|string|
+|enterprise_id|The ID of the enterprise that the repository belongs to, if any.|string|
 |environment|The name of the environment that the workflow is running against, if any.|string|
 |event_name|The name of the event that triggered the workflow run.|string|
 |ref|The ref that the workflow is running against.|string|
