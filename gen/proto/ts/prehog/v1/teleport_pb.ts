@@ -255,6 +255,12 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 access_graph_queries = 26;
      */
     accessGraphQueries: bigint;
+    /**
+     * counter of linux.desktop.session.start events
+     *
+     * @generated from protobuf field: uint64 linux_desktop_sessions = 27;
+     */
+    linuxDesktopSessions: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -948,7 +954,8 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 23, name: "access_lists_grants", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 24, name: "saml_idp_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord },
-            { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 27, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -979,6 +986,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.samlIdpSessions = 0n;
         message.sessionSummariesAccessed = [];
         message.accessGraphQueries = 0n;
+        message.linuxDesktopSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -1065,6 +1073,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 access_graph_queries */ 26:
                     message.accessGraphQueries = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 linux_desktop_sessions */ 27:
+                    message.linuxDesktopSessions = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1156,6 +1167,9 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 access_graph_queries = 26; */
         if (message.accessGraphQueries !== 0n)
             writer.tag(26, WireType.Varint).uint64(message.accessGraphQueries);
+        /* uint64 linux_desktop_sessions = 27; */
+        if (message.linuxDesktopSessions !== 0n)
+            writer.tag(27, WireType.Varint).uint64(message.linuxDesktopSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

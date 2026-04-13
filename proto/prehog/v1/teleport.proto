@@ -148,6 +148,8 @@ message UserActivityRecord {
   repeated SessionSummariesAccessedRecord session_summaries_accessed = 25;
   // counter of access graph queries by this user.
   uint64 access_graph_queries = 26;
+  // counter of linux.desktop.session.start events
+  uint64 linux_desktop_sessions = 27;
 }
 
 // UserOrigin is the origin of a user account.

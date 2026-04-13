@@ -36,6 +36,12 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  repeated string sessions = 3;
+}
+
+// Sent by client to select one of available sessions
+message SessionSelection {
+  string name = 1;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -341,5 +347,6 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    SessionSelection session_selection = 21;
   }
 }
