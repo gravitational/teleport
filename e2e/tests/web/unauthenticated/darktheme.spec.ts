@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { login, logout } from '@gravitational/e2e/helpers/login';
+import { login } from '@gravitational/e2e/helpers/login';
 import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
 import { deleteUser } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
@@ -26,10 +26,13 @@ const lightBody = 'rgb(241, 242, 244)';
 const darkBody = 'rgb(12, 20, 61)';
 
 function username(testInfo: TestInfo) {
-  return `testuser-${testInfo.workerIndex}`;
+  return `testuser-darktheme-${testInfo.workerIndex}`;
 }
 
-test('switching between dark and light theme', async ({ page }, testInfo) => {
+test('switching between dark and light theme', async ({
+  page,
+  authenticatedPage,
+}, testInfo) => {
   await signup(page, username(testInfo), defaultPassword);
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 
@@ -46,7 +49,7 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   await prefsResponse;
 
   // Dark theme should be retained after logging out and in again.
-  await logout(page);
+  await authenticatedPage.logout();
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
   // Make sure that the theme was actually saved in the backend. Simulate
