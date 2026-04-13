@@ -492,6 +492,10 @@ message AssistAction {
 message AccessListMetadata {
   // Uniquely identifies an Access List. Will allow correlation of events within an access list.
   string id = 1;
+  // anonymized
+  string user_name = 2;
+  // Describes the sessions preset.
+  AccessListPreset preset = 3;
 }
 
 // AccessListMemberMetadata contains common metadata for Access List Member related events.
@@ -580,6 +584,109 @@ message AccessListReviewDelete {
 
   // access_list_review_id is the unique identifier for the access list review.
   string access_list_review_id = 2;
+}
+
+// AccessListStatus represents a access list wizard step outcome.
+enum AccessListStatus {
+  ACCESS_LIST_STATUS_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  // e.g. going to next step,
+  ACCESS_LIST_STATUS_SUCCESS = 1;
+  // The user skipped the action (some steps may be optional).
+  ACCESS_LIST_STATUS_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  ACCESS_LIST_STATUS_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  ACCESS_LIST_STATUS_ABORTED = 4;
+}
+
+// AccessListPreset represents the access list preset type.
+enum AccessListPreset {
+  ACCESS_LIST_PRESET_UNSPECIFIED = 0;
+  ACCESS_LIST_PRESET_SHORT_TERM = 1;
+  ACCESS_LIST_PRESET_LONG_TERM = 2;
+}
+
+// AccessListStepStatus tracks a particular step outcome.
+message AccessListStepStatus {
+  // Indicates the step outcome.
+  AccessListStatus status = 1;
+  // Contains error details in case of the error status (ACCESS_LIST_STATUS_ERROR).
+  string error = 2;
+}
+
+// UIAccessListDefineAccessEvent is emitted when the user finishes the step
+// that defines access to resources.
+message UIAccessListDefineAccessEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineIdentitiesEvent is emitted when the user finishes the step
+// that defines resource identities/principals.
+message UIAccessListDefineIdentitiesEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineBasicInfoEvent is emitted when the user finishes the step
+// that defines basic info of an access list (title, desc, etc).
+message UIAccessListDefineBasicInfoEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineMembersEvent is emitted when the user finishes the
+// step that defines access list members.
+message UIAccessListDefineMembersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListDefineOwnersEvent is emitted when the user finishes the
+// step that defines access list owners.
+message UIAccessListDefineOwnersEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListStartEvent is emitted when the user is at the guide selection page
+// or when directed straight to the first step.
+message UIAccessListStartEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListCustomEvent is emitted when the user completes non wizard
+// flow (old way of creating access list).
+message UIAccessListCustomEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+}
+
+// UIAccessListIntegrateEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListCompleteEvent {
+  AccessListMetadata metadata = 1;
+  AccessListStepStatus status = 2;
+  // True if the user completed the wizard by choosing the Terraform script over
+  // creating an access list in the web UI.
+  bool preferred_terraform = 3;
+}
+
+// AccessListIntegrate describes what integration user
+// was interested in.
+enum AccessListIntegrate {
+  ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
+  // User wants to integrate Okta or is coming from Okta.
+  ACCESS_LIST_INTEGRATE_OKTA = 1;
+}
+
+// UIAccessListIntegrateOktaEvent is emitted when a user leaves the wizard
+// to enroll an integration by clicking on a CTA button in the wizard.
+message UIAccessListIntegrateEvent {
+  AccessListMetadata metadata = 1;
+  AccessListIntegrate integrate = 2;
 }
 
 // IntegrationEnrollKind represents the types of integration that
@@ -678,14 +785,14 @@ enum IntegrationEnrollStep {
 // IntegrationEnrollStatusCode defines status code for an integration enroll step.
 enum IntegrationEnrollStatusCode {
   INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
-  // The user tried to complete the action and it succeeded.
+  // The user completed the action successfully.
   INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
   // The user or system skipped the step.
   // For example:
   // When setting up an AWS IAM Identity Center integration, we allow reusing
   // OIDC integrationn if it was previously created for the Identity Center.
   INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
-  // The user tried to complete the action and it failed.
+  //  The user failed to complete the action.
   INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
   // The user did not complete the action and left the wizard.
   INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
@@ -1024,6 +1131,16 @@ message UsageEventOneOf {
     UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 63;
     UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 64;
     UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 65;
+
+    UIAccessListDefineAccessEvent ui_access_list_define_access_event = 66;
+    UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event = 67;
+    UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event = 68;
+    UIAccessListDefineMembersEvent ui_access_list_define_members_event = 69;
+    UIAccessListDefineOwnersEvent ui_access_list_define_owners_event = 70;
+    UIAccessListStartEvent ui_access_list_start_event = 71;
+    UIAccessListCompleteEvent ui_access_list_complete_event = 72;
+    UIAccessListIntegrateEvent ui_access_list_integrate_event = 73;
+    UIAccessListCustomEvent ui_access_list_custom_event = 74;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

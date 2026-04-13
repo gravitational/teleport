@@ -41,8 +41,14 @@ type JoinState struct {
 	// process if the previous instance expired. The
 	// `(bot_instance_id, recovery_sequence)` tuple is considered functionally
 	// unique to each issued join state for verification purposes, and will
-	// remain unchanged until the next successful recovery.
+	// remain unchanged until the next successful recovery. Mutually exclusive
+	// with HostID.
 	BotInstanceID string `json:"bot_instance_id"`
+
+	// HostID is the unique identifier for standard Teleport (non-bot) agents.
+	// It is mutually exclusive with `bot_instance_id`, but otherwise behaves
+	// similarly.
+	HostID string `json:"host_id"`
 
 	// RecoverySequence is the recovery sequence number. This is incremented
 	// each time a recovery is performed, including on first join. This counter
@@ -70,6 +76,25 @@ type JoinStateParams struct {
 
 	ClusterName string
 	Token       *types.ProvisionTokenV2
+
+	// HostID is the ID if this JoinState is for a joining agent rather than
+	// bot, used as the JWT subject. This field is only required for newly
+	// joining agents; agents performing a hard rejoin (rare but possible) will
+	// have .status.bound_host_id set in their token resource.
+	HostID string
+}
+
+func (p *JoinStateParams) GetSubject() (string, error) {
+	switch {
+	case p.Token.Spec.BotName != "":
+		return p.Token.Spec.BotName, nil
+	case p.HostID != "":
+		return p.HostID, nil
+	case p.Token.Status.BoundKeypair.BoundHostID != "":
+		return p.Token.Status.BoundKeypair.BoundHostID, nil
+	default:
+		return "", trace.BadParameter("invalid join state parameters, one of [.Token.Spec.BotName, .HostID] is required")
+	}
 }
 
 // IssueJoinState generates a join state document from the provided token and
@@ -85,11 +110,12 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 		return "", trace.BadParameter("status.bound_keypair: required field is missing")
 	}
 
-	status := params.Token.Status.BoundKeypair
-
-	if params.Token.Spec.BotName == "" {
-		return "", trace.BadParameter("spec.bot_name: required field is empty")
+	subject, err := params.GetSubject()
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
+
+	status := params.Token.Status.BoundKeypair
 
 	state := &JoinState{
 		Claims: &jwt.Claims{
@@ -99,13 +125,14 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 			IssuedAt:  jwt.NewNumericDate(params.Clock.Now()),
 			Issuer:    params.ClusterName,
 			Audience:  jwt.Audience{params.ClusterName},
-			Subject:   params.Token.Spec.BotName,
+			Subject:   subject,
 
 			// Note: These documents aren't meant to expire, so no expiration is
 			// included. We may opt to trust (or not) a given document during
 			// verification based on its `iat` in the future.
 		},
 		BotInstanceID:    status.BoundBotInstanceID,
+		HostID:           status.BoundHostID,
 		RecoverySequence: status.RecoveryCount,
 		RecoveryLimit:    spec.Recovery.Limit,
 		RecoveryMode:     spec.Recovery.Mode,
@@ -141,6 +168,11 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 		return nil, trace.BadParameter("invalid token status")
 	}
 
+	subject, err := params.GetSubject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var document JoinState
 	if err := parsed.Claims(key, &document); err != nil {
 		return nil, trace.Wrap(err)
@@ -155,7 +187,7 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
 		Issuer:   params.ClusterName,
 		Audience: jwt.Audience{params.ClusterName},
-		Subject:  params.Token.Spec.BotName,
+		Subject:  subject,
 		Time:     params.Clock.Now(),
 	}, leeway); err != nil {
 		return nil, trace.Wrap(err, "validating join state claims")
@@ -169,6 +201,9 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	}
 	if document.BotInstanceID != params.Token.Status.BoundKeypair.BoundBotInstanceID {
 		errors = append(errors, trace.AccessDenied("bot instance mismatch"))
+	}
+	if document.HostID != params.Token.Status.BoundKeypair.BoundHostID {
+		errors = append(errors, trace.AccessDenied("host mismatch"))
 	}
 
 	if len(errors) > 0 {

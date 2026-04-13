@@ -166,6 +166,10 @@ type RegisterParams struct {
 	// Register method will not attempt to dial, and many other parameters
 	// may be ignored.
 	AuthClient AuthJoinClient
+	// KubernetesTokenPath is the optional path that used to lookup the Kubernetes service account token for joining.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	KubernetesTokenPath string
 	// KubernetesReadFileFunc is a function used to read the Kubernetes token
 	// from disk. Used in tests, and set to `os.ReadFile` if unset.
 	KubernetesReadFileFunc func(name string) ([]byte, error)
@@ -354,7 +358,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodKubernetes:
 		if params.IDToken == "" {
-			params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+			params.IDToken, err = kubetoken.GetIDToken(params.KubernetesTokenPath, os.Getenv, params.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -539,6 +539,12 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
+		// XXXInternal are hidden labels (teleport.internal/) that are preserved for backward
+		// compatibility with nodes enrolled before visible labels were introduced.
+		nodeLabels[types.SubscriptionIDLabelInternal] = instanceInfo.SubscriptionID
+		nodeLabels[types.VMIDLabelInternal] = instanceInfo.VMID
+		nodeLabels[types.RegionLabelInternal] = instanceInfo.Location
+		nodeLabels[types.ResourceGroupLabelInternal] = instanceInfo.ResourceGroupName
 		nodeLabels[types.SubscriptionIDLabel] = instanceInfo.SubscriptionID
 		nodeLabels[types.VMIDLabel] = instanceInfo.VMID
 		nodeLabels[types.RegionLabel] = instanceInfo.Location
@@ -583,10 +589,15 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
+		// XXXDiscovery are hidden labels (teleport.internal/) that are preserved for backward
+		// compatibility with nodes enrolled before visible labels were introduced.
 		nodeLabels[types.NameLabelDiscovery] = name
 		nodeLabels[types.ZoneLabelDiscovery] = zone
 		nodeLabels[types.ProjectIDLabelDiscovery] = projectID
+
 		nodeLabels[types.ProjectIDLabel] = projectID
+		nodeLabels[types.NameLabel] = name
+		nodeLabels[types.ZoneLabel] = zone
 
 	default:
 		return nil, trace.BadParameter("Unsupported cloud provider: %v", imdsClient.GetType())

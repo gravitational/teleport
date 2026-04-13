@@ -194,10 +194,11 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 		}
 
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin:             sshLogin,
-			User:                 user,
-			Password:             password,
-			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
+			SSHLogin:               sshLogin,
+			User:                   user,
+			Password:               password,
+			MFAPromptConstructor:   c.clusterClient.NewMFAPrompt,
+			MFACeremonyConstructor: c.clusterClient.NewRedirectorMFACeremony,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

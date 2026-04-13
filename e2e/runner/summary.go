@@ -30,8 +30,7 @@ import (
 
 // printTestSummary reads the Playwright test results and prints them the same way that Playwright does, so
 // we can show the overall test summary at the end after everything has exited and stopped logging.
-func printTestSummary(e2eDir string) {
-	resultsPath := filepath.Join(e2eDir, "test-results", ".results.json")
+func printTestSummary(e2eDir, resultsPath string) {
 	data, err := os.ReadFile(resultsPath)
 	if err != nil {
 		slog.Warn("could not read test results", "path", resultsPath, "error", err)
@@ -94,7 +93,7 @@ func printTestSummary(e2eDir string) {
 
 	var showReportCmd string
 	if ciPR > 0 {
-		showReportCmd = fmt.Sprintf("e2e/run.sh --report %d", ciPR)
+		showReportCmd = ciReportCmd(ciPR)
 	} else {
 		showReportCmd = "pnpm show-report"
 		if pathPrefix != "" {
@@ -111,6 +110,9 @@ func printTestSummary(e2eDir string) {
 			var traceCmd string
 			if ciPR > 0 {
 				traceCmd = fmt.Sprintf("e2e/run.sh --test-results %d %s", ciPR, t.relPath)
+				if sha := ciShortHeadSHA(); sha != "" {
+					traceCmd += " --sha " + sha
+				}
 			} else {
 				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+t.relPath)
 			}

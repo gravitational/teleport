@@ -30,6 +30,7 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Limiter helps limiting connections and request rates
@@ -71,11 +72,7 @@ func (l *Limiter) GetNumConnection(token string) (int64, error) {
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
-	return l.rateLimiter.RegisterRequest(token, nil)
-}
-
-func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *ratelimit.RateSet) error {
-	return l.rateLimiter.RegisterRequest(token, customRate)
+	return l.rateLimiter.RegisterRequest(token)
 }
 
 func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -113,37 +110,23 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 
 type RateSet = ratelimit.RateSet
 
-// NewRateSet crates an empty `RateSet` instance.
+// NewRateSet creates an empty RateSet.
 func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor which
 // rate limits by client IP.
 func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return l.UnaryServerInterceptorWithCustomRate(func(string) *RateSet {
-		return nil
-	})
-}
-
-// CustomRateFunc is a function type which returns a custom rate set
-// for a given endpoint string.
-type CustomRateFunc func(endpoint string) *RateSet
-
-// UnaryServerInterceptorWithCustomRate returns a gRPC unary interceptor which
-// rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
-// specific gRPC methods.
-func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		peerInfo, ok := peer.FromContext(ctx)
 		if !ok {
 			return nil, trace.AccessDenied("missing peer info")
 		}
 
-		// Limit requests per second and simultaneous connection by client IP.
-		clientIP, err := clientIPFromAddr(peerInfo.Addr)
+		clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
+		if err := l.RegisterRequest(clientIP); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
 		if err := l.connectionLimiter.AcquireConnection(clientIP); err != nil {
@@ -162,7 +145,7 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 		return trace.AccessDenied("missing peer info")
 	}
 	// Limit requests per second and simultaneous connection by client IP.
-	clientIP, err := clientIPFromAddr(peerInfo.Addr)
+	clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,27 +157,6 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 	}
 	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
-}
-
-func clientIPFromAddr(addr net.Addr) (string, error) {
-	if addr == nil {
-		return "", trace.BadParameter("missing client IP")
-	}
-
-	s := addr.String()
-
-	// bufconn peers don't include host:port, so use a stable synthetic key
-	// for request/connection limiting in tests.
-	if s == "bufconn" && addr.Network() == "bufconn" {
-		return "bufconn", nil
-	}
-
-	clientIP, _, err := net.SplitHostPort(s)
-	if err == nil {
-		return clientIP, nil
-	}
-
-	return "", trace.BadParameter("missing client IP")
 }
 
 // WrapListener returns a [Listener] that wraps the provided listener

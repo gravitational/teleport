@@ -184,6 +184,8 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
+    AccessGraphAPI = 6;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -610,6 +612,8 @@ message Features {
   // TODO(michellescripts) DELETE IN v21.0.0
   // Deprecated, use entitlements
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -945,6 +949,19 @@ message GetSAMLIdPSessionResponse {
 message DeleteAppSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
 }
+
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
+// on an application web session.
+message SetAppSessionDBSCPublicKeyRequest {
+  // The ID of the application session to update.
+  string session_id = 1;
+  // The device-bound public key (JWK format) for Device Bound
+  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  bytes public_key = 2;
+}
+
+// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
+message SetAppSessionDBSCPublicKeyResponse {}
 
 // DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
 message DeleteSnowflakeSessionRequest {
@@ -2483,6 +2500,10 @@ message PresenceMFAChallengeRequest {
   // BrowserMFATSHRedirectURL should be supplied if the client supports Browser MFA.
   // If unset, the server will only return non-Browser MFA challenges.
   string BrowserMFATSHRedirectURL = 4 [(gogoproto.jsontag) = "browser_mfa_tsh_redirect_url,omitempty"];
+  // BrowserMFARequestID should be supplied when the browser is generating an MFA challenge
+  // for browser MFA. The auth server will look up the MFASession with this ID to retrieve
+  // the challenge extensions and validate the requesting user matches the session owner.
+  string browser_mfa_request_id = 5;
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.
@@ -3202,6 +3223,8 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

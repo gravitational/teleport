@@ -51,6 +51,8 @@ const (
 	TokenUsageModeUnlimited = "unlimited"
 )
 
+// validates the given Kubernetes configuration. Also implemented by
+// lib/services/provisioning.go:strongValidateProvisionTokenWithDefaults() for unscoped tokens
 func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	if kube == nil || len(kube.GetAllow()) == 0 {
 		return trace.BadParameter("at least one allow rule must be set")
@@ -61,11 +63,10 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 			return trace.BadParameter("allow[%d].service_account must be set", i)
 		}
 
-		namespace, name, found := strings.Cut(rule.ServiceAccount, ":")
-		if !found || namespace == "" || name == "" {
+		parts := strings.Split(rule.ServiceAccount, ":")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return trace.BadParameter("allow[%d].service_account should be in format \"namespace:service_account\", got %q instead", i, rule.ServiceAccount)
 		}
-
 	}
 
 	switch types.KubernetesJoinType(kube.GetType()) {
@@ -86,7 +87,7 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 		}
 	case types.KubernetesJoinTypeOIDC:
 		if kube.GetOidc().GetIssuer() == "" {
-			return trace.BadParameter("oidc.issuer issuer must be set when type is %q", kube.GetType())
+			return trace.BadParameter("oidc.issuer must be set when type is %q", kube.GetType())
 		}
 		if kube.GetStaticJwks() != nil {
 			return trace.BadParameter("static_jwks must not be set when type is %q", kube.GetType())
@@ -104,9 +105,11 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 		} else if parsed.Scheme != "https" {
 			return trace.BadParameter("invalid oidc.issuer URL scheme, must be https://")
 		}
+	case types.KubernetesJoinTypeUnspecified:
+		return trace.BadParameter("type must be specified")
 	default:
 		return trace.BadParameter(
-			"unrecognized join type %q, must be one of (%s)",
+			"unrecognized type %q, must be one of (%s)",
 			kube.GetType(),
 			strings.Join([]string{
 				string(types.KubernetesJoinTypeInCluster),

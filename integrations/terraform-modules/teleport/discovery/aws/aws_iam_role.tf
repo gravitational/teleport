@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
 
       condition {
         test     = "StringEquals"
-        variable = "${local.teleport_cluster_name}:aud"
+        variable = "${local.aws_iam_oidc_provider_name}:aud"
         values   = [local.aws_iam_oidc_provider_aud]
       }
     }
@@ -52,13 +52,17 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
 
       principals {
         type        = "AWS"
-        identifiers = trust.value.role_arn
+        identifiers = [trust.value.role_arn]
       }
 
-      condition {
-        test     = "StringEquals"
-        variable = "sts:ExternalId"
-        values   = [trust.value.external_id]
+      dynamic "condition" {
+        for_each = trust.value.external_id != "" ? [trust.value.external_id] : []
+
+        content {
+          test     = "StringEquals"
+          variable = "sts:ExternalId"
+          values   = [condition.value]
+        }
       }
     }
   }

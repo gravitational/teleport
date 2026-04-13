@@ -26,8 +26,10 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // TestValidateRole verifies basic functionality of strong and weak role validation functions.
@@ -258,6 +260,140 @@ func TestValidateRole(t *testing.T) {
 			strongOk: false,
 			weakOk:   true,
 		},
+		{
+			name: "root assignable scope",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/"},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid ssh.client_idle_timeout",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						ClientIdleTimeout: "not-a-duration",
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid defaults.client_idle_timeout",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						ClientIdleTimeout: "not-a-duration",
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							Mode: "invalid-mode",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid create_host_user_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						HostUserCreation: &scopedaccessv1.CreateHostUser{
+							Mode: "keep",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "negative max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(-1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "positive max_sessions",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						MaxSessions: proto.Int64(1),
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
 	}
 
 	for _, tt := range tts {
@@ -291,7 +427,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "basic",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -331,7 +468,7 @@ func TestValidateAsssignment(t *testing.T) {
 				Version: types.V1,
 			},
 			strongOk: false,
-			weakOk:   false,
+			weakOk:   true,
 		},
 		{
 			name: "missing name",
@@ -375,9 +512,32 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "missing scope",
+			name: "missing sub_kind",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "missing scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -398,7 +558,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "missing version",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -417,11 +578,12 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "malformed name",
+			name: "malformed name - long name",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
-					Name: "not-a-uuid",
+					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 				Scope: "/",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
@@ -463,7 +625,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "slightly malformed scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -485,7 +648,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "significantly malformed scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -507,7 +671,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "impermissable assigned scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -529,7 +694,8 @@ func TestValidateAsssignment(t *testing.T) {
 		{
 			name: "malformed assigned scope",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: KindScopedRoleAssignment,
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -549,9 +715,32 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "basic",
+			name: "root scope of effect",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "basic",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: uuid.New().String(),
 				},
@@ -568,6 +757,156 @@ func TestValidateAsssignment(t *testing.T) {
 				Version: types.V1,
 			},
 			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "valid bot assignment",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo/bar/child",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "bot_name and user both set",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User:     "alice",
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "bot_name without bot_scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName: "mybot",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "bot_scope without bot_name",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User:     "alice",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid bot_scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "not-a-scope",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  "test",
+							Scope: "/foo",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "sub-assignment scope outside bot scope",
+			assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind:    KindScopedRoleAssignment,
+				SubKind: SubKindDynamic,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.New().String(),
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					BotName:  "mybot",
+					BotScope: "/foo/bar",
+					Assignments: []*scopedaccessv1.Assignment{
+						// Valid
+						{
+							Role:  "test",
+							Scope: "/foo/bar",
+						},
+						// Invalid
+						{
+							Role:  "test",
+							Scope: "/foo/baz",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
 			weakOk:   true,
 		},
 	}
@@ -837,4 +1176,96 @@ func requireAllFieldsHavePresenceRecursive(t *testing.T, descriptor protoreflect
 func TestScopedRoleSpecFieldsHavePresence(t *testing.T) {
 	t.Parallel()
 	requireAllFieldsHavePresence(t, (*scopedaccessv1.ScopedRoleSpec)(nil))
+}
+
+// TestScopedRoleSpecTopLevelFieldsAreMessages verifies that all top-level fields of ScopedRoleSpec
+// are message types (singular or repeated), with the exception of assignable_scopes which is
+// grandfathered in. This policy exists to ensure that top-level spec fields remain extensible and
+// composable over time. Scalar and enum fields added at the top level cannot be grouped or namespaced
+// after the fact without breaking changes, whereas message fields can always grow new sub-fields.
+// If you are adding a new top-level field to ScopedRoleSpec and this test fails, wrap it in a message.
+func TestScopedRoleSpecTopLevelFieldsAreMessages(t *testing.T) {
+	t.Parallel()
+
+	// grandfathered fields that predate this policy and are exempt from the requirement.
+	grandfathered := map[protoreflect.Name]bool{
+		"assignable_scopes": true,
+	}
+
+	descriptor := (*scopedaccessv1.ScopedRoleSpec)(nil).ProtoReflect().Descriptor()
+	fields := descriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+		if grandfathered[field.Name()] {
+			continue
+		}
+		require.Equal(t, protoreflect.MessageKind, field.Kind(),
+			"top-level field %s.%s must be a message type (singular or repeated), not a scalar or enum; wrap it in a message or add it to an existing one",
+			descriptor.FullName(), field.Name())
+	}
+}
+
+// TestStrongValidateRoleSpecAllFieldsValidated verifies that a maximally-populated valid ScopedRoleSpec
+// passes StrongValidateRole. The ExhaustiveNonEmpty assertion acts as a coverage guard: if you add a new
+// field to ScopedRoleSpec (or any of its nested message types) and this test begins failing, you must set
+// that field to a valid non-zero value in the spec below. Once you've done that, consider whether
+// StrongValidateRole needs to validate the new field and add coverage to TestValidateRole if so.
+func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
+	t.Parallel()
+
+	spec := &scopedaccessv1.ScopedRoleSpec{
+		AssignableScopes: []string{"/foo"},
+		Defaults: &scopedaccessv1.ScopedRoleDefaults{
+			ClientIdleTimeout: "30m",
+		},
+		Rules: []*scopedaccessv1.ScopedRule{
+			{
+				Resources: []string{KindScopedRole},
+				Verbs:     []string{types.VerbReadNoSecrets},
+			},
+		},
+		Ssh: &scopedaccessv1.ScopedRoleSSH{
+			Logins: []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout:   "1h",
+			PermitX11Forwarding: proto.Bool(true),
+			FileCopy:            proto.Bool(true),
+			ForwardAgent:        proto.Bool(true),
+			PortForwarding: &scopedaccessv1.SSHPortForwarding{
+				Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
+				Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
+			},
+			HostUserCreation: &scopedaccessv1.CreateHostUser{
+				Mode:   "keep",
+				Groups: []string{"wheel"},
+				Shell:  "/bin/bash",
+			},
+			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
+			MaxSessions: proto.Int64(10),
+		},
+		Kube: &scopedaccessv1.ScopedRoleKube{
+			Groups: []string{"viewer"},
+			Users:  []string{"alice"},
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+			ClientIdleTimeout: "1h",
+		},
+	}
+
+	require.True(t, testutils.ExhaustiveNonEmpty(spec),
+		"spec is not exhaustively non-empty; if you added a new field, set it to a valid non-zero value here AND evaluate whether StrongValidateRole needs to validate it (adding test cases to TestValidateRole if so) — empty fields: %v",
+		testutils.FindAllEmpty(spec),
+	)
+
+	role := &scopedaccessv1.ScopedRole{
+		Kind:     KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    "/",
+		Spec:     spec,
+		Version:  types.V1,
+	}
+	require.NoError(t, StrongValidateRole(role))
 }

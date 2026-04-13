@@ -40,7 +40,7 @@ type ServiceConfig struct {
 	// Backend is the backend for storing LinuxDesktop.
 	Backend services.LinuxDesktops
 
-	// Reader is the cache for storing LinuxDesktop.
+	// Reader is the cache for looking up LinuxDesktops.
 	Reader Reader
 
 	// Emitter is the event emitter.

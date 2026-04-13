@@ -23,7 +23,6 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
 // Client is an access list client that conforms to the following lib/services interfaces:
@@ -145,10 +144,8 @@ func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslist.Grants{
-		Roles:  resp.Grants.Roles,
-		Traits: traitv1.FromProto(resp.Grants.Traits),
-	}, nil
+	grants := conv.ConvertGrantsFromProto(resp.GetGrants())
+	return &grants, nil
 }
 
 // UpsertAccessList creates or updates an access list resource.

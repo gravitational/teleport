@@ -19,15 +19,19 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestUserMessageFromError(t *testing.T) {
@@ -254,4 +258,57 @@ func TestFormatCertError(t *testing.T) {
 		msg := formatCertError(err)
 		require.Empty(t, msg)
 	})
+}
+
+func TestInitCLIParser(t *testing.T) {
+	makeApp := func(usageWriter io.Writer) *kingpin.Application {
+		app := InitCLIParser("test", "some help message")
+		app.UsageWriter(usageWriter)
+		app.Terminate(func(int) {})
+
+		app.Command("hello", "Hello.")
+
+		create := app.Command("create", "Create.")
+		create.Command("box", "Box.")
+		create.Command("rocket", "Rocket.")
+
+		start := app.Command("start", "Start.")
+		start.Command("legacy", "Legacy.").Default()
+		start.Command("workload-identity", "Workload identity.")
+		return app
+	}
+
+	tests := []struct {
+		name      string
+		inputArgs []string
+	}{
+		{
+			name:      "command width expands to longest command",
+			inputArgs: []string{},
+		},
+		{
+			name:      "command width aligned for subcommand help",
+			inputArgs: []string{"create"},
+		},
+		{
+			name:      "command width aligned on unknown command error",
+			inputArgs: []string{"unknown"},
+		},
+		{
+			// Regression test for https://github.com/gravitational/teleport/issues/64126
+			name:      "default subcommand does not affect column width",
+			inputArgs: []string{"start"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			app := makeApp(&buf)
+			app.Usage(append(tt.inputArgs, "--help"))
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
 }

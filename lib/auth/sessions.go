@@ -45,7 +45,6 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,6 +106,8 @@ type NewWebSessionRequest struct {
 	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
 	// authentication and some differences in locking behavior.
 	Scope string
+	// Usage identifies the intended usage of the session.
+	Usage types.WebSessionUsage
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -194,7 +195,7 @@ func (a *Server) calculateTrustedDeviceMode(
 	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
 
 	// Don't evaluate for OSS.
-	if !modules.GetModules().IsEnterpriseBuild() {
+	if !a.modules.IsEnterpriseBuild() {
 		return unspecified, nil
 	}
 
@@ -311,7 +312,7 @@ func (a *Server) newWebSession(
 		TTL:            sessionTTL,
 		SSHPublicKey:   sshAuthorizedKey,
 		TLSPublicKey:   tlsPublicKeyPEM,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
 	}
@@ -322,7 +323,7 @@ func (a *Server) newWebSession(
 		hasDeviceExtensions = true
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -365,6 +366,7 @@ func (a *Server) newWebSession(
 		LoginTime:           req.LoginTime,
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
+		Usage:               req.Usage,
 	}
 
 	UserLoginCount.Inc()
@@ -466,7 +468,7 @@ type NewAppSessionRequest struct {
 // The certificate is used for all access requests, which is where access
 // control is enforced.
 func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -505,6 +507,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			Roles:          roles,
 			Traits:         traits,
 			AccessRequests: identity.ActiveRequests,
+			// Propagate AllowedResourceAccessIDs so the app session cert
+			// carries resource-level restrictions from the caller's identity.
+			// Without this, checkAllowedResources() at the app service sees an
+			// empty list and falls back to role-based checks alone.
+			RequestedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 			// If the user's current identity is attested as a "web_session", its secrets are only
 			// available to the Proxy and Auth roles, meaning this request is coming from the Proxy
 			// service on behalf of the user's Web Session. We can safely attest this child app session
@@ -529,7 +536,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 }
 
 func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionRequest) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -549,10 +556,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:                 req.User,
-		Roles:                    req.Roles,
-		Traits:                   req.Traits,
-		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
+		Username: req.User,
+		Roles:    req.Roles,
+		Traits:   req.Traits,
+		// Propagate AllowedResourceAccessIDs from the req, so AccessChecker
+		// doesn't fall back to role-based checks alone if resource-level restrictions
+		// are present on caller's identity.
+		AllowedResourceAccessIDs: req.NewWebSessionRequest.RequestedResourceAccessIDs,
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -594,11 +604,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:           user,
 		LoginIP:        req.LoginIP,
 		TLSPublicKey:   tlsPublicKey,
-		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newAppSession.
 		TTL:            req.SessionTTL,
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
@@ -792,12 +802,12 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, req.UserState)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, req.UserState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, cert.Request{
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
 		User:                             req.UserState,
 		TTL:                              req.SessionTTL,
 		SSHPublicKey:                     req.SSHPubKey,
@@ -820,7 +830,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest,
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.DB).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.DB).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
@@ -859,7 +869,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 // CreateAppSessionForAppAuth creates a new app session based on app auth
 // config.
 func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
 	}
@@ -887,4 +897,8 @@ func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthcon
 	}
 
 	return sess, nil
+}
+
+func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
+	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
 }
