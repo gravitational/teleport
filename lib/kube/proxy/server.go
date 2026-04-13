@@ -543,6 +543,10 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO (eriktate): switch to more robust scope propagation when kube
+	// forwarder is refactored
+	srv.Scope = t.Scope
+	cluster.Scope = srv.Scope
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	// Get the kube cluster health and send it to the auth server.
