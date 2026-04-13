@@ -1,5 +1,5 @@
 resource "teleport_role" "example-role" {
-  depends_on = [teleport_role.role-some-role-id]
+  depends_on = [teleport_role.some-role-id-1, teleport_role.some-role-id-2, teleport_role.some-role-id-3]
 
   version = "v7"
 
