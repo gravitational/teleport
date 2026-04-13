@@ -1606,23 +1606,28 @@ func TestSAMLConnector(t *testing.T) {
 		// Created connector has specified client ID and client secret.
 		createdConnector, err := s.a.CreateSAMLConnector(ctx, saml)
 		require.NoError(t, err)
-		require.Equal(t, "test-client-id", createdConnector.GetOAuthClientCredentials().ClientId)
-		require.Equal(t, "test-client-secret", createdConnector.GetOAuthClientCredentials().ClientSecret)
+		createdCreds := createdConnector.GetOAuthClientCredentials()
+		require.NotNil(t, createdCreds)
+		require.Equal(t, "test-client-id", createdCreds.ClientId)
+		require.Equal(t, "test-client-secret", createdCreds.ClientSecret)
 
 		// Connector without secrets has client secret stripped.
 		connectorWithoutSecrets, err := s.a.GetSAMLConnector(ctx, createdConnector.GetName(), false)
 		require.NoError(t, err)
-		require.Equal(t, "test-client-id", connectorWithoutSecrets.GetOAuthClientCredentials().ClientId)
-		require.Equal(t, "", connectorWithoutSecrets.GetOAuthClientCredentials().ClientSecret)
+		withoutSecretsCreds := connectorWithoutSecrets.GetOAuthClientCredentials()
+		require.NotNil(t, withoutSecretsCreds)
+		require.Equal(t, "test-client-id", withoutSecretsCreds.ClientId)
+		require.Equal(t, "", withoutSecretsCreds.ClientSecret)
 
 		// Upserted connector with empty client secret doesn't overwrite existing.
 		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
 		require.NoError(t, err)
-
 		upsertedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
 		require.NoError(t, err)
-		require.Equal(t, "test-client-id", upsertedConnector.GetOAuthClientCredentials().ClientId)
-		require.Equal(t, "test-client-secret", upsertedConnector.GetOAuthClientCredentials().ClientSecret)
+		upsertedCreds := upsertedConnector.GetOAuthClientCredentials()
+		require.NotNil(t, upsertedCreds)
+		require.Equal(t, "test-client-id", upsertedCreds.ClientId)
+		require.Equal(t, "test-client-secret", upsertedCreds.ClientSecret)
 
 		// Updated connector with empty client secret doesn't overwrite existing.
 		_, err = s.a.UpdateSAMLConnector(ctx, connectorWithoutSecrets)
@@ -1630,8 +1635,10 @@ func TestSAMLConnector(t *testing.T) {
 
 		updatedConnector, err := s.a.GetSAMLConnector(ctx, connectorWithoutSecrets.GetName(), true)
 		require.NoError(t, err)
-		require.Equal(t, "test-client-id", updatedConnector.GetOAuthClientCredentials().ClientId)
-		require.Equal(t, "test-client-secret", updatedConnector.GetOAuthClientCredentials().ClientSecret)
+		updatedCreds := updatedConnector.GetOAuthClientCredentials()
+		require.NotNil(t, updatedCreds)
+		require.Equal(t, "test-client-id", updatedCreds.ClientId)
+		require.Equal(t, "test-client-secret", updatedCreds.ClientSecret)
 	})
 
 	t.Run("events", func(t *testing.T) {
