@@ -68,7 +68,7 @@ type UploadHandler interface {
 	// The value of the version string should be considered opaque and
 	// only used for comparisons. If uploadID is empty, this gets the current
 	// recording version; otherwise, this gets the version of the temporary upload
-	// associated with the upload ID, If there is no recording, the version is the
+	// associated with the upload ID. If there is no recording, the version is the
 	// empty string.
 	GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error)
 }
