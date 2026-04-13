@@ -312,14 +312,18 @@ func (c *ConnectionsHandler) expireSessions() {
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancelCause(c.closeContext)
+	// HandleConnection owns the context. handleConnection passes cancel
+	// to TrackingReadConn, which may call it first with io.EOF when the
+	// connection closes. The second cancel call is a no-op.
+	defer cancel(nil)
 
 	// Wrap conn in a CloserConn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(closerConn)
+	cleanup, err := c.handleConnection(ctx, cancel, closerConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -335,7 +339,11 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// Wait for connection to close.
+	// Wait for the connection to close. The TCP handler blocks until
+	// done, so closerConn is already closed by the time we get here.
+	// The HTTP handler returns immediately after handing the conn to
+	// http.Server, so this is where we block until the HTTP server
+	// closes it.
 	closerConn.Wait()
 }
 
@@ -561,8 +569,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	return authContext, app, nil
 }
 
-func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancelCause(c.closeContext)
+func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   c.cfg.Clock,
@@ -608,16 +615,18 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// initialization to ensure value is present on the context.
 	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
 
-	// Application access supports plain TCP connections which are handled
-	// differently than HTTP requests from web apps.
+	// The TCP handler blocks until the session is done, so it returns
+	// (nil, err) and the caller has nothing to clean up. The HTTP handler
+	// is asynchronous: handleHTTPApp hands the conn to http.Server.Serve
+	// and returns immediately, so it returns a cleanup function and the
+	// caller blocks on closerConn.Wait() until the HTTP server closes
+	// the conn.
 	if app.IsTCP() {
 		identity := authCtx.Identity.GetIdentity()
-		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
 	}
 
 	cleanup := func() {
-		cancel(nil)
 		c.deleteConnAuth(tlsConn)
 	}
 	return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
