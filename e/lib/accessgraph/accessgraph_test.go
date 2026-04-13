@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
@@ -203,6 +206,103 @@ func TestConvertEvent(t *testing.T) {
 
 }
 
+type fakeUsageEventSender struct {
+	usageCalls int
+	lastUsage  usagereporter.Anonymizable
+}
+
+func (f *fakeUsageEventSender) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return nil
+}
+
+func (f *fakeUsageEventSender) AnonymizeAndSubmit(event ...usagereporter.Anonymizable) {
+	f.usageCalls++
+	if len(event) > 0 {
+		f.lastUsage = event[0]
+	}
+}
+
+func TestProcessTAGMessageUsageEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := slog.Default()
+
+	tests := []struct {
+		name      string
+		msg       *accessgraphv1alpha.EventsStreamV2Response
+		wantType  any
+		wantCalls int
+	}{
+		{
+			name: "graph size",
+			msg: &accessgraphv1alpha.EventsStreamV2Response{
+				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
+					UsageEvent: &accessgraphv1alpha.UsageEvent{
+						Event: &accessgraphv1alpha.UsageEvent_GraphSize{
+							GraphSize: &prehogv1a.IdentitySecurityGraphSizeEvent{Provider: "teleport"},
+						},
+					},
+				},
+			},
+			wantType:  (*usagereporter.IdentitySecurityGraphSizeEvent)(nil),
+			wantCalls: 1,
+		},
+		{
+			name: "audit logs ingested",
+			msg: &accessgraphv1alpha.EventsStreamV2Response{
+				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
+					UsageEvent: &accessgraphv1alpha.UsageEvent{
+						Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
+							AuditLogsIngested: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{Provider: "teleport"},
+						},
+					},
+				},
+			},
+			wantType:  (*usagereporter.IdentitySecurityAuditLogsIngestedEvent)(nil),
+			wantCalls: 1,
+		},
+		{
+			name: "nil graph size",
+			msg: &accessgraphv1alpha.EventsStreamV2Response{
+				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
+					UsageEvent: &accessgraphv1alpha.UsageEvent{
+						Event: &accessgraphv1alpha.UsageEvent_GraphSize{
+							GraphSize: nil,
+						},
+					},
+				},
+			},
+			wantCalls: 0,
+		},
+		{
+			name: "nil audit logs ingested",
+			msg: &accessgraphv1alpha.EventsStreamV2Response{
+				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
+					UsageEvent: &accessgraphv1alpha.UsageEvent{
+						Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
+							AuditLogsIngested: nil,
+						},
+					},
+				},
+			},
+			wantCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &fakeUsageEventSender{}
+			processTAGMessage(ctx, tt.msg, sender, log)
+
+			require.Equal(t, tt.wantCalls, sender.usageCalls)
+			if tt.wantType != nil {
+				require.IsType(t, tt.wantType, sender.lastUsage)
+			}
+		})
+	}
+}
+
 func TestTeleportAccessGraphSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -241,6 +341,11 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 		}
 		return false
 	}, 10*time.Second, 100*time.Millisecond, "expected to receive sync message before timeout")
+
+	require.Eventually(t, func() bool {
+		actions := svc.accessGraphService.getSupportedActions()
+		return slices.Contains(actions, supportedActionUsageEvent)
+	}, 10*time.Second, 100*time.Millisecond, "expected supported-actions metadata to be sent")
 }
 
 func newAccessGraphFakeService(t *testing.T, lis net.Listener) *accessGraphService {
@@ -275,9 +380,10 @@ type accessGraphService struct {
 	accessgraphv1alpha.UnimplementedAccessGraphServiceServer
 	healthpb.UnimplementedHealthServer
 
-	// mu protects receivedMessages
+	// mu protects receivedMessages and supportedActions
 	mu               sync.Mutex
 	receivedMessages []*accessgraphv1alpha.EventsStreamV2Request
+	supportedActions []string
 }
 
 func (a *accessGraphService) getReceivedMessages() []*accessgraphv1alpha.EventsStreamV2Request {
@@ -290,10 +396,20 @@ func (a *accessGraphService) getReceivedMessages() []*accessgraphv1alpha.EventsS
 	return messages
 }
 
+func (a *accessGraphService) getSupportedActions() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.supportedActions)
+}
+
 func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGraphService_EventsStreamV2Server) error {
-	const supportedResourcesKey = "supported-kinds"
+	md, _ := metadata.FromIncomingContext(stream.Context())
+	a.mu.Lock()
+	a.supportedActions = md.Get(supportedActionsKey)
+	a.mu.Unlock()
+
 	if err := stream.SendHeader(metadata.MD{
-		supportedResourcesKey: []string{
+		supportedKindsKey: []string{
 			types.KindUser,
 			types.KindRole,
 			types.KindNode,

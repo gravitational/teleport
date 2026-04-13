@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
+	"google.golang.org/grpc/metadata"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -35,6 +36,18 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+)
+
+const (
+	// supportedActionsKey is the metadata header name that lists the
+	// actions supported in EventsStreamV2Response by this code.
+	supportedActionsKey       = "supported-actions"
+	supportedActionUsageEvent = "usage-event"
+
+	// supportedKindsKey is the metadata header name that lists the
+	// kinds supported by access graph.
+	supportedKindsKey = "supported-kinds"
 )
 
 type eventStream grpc.BidiStreamingClient[accessgraphv1.EventsStreamV2Request, accessgraphv1.EventsStreamV2Response]
@@ -79,7 +92,14 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 			// Close the connection when the function returns.
 			defer accessGraphConn.Close()
 			client := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
-			eventStream, err := client.EventsStreamV2(ctx)
+
+			// Set metadata to inform the other end of what response messages are
+			// supported by this teleport client.
+			md := metadata.MD{
+				supportedActionsKey: []string{supportedActionUsageEvent},
+			}
+			streamCtx := metadata.NewOutgoingContext(ctx, md)
+			eventStream, err := client.EventsStreamV2(streamCtx)
 			if err != nil {
 				log.ErrorContext(ctx, "Failed to get access graph service events stream", "error", err)
 				return trace.Wrap(err)
@@ -120,9 +140,8 @@ func processEventStream(ctx context.Context, log *slog.Logger, stream eventStrea
 		log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
 		return trace.Wrap(err)
 	}
-	const supportedResourcesKey = "supported-kinds"
 
-	supportedKinds := header.Get(supportedResourcesKey)
+	supportedKinds := header.Get(supportedKindsKey)
 	if len(supportedKinds) == 0 {
 		return trace.BadParameter("access graph service did not return supported kinds")
 	}
@@ -239,10 +258,11 @@ func processEventStream(ctx context.Context, log *slog.Logger, stream eventStrea
 
 type eventSender interface {
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
+	AnonymizeAndSubmit(event ...usagereporter.Anonymizable)
 }
 
 func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Response, authServer eventSender, log *slog.Logger) {
-	switch o := obj.Action.(type) {
+	switch o := obj.GetAction().(type) {
 	case *accessgraphv1.EventsStreamV2Response_Event:
 		event := convertEvent(o.Event)
 		if event == nil {
@@ -253,6 +273,14 @@ func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Res
 		if err := authServer.EmitAuditEvent(ctx, event); err != nil {
 			log.ErrorContext(ctx, "Failed to emit Crown Jewel update event")
 		}
+	case *accessgraphv1.EventsStreamV2Response_UsageEvent:
+		event := convertUsageEvent(o.UsageEvent)
+		if event == nil {
+			log.WarnContext(ctx, "Received unknown usage event type from access graph service", "event", obj)
+			return
+		}
+		authServer.AnonymizeAndSubmit(event)
+
 	default:
 		log.WarnContext(ctx, "Received unknown event type from access graph service", "event", obj)
 	}
@@ -279,6 +307,22 @@ func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 	}
 
 	return tEvent
+}
+
+func convertUsageEvent(event *accessgraphv1.UsageEvent) usagereporter.Anonymizable {
+	switch e := event.GetEvent().(type) {
+	case *accessgraphv1.UsageEvent_GraphSize:
+		if e.GraphSize == nil {
+			return nil
+		}
+		return (*usagereporter.IdentitySecurityGraphSizeEvent)(e.GraphSize)
+	case *accessgraphv1.UsageEvent_AuditLogsIngested:
+		if e.AuditLogsIngested == nil {
+			return nil
+		}
+		return (*usagereporter.IdentitySecurityAuditLogsIngestedEvent)(e.AuditLogsIngested)
+	}
+	return nil
 }
 
 type watcherKind int
