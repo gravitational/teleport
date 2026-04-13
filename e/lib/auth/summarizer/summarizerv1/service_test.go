@@ -45,7 +45,9 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
-type testPlugin struct{}
+type testPlugin struct {
+	unrestrictedBedrock bool
+}
 
 func (p *testPlugin) GetName() string {
 	return "auth.enterprise"
@@ -64,6 +66,7 @@ func (p *testPlugin) RegisterAuthServices(
 
 	svc, err := NewService(ServiceConfig{
 		Authorizer:        authServer.Authorizer,
+		Cache:             authServer.AuthServer,
 		Backend:           authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
 		Emitter:           authServer.AuthServer.GetEmitter(),
@@ -76,7 +79,9 @@ func (p *testPlugin) RegisterAuthServices(
 					entitlements.Policy: {Enabled: true},
 				},
 			},
-		}})
+		},
+		EnableBedrockWithoutRestrictions: p.unrestrictedBedrock,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -99,8 +104,9 @@ func (f *fakeUsageReporter) AnonymizeAndSubmit(event ...usagereporter.Anonymizab
 }
 
 type newTestTLSServerOptions struct {
-	usageReporter usagereporter.UsageReporter
-	emitter       apievents.Emitter
+	usageReporter       usagereporter.UsageReporter
+	emitter             apievents.Emitter
+	unrestrictedBedrock bool
 }
 
 type newTestTLSServerOption func(*newTestTLSServerOptions)
@@ -114,6 +120,12 @@ func withUsageReporter(ur usagereporter.UsageReporter) newTestTLSServerOption {
 func withEmitter(emitter apievents.Emitter) newTestTLSServerOption {
 	return func(o *newTestTLSServerOptions) {
 		o.emitter = emitter
+	}
+}
+
+func withUnrestrictedBedrock() newTestTLSServerOption {
+	return func(o *newTestTLSServerOptions) {
+		o.unrestrictedBedrock = true
 	}
 }
 
@@ -138,7 +150,9 @@ func newTestTLSServer(t testing.TB, opts ...newTestTLSServerOption) *authtest.TL
 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
-		err = cfg.APIConfig.PluginRegistry.Add(&testPlugin{})
+		err = cfg.APIConfig.PluginRegistry.Add(&testPlugin{
+			unrestrictedBedrock: opt.unrestrictedBedrock,
+		})
 		require.NoError(t, err)
 	})
 	require.NoError(t, err)

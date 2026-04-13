@@ -425,7 +425,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 		summarizerService, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
 			Authorizer:                       p.authServer.Authorizer,
-			Backend:                          p.authServer.AuthServer,
+			Backend:                          p.authServer.AuthServer.Services,
+			Cache:                            p.authServer.AuthServer.Cache,
 			SummaryDownloader:                p.authServer.AuthServer,
 			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
 			Emitter:                          p.authServer.Emitter,

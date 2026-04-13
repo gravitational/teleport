@@ -39,6 +39,8 @@ func TestListInferenceResources(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
 	clusterName := s.testAuthServer.ClusterName()
+	createInferenceSecret(t, ctx, authClient, "test-secret")
+	createInferenceModel(t, ctx, authClient, "test-model")
 
 	testCases := []struct {
 		name           string
@@ -222,6 +224,10 @@ func TestInferenceModelCRUD(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
 	clusterName := s.testAuthServer.ClusterName()
+
+	createInferenceSecret(t, ctx, authClient, "test-secret")
+	createInferenceSecret(t, ctx, authClient, "new-secret")
+	createInferenceSecret(t, ctx, authClient, "my-secret")
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
@@ -407,6 +413,11 @@ func TestInferencePolicyCRUD(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	ctx := t.Context()
 	clusterName := s.testAuthServer.ClusterName()
+
+	createInferenceSecret(t, ctx, authClient, "test-secret")
+	createInferenceModel(t, ctx, authClient, "my-model")
+	createInferenceModel(t, ctx, authClient, "test-model")
+	createInferenceModel(t, ctx, authClient, "new-model")
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()

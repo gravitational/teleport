@@ -104,6 +104,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	svc, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
 		Authorizer:        authServer.Authorizer,
 		Backend:           authServer.AuthServer,
+		Cache:             authServer.AuthServer,
 		SummaryDownloader: authServer.AuthServer,
 		Emitter:           authServer.AuthServer.GetEmitter(),
 		Decrypter:         p.decrypter,

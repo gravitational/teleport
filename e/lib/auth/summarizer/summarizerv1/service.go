@@ -41,6 +41,7 @@ type SummaryDownloader interface {
 type ServiceConfig struct {
 	Authorizer        authz.Authorizer
 	Backend           services.Summarizer
+	Cache             services.SummarizerServiceGetter
 	SummaryDownloader SummaryDownloader
 	Decrypter         events.DecryptionWrapper
 	// Modules defines build time constraints and licensed features.
@@ -68,6 +69,7 @@ type Service struct {
 	authorizer                       authz.Authorizer
 	backend                          services.Summarizer
 	modules                          modules.Modules
+	cache                            services.SummarizerServiceGetter
 	summaryDownloader                SummaryDownloader
 	logger                           *slog.Logger
 	decrypter                        events.DecryptionWrapper
@@ -91,6 +93,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Backend == nil {
 		return nil, trace.BadParameter("backend service is required")
 	}
+	if cfg.Cache == nil {
+		return nil, trace.BadParameter("cache service is required")
+	}
 	if cfg.SummaryDownloader == nil {
 		return nil, trace.BadParameter("upload handler is required")
 	}
@@ -108,6 +113,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:                       cfg.Authorizer,
 		backend:                          cfg.Backend,
 		modules:                          cfg.Modules,
+		cache:                            cfg.Cache,
 		summaryDownloader:                cfg.SummaryDownloader,
 		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
 		decrypter:                        cfg.Decrypter,
@@ -156,6 +162,12 @@ func (s *Service) CreateInferenceModel(
 
 	if err := rejectReservedInferenceModelName(req.Model); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
 	}
 
 	model, err := s.backend.CreateInferenceModel(ctx, req.Model)
@@ -221,6 +233,12 @@ func (s *Service) UpdateInferenceModel(
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
+	}
+
 	model, err := s.backend.UpdateInferenceModel(ctx, req.Model)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,6 +282,12 @@ func (s *Service) UpsertInferenceModel(
 
 	if err := rejectReservedInferenceModelName(req.Model); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef() != "" {
+		if err := s.validateInferenceSecretExistence(ctx, req.GetModel().GetSpec().GetOpenai().GetApiKeySecretRef()); err != nil {
+			return nil, trace.Wrap(err, "referenced OpenAI API key secret does not exist")
+		}
 	}
 
 	model, err := s.backend.UpsertInferenceModel(ctx, req.Model)
@@ -603,6 +627,10 @@ func (s *Service) CreateInferencePolicy(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	policy, err := s.backend.CreateInferencePolicy(ctx, req.Policy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -662,6 +690,10 @@ func (s *Service) UpdateInferencePolicy(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	policy, err := s.backend.UpdateInferencePolicy(ctx, req.Policy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -700,6 +732,10 @@ func (s *Service) UpsertInferencePolicy(
 
 	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1088,4 +1124,14 @@ func resourceToSessionKind(resource types.Resource) (string, types.SessionKind) 
 	default:
 		return "unknown", types.UnknownSessionKind
 	}
+}
+
+func (s *Service) validateInferenceSecretExistence(ctx context.Context, name string) error {
+	if _, err := s.cache.GetInferenceSecret(ctx, name); trace.IsNotFound(err) {
+		_, err := s.backend.GetInferenceSecret(ctx, name)
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
