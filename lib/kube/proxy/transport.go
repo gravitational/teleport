@@ -341,11 +341,12 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				// different users.
 				// IP Pinning is based on the source IP address of the connection that
 				// we transport over HTTP headers so it's not affected.
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: server.GetHostname()},
-				ConnType: types.KubeTunnel,
-				ServerID: serverID,
-				ProxyIDs: server.GetProxyIDs(),
+				From:        &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
+				To:          &utils.NetAddr{AddrNetwork: "tcp", Addr: server.GetHostname()},
+				ConnType:    types.KubeTunnel,
+				ServerID:    serverID,
+				ProxyIDs:    server.GetProxyIDs(),
+				TargetScope: server.GetScope(),
 			})
 			if err == nil {
 				opt.collect(server.GetHostID())
