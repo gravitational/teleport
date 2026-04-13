@@ -47,9 +47,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const (
@@ -130,7 +131,7 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}
@@ -676,7 +677,7 @@ func TestBPFMonitoringWithPAM(t *testing.T) {
 	skipIfNoPAM(t)
 
 	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}
@@ -930,7 +931,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 	t.Logf("running %q", command)
 
-	_, err := scx.execRequest.Start(ctx, channel)
+	err := scx.execRequest.Start(ctx, channel)
 	require.NoError(t, err)
 
 	t.Log("reading audit session ID")

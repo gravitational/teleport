@@ -142,7 +142,7 @@ export function DesktopSession() {
           return (
             <DisconnectedState
               message={{
-                title: 'This session requires multi factor authentication',
+                title: 'This session requires multi-factor authentication',
                 details: mfa.attempt.statusText,
               }}
               desktopName={desktopName}

@@ -231,7 +231,7 @@ const postform = `
 
 func TestCLICeremony_MFA(t *testing.T) {
 	const token = "sso-mfa-token"
-	const requestID = "soo-mfa-request-id"
+	const requestID = "sso-mfa-request-id"
 
 	ctx := context.Background()
 	mockProxy := newMockProxy(t)
@@ -297,3 +297,7 @@ func TestCLICeremony_MFA(t *testing.T) {
 	assert.Equal(t, token, mfaResponse.GetSSO().Token)
 	assert.Equal(t, requestID, mfaResponse.GetSSO().RequestId)
 }
+
+// TODO(danielashare): Add full Browser MFA ceremony test once server-side
+// Browser MFA functions have been merged. Test similar to above that tests
+// CLI output, redirect handling, and MFA response.

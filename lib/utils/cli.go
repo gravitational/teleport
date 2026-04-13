@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"text/template"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -136,7 +137,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
+	fmt.Fprint(os.Stderr, UserMessageFromError(err))
 	os.Exit(1)
 }
 
@@ -157,13 +158,17 @@ func GetIterations() int {
 
 // UserMessageFromError returns user-friendly error message from error.
 // The error message will be formatted for output depending on the debug
-// flag
+// flag and will always end with a new line.
 func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
 	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-		return trace.DebugReport(err)
+		msg := trace.DebugReport(err)
+		if !strings.HasSuffix(msg, "\n") {
+			msg += "\n"
+		}
+		return msg
 	}
 	var buf bytes.Buffer
 	if runtime.GOOS == constants.WindowsOS {
@@ -180,37 +185,37 @@ func UserMessageFromError(err error) string {
 }
 
 // FormatErrorWithNewline returns user friendly error message from error.
-// The error message is escaped if necessary. A newline is added if the error text
-// does not end with a newline.
+// The message will always end with a new line.
 func FormatErrorWithNewline(err error) string {
 	var buf bytes.Buffer
 	formatErrorWriter(err, &buf)
-	message := buf.String()
-	if !strings.HasSuffix(message, "\n") {
-		message = message + "\n"
-	}
-	return message
+	return buf.String()
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
-// The error message is escaped if necessary
+// The error message is escaped if necessary. A newline is added if the
+// error text does not end with a newline.
 func formatErrorWriter(err error, w io.Writer) {
 	if err == nil {
 		return
 	}
-	if certErr := formatCertError(err); certErr != "" {
-		fmt.Fprintln(w, certErr)
-		return
-	}
 
 	msg := trace.UserMessage(err)
+	if certErr := formatCertError(err); certErr != "" {
+		msg = certErr
+	}
+
 	// Error can be of type trace.proxyError where error message didn't get captured.
 	if msg == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 		return
 	}
 
-	fmt.Fprintln(w, AllowWhitespace(msg))
+	msg = AllowWhitespace(msg)
+	fmt.Fprint(w, msg)
+	if !strings.HasSuffix(msg, "\n") {
+		w.Write([]byte("\n"))
+	}
 }
 
 func formatCertError(err error) string {
@@ -337,7 +342,16 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(createUsageTemplate())
+	app.UsageFuncs(template.FuncMap{
+		"CommandPrintfWidth": func(cmds []*kingpin.CmdModel) int {
+			cmdWidth := defaultCommandPrintfWidth
+			for _, cmd := range cmds {
+				cmdWidth = max(cmdWidth, len(cmd.FullCommand))
+			}
+			return cmdWidth
+		},
+	})
+	return app.UsageTemplate(defaultUsageTemplate)
 }
 
 // InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
@@ -350,18 +364,6 @@ func InitHiddenCLIParser() (app *kingpin.Application) {
 	app.Terminate(func(i int) {})
 
 	return app
-}
-
-// createUsageTemplate creates an usage template for kingpin applications.
-func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
-	opt := &usageTemplateOptions{
-		commandPrintfWidth: defaultCommandPrintfWidth,
-	}
-
-	for _, optFunc := range opts {
-		optFunc(opt)
-	}
-	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -436,13 +438,6 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// usageTemplateOptions defines options to format the usage template.
-type usageTemplateOptions struct {
-	// commandPrintfWidth is the width of the command name with padding, for
-	//   {{.FullCommand | printf "%%-%ds"}}
-	commandPrintfWidth int
-}
-
 // defaultCommandPrintfWidth is the default command printf width.
 const defaultCommandPrintfWidth = 12
 
@@ -454,9 +449,10 @@ const defaultUsageTemplate = `{{define "FormatCommand" -}}
 {{end -}}
 
 {{define "FormatCommands" -}}
+{{- $cmdWidth := .FlattenedCommands | CommandPrintfWidth -}}
 {{range .FlattenedCommands -}}
 {{if not .Hidden -}}
-{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+{{"  "}}{{printf (printf "%%-%ds" $cmdWidth) .FullCommand}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end -}}
 {{end -}}
 {{end -}}

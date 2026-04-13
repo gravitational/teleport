@@ -140,6 +140,14 @@ onboarding:
     # key.
     static_key_path: ./path/to/secret
 
+  # kubernetes holds parameters specific to the "kubernetes" join methods.
+  kubernetes:
+    # token_path is the optional path that used to lookup the Kubernetes service account token for joining.
+    # When unset, tbot will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+    # "/var/run/secrets/kubernetes.io/serviceaccount/token".
+    #
+    # token_path: "./path/to/token"
+
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
 # destination you specify here can only be accessed by `tbot`.

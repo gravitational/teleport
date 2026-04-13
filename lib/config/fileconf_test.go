@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/session/networking/x11"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -1603,6 +1603,88 @@ func TestBackoffConfig(t *testing.T) {
 			tc.errorFn(t, err)
 
 			require.Equal(t, tc.expectSvcBackoffConfig, svccfg)
+		})
+	}
+}
+
+func TestBoundKeypairConfig(t *testing.T) {
+	testCases := []struct {
+		desc             string
+		mutate           func(cfgMap)
+		expectJoinParams JoinParams
+	}{
+		{
+			desc:             "empty",
+			mutate:           func(cfg cfgMap) {},
+			expectJoinParams: JoinParams{},
+		},
+		{
+			desc: "bound keypair registration secret value",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_value": "reg-secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretValue: "reg-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration secret path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"registration_secret_path": "/path/to/secret",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair registration static key path",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["join_params"] = cfgMap{
+					"token_name": "example",
+					"method":     "bound_keypair",
+					"bound_keypair": cfgMap{
+						"static_key_path": "/path/to/key",
+					},
+				}
+			},
+			expectJoinParams: JoinParams{
+				TokenName: "example",
+				Method:    types.JoinMethodBoundKeypair,
+				BoundKeypair: BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/key",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectJoinParams, cfg.JoinParams)
 		})
 	}
 }

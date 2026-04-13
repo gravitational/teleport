@@ -269,7 +269,7 @@ and assign the identity to your virtual machines:
 $ az deployment group create \
 --resource-group <your-resource-group> \
 --template-file teleport-assign-identity.json \
--- parameters principalId="$PRINCIPAL_ID" roleName="$ROLE_NAME" \
+--parameters principalId="$PRINCIPAL_ID" roleName="$ROLE_NAME" \
 vmNames='<list-of-vm-names>'
 ```
 
