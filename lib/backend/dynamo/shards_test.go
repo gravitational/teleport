@@ -103,7 +103,7 @@ func TestShardSplitting(t *testing.T) {
 			},
 			precondition: func(t *testing.T) {
 				// This configuration is expected to be more stable when run from an EC2 instance in the same region as the DynamoDB table.
-				if os.Getenv("TELEPORT_TEST_EC2") != "" {
+				if os.Getenv("TELEPORT_TEST_EC2") == "" {
 					t.Skip("skipping ec2 test, not running on EC2")
 				}
 			},
