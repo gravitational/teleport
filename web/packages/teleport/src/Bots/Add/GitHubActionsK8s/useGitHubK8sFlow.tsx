@@ -25,6 +25,8 @@ import React, {
 } from 'react';
 import { useDebounceCallback } from 'usehooks-ts';
 
+import { usePreviousValue } from 'shared/hooks/usePreviousValue';
+
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { RefType } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
@@ -75,7 +77,7 @@ export function GitHubK8sFlowProvider(
   // Hold the previous data value so we always have something to display after
   // the initial fetch. When the mutation runs, data is set to null until the
   // new data arrives.
-  const prevData = usePrevious(data);
+  const prevData = usePreviousValue(data);
 
   const regenerateTemplates = useDebounceCallback(mutate, 1000);
 
@@ -356,15 +358,3 @@ const context = React.createContext<Context>({
     },
   },
 });
-
-function usePrevious<T>(value: T) {
-  const [current, setCurrent] = React.useState<T>(value);
-  const [previous, setPrevious] = React.useState<T | undefined>(undefined);
-
-  if (value !== current) {
-    setPrevious(current);
-    setCurrent(value);
-  }
-
-  return previous;
-}
