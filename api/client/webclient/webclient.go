@@ -38,6 +38,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -465,6 +466,17 @@ type AutoUpdateSettings struct {
 	AgentAutoUpdate bool `json:"agent_auto_update"`
 	// AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
 	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
+}
+
+// AutoUpdateSettingsFromProto converts the protobuf AutoUpdateSettings to the webclient version of AutoUpdateSettings.
+func AutoUpdateSettingsFromProto(in *proto.AutoUpdateSettings) AutoUpdateSettings {
+	return AutoUpdateSettings{
+		ToolsVersion:             in.GetToolsVersion(),
+		ToolsAutoUpdate:          in.GetToolsAutoUpdate(),
+		AgentVersion:             in.GetAgentVersion(),
+		AgentAutoUpdate:          in.GetAgentAutoUpdate(),
+		AgentUpdateJitterSeconds: int(in.GetAgentUpdateJitterSeconds()),
+	}
 }
 
 // KubeProxySettings is kubernetes proxy settings

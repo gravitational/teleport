@@ -523,6 +523,27 @@ message PingResponse {
   ];
   // ScopesStatus reports whether the scopes feature is enabled on the auth server.
   ScopesStatus scopes_status = 11;
+
+  // AutoUpdate contains the auto update settings.
+  AutoUpdateSettings auto_update = 12;
+}
+
+// AutoUpdateSettings contains information about the auto update requirements.
+message AutoUpdateSettings {
+  // ToolsVersion defines the version of tsh and tctl for client auto update.
+  string ToolsVersion = 1 [(gogoproto.jsontag) = "tools_version"];
+
+  // ToolsAutoUpdate indicates if the requesting tools client should be updated.
+  bool ToolsAutoUpdate = 2 [(gogoproto.jsontag) = "tools_auto_update"];
+
+  // AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
+  string AgentVersion = 3 [(gogoproto.jsontag) = "agent_version"];
+
+  // AgentAutoUpdate indicates if the requesting agent should be updated.
+  bool AgentAutoUpdate = 4 [(gogoproto.jsontag) = "agent_auto_update"];
+
+  // AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
+  int32 AgentUpdateJitterSeconds = 5 [(gogoproto.jsontag) = "agent_update_jitter_seconds"];
 }
 
 // ScopesStatus represents the state of the scopes feature on the auth server.

@@ -38,6 +38,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
+	libautoupdate "github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -346,7 +347,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
 				ToolsAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -361,7 +362,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsAutoUpdate:          true,
 				ToolsVersion:             api.Version,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -384,7 +385,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
 				ToolsAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          true,
 				AgentVersion:             "1.2.4",
 			},
@@ -407,7 +408,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
 				ToolsAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             "1.2.4",
 			},
@@ -420,7 +421,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
 				ToolsAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -436,7 +437,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             "1.2.3",
 				ToolsAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -457,7 +458,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsAutoUpdate:          true,
 				ToolsVersion:             "1.2.3",
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -477,7 +478,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{
 				ToolsAutoUpdate:          false,
 				ToolsVersion:             "3.2.1",
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
@@ -516,7 +517,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				ToolsAutoUpdate:          false,
 				AgentVersion:             "1.2.4",
 				AgentAutoUpdate:          true,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 			},
 			cleanup: true,
 		},
@@ -553,7 +554,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				ToolsAutoUpdate:          false,
 				AgentVersion:             "1.2.3",
 				AgentAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 			},
 			cleanup: true,
 		},
@@ -598,7 +599,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				ToolsAutoUpdate:          false,
 				AgentVersion:             "1.2.4",
 				AgentAutoUpdate:          true,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 			},
 			cleanup: true,
 		},
@@ -643,7 +644,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				ToolsAutoUpdate:          false,
 				AgentVersion:             "1.2.3",
 				AgentAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
 			},
 			cleanup: true,
 		},

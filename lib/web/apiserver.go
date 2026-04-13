@@ -84,6 +84,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
@@ -146,8 +147,6 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
-	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
-	DefaultAgentUpdateJitterSeconds = 60
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -194,7 +193,15 @@ type Handler struct {
 
 	autoUpdateResolver *autoupdatelookup.Resolver
 
+	autoUpdateSettings AutoUpdateSettingsGetter
+
 	accessGraphHandler http.Handler
+}
+
+// AutoUpdateSettingsGetter defines the interface for getting auto update settings for agents and tools, as described in RFD-184 (agents) and RFD-144 (tools).
+type AutoUpdateSettingsGetter interface {
+	// Get returns the auto update settings for agents and tools, as described in RFD-184 (agents) and RFD-144 (tools).
+	Get(ctx context.Context, group, updaterUUID string) *proto.AutoUpdateSettings
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -586,6 +593,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err, "creating autoupdate resolver")
 	}
 	h.autoUpdateResolver = autoUpdateResolver
+
+	h.autoUpdateSettings, err = autoupdate.NewAutoUpdateSettingsService(&autoupdate.AutoUpdateSettingsServiceConfig{
+		Logger:         h.logger,
+		AccessPoint:    cfg.AccessPoint,
+		LookupResolver: h.autoUpdateResolver,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating auto update settings service")
+	}
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
@@ -1809,6 +1825,10 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
+	autoUpdateSettings := webclient.AutoUpdateSettingsFromProto(
+		h.autoUpdateSettings.Get(r.Context(), group, updaterID),
+	)
+
 	return webclient.PingResponse{
 		Auth:                   authSettings,
 		Proxy:                  *proxyConfig,
@@ -1816,7 +1836,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:       teleport.MinClientSemVer().String(),
 		ClusterName:            h.auth.clusterName,
 		AutomaticUpgrades:      pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:             h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		AutoUpdate:             autoUpdateSettings,
 		Edition:                h.cfg.Modules.BuildType(),
 		FIPS:                   h.cfg.Modules.IsBoringBinary(),
 		AuthServerScopesStatus: scopes.ScopesStatusToString(pr.ScopesStatus),
@@ -1842,6 +1862,10 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			return nil, trace.Wrap(err)
 		}
 
+		autoUpdateSettings := webclient.AutoUpdateSettingsFromProto(
+			h.autoUpdateSettings.Get(ctx, group, "" /* updater UUID */),
+		)
+
 		return &webclient.PingResponse{
 			Proxy: *proxyConfig,
 			Auth: webclient.AuthenticationSettings{
@@ -1852,7 +1876,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ClusterName:      h.auth.clusterName,
 			Edition:          h.cfg.Modules.BuildType(),
 			FIPS:             h.cfg.Modules.IsBoringBinary(),
-			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
+			AutoUpdate:       autoUpdateSettings,
 		}, nil
 	})
 	if err != nil {
@@ -1864,7 +1888,9 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	// cached result and just override what we must.
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 	if updaterID != "" {
-		resp.AutoUpdate = h.automaticUpdateSettings184(r.Context(), group, updaterID)
+		resp.AutoUpdate = webclient.AutoUpdateSettingsFromProto(
+			h.autoUpdateSettings.Get(r.Context(), group, updaterID),
+		)
 	}
 	return resp, nil
 }

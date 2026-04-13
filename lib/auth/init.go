@@ -462,6 +462,9 @@ type InitConfig struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	RemoteClusterRefreshBuckets int
+
+	// AutoUpdateSettingsGetter provides read-only access to tools and agents auto update configurations.
+	AutoUpdateSettingsGetter AutoUpdateSettingsGetter
 }
 
 // Init instantiates and configures an instance of AuthServer

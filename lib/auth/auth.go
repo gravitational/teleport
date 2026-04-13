@@ -103,6 +103,9 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/autoupdate"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
@@ -649,6 +652,29 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	autoUpdateResolver, err := autoupdatelookup.NewResolver(autoupdatelookup.Config{
+		RolloutGetter: cfg.AutoUpdateService,
+		CMCGetter:     cfg.ClusterConfiguration,
+		Channels:      automaticupgrades.Channels{},
+		Log:           cfg.Logger,
+		Clock:         cfg.Clock,
+		Context:       closeCtx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating autoupdate resolver")
+	}
+
+	if cfg.AutoUpdateSettingsGetter == nil {
+		cfg.AutoUpdateSettingsGetter, err = autoupdate.NewAutoUpdateSettingsService(&autoupdate.AutoUpdateSettingsServiceConfig{
+			Logger:         cfg.Logger,
+			AccessPoint:    cfg.AutoUpdateService,
+			LookupResolver: autoUpdateResolver,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating AutoUpdateSettingsGetter service")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -751,6 +777,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		sessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
+		autoUpdateSettingsGetter:     cfg.AutoUpdateSettingsGetter,
 		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
@@ -1513,6 +1540,8 @@ type Server struct {
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
 
+	autoUpdateSettingsGetter AutoUpdateSettingsGetter
+
 	// anonymizationKey is used to anonymize sensitive data in a consistent way for
 	// use in telemetry and logging without exposing the original values.
 	anonymizationKey []byte
@@ -1523,6 +1552,12 @@ type Server struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	remoteClusterRefreshBuckets int
+}
+
+// AutoUpdateSettingsGetter defines the interface for getting auto update settings for agents and tools, as described in RFD-184 (agents) and RFD-144 (tools).
+type AutoUpdateSettingsGetter interface {
+	// Get returns the auto update settings for agents and tools, as described in RFD-184 (agents) and RFD-144 (tools).
+	Get(ctx context.Context, group, updaterUUID string) *proto.AutoUpdateSettings
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -7652,6 +7687,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
 		ScopesStatus:            scopesStatusFromFeatureFlag(),
+		AutoUpdate:              a.autoUpdateSettingsGetter.Get(ctx, "", ""),
 	}, nil
 }
 

@@ -36,6 +36,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -570,7 +571,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	targetVersion, err := getToolsVersion(autoUpdateVersion)
+	targetVersion, err := autoupdate.GetToolsVersion(autoUpdateVersion)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

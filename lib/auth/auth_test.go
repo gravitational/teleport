@@ -49,15 +49,18 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -75,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	libautoupdate "github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -4917,6 +4921,184 @@ func TestPing(t *testing.T) {
 			assert.NotNil(t, resp.ServerFeatures)
 			assert.NotNil(t, resp.LicenseExpiry)
 			assert.Equal(t, f.scopesStatus, resp.ScopesStatus)
+		})
+	}
+}
+
+func TestPing_AutoUpdate(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *autoupdatev1pb.AutoUpdateConfigSpec
+		version  *autoupdatev1pb.AutoUpdateVersionSpec
+		rollout  *autoupdatev1pb.AutoUpdateAgentRollout
+		expected *proto.AutoUpdateSettings
+	}{
+		{
+			name: "resources not defined",
+			expected: &proto.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+		{
+			name: "enable tools auto update",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             api.Version,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+		{
+			name: "enable agent auto update, immediate schedule",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+					Strategy:       autoupdate.AgentsStrategyHaltOnError,
+					Schedule:       autoupdate.AgentsScheduleImmediate,
+					StartVersion:   "1.2.3",
+					TargetVersion:  "1.2.4",
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          true,
+				AgentVersion:             "1.2.4",
+			},
+		},
+		{
+			name: "agent rollout present but AU mode is disabled",
+			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateAgentRollout,
+				},
+				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+					AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
+					Strategy:       autoupdate.AgentsStrategyHaltOnError,
+					Schedule:       autoupdate.AgentsScheduleImmediate,
+					StartVersion:   "1.2.3",
+					TargetVersion:  "1.2.4",
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             "1.2.4",
+			},
+		},
+		{
+			name:    "empty config and version",
+			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
+			expected: &proto.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+		{
+			name: "set tools auto update version",
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsVersion:             "1.2.3",
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+		{
+			name: "enable tools auto update and set version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             "1.2.3",
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+		{
+			name: "modify auto update config and version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeDisabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "3.2.1",
+				},
+			},
+			expected: &proto.AutoUpdateSettings{
+				ToolsAutoUpdate:          false,
+				ToolsVersion:             "3.2.1",
+				AgentUpdateJitterSeconds: libautoupdate.DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			s := newAuthSuite(t)
+
+			if tt.config != nil {
+				config, err := autoupdate.NewAutoUpdateConfig(tt.config)
+				require.NoError(t, err)
+
+				_, err = s.a.UpsertAutoUpdateConfig(ctx, config)
+				require.NoError(t, err)
+			}
+
+			if tt.version != nil {
+				version, err := autoupdate.NewAutoUpdateVersion(tt.version)
+				require.NoError(t, err)
+
+				_, err = s.a.UpsertAutoUpdateVersion(ctx, version)
+				require.NoError(t, err)
+			}
+
+			if tt.rollout != nil {
+				_, err := s.a.UpsertAutoUpdateAgentRollout(ctx, tt.rollout)
+				require.NoError(t, err)
+			}
+
+			resp, err := s.a.Ping(t.Context())
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expected, resp.GetAutoUpdate())
 		})
 	}
 }
