@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-interface TFObject {
-  readonly [key: string]: TFValue;
+export interface TFObject {
+  [key: string]: TFValue;
 }
 
 type TFValue = string | number | boolean | TFValue[] | TFObject | null;
@@ -132,19 +132,40 @@ const renderArray = (value: TFValue[], indent: number): string => {
   return `[\n${spaces}${items.join(`,\n${spaces}`)}\n${'  '.repeat(indent)}]`;
 };
 
+const isBlock = (value: TFValue): boolean =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 const renderObject = (value: TFObject, indent: number): string => {
   if (Object.keys(value).length === 0) return '{}';
 
-  const maxLength = Math.max(
-    ...Object.keys(value).map(k => renderKey(k).length)
-  );
-
   const spaces = '  '.repeat(indent + 1);
-  const entries = Object.entries(value).map(([key, value]) => {
-    const padding = ' '.repeat(maxLength - renderKey(key).length);
-    return `${renderKey(key)}${padding} = ${renderValue(value, indent + 1)}`;
-  });
-  return `{\n${spaces}${entries.join(`\n${spaces}`)}\n${'  '.repeat(indent)}}`;
+  const entries = Object.entries(value);
+  const lines: string[] = [];
+  let group: [string, TFValue][] = [];
+
+  const flushGroup = () => {
+    if (group.length === 0) return;
+    const maxLen = Math.max(...group.map(([k]) => renderKey(k).length));
+    for (const [key, val] of group) {
+      const padding = ' '.repeat(maxLen - renderKey(key).length);
+      lines.push(
+        `${renderKey(key)}${padding} = ${renderValue(val, indent + 1)}`
+      );
+    }
+    group = [];
+  };
+
+  for (const [key, val] of entries) {
+    if (isBlock(val)) {
+      flushGroup();
+      lines.push(`${renderKey(key)} = ${renderValue(val, indent + 1)}`);
+    } else {
+      group.push([key, val]);
+    }
+  }
+  flushGroup();
+
+  return `{\n${spaces}${lines.join(`\n${spaces}`)}\n${'  '.repeat(indent)}}`;
 };
 
 const renderKey = (key: string): string => {
