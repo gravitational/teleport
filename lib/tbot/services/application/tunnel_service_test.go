@@ -122,6 +122,7 @@ func TestE2E_ApplicationTunnelService(t *testing.T) {
 				connCfg,
 				bot.DefaultCredentialLifetime,
 				time.Minute,
+				false,
 			),
 		},
 	})
@@ -270,6 +271,7 @@ func TestE2E_ApplicationTunnelService_Leeway(t *testing.T) {
 				connCfg,
 				bot.DefaultCredentialLifetime,
 				5*time.Minute,
+				false,
 			),
 		},
 	})

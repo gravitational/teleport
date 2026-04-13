@@ -41,6 +41,10 @@ const (
 	// RenewalRetryLimit is the number of permissible consecutive
 	// failures in renewing credentials before the loop exits fatally.
 	RenewalRetryLimit = 5
+
+	// ResilientRetryBackoffLimit is the maximum number of minutes allowed for exponential backoff
+	// to reach. Default is 5 minutes.
+	ResilientRetryBackoffLimit = 5
 )
 
 // Based on the default paths listed in

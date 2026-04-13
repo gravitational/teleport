@@ -61,12 +61,20 @@ type GlobalArgs struct {
 	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
 	Insecure bool
 
+	// ResilientAppSessions enables resilient application session handling.
+	// When true, application services isolate "app not found" failures,
+	// retry with backoff, and allow automatic recovery when the app agent
+	// comes back online. When false (the default), the existing fail-fast
+	// behavior is preserved.
+	ResilientAppSessions bool
+
 	// staticConfigYAML allows tests to specify a configuration file statically
 	staticConfigYAML string
 
-	fipsSetByUser     bool
-	debugSetByUser    bool
-	insecureSetByUser bool
+	fipsSetByUser                 bool
+	debugSetByUser                bool
+	insecureSetByUser             bool
+	resilientAppSessionsSetByUser bool
 }
 
 // NewGlobalArgs appends global flags to the application and returns a struct
@@ -89,6 +97,12 @@ func NewGlobalArgs(app *kingpin.Application) *GlobalArgs {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(utils.LogFormatText).
 		EnumVar(&g.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
+	app.Flag(
+		"resilient-app-sessions",
+		"Enables resilient application session handling. When set, application "+
+			"services isolate \"app not found\" failures, retry with backoff, and "+
+			"allow automatic recovery when the app agent comes back online.",
+	).IsSetByUser(&g.resilientAppSessionsSetByUser).BoolVar(&g.ResilientAppSessions)
 
 	return g
 }
@@ -117,6 +131,10 @@ func (g *GlobalArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 
 	if g.insecureSetByUser {
 		cfg.Insecure = g.Insecure
+	}
+
+	if g.resilientAppSessionsSetByUser {
+		cfg.ResilientAppSessions = g.ResilientAppSessions
 	}
 
 	return nil

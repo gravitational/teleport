@@ -24,12 +24,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -46,6 +48,7 @@ func TunnelServiceBuilder(
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
 	leeway time.Duration,
+	resilientMode bool,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -64,6 +67,7 @@ func TunnelServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			resilientMode:             resilientMode,
 		}
 		return svc, nil
 	}
@@ -87,8 +91,14 @@ type TunnelService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+	resilientMode             bool
 }
 
+// Run starts the tunnel service. In resilient mode, "app not found" errors
+// from buildLocalProxyConfig() are retried with exponential backoff and
+// jitter. Non-"app not found" errors propagate immediately as fatal.
+// When resilient mode is NOT enabled, behavior is unchanged: errors
+// propagate immediately with no retry.
 func (s *TunnelService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "TunnelService/Run")
 	defer span.End()
@@ -108,13 +118,16 @@ func (s *TunnelService) Run(ctx context.Context) error {
 		}()
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	lpCfg, err := s.buildLocalProxyConfigWithRetry(ctx)
 	if err != nil {
 		return trace.Wrap(err, "building local proxy config")
 	}
+	if lpCfg == nil {
+		return nil
+	}
 	lpCfg.Listener = l
 
-	lp, err := alpnproxy.NewLocalProxy(lpCfg)
+	lp, err := alpnproxy.NewLocalProxy(*lpCfg)
 	if err != nil {
 		return trace.Wrap(err, "creating local proxy")
 	}
@@ -123,11 +136,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 			s.log.ErrorContext(ctx, "Failed to close local proxy", "error", err)
 		}
 	}()
-	// Closed further down.
 
-	// lp.Start will block and continues to block until lp.Close() is called.
-	// Despite taking a context, it will not exit until the first connection is
-	// made after the context is canceled.
 	var errCh = make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
@@ -142,6 +151,69 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	case err := <-errCh:
 		s.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		return trace.Wrap(err, "local proxy failed")
+	}
+}
+
+// buildLocalProxyConfigWithRetry wraps buildLocalProxyConfig with retry
+// logic when resilient mode is enabled. Returns a pointer to the config
+// on success, or an error for non-retryable failures. In resilient mode,
+// "app not found" errors are retried indefinitely with exponential backoff
+// (capped at 5 minutes) until the context is cancelled.
+//
+// When resilient mode is NOT enabled, this is a direct passthrough to
+// buildLocalProxyConfig with no retry.
+func (s *TunnelService) buildLocalProxyConfigWithRetry(ctx context.Context) (*alpnproxy.LocalProxyConfig, error) {
+	// Default mode: no retry, direct call, error propagates immediately.
+	if !s.resilientMode {
+		lpCfg, err := s.buildLocalProxyConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &lpCfg, nil
+	}
+
+	// Resilient mode: retry "app not found" errors with exponential
+	// backoff and jitter indefinitely until the context is cancelled
+	// or a non-retryable error occurs.
+	const maxBackoff = internal.ResilientRetryBackoffLimit * time.Minute
+	jitter := retryutils.DefaultJitter
+	attempt := 0
+
+	for {
+		attempt++
+		s.log.InfoContext(ctx,
+			"Attempting to build local proxy config",
+			"attempt", attempt,
+		)
+
+		lpCfg, err := s.buildLocalProxyConfig(ctx)
+		if err == nil {
+			return &lpCfg, nil
+		}
+
+		// Non-"app not found" errors are fatal — propagate immediately.
+		if !IsAppNotFoundError(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// Exponential backoff with jitter, capped at maxBackoff.
+		backoff := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+		backoff = jitter(backoff)
+		s.log.WarnContext(ctx,
+			"App not found, retrying with backoff",
+			"app", s.cfg.AppName,
+			"attempt", attempt,
+			"backoff", backoff,
+			"error", err,
+		)
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		case <-time.After(backoff):
+		}
 	}
 }
 

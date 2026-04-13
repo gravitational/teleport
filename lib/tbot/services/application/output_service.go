@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -37,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
+func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.CredentialLifetime, resilientMode bool) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -53,6 +54,7 @@ func OutputServiceBuilder(cfg *OutputConfig, defaultCredentialLifetime bot.Crede
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			resilientMode:             resilientMode,
 		}
 		return svc, nil
 	}
@@ -72,6 +74,7 @@ type OutputService struct {
 	statusReporter            readyz.Reporter
 	identityGenerator         *identity.Generator
 	clientBuilder             *client.Builder
+	resilientMode             bool
 }
 
 func (s *OutputService) String() string {
@@ -85,8 +88,11 @@ func (s *OutputService) OneShot(ctx context.Context) error {
 	return s.generate(ctx)
 }
 
+// Run starts the output service loop. In resilient mode, "app not found"
+// errors are isolated so they do not propagate to the errgroup and cancel
+// other healthy services.
 func (s *OutputService) Run(ctx context.Context) error {
-	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+	cfg := internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
 		F:               s.generate,
@@ -96,7 +102,23 @@ func (s *OutputService) Run(ctx context.Context) error {
 		ReloadCh:        s.reloadCh,
 		IdentityReadyCh: s.botIdentityReadyCh,
 		StatusReporter:  s.statusReporter,
-	})
+	}
+	if s.resilientMode {
+		// In resilient mode, ensure we never exit the retry loop on
+		// exhaustion — the loop should keep running so the service can
+		// recover when the app agent comes back online.
+		cfg.ExitOnRetryExhausted = false
+	}
+
+	err := internal.RunOnInterval(ctx, cfg)
+	if err != nil && s.resilientMode && IsAppNotFoundError(err) {
+		s.log.WarnContext(ctx,
+			"App not found, isolating failure in resilient mode",
+			"app", s.cfg.AppName,
+			"error", err,
+		)
+		return nil
+	}
 	return trace.Wrap(err)
 }
 
@@ -265,4 +287,13 @@ func getApp(ctx context.Context, clt *apiclient.Client, appName string) (types.A
 	}
 
 	return apps[0], nil
+}
+
+// IsAppNotFoundError returns true if the given error is a trace.BadParameter
+// error with a message indicating that the application was not found.
+// This distinguishes transient "app agent unavailable" conditions from
+// permanent configuration or authentication errors, enabling callers to
+// decide whether to retry or propagate the error as fatal.
+func IsAppNotFoundError(err error) bool {
+	return trace.IsBadParameter(err) && strings.Contains(err.Error(), "not found")
 }

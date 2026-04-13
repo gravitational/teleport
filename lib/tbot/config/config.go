@@ -126,6 +126,13 @@ type BotConfig struct {
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.
 	Insecure bool `yaml:"insecure,omitempty"`
+
+	// ResilientAppSessions enables resilient application session handling.
+	// When true, application services isolate "app not found" failures,
+	// retry with backoff, and allow automatic recovery when the app agent
+	// comes back online. When false (the default), the existing fail-fast
+	// behavior is preserved.
+	ResilientAppSessions bool `yaml:"resilient_app_sessions,omitempty"`
 }
 
 // ConnectionConfig creates a connection.Config from the user's configuration.
