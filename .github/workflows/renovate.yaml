@@ -23,7 +23,7 @@ jobs:
           app-id: ${{ secrets.PUBLIC_RENOVATE_GHA_APP_ID }}
           private-key: ${{ secrets.PUBLIC_RENOVATE_GHA_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ github.repository }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
