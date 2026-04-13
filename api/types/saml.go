@@ -235,7 +235,7 @@ func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	if k3 != nil {
 		q3 := *k3
 		q3.ClientSecret = ""
-		o2.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: &q3}
+		o2.SetOAuthClientCredentials(&q3)
 	}
 	return &o2
 }
