@@ -167,6 +167,12 @@ func (svc *Service) Run(ctx context.Context) (err error) {
 	return nil
 }
 
+// CheckSCIMHealth verifies that the downstream SCIM endpoint accepts the
+// current credentials.
+func (svc *Service) CheckSCIMHealth(ctx context.Context) error {
+	return trace.Wrap(svc.provisioner.checkSCIMHealth(ctx))
+}
+
 // SetUserStateLabel sets a label on the user's Provisioning State record.
 func (svc *Service) SetUserStateLabel(ctx context.Context, username string, key, value string) error {
 	return trace.Wrap(svc.SetProvisioningStateLabel(ctx, GetIDForUserName(username), key, value))

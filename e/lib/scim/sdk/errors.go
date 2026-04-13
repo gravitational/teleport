@@ -48,7 +48,9 @@ func decodeError(resp *http.Response) error {
 	case http.StatusTooManyRequests:
 		return trace.LimitExceeded("Rate limit exceeded")
 	case http.StatusUnauthorized:
-		return trace.AccessDenied("Unauthorized")
+		return trace.AccessDenied("SCIM API request unauthorized: the provided SCIM bearer token is invalid")
+	case http.StatusForbidden:
+		return trace.AccessDenied("SCIM API request forbidden: the provided SCIM bearer token does not have sufficient permissions")
 	case http.StatusConflict:
 		return trace.AlreadyExists("%s", cmp.Or(errResp.Detail, "Already exists"))
 	case http.StatusNotFound:

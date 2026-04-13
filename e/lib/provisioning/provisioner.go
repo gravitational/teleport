@@ -187,6 +187,11 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 	return p, nil
 }
 
+func (p *provisioner) checkSCIMHealth(ctx context.Context) error {
+	_, err := p.scimClient.ListUsers(ctx, scimsdk.WithCount(1))
+	return trace.Wrap(err)
+}
+
 // Provision provisions an arbitrary principal into the configured downstream
 // service. Takes care of updating the resource records and suchlike internally.
 func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.PrincipalState) error {

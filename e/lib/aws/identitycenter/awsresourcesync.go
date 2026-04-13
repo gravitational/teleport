@@ -29,6 +29,10 @@ func (svc *Service) awsSyncService(ctx context.Context) error {
 			svc.log.ErrorContext(ctx, "Failed synchronizing", "error", err)
 		}
 
+		if err := svc.checkSCIMHealth(ctx); err != nil {
+			svc.log.WarnContext(ctx, "Failed to ping AWS IAM Identity Center SCIM endpoint", "error", err)
+		}
+
 		select {
 		case <-timer.Chan():
 			timer.Reset(retryutils.DefaultJitter(svc.awsSyncInterval))
@@ -217,4 +221,17 @@ func syncEventUserMessage(inMessage string, err error) string {
 		return inMessage
 	}
 	return successMessage
+}
+
+// checkSCIMHealth pings a SCIM endpoint and updates the plugin status if the token is rejected.
+func (svc *Service) checkSCIMHealth(ctx context.Context) error {
+	if err := svc.provisioner.CheckSCIMHealth(ctx); err != nil {
+		if trace.IsAccessDenied(err) {
+			svc.setSCIMAuthError(ctx)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	svc.clearSCIMAuthError(ctx)
+	return nil
 }

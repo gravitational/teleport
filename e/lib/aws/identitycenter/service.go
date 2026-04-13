@@ -31,6 +31,8 @@ const (
 	// IdentityCenterDownstreamID indicates the downstream ID to be used by the
 	// Identity Center integration when storing provisioning records.
 	IdentityCenterDownstreamID = services.DownstreamID("identitycenter")
+
+	scimAuthErrorMessage = "The credentials configured in Teleport for the AWS IAM Identity Center SCIM API are invalid. Teleport can't provision users or groups to AWS. Please rotate the SCIM access token by following https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/maintenance/#rotating-the-token"
 )
 
 // Service is the configuration for the Identity Center service
@@ -411,4 +413,42 @@ func (svc *Service) emitSyncEvent(ctx context.Context, in *apievents.AWSICResour
 	if err := svc.emitter.EmitAuditEvent(ctx, in); err != nil {
 		svc.log.ErrorContext(ctx, "Failed to emit resource sync event", "error", err)
 	}
+}
+
+func (svc *Service) setSCIMAuthError(ctx context.Context) {
+	if svc.scimAuthStatusMatches(ctx, types.PluginStatusCode_UNAUTHORIZED, scimAuthErrorMessage) {
+		return
+	}
+
+	err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code:         types.PluginStatusCode_UNAUTHORIZED,
+		ErrorMessage: scimAuthErrorMessage,
+	})
+	if err != nil {
+		svc.log.ErrorContext(ctx, "Failed to emit SCIM auth error status", "error", err)
+	}
+}
+
+func (svc *Service) clearSCIMAuthError(ctx context.Context) {
+	if svc.scimAuthStatusMatches(ctx, types.PluginStatusCode_RUNNING, "") {
+		return
+	}
+
+	err := svc.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+	})
+	if err != nil {
+		svc.log.ErrorContext(ctx, "Failed to clear SCIM auth error status", "error", err)
+	}
+}
+
+func (svc *Service) scimAuthStatusMatches(ctx context.Context, code types.PluginStatusCode, message string) bool {
+	plugin, err := svc.pluginsService.GetPlugin(ctx, types.PluginTypeAWSIdentityCenter, false)
+	if err != nil {
+		svc.log.WarnContext(ctx, "Failed to load current plugin status before SCIM auth status update", "error", err)
+		return false
+	}
+
+	status := plugin.GetStatus()
+	return status.GetCode() == code && status.GetErrorMessage() == message
 }
