@@ -672,6 +672,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -687,6 +690,10 @@ const (
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
 
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
@@ -1178,6 +1185,11 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// BotScopeLabel is a label used to identify the scope in which a Bot
+	// exists. It is stored on the user resource to allow the Bot to be hydrated
+	// from a user.
+	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
 
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and

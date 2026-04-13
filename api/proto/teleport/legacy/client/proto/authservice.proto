@@ -612,6 +612,8 @@ message Features {
   // TODO(michellescripts) DELETE IN v21.0.0
   // Deprecated, use entitlements
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement

@@ -2519,6 +2519,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
+	// When the scope changes between logins (e.g. scoped→unscoped or vice
+	// versa), clear all Teleport keys for this proxy from the SSH agent.
+	if scopeChanged {
+		if agent := tc.LocalAgent(); agent != nil {
+			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
+			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
+				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
+			}
+		}
+	}
+
 	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
 	if err != nil {
 		return trace.Wrap(err)

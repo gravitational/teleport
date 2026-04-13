@@ -294,7 +294,7 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindHealthCheckConfig, nil
 	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
 		return scopedaccess.KindScopedRole, nil
-	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
+	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments", "sra":
 		return scopedaccess.KindScopedRoleAssignment, nil
 	case types.KindInferenceModel, "inference_models":
 		return types.KindInferenceModel, nil

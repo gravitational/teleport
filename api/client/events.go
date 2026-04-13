@@ -33,6 +33,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
@@ -183,6 +184,22 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
 		out.Resource = &proto.Event_WorkloadCluster{
 			WorkloadCluster: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
+		out.Resource = &proto.Event_InferenceModel{
+			InferenceModel: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
+		out.Resource = &proto.Event_InferenceSecret{
+			InferenceSecret: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
+		out.Resource = &proto.Event_InferencePolicy{
+			InferencePolicy: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
+		out.Resource = &proto.Event_RetrievalModel{
+			RetrievalModel: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -697,6 +714,18 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetWorkloadCluster(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetInferenceModel(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetInferenceSecret(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetInferencePolicy(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetRetrievalModel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
