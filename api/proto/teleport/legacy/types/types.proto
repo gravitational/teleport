@@ -6375,6 +6375,9 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // LinuxDesktop specifies the name of a Windows desktop.
+  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources

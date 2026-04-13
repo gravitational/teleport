@@ -419,8 +419,10 @@ type UserActivityRecord struct {
 	SessionSummariesAccessed []*SessionSummariesAccessedRecord `protobuf:"bytes,25,rep,name=session_summaries_accessed,json=sessionSummariesAccessed,proto3" json:"session_summaries_accessed,omitempty"`
 	// counter of access graph queries by this user.
 	AccessGraphQueries uint64 `protobuf:"varint,26,opt,name=access_graph_queries,json=accessGraphQueries,proto3" json:"access_graph_queries,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// counter of linux.desktop.session.start events
+	LinuxDesktopSessions uint64 `protobuf:"varint,27,opt,name=linux_desktop_sessions,json=linuxDesktopSessions,proto3" json:"linux_desktop_sessions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UserActivityRecord) Reset() {
@@ -632,6 +634,13 @@ func (x *UserActivityRecord) GetSessionSummariesAccessed() []*SessionSummariesAc
 func (x *UserActivityRecord) GetAccessGraphQueries() uint64 {
 	if x != nil {
 		return x.AccessGraphQueries
+	}
+	return 0
+}
+
+func (x *UserActivityRecord) GetLinuxDesktopSessions() uint64 {
+	if x != nil {
+		return x.LinuxDesktopSessions
 	}
 	return 0
 }
@@ -1624,7 +1633,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x127\n" +
-	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xcb\t\n" +
+	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\x81\n" +
+	"\n" +
 	"\x12UserActivityRecord\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\fR\buserName\x120\n" +
 	"\tuser_kind\x18\x0e \x01(\x0e2\x13.prehog.v1.UserKindR\buserKind\x12\x16\n" +
@@ -1655,7 +1665,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x13access_lists_grants\x18\x17 \x01(\x04R\x11accessListsGrants\x12*\n" +
 	"\x11saml_idp_sessions\x18\x18 \x01(\x04R\x0fsamlIdpSessions\x12g\n" +
 	"\x1asession_summaries_accessed\x18\x19 \x03(\v2).prehog.v1.SessionSummariesAccessedRecordR\x18sessionSummariesAccessed\x120\n" +
-	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\"\x9b\x02\n" +
+	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\x124\n" +
+	"\x16linux_desktop_sessions\x18\x1b \x01(\x04R\x14linuxDesktopSessions\"\x9b\x02\n" +
 	"\x16ResourcePresenceReport\x12\x1f\n" +
 	"\vreport_uuid\x18\x01 \x01(\fR\n" +
 	"reportUuid\x12!\n" +
