@@ -69,9 +69,7 @@ type AWSMetadata struct {
 
 // MakeServer creates a server object for the web ui
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -140,9 +138,7 @@ type KubeCluster struct {
 
 // MakeKubeCluster creates a kube cluster object for the web ui
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
-	staticLabels := cluster.GetStaticLabels()
-	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -177,9 +173,7 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
-		staticLabels := cluster.GetStaticLabels()
-		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
