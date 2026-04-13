@@ -728,11 +728,11 @@ func TestAuthenticate(t *testing.T) {
 					Expires:           certExpiration,
 				}),
 			}
-			authorizer := mockAuthorizer{ctx: &authCtx}
+			authorizer := mockAuthorizer{scopedCtx: authz.ScopedContextFromUnscopedContext(&authCtx)}
 			if tt.authzErr {
 				authorizer.err = trace.AccessDenied("denied!")
 			}
-			f.cfg.Authz = authorizer
+			f.cfg.ScopedAuthz = authorizer
 
 			req := &http.Request{
 				Host:       "example.com",
@@ -770,7 +770,7 @@ func TestAuthenticate(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
@@ -1006,11 +1006,11 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
-						Context: authz.Context{
+						ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 							User: &types.UserV2{
 								Metadata: types.Metadata{Name: tt.username},
 							},
-						},
+						}),
 						kubeUsers:       set.New(tt.kubeUsers...),
 						kubeGroups:      set.New(tt.kubeGroups...),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
@@ -1038,11 +1038,11 @@ func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 	require.NoError(t, err)
 
 	return authContext{
-		Context: authz.Context{
+		ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 			User:             user,
 			Identity:         identity,
 			UnmappedIdentity: unmappedIdentity,
-		},
+		}),
 		teleportCluster: teleportClusterClient{
 			name:     "kube-cluster",
 			isRemote: isRemote,
@@ -1148,7 +1148,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 
 		// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
 		sess.upgradeToHTTP2 = true
-		fwd, err := f.makeSessionForwarder(sess)
+		fwd, err := f.makeSessionForwarder(ctx, sess)
 		require.NoError(t, err)
 
 		// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
@@ -1304,12 +1304,12 @@ func (t mockRevTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster,
 }
 
 type mockAuthorizer struct {
-	ctx *authz.Context
-	err error
+	scopedCtx *authz.ScopedContext
+	err       error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*authz.Context, error) {
-	return a.ctx, a.err
+func (a mockAuthorizer) AuthorizeScoped(context.Context) (*authz.ScopedContext, error) {
+	return a.scopedCtx, a.err
 }
 
 type mockEventClient struct {
@@ -1444,13 +1444,13 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			})
 
 			identity := &authContext{
-				Context: authz.Context{
+				ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 					User: user,
 					Identity: authz.WrapIdentity(tlsca.Identity{
 						Username: user.GetName(),
 						Groups:   []string{testCase.role.GetName()},
 					}),
-				},
+				}),
 			}
 
 			for i := 0; i < testCase.connections; i++ {
@@ -1630,11 +1630,11 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	kubeClusterLabels := map[string]string{
 		"label": "value",
 	}
-	baseAuthCtx := authz.Context{
+	baseAuthCtx := authz.ScopedContextFromUnscopedContext(&authz.Context{
 		User: &types.UserV2{
 			Metadata: types.Metadata{Name: "ted-lasso"},
 		},
-	}
+	})
 	type args struct {
 		req *http.Request
 		ctx *authContext
@@ -1651,7 +1651,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
@@ -1675,7 +1675,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1696,7 +1696,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
-					Context:           baseAuthCtx,
+					ScopedContext:     baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1827,7 +1827,7 @@ func TestGOAWAYHandling(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(sess.close)
 
-	fwd, err := f.makeSessionForwarder(sess)
+	fwd, err := f.makeSessionForwarder(ctx, sess)
 	require.NoError(t, err)
 
 	// Forward all requests for this session to the GOAWAY server.
