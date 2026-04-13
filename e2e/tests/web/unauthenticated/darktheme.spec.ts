@@ -26,7 +26,7 @@ const lightBody = 'rgb(241, 242, 244)';
 const darkBody = 'rgb(12, 20, 61)';
 
 function username(testInfo: TestInfo) {
-  return `testuser-${testInfo.workerIndex}`;
+  return `testuser-darktheme-${testInfo.workerIndex}`;
 }
 
 test('switching between dark and light theme', async ({

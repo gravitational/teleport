@@ -34,7 +34,7 @@ test('adding a new passkey', async ({
   authenticatedPage,
   accountSettingsPage,
 }, testInfo) => {
-  const username = `testuser-${testInfo.workerIndex}`;
+  const username = `testuser-passkey-${testInfo.workerIndex}`;
   await signup(page, username, defaultPassword);
 
   await authenticatedPage.goto();
