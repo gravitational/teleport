@@ -68,6 +68,11 @@ workloadIdentitySelector:
   name: example-workload-identity
 ```
 
+Once this chart is deployed, you may then manually mount the SPIFFE Workload API
+into your workload pods or deploy the
+[SPIFFE CSI Driver](https://github.com/spiffe/spiffe-csi) to simplify this
+process.
+
 ## Full reference
 
 (!docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx!)
