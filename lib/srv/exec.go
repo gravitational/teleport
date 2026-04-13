@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/session/envutils"
+	"github.com/gravitational/teleport/session/networking/x11"
 	sessionreexec "github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
@@ -701,11 +702,23 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		return nil, trace.Wrap(err)
 	}
 
+	// Build env for `teleport exec`.
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
 	// The channel/request type determines the subcommand to execute.
 	var subCommand string
 	switch ctx.ExecType {
 	case reexecconstants.NetworkingSubCommand:
 		subCommand = reexecconstants.NetworkingSubCommand
+
+		// Unset XAUTHORITY for the networking command as the SSH session
+		// process given to the user will not have it set which can cause
+		// issues with the X11 forwarding.
+		xauthorityPrefix := x11.XAuthFileEnvVar + "="
+		*env = slices.DeleteFunc(*env, func(s string) bool {
+			return strings.HasPrefix(s, xauthorityPrefix)
+		})
 	default:
 		subCommand = reexecconstants.ExecSubCommand
 	}
@@ -713,10 +726,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
-
-	// build env for `teleport exec`
-	env := &envutils.SafeEnv{}
-	env.AddExecEnvironment()
 
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{

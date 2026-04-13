@@ -1020,7 +1020,6 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 				term.Type("exit\n\r")
 				waitSessionTermination(t, errCh, require.NoError)
 			})
-
 		})
 	}
 }
@@ -4637,6 +4636,11 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 	if _, err := exec.LookPath("ssh"); err != nil {
 		t.Skip("Skipping TestX11Forwarding, no external SSH binary found.")
 	}
+
+	// Set XAUTHORITY to a non-existent path to ensure that XAUTHORITY
+	// is unset for the networking command, if it isn't xauth will attempt
+	// to read /does/not/exist and fail, causing X11 forwarding to fail.
+	t.Setenv(x11.XAuthFileEnvVar, "/does/not/exist")
 
 	// Create a fake client XServer listener.
 	clientXServer, clientDisplay, err := x11.OpenNewXServerListener(x11.DefaultDisplayOffset, x11.DefaultMaxDisplays, 0)
