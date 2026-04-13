@@ -605,6 +605,9 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -1600,6 +1603,12 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 		accessPoint:               base,
 		ReadKubernetesAccessPoint: cache,
 	}
+}
+
+func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on kube agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
