@@ -22,7 +22,6 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -467,76 +466,47 @@ func MergeUpload(
 	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "" /* upload ID */, 0)
 	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	type fetchedEvents struct {
-		current  apievents.AuditEvent
-		incoming apievents.AuditEvent
-	}
-	fetchEvents := func(previous fetchedEvents) chan fetchedEvents {
-		// Fetch event from one or both streams concurrently.
-		events := make(chan fetchedEvents, 1)
-		go func() {
-			defer close(events)
-			wg := &sync.WaitGroup{}
-			fetched := previous
-			if previous.current == nil {
-				wg.Go(func() {
-					select {
-					case fetched.current = <-currentStream:
-					case <-ctx.Done():
-					}
-				})
-			}
-			if previous.incoming == nil {
-				wg.Go(func() {
-					select {
-					case fetched.incoming = <-incomingStream:
-					case <-ctx.Done():
-					}
-				})
-			}
-			wg.Wait()
-			events <- fetched
-		}()
-		return events
-	}
-
 	nopPreparer := NoOpPreparer{}
-	var nextEvents fetchedEvents
+	var current, incoming apievents.AuditEvent
 	for {
-		select {
-		case nextEvents = <-fetchEvents(nextEvents):
-		case err := <-currentErr:
-			if err != nil && !trace.IsNotFound(err) {
+		if current == nil {
+			select {
+			case current = <-currentStream:
+			case err := <-currentErr:
 				return trace.Wrap(err)
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
 			}
-		case err := <-incomingErr:
-			if err != nil && !trace.IsNotFound(err) {
+		}
+		if incoming == nil {
+			select {
+			case incoming = <-incomingStream:
+			case err := <-incomingErr:
 				return trace.Wrap(err)
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
 			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
 		}
 		// Both streams are exhausted, we are done.
-		if nextEvents.current == nil && nextEvents.incoming == nil {
+		if current == nil && incoming == nil {
 			return trace.Wrap(stream.Complete(ctx))
 		}
 
 		var nextEvent apievents.AuditEvent
 		switch {
 		// There are no incoming events, or the current event is next by index.
-		case nextEvents.incoming == nil || (nextEvents.current != nil && nextEvents.current.GetIndex() < nextEvents.incoming.GetIndex()):
-			nextEvent = nextEvents.current
-			nextEvents.current = nil
+		case incoming == nil || (current != nil && current.GetIndex() < incoming.GetIndex()):
+			nextEvent = current
+			current = nil
 			// There are no current events, or the incoming event is next by index.
-		case nextEvents.current == nil || (nextEvents.incoming != nil && nextEvents.incoming.GetIndex() < nextEvents.current.GetIndex()):
-			nextEvent = nextEvents.incoming
-			nextEvents.incoming = nil
+		case current == nil || (incoming != nil && incoming.GetIndex() < current.GetIndex()):
+			nextEvent = incoming
+			incoming = nil
 			// Duplicate event. Send the current event, replace both.
-		case nextEvents.current.GetIndex() == nextEvents.incoming.GetIndex():
-			nextEvent = nextEvents.current
-			nextEvents = fetchedEvents{}
+		case current.GetIndex() == incoming.GetIndex():
+			nextEvent = current
+			current = nil
+			incoming = nil
 		}
 
 		preparedEvent, _ := nopPreparer.PrepareSessionEvent(nextEvent)
