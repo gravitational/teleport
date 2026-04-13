@@ -2897,7 +2897,7 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req a
 }
 
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
-	actx, err := g.authenticate(ctx)
+	actx, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
