@@ -172,6 +172,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 			return internalErrStatus, trace.Wrap(err)
 		}
 		items, err := deleteResources(
+			ctx,
 			params,
 			sess.metaResource.requestedResource.resourceKind,
 			sess.metaResource.requestedResource.apiGroup,
@@ -200,6 +201,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 
 		apiVersion, itemsR, objs, underlyingType := output.apiVersion, output.underlyingValue, output.items, output.underlyingType
 		items, err := deleteResources(
+			ctx,
 			params,
 			sess.metaResource.requestedResource.resourceKind,
 			sess.metaResource.requestedResource.apiGroup,
@@ -329,22 +331,27 @@ type deleteResourcesCommonParams struct {
 }
 
 func deleteResources[T kubeObjectInterface](
+	ctx context.Context,
 	params deleteResourcesCommonParams,
 	kind, group, apiVersion string,
 	items []T,
 	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
+	checker, err := params.authCtx.getCheckerForCluster(ctx, params.kubeDetails.kubeCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, item := range items {
 		// Compute users and groups from available roles that match the
 		// cluster labels and kubernetes resources.
-		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.Checker.CheckKubeGroupsAndUsers(
+		allowedKubeGroups, allowedKubeUsers, err := checker.Kube().GetGroupsAndUsers(
 			params.authCtx.sessionTTL,
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
-				params.authCtx.Checker.AccessInfo().Username,
-				params.authCtx.Checker.Traits(),
+				checker.AccessInfo().Username,
+				params.authCtx.CheckerContext.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),

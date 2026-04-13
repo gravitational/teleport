@@ -73,7 +73,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	defer sess.close()
 
 	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(sess)
+	sess.forwarder, err = f.makeSessionForwarder(ctx, sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,14 +130,19 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 	}
 	name := accessReview.Spec.ResourceAttributes.Name
 
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
+	actx := sess.authContext
+	ident := actx.Identity.GetIdentity()
+	state, err := actx.CheckerContext.AccessStateFromTLSIdentity(req.Context(), &ident, f.cfg.CachingAuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	actx := sess.authContext
-	state := actx.GetAccessState(authPref)
-	switch err := actx.Checker.CheckAccess(
+	checker, err := actx.getCheckerForCluster(req.Context(), actx.kubeCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch err := checker.Kube().CheckAccessToCluster(
 		actx.kubeCluster,
 		state,
 		services.RoleMatchers{
