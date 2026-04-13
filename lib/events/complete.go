@@ -293,6 +293,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, upload.ID)
 			if err != nil {
 				log.WarnContext(ctx, "could not check recording version", "error", err)
+				continue
 			}
 			if version != "" {
 				continue
