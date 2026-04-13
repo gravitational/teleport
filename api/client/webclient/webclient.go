@@ -423,9 +423,15 @@ type PingResponse struct {
 	Edition string `json:"edition"`
 	// FIPS represents if Teleport is using FIPS-compliant cryptography.
 	FIPS bool `json:"fips"`
-	// AuthServerScopesStatus reports whether the scopes feature is enabled or not on the auth server.
+	// AuthSrv displays stasuses for the auth server.
+	AuthSrv AuthServer `json:"auth_server,omitempty"`
+}
+
+// AuthServer displays statuses from the ping endpoint from the auth server.
+type AuthServer struct {
+	// ScopesEnabled reports whether the scopes feature is enabled or not on the auth server.
 	// Possible values: "enabled", "disabled", "unknown".
-	AuthServerScopesStatus string `json:"auth_server_scopes_status,omitempty"`
+	ScopesEnabled string `json:"scopes_enabled,omitempty"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
