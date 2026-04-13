@@ -1617,7 +1617,7 @@ func TestSAMLConnector(t *testing.T) {
 		withoutSecretsCreds := connectorWithoutSecrets.GetOAuthClientCredentials()
 		require.NotNil(t, withoutSecretsCreds)
 		require.Equal(t, "test-client-id", withoutSecretsCreds.ClientId)
-		require.Equal(t, "", withoutSecretsCreds.ClientSecret)
+		require.Empty(t, withoutSecretsCreds.ClientSecret)
 
 		// Upserted connector with empty client secret doesn't overwrite existing.
 		_, err = s.a.UpsertSAMLConnector(ctx, connectorWithoutSecrets)
