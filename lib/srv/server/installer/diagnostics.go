@@ -82,7 +82,7 @@ func (a *AutoDiscoverNodeInstaller) gatherServiceDiagnostics(ctx context.Context
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
+		if ctx.Err() != nil {
 			return defaultServiceDiagnosticsUnavailable
 		}
 
