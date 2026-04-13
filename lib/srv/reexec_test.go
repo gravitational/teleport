@@ -62,7 +62,6 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 }
 
 func TestNetworkingCommand(t *testing.T) {
-	t.Parallel()
 	testNetworkingCommand(t, "")
 }
 
@@ -95,12 +94,19 @@ func testNetworkingCommand(t *testing.T, login string) {
 		scx.Identity.Login = login
 	}
 
+	const xauthFile = "/does/not/exist"
+	t.Setenv(x11.XAuthFileEnvVar, xauthFile)
+
 	// Start networking subprocess.
 	command, err := ConfigureCommand(scx)
 	require.NoError(t, err)
 	proc, err := networking.NewProcess(ctx, command)
 	require.NoError(t, err)
 	t.Cleanup(func() { proc.Close() })
+
+	// Ensure that ConfigureCommand unsets the XAUTHORITY environment
+	// variable.
+	require.NotContains(t, command.Env, x11.XAuthFileEnvVar+"="+xauthFile)
 
 	t.Run("local port forward", func(t *testing.T) {
 		testLocalPortForward(ctx, t, proc)
