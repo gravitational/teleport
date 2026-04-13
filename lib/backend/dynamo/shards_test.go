@@ -19,6 +19,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -52,7 +53,7 @@ import (
 func TestShardSplitting(t *testing.T) {
 	ensureTestsEnabled(t)
 	if os.Getenv("TELEPORT_DYNAMODB_SHARD_SPLIT_TEST") == "" {
-		t.Skipf("DynamoDB TestShardSplitting test skipped.")
+		t.Skip("DynamoDB TestShardSplitting test skipped.")
 	}
 
 	tests := []struct {
@@ -63,13 +64,33 @@ func TestShardSplitting(t *testing.T) {
 		payloadSize         int
 		eventTimeout        time.Duration
 		backendConfig       map[string]any
+		requireEC2          bool
+		precondition        func(t *testing.T)
 	}{
+		// Each individual partition is limited to 1,000 write units per second and 3,000 read units per second.
+		// Each WCU is 1 write per second for items up to 1KB in size, so to trigger shard splits with items of 350kB each partion
+		// should trigger splits at around ~3 writes per second.
 		{
-			// Each individual partition is limited to 1,000 write units per second and 3,000 read units per second.
-			// Each WCU is 1 write per second for items up to 1KB in size, so to trigger shard splits with items of 350kB each partion
-			// should trigger splits at around ~3 writes per second. On a fresh table and running in a dedicated ec2 instance this
+			// Configuration for running the shard split test locally.
+			// With a single partition and 50 writers writing 100 events each the test will write a total of 5,000 events
+			// which should be sufficient to trigger at least 1 shard split. Note that due to uncontrolled latency
+			// between local clients and AWS API this test may be flaky. For best results run the 'ec2' configuration.
+			name:                "local",
+			partitionCount:      1,
+			writersPerPartition: 20,
+			writesPerWriter:     100,
+			payloadSize:         300 * 1024, // below 400KB DynamoDB limit
+			eventTimeout:        5 * time.Minute,
+			backendConfig: map[string]any{
+				"table_name":         dynamoDBTestTable(),
+				"poll_stream_period": time.Second,
+				"retry_period":       250 * time.Millisecond,
+			},
+		},
+		{
+			// On a fresh table and running in a dedicated ec2 instance this
 			// test is expected to produce approximately 50 shard splits in ~10 minutes.
-			name:                "default shard split load",
+			name:                "ec2",
 			partitionCount:      4,
 			writersPerPartition: 200,
 			writesPerWriter:     15,
@@ -80,11 +101,20 @@ func TestShardSplitting(t *testing.T) {
 				"poll_stream_period": 250 * time.Millisecond,
 				"retry_period":       250 * time.Millisecond,
 			},
+			precondition: func(t *testing.T) {
+				// This configuration is expected to be more stable when run from an EC2 instance in the same region as the DynamoDB table.
+				if os.Getenv("TELEPORT_TEST_EC2") != "" {
+					t.Skip("skipping ec2 test, not running on EC2")
+				}
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.precondition != nil {
+				tt.precondition(t)
+			}
 			ctx := t.Context()
 
 			b := testCreateBackend(t, ctx, tt.backendConfig)
@@ -316,8 +346,7 @@ func (et *eventTracker) receiveEvents(ctx context.Context, watcher backend.Watch
 		case <-ctx.Done():
 			return
 		case <-watcher.Done():
-			et.t.Log("watcher closed unexpectedly")
-			return
+			panic("watcher closed unexpectedly, this indicates network failure")
 		}
 	}
 }
@@ -389,6 +418,7 @@ type eventWriter struct {
 	writersPerPartition int
 	writesPerWriter     int
 	payloadSize         int
+	seedStr             string
 
 	wg sync.WaitGroup
 	t  *testing.T
@@ -403,6 +433,14 @@ func newEventWriter(
 	writesPerWriter int,
 	payloadSize int,
 ) *eventWriter {
+
+	seedStr := os.Getenv("TEST_SEED")
+	if seedStr == "" {
+		seedStr = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+
+	t.Logf("using test seed: TEST_SEED=%q", seedStr)
+
 	return &eventWriter{
 		backend:             b,
 		tracker:             tracker,
@@ -410,6 +448,7 @@ func newEventWriter(
 		writersPerPartition: writersPerPartition,
 		writesPerWriter:     writesPerWriter,
 		payloadSize:         payloadSize,
+		seedStr:             seedStr,
 		t:                   t,
 	}
 }
@@ -430,7 +469,7 @@ func (w *eventWriter) launchWorkers(ctx context.Context) {
 func (w *eventWriter) writeBatch(ctx context.Context, partition, writer, numEvents int, payload string) {
 	for i := range numEvents {
 		item := backend.Item{
-			Key:   backend.NewKey(strconv.Itoa(partition), strconv.Itoa(writer), strconv.Itoa(i)),
+			Key:   backend.NewKey(strconv.Itoa(partition), w.seedStr, strconv.Itoa(writer), strconv.Itoa(i)),
 			Value: []byte(payload),
 		}
 
