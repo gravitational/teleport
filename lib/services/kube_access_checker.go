@@ -30,23 +30,6 @@ type KubeAccessChecker struct {
 	checker *ScopedAccessChecker
 }
 
-// CheckAccessToServer checks access to a kube server.
-func (c *KubeAccessChecker) CheckAccessToServer(target types.KubeServer, state AccessState) error {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CheckAccess(target, state)
-	}
-	return c.checker.scopedCompatChecker.CheckAccess(target, state)
-}
-
-// CanAccessServer checks whether read access to the specified kube server is possible without
-// regard to a specific MFA state. Used for listing/filtering.
-func (c *KubeAccessChecker) CanAccessServer(target types.KubeServer) error {
-	if !c.checker.isScoped() {
-		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})
-	}
-	return c.checker.scopedCompatChecker.CheckAccess(target, AccessState{MFAVerified: true})
-}
-
 // CheckAccessToCluster checks access to a kube cluster.
 func (c *KubeAccessChecker) CheckAccessToCluster(target types.KubeCluster, state AccessState) error {
 	if !c.checker.isScoped() {
