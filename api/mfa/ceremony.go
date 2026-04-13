@@ -246,18 +246,54 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		promptConfig.AuthSecondFactor = pingResp.Auth.SecondFactor
 	}
 
-	// Attempt the actual interactive registration.
-	result, err := regPrompt.AskRegister(ctx, promptConfig)
+	// Query for missing data to register the device.
+	updatedPromptConfig, err := regPrompt.AskRegister(ctx, promptConfig)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	if result == nil {
+	if updatedPromptConfig == nil {
 		// No device has been registered.
 		return false, nil
+	} else {
+		promptConfig = *updatedPromptConfig
+		config = updatedPromptConfig.RegistrationCeremonyConfig
+	}
+
+	mfaResp, err := c.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	devTypePB := map[MFADeviceType]proto.DeviceType{
+		MFADeviceTypeTOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
+		MFADeviceTypeWebauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		MFADeviceTypeTouchID:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+	}[config.DeviceType]
+	// Sanity check.
+	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
+		return false, trace.BadParameter("unexpected device type: %q", config.DeviceType)
+	}
+
+	regChal, err := c.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		ExistingMFAResponse: mfaResp,
+		DeviceType:          devTypePB,
+		DeviceUsage:         config.DeviceUsage,
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	result, err := regPrompt.RunRegister(ctx, promptConfig, regChal)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 
 	// Add the registered device to the backend.
-	if err = c.AddMFADevice(ctx, result.Response, result.Config.RegistrationCeremonyConfig); err != nil {
+	if err = c.AddMFADevice(ctx, result.Response, promptConfig.RegistrationCeremonyConfig); err != nil {
 		result.Callbacks.Rollback()
 		return false, trace.Wrap(err)
 	}
@@ -265,7 +301,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	regPrompt.NotifyRegistrationSuccess(ctx, result.Config)
+	regPrompt.NotifyRegistrationSuccess(ctx, promptConfig)
 	return true, nil
 }
 

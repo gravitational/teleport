@@ -168,13 +168,21 @@ func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFA
 	return resp, trace.Wrap(err)
 }
 
-// AskRegister prompts user for device details and registers a new MFA device.
-func (f *mfaPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationResult, error) {
+// AskRegister is not implemented.
+func (f *mfaPrompt) AskRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig,
+) (*mfa.RegistrationPromptConfig, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 
-// NotifyRegistrationSuccess notifies the user that the device registration was
-// successful.
+// RunRegister is not implemented.
+func (f *mfaPrompt) RunRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+) (*mfa.RegistrationResult, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// NotifyRegistrationSuccess is not implemented.
 func (f *mfaPrompt) NotifyRegistrationSuccess(_ context.Context, _ mfa.RegistrationPromptConfig) error {
 	return trace.NotImplemented("not supported")
 }

@@ -47,9 +47,6 @@ type RegistrationCallbacks interface {
 
 // RegistrationResult contains the result of a [Prompt.AskRegister] call.
 type RegistrationResult struct {
-	// Config is the registration ceremony config, potentially updated with user
-	// input (device name, type, and usage) if not provided upfront.
-	Config RegistrationPromptConfig
 	// Response is the registration challenge response from the MFA device.
 	Response *proto.MFARegisterResponse
 	// Callbacks contain functions that need to be called depending on the result
@@ -72,9 +69,14 @@ type RegistrationPromptConfig struct {
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	// AskRegister prompts user for device details and registers a new MFA
-	// device.
-	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationResult, error)
+	// AskRegister prompts the user for device details. Returns an updated config
+	// or nil if the user decided to cancel. (User declining to move forward is
+	// not treated as an error.)
+	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error)
+	// RunRegister registers a new MFA device on the client side.
+	RunRegister(
+		ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+	) (*RegistrationResult, error)
 	// NotifyRegistrationSuccess notifies the user that the device registration
 	// was successful.
 	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
@@ -88,13 +90,19 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return f(ctx, chal)
 }
 
-// AskRegister prompts user for device details and registers a new MFA device.
-func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationResult, error) {
+// AskRegister is not implemented.
+func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 
-// NotifyRegistrationSuccess notifies the user that the device registration was
-// successful.
+// RunRegister is not implemented.
+func (f PromptFunc) RunRegister(
+	ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+) (*RegistrationResult, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// NotifyRegistrationSuccess is not implemented.
 func (f PromptFunc) NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error {
 	return trace.NotImplemented("not supported")
 }

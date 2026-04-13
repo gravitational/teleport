@@ -446,6 +446,18 @@ func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context) *wancli.DefaultPrompt
 }
 
 func (c *CLIPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	// Tweak Windows platform messages so it's clear whether we are prompting for
+	// the *registered* or *new* device. We do it here, preemptively, because
+	// it's the simpler solution (instead of finding out whether it is a Windows
+	// prompt or not).
+	webauthnwin.SetPromptPlatformMessage(
+		fmt.Sprintf(
+			"Using platform authentication for %sdevice, follow the OS dialogs",
+			c.promptDevicePrefix(),
+		),
+	)
+	defer webauthnwin.ResetPromptPlatformMessage()
+
 	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.cfg.AuthenticatorAttachment}
 	resp, _, err := c.cfg.WebauthnLoginFunc(ctx, c.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
 	if err != nil {
@@ -576,9 +588,10 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 	return resp, trace.Wrap(err)
 }
 
-// AskRegister registers a new MFA device using the supplied configuration. The
-// user will be asked for the configuration bits that are missing, if any.
-func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationResult, error) {
+// AskRegister prompts the user for device details. Returns an updated config
+// or nil if the user decided to cancel. (User declining to move forward is not
+// treated as an error.)
+func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
 	confirmation := ""
 	switch config.Reason {
 	case mfa.RegistrationReasonSessionMFANoDevices:
@@ -613,15 +626,6 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 			return nil, trace.Wrap(err)
 		}
 	}
-	devTypePB := map[mfa.MFADeviceType]proto.DeviceType{
-		mfa.MFADeviceTypeTOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
-		mfa.MFADeviceTypeWebauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		mfa.MFADeviceTypeTouchID:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-	}[config.DeviceType]
-	// Sanity check.
-	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		return nil, trace.BadParameter("unexpected device type: %q", config.DeviceType)
-	}
 
 	if config.DeviceName == "" {
 		var err error
@@ -655,42 +659,19 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 	}
 	slog.DebugContext(ctx, "Determined usage for newly registered MFA device", "usage", config.DeviceUsage.String())
 
-	// Tweak Windows platform messages so it's clear we whether we are prompting
-	// for the *registered* or *new* device.
-	// We do it here, preemptively, because it's the simpler solution (instead
-	// of finding out whether it is a Windows prompt or not).
-	const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
-	const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
-	webauthnwin.SetPromptPlatformMessage(registeredMsg)
-	defer webauthnwin.ResetPromptPlatformMessage()
+	return &config, nil
+}
 
-	ceremony := c.cfg.MFACeremony
-	mfaResp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	regChal, err := ceremony.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		ExistingMFAResponse: mfaResp,
-		DeviceType:          devTypePB,
-		DeviceUsage:         config.DeviceUsage,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// RunRegister registers a new MFA device on the client side.
+func (c *CLIPrompt) RunRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig, regChal *proto.MFARegisterChallenge,
+) (*mfa.RegistrationResult, error) {
 	// Prompt for registration.
-	webauthnwin.SetPromptPlatformMessage(newMsg)
 	resp, callback, err := c.promptRegisterChallenge(ctx, c.cfg.ProxyAddress, config.DeviceType, regChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &mfa.RegistrationResult{
-		Config:    config,
 		Response:  resp,
 		Callbacks: callback,
 	}, nil
