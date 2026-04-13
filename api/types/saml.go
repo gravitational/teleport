@@ -17,11 +17,13 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -623,6 +625,28 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the SAMLConnectorSpecV2, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (o *SAMLConnectorSpecV2) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, o); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2,
+// forcing it to use the `jsonpb` unmarshaler, which understands how to unpack
+// values generated from a protobuf `oneof` directive.
+func (o *SAMLConnectorSpecV2) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), o); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
