@@ -732,7 +732,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 			},
 			UnresolvedUserTasks: 10,
 			UserTasks:           ui.MakeUserTasks(userTasksList),
-			AzureVms: ui.ResourceTypeSummary{
+			AzureVM: ui.ResourceTypeSummary{
 				RulesCount:                 2,
 				ResourcesFound:             5,
 				ResourcesEnrollmentSuccess: 3,
@@ -873,6 +873,47 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 					{Name: "env", Value: "prod"},
 				},
 				DiscoveryConfig: dcForRDS.GetName(),
+				LastSync:        &syncTime,
+			},
+		}
+		require.Empty(t, got.NextKey)
+		require.ElementsMatch(t, expectedRules, got.Rules)
+	})
+
+	t.Run("collects azure discovery configs", func(t *testing.T) {
+		syncTime := time.Now()
+		dcForVM := &discoveryconfig.DiscoveryConfig{
+			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
+				Name: uuid.NewString(),
+			}},
+			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
+				Integration:    integrationName,
+				Types:          []string{"vm"},
+				Regions:        []string{"eastus"},
+				Subscriptions:  []string{"sub-1"},
+				ResourceGroups: []string{"rg-1", "rg-2"},
+				ResourceTags:   types.Labels{"env": []string{"dev"}},
+			}}},
+			Status: discoveryconfig.Status{
+				LastSyncTime: syncTime,
+			},
+		}
+		clt := &mockRelevantAWSRegionsClient{
+			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dcForVM},
+		}
+
+		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "vm", nil, clt)
+		require.NoError(t, err)
+		expectedRules := []ui.IntegrationDiscoveryRule{
+			{
+				ResourceType: "vm",
+				Region:       "eastus",
+				LabelMatcher: []libui.Label{
+					{Name: "env", Value: "dev"},
+				},
+				Subscriptions:   []string{"sub-1"},
+				ResourceGroups:  []string{"rg-1", "rg-2"},
+				DiscoveryConfig: dcForVM.GetName(),
 				LastSync:        &syncTime,
 			},
 		}

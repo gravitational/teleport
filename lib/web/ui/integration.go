@@ -65,6 +65,16 @@ type IntegrationAzureOIDCSpec struct {
 	// ClientID specifies the ID of Azure enterprise application (client)
 	// associated with this integration.
 	ClientID string `json:"clientId"`
+	// ManagedIdentity contains the Azure managed identity details.
+	ManagedIdentity *IntegrationAzureManagedIdentitySpec `json:"managedIdentity,omitempty"`
+}
+
+// IntegrationAzureManagedIdentitySpec contains the Azure managed identity details.
+type IntegrationAzureManagedIdentitySpec struct {
+	// Region is the Azure region where the managed identity was created.
+	Region string `json:"region,omitempty"`
+	// ResourceGroup is the Azure resource group containing the managed identity.
+	ResourceGroup string `json:"resourceGroup,omitempty"`
 }
 
 // AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
@@ -136,7 +146,7 @@ type IntegrationWithSummary struct {
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
 	AWSEKS ResourceTypeSummary `json:"awseks"`
 	// AzureVM contains the summary for the AzureVM resources for this integration.
-	AzureVms ResourceTypeSummary `json:"azurevm"`
+	AzureVM ResourceTypeSummary `json:"azurevm"`
 
 	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
 	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`
@@ -211,8 +221,8 @@ type RolesAnywhereProfileSync struct {
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
 type IntegrationDiscoveryRule struct {
 	// ResourceType indicates the type of resource that this rule targets.
-	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
-	// Example: ec2, rds, eks
+	// This is the same value that is set in DiscoveryConfig.[AWS|Azure].<Matcher>.Types
+	// Example: ec2, rds, eks, vm
 	ResourceType string `json:"resourceType,omitempty"`
 	// Region where this rule applies to.
 	Region string `json:"region,omitempty"`
@@ -430,10 +440,20 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		if spec == nil {
 			return nil, trace.BadParameter("missing spec for Azure OIDC integrations")
 		}
-		ret.AzureOIDC = &IntegrationAzureOIDCSpec{
+
+		azureSpec := &IntegrationAzureOIDCSpec{
 			TenantID: spec.TenantID,
 			ClientID: spec.ClientID,
 		}
+		region, _ := ig.GetLabel(types.AzureManagedIdentityRegionLabel)
+		resourceGroup, _ := ig.GetLabel(types.AzureManagedIdentityResourceGroupLabel)
+		if region != "" || resourceGroup != "" {
+			azureSpec.ManagedIdentity = &IntegrationAzureManagedIdentitySpec{
+				Region:        region,
+				ResourceGroup: resourceGroup,
+			}
+		}
+		ret.AzureOIDC = azureSpec
 
 	case types.IntegrationSubKindGitHub:
 		spec := ig.GetGitHubIntegrationSpec()
