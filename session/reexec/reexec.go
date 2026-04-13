@@ -1707,13 +1707,11 @@ func (e *CommandExecutor) Start() error {
 const childReadyWaitTimeout = 3 * time.Minute
 
 func (e *CommandExecutor) WaitForChild() error {
-	if !e.bpfEnabled {
-		return nil
-	}
-
 	var waitErr error
-	if waitErr = WaitForSignal(e.ctx, e.ready, childReadyWaitTimeout); waitErr != nil {
-		e.logger.ErrorContext(e.ctx, "Child process never became ready.", "error", waitErr)
+	if e.bpfEnabled {
+		if waitErr = WaitForSignal(e.ctx, e.ready, childReadyWaitTimeout); waitErr != nil {
+			e.logger.ErrorContext(e.ctx, "Child process never became ready.", "error", waitErr)
+		}
 	}
 
 	closeErr := e.ready.Close()

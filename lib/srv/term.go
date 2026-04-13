@@ -316,9 +316,11 @@ func (t *terminal) Continue() {
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.cmd.Kill(); err != nil {
-		if !errors.Is(err, os.ErrClosed) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+	if t.cmd != nil {
+		if err := t.cmd.Kill(); err != nil {
+			if !errors.Is(err, os.ErrClosed) {
+				t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+			}
 		}
 	}
 
