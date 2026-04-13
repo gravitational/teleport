@@ -1097,6 +1097,11 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of nodes only being able to read scoped roles that may affect
+						// access decisions for the given node specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			},
