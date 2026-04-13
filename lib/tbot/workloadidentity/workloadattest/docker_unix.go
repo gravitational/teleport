@@ -25,8 +25,8 @@ import (
 	"log/slog"
 	"time"
 
-	docker "github.com/moby/moby/client"
 	"github.com/gravitational/trace"
+	docker "github.com/moby/moby/client"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
@@ -58,7 +58,6 @@ func (a *DockerAttestor) Attest(ctx context.Context, pid int) (*workloadidentity
 
 	client, err := docker.New(
 		docker.WithHost(a.cfg.Addr),
-		docker.WithAPIVersionNegotiation(),
 		docker.WithTimeout(1*time.Second),
 	)
 	if err != nil {

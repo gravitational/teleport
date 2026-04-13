@@ -31,10 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moby/moby/api/types/container"
-	docker "github.com/moby/moby/client"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/moby/moby/api/types/container"
+	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -315,7 +315,6 @@ func newDockerClient(t *testing.T) *docker.Client {
 	t.Helper()
 	dockerClient, err := docker.New(
 		docker.FromEnv,
-		docker.WithAPIVersionNegotiation(),
 		docker.WithTimeout(10*time.Second),
 	)
 	require.NoError(t, err)
