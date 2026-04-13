@@ -1809,6 +1809,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
+	authSettings.Scopes = scopes.ScopesStatusToString(pr.ScopesStatus)
+
 	return webclient.PingResponse{
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
@@ -1817,11 +1819,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:           modules.GetModules().BuildType(),
-		FIPS:              modules.IsBoringBinary(),
-		AuthSrv: webclient.AuthServer{
-			ScopesEnabled: scopes.ScopesStatusToString(pr.ScopesStatus),
-		},
+		Edition:           h.cfg.Modules.BuildType(),
+		FIPS:              h.cfg.Modules.IsBoringBinary(),
 	}, nil
 }
 

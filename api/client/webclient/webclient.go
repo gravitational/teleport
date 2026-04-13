@@ -423,15 +423,6 @@ type PingResponse struct {
 	Edition string `json:"edition"`
 	// FIPS represents if Teleport is using FIPS-compliant cryptography.
 	FIPS bool `json:"fips"`
-	// AuthSrv displays stasuses for the auth server.
-	AuthSrv AuthServer `json:"auth_server,omitempty"`
-}
-
-// AuthServer displays statuses from the ping endpoint from the auth server.
-type AuthServer struct {
-	// ScopesEnabled reports whether the scopes feature is enabled or not on the auth server.
-	// Possible values: "enabled", "disabled", "unknown".
-	ScopesEnabled string `json:"scopes_enabled,omitempty"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -573,6 +564,10 @@ type AuthenticationSettings struct {
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for
 	// the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
+	// Scopes reports whether the scopes feature is enabled or not on the auth server.
+	// Possible values: "enabled", "disabled", "unknown".
+	// This value is populated from the auth server's ping endpoint.
+	Scopes string `json:"scopes,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
