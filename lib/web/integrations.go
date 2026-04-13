@@ -364,7 +364,7 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		case usertasks.TaskTypeDiscoverRDS:
 			ret.AWSRDS.UnresolvedUserTasks++
 		case usertasks.TaskTypeDiscoverAzureVM:
-			ret.AzureVms.UnresolvedUserTasks++
+			ret.AzureVM.UnresolvedUserTasks++
 		}
 	}
 	ret.UnresolvedUserTasks = len(ret.UserTasks)
@@ -395,8 +395,8 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 
 		if matchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName()); matchers != 0 {
-			ret.AzureVms.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AzureVms, cfg.Status.LastSyncTime, discoveredResources.AzureVms)
+			ret.AzureVM.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AzureVM, cfg.Status.LastSyncTime, discoveredResources.AzureVms)
 		}
 	}
 
