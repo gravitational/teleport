@@ -56,7 +56,6 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 	require.NoError(t, err)
 
 	presenceService := local.NewPresenceService(backend)
-	require.NoError(t, err)
 
 	identityService, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
