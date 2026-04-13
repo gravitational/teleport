@@ -126,7 +126,7 @@ const TeleportLogo = ({
           <Image
             data-testid="teleport-logo"
             src={src}
-            alt="teleport logo"
+            alt="Teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
               padding-right: ${props => props.theme.space[3]}px;

@@ -59,7 +59,7 @@ const (
 	maxUserAgentLen = 2048
 )
 
-func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.SplitAccessCheckerContext, error) {
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +80,7 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 			return nil, trace.Wrap(err)
 		}
 
-		return services.NewUnscopedSplitAccessCheckerContext(unscopedChecker), nil
+		return services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker), nil
 	}
 
 	// req.Scope is untrusted user input, so perform strong validation before proceeding.
@@ -93,9 +93,23 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		Scope: scope,
 	}
 
-	// populate the scope pin with the user's assigned scoped roles
-	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
-		return nil, trace.Wrap(err)
+	if userState.IsBot() {
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// build the user's access info based on the scope pin and userState
@@ -113,13 +127,13 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 		return nil, trace.Wrap(err)
 	}
 
-	return services.NewScopedSplitAccessCheckerContext(scopedCheckerContext), nil
+	return scopedCheckerContext, nil
 }
 
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessCheckerContext, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -167,7 +181,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState, nil)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -207,7 +221,7 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checkerContext *services.SplitAccessCheckerContext
+	checkerContext *services.ScopedAccessCheckerContext
 	authErr        error
 	userOrigin     apievents.UserOrigin
 }
@@ -287,7 +301,7 @@ type verifyMFADeviceLocksParams struct {
 	// CheckerContext is used to verify locks. Lock verification varies depending on whether the context is
 	// scoped or unscoped. If no context is provided, a default unscoped checker context is created from
 	// the user backend state.
-	CheckerContext *services.SplitAccessCheckerContext
+	CheckerContext *services.ScopedAccessCheckerContext
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -338,7 +352,7 @@ func (a *Server) authenticateUser(
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.CheckerContext = services.NewUnscopedSplitAccessCheckerContext(unscopedChecker)
+			p.CheckerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {
@@ -829,7 +843,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		certReq.TTL = time.Minute
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

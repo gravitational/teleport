@@ -2205,7 +2205,7 @@ func (c *scopedRoleAssignmentCollection) resources() []types.Resource {
 }
 
 func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
+	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
 	var rows [][]string
 
 	for _, item := range c.items {
@@ -2215,6 +2215,7 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 		}
 
 		rows = append(rows, []string{
+			item.GetSubKind(),
 			item.GetScope(),
 			item.GetMetadata().GetName(),
 			item.GetSpec().GetUser(),

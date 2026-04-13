@@ -57,6 +57,7 @@ Optional:
 - `azure_devops` (Attributes) The Azure Devops-specific configuration used with the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
+- `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
 
 ### Nested Schema for `spec.aws`
@@ -137,6 +138,38 @@ Optional:
 Optional:
 
 - `ssh` (Map of String) Labels that should be applied to SSH nodes.
+
+
+### Nested Schema for `spec.kubernetes`
+
+Optional:
+
+- `allow` (Attributes List) A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token. (see [below for nested schema](#nested-schema-for-speckubernetesallow))
+- `oidc` (Attributes) The configuration specific to the `oidc` type. (see [below for nested schema](#nested-schema-for-speckubernetesoidc))
+- `static_jwks` (Attributes) The configuration specific to the `static_jwks` type. (see [below for nested schema](#nested-schema-for-speckubernetesstatic_jwks))
+- `type` (String) Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values: - `in_cluster` - `static_jwks` - `oidc`
+
+### Nested Schema for `spec.kubernetes.allow`
+
+Optional:
+
+- `service_account` (String) The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+
+
+### Nested Schema for `spec.kubernetes.oidc`
+
+Optional:
+
+- `insecure_allow_http_issuer` (Boolean) If set, disables the requirement that the issuer must use HTTPS.
+- `issuer` (String) The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration` endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT. For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+
+
+### Nested Schema for `spec.kubernetes.static_jwks`
+
+Optional:
+
+- `jwks` (String) The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+
 
 
 ### Nested Schema for `spec.oracle`

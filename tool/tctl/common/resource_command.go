@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1250,13 +1251,24 @@ func (rc *ResourceCommand) updateWorkloadIdentityX509IssuerOverride(ctx context.
 }
 
 func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+			Role: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRole,
+			rsp.GetRole().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
@@ -1338,13 +1350,27 @@ func (rc *ResourceCommand) updateScopedToken(ctx context.Context, client *authcl
 }
 
 func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role assignment creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// use upsert when --force is set and the assignment already has a name (i.e. it was previously
+	// created and the user is re-applying the same resource file). if there is no name, fall through
+	// to create, which will generate one server-side.
+	if rc.IsForced() && r.GetMetadata().GetName() != "" {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+			Assignment: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRoleAssignment,
+			rsp.GetAssignment().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -1364,7 +1390,24 @@ func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, clien
 }
 
 func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"%v %q has been updated\n",
+		scopedaccess.KindScopedRoleAssignment,
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
 }
 
 func (rc *ResourceCommand) createSigstorePolicy(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
@@ -2381,7 +2424,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		)
 	case scopedaccess.KindScopedRoleAssignment:
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: rc.ref.Name,
+			Name:    rc.ref.Name,
+			SubKind: rc.ref.SubKind,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -3848,8 +3892,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
 		if rc.ref.Name != "" {
+			// Default to dynamic if the user didn't specify a subkind.
+			subKind := cmp.Or(rc.ref.SubKind, scopedaccess.SubKindDynamic)
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-				Name: rc.ref.Name,
+				Name:    rc.ref.Name,
+				SubKind: subKind,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
