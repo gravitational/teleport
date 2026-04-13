@@ -257,12 +257,8 @@ export class WindowsManager {
     );
   }
 
-  /** Shows the window when it's hidden or minimized. */
-  showWindow(): void {
-    if (!this.isWindowUsable()) {
-      return;
-    }
-
+  /** Shows the window when it's hidden or minimized. Also brings it out of background mode. */
+  private showWindow(): void {
     if (this.isInBackgroundMode) {
       this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
         isInBackgroundMode: false,
@@ -275,7 +271,40 @@ export class WindowsManager {
       this.window.restore();
     }
 
-    // Menu bar clicks don't automatically make the app the active application on macOS.
+    // Menu bar clicks don't automatically make the app the active application on macOS, so let's
+    // steal focus first.
+    //
+    // On Windows, app.focus() doesn't work the same as on the other platforms.
+    // If the window is minimized, app.focus() will bring it to the front and give it focus.
+    // If the window is not minimized but simply covered by other another window, app.focus() will
+    // flash the icon of Connect in the task bar.
+    // To make things even more complicated, the app behaves like that only when it is packaged.
+    // When it is in dev mode, it seems to work correctly (it is brought to the front every time).
+    //
+    // Ideally, we'd like the not minimized window to receive focus too. We considered two
+    // workarounds to bring focus to a window that's not minimized:
+    //
+    // * win.minimized() followed by win.focus() – this reportedly doesn't work anymore (see the
+    // comment linked below) though it did work at the time of implementing forceFocusWindow.
+    // Admittedly, this seems like a hack and does cause the window to first minimize and then show
+    // up which feels weird.
+    // * win.setAlwaysOnTop(true) followed by win.show() – this does bring the window to the top
+    // but doesn't give it focus. Super awkward because Connect shows up over another app that you
+    // were using, you start typing to fill out whatever form Connect has shown you. But your
+    // keystrokes go to the app that the Connect window just covered.
+    //
+    // Since we cannot reliably steal focus, let's just not attempt to do it and instead defer to
+    // flashing the icon in the task bar.
+    //
+    // https://github.com/electron/electron/issues/2867#issuecomment-1080573240
+    //
+    // I don't understand why calling app.focus() on a minimized window gives it focus in the
+    // first place. In theory it shouldn't work, see the links below:
+    //
+    // https://stackoverflow.com/a/72620653/742872
+    // https://devblogs.microsoft.com/oldnewthing/20090220-00/?p=19083
+    // https://github.com/electron/electron/issues/2867#issuecomment-142480964
+    // https://github.com/electron/electron/issues/2867#issuecomment-142511956
     app.focus({ steal: true });
     // window.show() both makes the window visible and gives it focus.
     this.window.show();
@@ -309,9 +338,12 @@ export class WindowsManager {
   }
 
   /**
-   * focusWindow is for situations where the app has privileges to do so, for example in a scenario
-   * where the user attempts to launch a second instance of the app – the same process that the user
-   * interacted with asks for its window to receive focus.
+   * focusWindow is for situations where the user explicitly asks for the window to receive focus,
+   * for example they select "Open Teleport Connect" from the tray or they attempt to launch a
+   * second instance of the app.
+   *
+   * At the moment, the only difference is that forceFocusWindow does not bounce the dock icon on
+   * macOS.
    */
   focusWindow(): void {
     if (!this.isWindowUsable()) {
@@ -319,7 +351,6 @@ export class WindowsManager {
     }
 
     this.showWindow();
-    this.window.focus();
   }
 
   /**
@@ -334,47 +365,9 @@ export class WindowsManager {
       return;
     }
 
-    if (this.window.isFocused()) {
-      return;
-    }
-
-    // On Windows, app.focus() doesn't work the same as on the other platforms.
-    // If the window is minimized, app.focus() will bring it to the front and give it focus.
-    // If the window is not minimized but simply covered by other another window, app.focus() will
-    // flash the icon of Connect in the task bar.
-    // To make things even more complicated, the app behaves like that only when it is packaged.
-    // When it is in dev mode, it seems to work correctly (it is brought to the front every time).
-    //
-    // Ideally, we'd like the not minimized window to receive focus too. We considered two
-    // workarounds to bring focus to a window that's not minimized:
-    //
-    // * win.minimized() followed by win.focus() – this reportedly doesn't work anymore (see the
-    // comment linked below) though it did work at the time of implementing forceFocusWindow.
-    // Admittedly, this seems like a hack and does cause the window to first minimize and then show
-    // up which feels weird.
-    // * win.setAlwaysOnTop(true) followed by win.show() – this does bring the window to the top
-    // but doesn't give it focus. Super awkward because Connect shows up over another app that you
-    // were using, you start typing to fill out whatever form Connect has shown you. But your
-    // keystrokes go to the app that the Connect window just covered.
-    //
-    // Since we cannot reliably steal focus, let's just not attempt to do it and instead defer to
-    // flashing the icon in the task bar.
-    //
-    // https://github.com/electron/electron/issues/2867#issuecomment-1080573240
-    //
-    // I don't understand why calling app.focus() on a minimized window gives it focus in the
-    // first place. In theory it shouldn't work, see the links below:
-    //
-    // https://stackoverflow.com/a/72620653/742872
-    // https://devblogs.microsoft.com/oldnewthing/20090220-00/?p=19083
-    // https://github.com/electron/electron/issues/2867#issuecomment-142480964
-    // https://github.com/electron/electron/issues/2867#issuecomment-142511956
-
     this.showWindow();
 
     app.dock?.bounce('informational');
-
-    app.focus({ steal: true });
   }
 
   /**
