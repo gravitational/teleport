@@ -17,11 +17,13 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility with existing SAML connector JSON encoding for this gogoproto type
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -627,58 +629,24 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 }
 
 // MarshalJSON implements [json.Marshaler] for the SAMLConnectorSpecV2.
-// It is required because the Spec.Credentials proto field is a oneof.
+// It is required because the Spec.Credentials proto field is a oneof and
+// gogoproto doesn't allow for oneof json tags (https://github.com/gogo/protobuf/issues/623).
 func (o *SAMLConnectorSpecV2) MarshalJSON() ([]byte, error) {
-	type samlConnectorSpecV2 SAMLConnectorSpecV2
-
-	out := struct {
-		*samlConnectorSpecV2
-		Credentials json.RawMessage `json:"credentials,omitempty"`
-	}{samlConnectorSpecV2: (*samlConnectorSpecV2)(o)}
-
-	if oauth := o.GetOauth(); oauth != nil {
-		creds, err := json.Marshal(struct {
-			Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
-		}{Oauth: oauth})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		out.Credentials = creds
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, o); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return json.Marshal(out)
+	return buf.Bytes(), nil
 }
 
 // UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2.
-// It is required because the Spec.Credentials proto field is a oneof.
+// It is required because the Spec.Credentials proto field is a oneof and
+// gogoproto doesn't allow for oneof json tags (https://github.com/gogo/protobuf/issues/623).
 func (o *SAMLConnectorSpecV2) UnmarshalJSON(b []byte) error {
-	type samlConnectorSpecV2 SAMLConnectorSpecV2
-
-	in := struct {
-		*samlConnectorSpecV2
-		Credentials json.RawMessage `json:"credentials,omitempty"`
-	}{samlConnectorSpecV2: (*samlConnectorSpecV2)(o)}
-
-	if err := json.Unmarshal(b, &in); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: false}).Unmarshal(bytes.NewReader(b), o); err != nil {
 		return trace.Wrap(err)
 	}
-
-	o.Credentials = nil
-	if len(in.Credentials) > 0 {
-		var creds struct {
-			Oauth *OAuthClientCredentials `json:"oauth"`
-		}
-
-		if err := json.Unmarshal(in.Credentials, &creds); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if creds.Oauth != nil {
-			o.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}
-		}
-	}
-
 	return nil
 }
 
