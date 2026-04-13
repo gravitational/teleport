@@ -1280,11 +1280,11 @@ func TestCheckJoinHealth(t *testing.T) {
 			}()
 
 			// Call 1 is immediate (not ready). Sleep to trigger call 2.
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
 			// Call 2 (not ready). Sleep to trigger call 3.
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
 			// Call 3 returns ready → function returns nil.
