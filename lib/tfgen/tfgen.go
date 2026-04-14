@@ -164,11 +164,11 @@ func generateResource(
 
 	// Add the terraform depends_on meta-argument to the resource block.
 	if len(opts.dependsOn) > 0 {
-		resourceBlock.Body().SetAttributeRaw("depends_on", hclwrite.Tokens{
-			{Type: hclsyntax.TokenOBrack, Bytes: []byte("[")},
-			{Type: hclsyntax.TokenIdent, Bytes: []byte(strings.Join(opts.dependsOn, ", "))},
-			{Type: hclsyntax.TokenCBrack, Bytes: []byte("]")},
-		})
+		dependsOnTokens := make([]hclwrite.Tokens, 0, len(opts.dependsOn))
+		for _, d := range opts.dependsOn {
+			dependsOnTokens = append(dependsOnTokens, hclwrite.TokensForIdentifier(d))
+		}
+		resourceBlock.Body().SetAttributeRaw("depends_on", hclwrite.TokensForTuple(dependsOnTokens))
 		resourceBlock.Body().AppendNewline()
 	}
 
