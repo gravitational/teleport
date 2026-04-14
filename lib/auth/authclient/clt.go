@@ -1629,6 +1629,7 @@ type ClientI interface {
 	types.Events
 	services.ScopedAccessClientGetter
 	services.WorkloadClusterService
+	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
