@@ -321,45 +321,41 @@ func TestGenerate_AccessListMemberOmitField(t *testing.T) {
 	)
 }
 
-func TestGenerate_OmitFieldFromListItems(t *testing.T) {
+func TestGenerate_OmitFieldFromNestedListItems(t *testing.T) {
 	t.Parallel()
 
-	goldenTest(t, &types.RoleV6{
-		Kind:    types.KindRole,
-		Version: types.V8,
-		Metadata: types.Metadata{
-			Name: "example-role",
-		},
-		Spec: types.RoleSpecV6{
-			Deny: types.RoleConditions{
-				Rules: []types.Rule{{Resources: []string{"resource1"}, Verbs: []string{"verb1"}}},
+	goldenTest(t, &types.OktaImportRuleV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindOktaImportRule,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: "example-import-rule",
 			},
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{
-					{Where: "where1", Resources: []string{"remove me"}, Verbs: []string{"verb1"}},
-					{Where: "where2", Resources: []string{"remove me"}, Verbs: []string{"verb2"}},
-				},
-				KubeGroups: []string{"system:masters"},
-				Request: &types.AccessRequestConditions{
-					ClaimsToRoles: []types.ClaimMapping{
-						{Claim: "some claim", Value: "remove me", Roles: []string{"remove me"}},
-						{Claim: "some claim 2", Value: "remove me", Roles: []string{"remove me"}},
+		},
+		Spec: types.OktaImportRuleSpecV1{
+			Mappings: []*types.OktaImportRuleMappingV1{
+				{
+					Match: []*types.OktaImportRuleMatchV1{
+						{AppIDs: []string{"app1"}, GroupIDs: []string{"remove me"}, AppNameRegexes: []string{"remove me"}},
+						{AppIDs: []string{"app2"}, GroupIDs: []string{"remove me"}},
 					},
-					SuggestedReviewers: []string{"reviewer1", "reviewer2"},
+					AddLabels: map[string]string{"remove": "field"},
+				},
+				{
+					Match: []*types.OktaImportRuleMatchV1{
+						{AppNameRegexes: []string{"remove me"}, AppIDs: []string{"app3"}, GroupIDs: []string{"remove me"}},
+					},
+					AddLabels: map[string]string{"remove": "field"},
 				},
 			},
 		},
 	},
-		// Omit a single field from list items
-		tfgen.WithOmitFieldFromListItems("spec.allow.rules", "resources"),
-		// Omit multiple fields from the same list items
-		tfgen.WithOmitFieldFromListItems("spec.allow.request.claims_to_roles", "value"),
-		tfgen.WithOmitFieldFromListItems("spec.allow.request.claims_to_roles", "roles"),
-
-		// List path does not exist, does nothing
-		tfgen.WithOmitFieldFromListItems("idontexist", "value"),
-		// List item field does not exist, does nothing
-		tfgen.WithOmitFieldFromListItems("spec.deny.rules", "i.dont.exist"),
+		tfgen.WithOmitField("spec.mappings.add_labels"),
+		// Remove some fields in nested list.
+		tfgen.WithOmitField("spec.mappings.match.group_ids"),
+		tfgen.WithOmitField("spec.mappings.match.app_name_regexes"),
+		// No match, does nothing
+		tfgen.WithOmitField("spec.mappings.match.i.dont.exist"),
 	)
 }
 
@@ -394,9 +390,9 @@ func TestGenerate_AccessListOmitFields(t *testing.T) {
 
 	alProto := tfgen.WrapHeaderResource(accesslistconv.ToProto(al))
 	goldenTest(t, alProto,
-		tfgen.WithOmitFieldFromListItems("spec.owners", "description"),
+		tfgen.WithOmitField("spec.owners.description"),
 		tfgen.WithOmitField("spec.audit.recurrence"),
-		tfgen.WithOmitFieldFromListItems("spec.owners", "ineligible_status"),
+		tfgen.WithOmitField("spec.owners.ineligible_status"),
 		tfgen.WithOmitField("spec.grants"),
 	)
 }

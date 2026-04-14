@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -483,28 +482,13 @@ func valueToCty(
 		// map, other messages will be handled by messageToTokens.
 		messageVal := val.Message()
 		attrs := make(map[string]cty.Value)
-
-		// Check if this is a list item that has fields to omit.
-		var listItemsToOmit map[string]bool
-		if len(path) > 0 {
-			lastIndex := len(path) - 1
-			listFieldPath := path[:lastIndex].String()
-			indexPart := path[lastIndex] // [0], [1], etc.
-
-			if len(indexPart) > 2 && opts.fieldsToOmitFromListItems[listFieldPath] != nil {
-				// Validate that the indexPart looks like an index belonging to a list.
-				if indexPart[0] == '[' && indexPart[len(indexPart)-1] == ']' && unicode.IsDigit(rune(indexPart[1])) {
-					listItemsToOmit = opts.fieldsToOmitFromListItems[listFieldPath]
-				}
-			}
-		}
-
 		for _, attr := range messageVal.Attributes {
-			if listItemsToOmit[attr.Name] {
+			attrPath := append(path, attr.Name)
+			if opts.fieldsToOmit[attrPath.withoutIndexes().String()] {
 				continue
 			}
 			if val := valueToCty(
-				append(path, attr.Name),
+				attrPath,
 				attr.Value,
 				opts,
 				false, /* emitZeroVal */
@@ -521,3 +505,21 @@ func valueToCty(
 type fieldPath []string
 
 func (p fieldPath) String() string { return strings.Join(p, ".") }
+
+// withoutIndexes returns the field path with indexes stripped e.g. [0], etc.
+// This is used to help match fields to omit when the field is inside a list
+// regardless of the index.
+//
+// For example, if the field path is "spec.user.friends[N].pets[M].name",
+// withoutIndexes will return "spec.user.friends.pets.name".
+func (p fieldPath) withoutIndexes() fieldPath {
+	result := make(fieldPath, 0, len(p))
+	for _, part := range p {
+		// Ignore parts that look like an index (e.g. [0], [1], etc.)
+		if len(part) > 0 && (part[0] == '[' && part[len(part)-1] == ']') {
+			continue
+		}
+		result = append(result, part)
+	}
+	return result
+}
