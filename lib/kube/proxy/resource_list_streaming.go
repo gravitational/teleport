@@ -41,12 +41,6 @@ func newStreamFilter(contentType string, matcher resourceMatcher) streamFilter {
 	switch {
 	case strings.Contains(contentType, "application/json"):
 		return &jsonStreamFilter{matcher: matcher}
-	case strings.Contains(contentType, "application/vnd.kubernetes.protobuf"):
-		// Protobuf is a length-prefixed format: every message and repeated field
-		// must declare its total byte size before the content. This means we'd
-		// need to buffer all filtered items to compute sizes before writing any
-		// output, defeating the purpose of streaming.
-		return nil
 	default:
 		return nil
 	}
