@@ -84,6 +84,44 @@ pub fn find_trait_values<'a>(traits: &'a [TraitEntry], key: &str) -> Option<&'a 
     None
 }
 
+/// Returns true if all `needles` are found in `haystack`.
+/// Extracted as a separate function to avoid nested loops (Aeneas limitation).
+pub fn all_contained(haystack: &[String], needles: &[String]) -> bool {
+    let mut i: usize = 0;
+    while i < needles.len() {
+        if !vec_contains(haystack, &needles[i]) {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// Returns true if the user's roles contain all required roles.
+pub fn check_roles(user_roles: &[String], required_roles: &[String]) -> bool {
+    all_contained(user_roles, required_roles)
+}
+
+/// Returns true if a single trait requirement is satisfied by the user's traits.
+pub fn check_single_trait(user_traits: &[TraitEntry], req_entry: &TraitEntry) -> bool {
+    match find_trait_values(user_traits, &req_entry.key) {
+        None => false,
+        Some(user_values) => all_contained(user_values, &req_entry.values),
+    }
+}
+
+/// Returns true if all trait requirements are satisfied by the user's traits.
+pub fn check_traits(user_traits: &[TraitEntry], required_traits: &[TraitEntry]) -> bool {
+    let mut i: usize = 0;
+    while i < required_traits.len() {
+        if !check_single_trait(user_traits, &required_traits[i]) {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 /// Checks whether the user meets the given access list requirements.
 ///
 /// A user meets the requirements if and only if:
@@ -97,35 +135,7 @@ pub fn user_meets_requirements(user: &UserInfo, requires: &Requires) -> bool {
         return true;
     }
 
-    // Check that the user has all required roles.
-    let mut i: usize = 0;
-    while i < requires.roles.len() {
-        if !vec_contains(&user.roles, &requires.roles[i]) {
-            return false;
-        }
-        i += 1;
-    }
-
-    // Check that the user has all required traits.
-    let mut j: usize = 0;
-    while j < requires.traits.len() {
-        let req_entry = &requires.traits[j];
-        match find_trait_values(&user.traits, &req_entry.key) {
-            None => return false,
-            Some(user_values) => {
-                let mut k: usize = 0;
-                while k < req_entry.values.len() {
-                    if !vec_contains(user_values, &req_entry.values[k]) {
-                        return false;
-                    }
-                    k += 1;
-                }
-            }
-        }
-        j += 1;
-    }
-
-    true
+    check_roles(&user.roles, &requires.roles) && check_traits(&user.traits, &requires.traits)
 }
 
 #[cfg(test)]

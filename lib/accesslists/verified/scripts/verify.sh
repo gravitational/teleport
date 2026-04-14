@@ -21,6 +21,6 @@ fi
 
 echo "==> Building and verifying Lean4 proofs..."
 cd "$LEAN_DIR"
-lake build
+lake build FormalVerification.Theorems
 
 echo "==> All proofs verified successfully!"
