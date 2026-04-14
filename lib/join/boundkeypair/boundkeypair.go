@@ -457,13 +457,16 @@ func (m *lastRotatedAtMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.LastRotatedAt = timestamppb.New(*m.newValue)
+	if m.newValue == nil {
+		status.LastRotatedAt = nil
+	} else {
+		status.LastRotatedAt = timestamppb.New(*m.newValue)
+	}
 }
 
 // mutateStatusLastRotatedAt updates the `status.LastRotatedAt` field to
 // indicate a keypair rotation has taken place. It ensures the previous value
-// has not changed before performing the update. Note that `newValue` must not
-// be nil.
+// has not changed before performing the update.
 func mutateStatusLastRotatedAt(newValue, expectPrevValue *time.Time) boundKeypairStatusMutatorV2 {
 	return &lastRotatedAtMutator{
 		newValue:        newValue,
