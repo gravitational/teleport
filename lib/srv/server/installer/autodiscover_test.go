@@ -1475,6 +1475,46 @@ func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
 	})
 }
 
+func TestCheckJoinHealthDiagnosticsTimeoutDoesNotMaskJoinFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst := newTestJoinHealthInstaller(t.TempDir())
+		inst.readyzPollInterval = 5 * time.Second
+		inst.readyzPollTimeout = 10 * time.Second
+		inst.readyzChecker.checkOverride = func(_ context.Context) (debug.Readiness, error) {
+			return debug.Readiness{Ready: false, Status: "starting"}, nil
+		}
+		inst.diagnostics = func(ctx context.Context, _ string) string {
+			<-ctx.Done()
+			return defaultServiceDiagnosticsUnavailable
+		}
+		inst.journal = func(ctx context.Context, _ string) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+
+		errC := make(chan error, 1)
+		go func() {
+			errC <- inst.checkJoinHealth(t.Context())
+		}()
+
+		time.Sleep(inst.readyzPollInterval)
+		synctest.Wait()
+
+		time.Sleep(inst.readyzPollInterval)
+		synctest.Wait()
+
+		time.Sleep(joinFailureDiagnosticsTimeout)
+		synctest.Wait()
+
+		err := <-errC
+		var joinErr *JoinFailureError
+		require.ErrorAs(t, err, &joinErr)
+		require.Equal(t, "node did not become ready (join cluster) within 10s", joinErr.Message)
+		require.Equal(t, defaultServiceDiagnosticsUnavailable, joinErr.ServiceDiagnostics)
+		require.Empty(t, joinErr.JournalOutput)
+	})
+}
+
 func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst := newTestJoinHealthInstaller(t.TempDir())
@@ -1518,4 +1558,3 @@ func newTestJoinHealthInstaller(tmpDir string) *AutoDiscoverNodeInstaller {
 		},
 	}
 }
-

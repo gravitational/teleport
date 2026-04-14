@@ -60,6 +60,10 @@ const (
 	// node to become ready before returning the join-failure exit code.
 	JoinFailureTimeout = 5 * time.Minute
 
+	// joinFailureDiagnosticsTimeout bounds the time spent collecting systemd state
+	// and journal output after the readyz poll has already timed out.
+	joinFailureDiagnosticsTimeout = 5 * time.Second
+
 	// defaultReadyzPollInterval is how often to poll the Teleport readyz endpoint
 	// while waiting for the agent to join the cluster.
 	defaultReadyzPollInterval = 5 * time.Second
@@ -438,11 +442,18 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 		joinErr.LastError = lastUnexpectedErr.Error()
 	}
 
-	joinErr.ServiceDiagnostics = a.diagnostics(ctx, serviceName)
+	diagCtx, diagCancel := context.WithTimeout(ctx, joinFailureDiagnosticsTimeout)
+	defer diagCancel()
 
-	journalOutput, captureErr := a.journal(ctx, serviceName)
+	joinErr.ServiceDiagnostics = a.diagnostics(diagCtx, serviceName)
+
+	journalOutput, captureErr := a.journal(diagCtx, serviceName)
 	if captureErr != nil {
-		return trace.Wrap(captureErr)
+		a.Logger.WarnContext(ctx,
+			"Failed to capture journal for join-failure diagnostics",
+			"service", serviceName,
+			"error", captureErr,
+		)
 	}
 	if journalOutput != "" {
 		joinErr.JournalOutput = journalOutput
