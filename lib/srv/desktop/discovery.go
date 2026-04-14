@@ -33,8 +33,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -129,7 +131,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
-		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
+		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop).With("reconciler", "ldap"),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -450,6 +452,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 			OnCreate:            s.upsertDesktop,
 			OnUpdate:            s.updateDesktop,
 			OnDelete:            s.deleteDesktop,
+			Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
 		})
 		if err != nil {
 			errCh <- trace.Wrap(err)
@@ -458,12 +461,6 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 
 		// If we got here, the reconciler is running.
 		errCh <- nil
-
-		tickDuration := 5 * time.Minute
-		expiryDuration := tickDuration + 2*time.Minute
-
-		tick := s.cfg.Clock.NewTicker(tickDuration)
-		defer tick.Stop()
 
 		for {
 			select {
@@ -476,7 +473,13 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
 						continue
 					}
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+
+					// TODO: the reconciler's default comparison func is going to mark new resources
+					// different just because the expiry timestamp differs.
+					//
+					// Note: we can use a longer expiry here if/when we update the agent to remove
+					// resources on shutdown (like we already do for apps).
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
 					newResources[dynamicDesktop.GetName()] = desktop
 				}
 				if err := reconciler.Reconcile(ctx); err != nil {
@@ -485,19 +488,25 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 				}
 				currentResources = newResources
 				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
-			case <-tick.Chan():
+			case <-s.cfg.Clock.After(retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)):
 				start := s.cfg.Clock.Now()
-				newResources = make(map[string]types.WindowsDesktop)
-				for k, v := range currentResources {
-					newResources[k] = v.Copy()
-					newResources[k].SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+
+				// We currently use a relatively short expiration period so that desktops associated with
+				// an agent that terminates will expire shortly after the agent stops heartbeating them.
+				//
+				// As a result, we must also run the reconciler periodically to "renew" the desktop
+				// heartbeat and prevent it from expiring while the agent is healthy.
+				for _, desktop := range newResources {
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
 				}
+
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
 					continue
 				}
-				currentResources = newResources
+
 				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
+
 			case <-watcher.Done():
 				return
 			case <-ctx.Done():

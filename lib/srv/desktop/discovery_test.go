@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -34,8 +35,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -175,6 +178,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -195,7 +199,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	for _, testCase := range []struct {
@@ -317,6 +321,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -331,8 +336,13 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
+
+	logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+	if testing.Verbose() {
+		logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}
 
 	clock := clockwork.NewFakeClock()
 	s := &WindowsService{
@@ -340,7 +350,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "1234",
 			},
-			Logger:      slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+			Logger:      logger,
 			Clock:       clock,
 			AuthClient:  client,
 			AccessPoint: client,
@@ -367,8 +377,12 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Create the dynamic desktop and verify that a corresponding desktop
+	// resource is created.
 	_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(ctx, desktop)
 	require.NoError(t, err)
+
+	clock.BlockUntilContext(t.Context(), 1)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
@@ -377,14 +391,18 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
 
+	// Delete the desktop resource, advance the clock, and verify that
+	// the reconciler re-created the desktop resource.
 	err = client.DeleteWindowsDesktop(ctx, s.cfg.Heartbeat.HostUUID, "test")
 	require.NoError(t, err)
+
+	t.Log("deleting windows desktop")
 
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
 	require.Empty(t, desktops)
 
-	clock.Advance(5 * time.Minute)
+	clock.Advance(apidefaults.ServerAnnounceTTL / 2)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
@@ -392,6 +410,25 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		require.Len(t, desktops, 1)
 		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
+
+	// Ensure that the reconciler is advancing the expiry.
+	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+
+	start := desktops[0].GetMetadata().Expires
+	require.NotNil(t, start)
+
+	clock.Advance(5 * time.Minute)
+	clock.BlockUntilContext(t.Context(), 1)
+
+	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+
+	end := desktops[0].GetMetadata().Expires
+	require.NotNil(t, start)
+	require.Equal(t, start.Add(5*time.Minute), *end, "original expiry was %v", *start)
 }
 
 func TestCurrentDesktops(t *testing.T) {
@@ -399,6 +436,7 @@ func TestCurrentDesktops(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -502,6 +540,7 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
