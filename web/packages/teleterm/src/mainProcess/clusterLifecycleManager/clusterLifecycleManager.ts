@@ -20,12 +20,17 @@ import {
   Cluster,
   LoggedInUser,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { ensureError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
+import { serializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { RendererIpc } from 'teleterm/mainProcess/types';
 import { AppUpdater } from 'teleterm/services/appUpdater';
-import { isTshdRpcError, TshdClient } from 'teleterm/services/tshd';
+import {
+  isRpcErrorReloginResolvable,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -172,7 +177,7 @@ export class ClusterLifecycleManager {
         // Theoretically, the cert could just expire and result in an error
         // resolvable with relogin when trying to sync the cluster.
         // In that case, only update the store.
-        if (!(isTshdRpcError(e) && e.isResolvableWithRelogin)) {
+        if (!isRpcErrorReloginResolvable(e)) {
           throw e;
         }
       }
@@ -282,10 +287,14 @@ export class ClusterLifecycleManager {
     await this.syncOrUpdateCluster(cluster);
   }
 
-  private handleWatcherError(error: ProfileWatcherError): void {
+  private handleWatcherError(watcherError: ProfileWatcherError): void {
+    const serialized: ProfileWatcherError = {
+      reason: watcherError.reason,
+      error: serializeError(ensureError(watcherError.error)),
+    };
     this.windowsManager
       .getWindow()
-      .webContents.send(RendererIpc.ProfileWatcherError, error);
+      .webContents.send(RendererIpc.ProfileWatcherError, serialized);
   }
 }
 
