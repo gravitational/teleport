@@ -54,6 +54,7 @@ type filteringResponseWriter struct {
 	pipeWriter *io.PipeWriter
 	memBuffer  *responsewriters.MemoryResponseWriter
 	filterErr  error
+	filterDone chan struct{} // closed when the streaming goroutine finishes
 	streaming  bool
 }
 
@@ -122,12 +123,14 @@ func (fw *filteringResponseWriter) tryStreaming() bool {
 	fw.pipeReader = pr
 	fw.pipeWriter = pw
 	fw.streaming = true
+	fw.filterDone = make(chan struct{})
 	fw.body = pw
 
 	// wrapContentEncoding is called inside the goroutine because gzip.NewReader
 	// reads the gzip header from the pipe, which blocks until Write provides data.
 	// Calling it here in WriteHeader would deadlock.
 	go func() {
+		defer close(fw.filterDone)
 		src, dst, err := wrapContentEncoding(pr, fw.target, contentEncoding)
 		if err != nil {
 			fw.filterErr = trace.ConnectionProblem(err, "failed to initialize content encoding wrapper for %q", contentEncoding)
@@ -159,6 +162,7 @@ func (fw *filteringResponseWriter) Finish() (int, error) {
 
 	if fw.streaming {
 		fw.pipeWriter.Close()
+		<-fw.filterDone
 		fw.pipeReader.Close()
 		return fw.status, nil
 	}
