@@ -925,7 +925,7 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_
 }
 
 // TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-func TestAccessChecker_CheckAccess_RoleRequiresMFA_ForceInBandMFAEnv_AllowsVerifiedLegacyMFA(t *testing.T) {
+func TestAccessChecker_CheckAccess_RoleRequiresMFA_ForceInBandMFAEnv_AllowsReadOnlyBypass(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
 
 	const roleName = "mfa-required"
@@ -956,8 +956,12 @@ func TestAccessChecker_CheckAccess_RoleRequiresMFA_ForceInBandMFAEnv_AllowsVerif
 	err = accessChecker.CheckAccess(
 		node,
 		AccessState{
-			MFARequired: MFARequiredPerRole,
-			MFAVerified: true, // Simulate MFA has been verified via the legacy out-of-band MFA flow.
+			// Simulate a read-only access check that is being allowed to bypass MFA requirements even when the role
+			// requires MFA and the force in-band MFA env var is set. This is to allow users to perform read-only
+			// operations like listing nodes without being forced to complete MFA verification.
+			MFARequired:         MFARequiredPerRole,
+			MFAVerified:         true,
+			ReturnPreconditions: false,
 		},
 	)
 	require.NoError(t, err)

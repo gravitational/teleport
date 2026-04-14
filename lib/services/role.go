@@ -2737,10 +2737,10 @@ func (set RoleSet) checkAccess(
 	//     a. The legacy out-of-band MFA flow is allowed (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes") OR
 	//     b. The caller doesn't want preconditions returned (state.ReturnPreconditions is false)
 	//
-	// Note: Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing
-	// MFA checks for resources that require per-session MFA. This is because listing resources is a read-only operation
-	// that typically happens before the user has a chance to satisfy any MFA preconditions, and we don't want to block
-	// users from listing resources just because they haven't satisfied MFA preconditions yet.
+	// Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing MFA
+	// checks for resources that require per-session MFA. This is because listing resources is a read-only operation and
+	// MFA is not required to list resources, even if MFA is required to access the resource. The actual enforcement
+	// will happen at connection time, so this is not a concern from a security perspective.
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
 	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
