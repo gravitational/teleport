@@ -457,8 +457,9 @@ func TestFilter_streaming(t *testing.T) {
 		srcR, srcW := io.Pipe()
 		var dst bytes.Buffer
 
+		filterErr := make(chan error, 1)
 		go func() {
-			sf.Filter(srcR, &dst)
+			filterErr <- sf.Filter(srcR, &dst)
 		}()
 
 		// Write preamble + first item (allowed).
@@ -488,6 +489,8 @@ func TestFilter_streaming(t *testing.T) {
 		io.WriteString(srcW, `]}`)
 		srcW.Close()
 		synctest.Wait()
+
+		require.NoError(t, <-filterErr)
 
 		// Final output should be valid JSON with exactly the allowed items.
 		var result map[string]any
