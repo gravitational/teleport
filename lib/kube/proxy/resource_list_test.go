@@ -254,7 +254,9 @@ func BenchmarkStreamFilter(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for b.Loop() {
-					sf.Filter(bytes.NewReader(jsonPayload), io.Discard)
+					if err := sf.Filter(bytes.NewReader(jsonPayload), io.Discard); err != nil {
+						b.Fatal(err)
+					}
 				}
 			})
 
@@ -266,7 +268,9 @@ func BenchmarkStreamFilter(b *testing.B) {
 					buf := responsewriters.NewMemoryResponseWriter()
 					buf.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
 					buf.Write(jsonPayload)
-					filterBuffer(factory, buf)
+					if err := filterBuffer(factory, buf); err != nil {
+						b.Fatal(err)
+					}
 				}
 			})
 		}
