@@ -16,7 +16,42 @@
 
 package services
 
-import subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+import (
+	"context"
+
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+// SubCAServiceGetter is the read-only SubCAService interface.
+//
+// See lib/services/local.SubCAService.
+type SubCAServiceGetter interface {
+	// GetCertAuthorityOverride reads a CA override resource by ID.
+	GetCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error)
+
+	// ListCertAuthorityOverrides lists all CA overrides.
+	ListCertAuthorityOverrides(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error)
+}
+
+// SubCAService manages CertAuthorityOverride resources.
+//
+// See lib/services/local.SubCAService.
+type SubCAService interface {
+	SubCAServiceGetter
+
+	// CreateCertAuthorityOverride creates a CA override.
+	CreateCertAuthorityOverride(ctx context.Context, resource *subcav1.CertAuthorityOverride) (*subcav1.CertAuthorityOverride, error)
+
+	// DeleteCertAuthorityOverride hard-deletes a CA override.
+	DeleteCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) error
+
+	// UpdateCertAuthorityOverride conditionally updates a CA override.
+	UpdateCertAuthorityOverride(ctx context.Context, resource *subcav1.CertAuthorityOverride) (*subcav1.CertAuthorityOverride, error)
+
+	// UpsertCertAuthorityOverride unconditionally creates or updates a CA override.
+	UpsertCertAuthorityOverride(ctx context.Context, resource *subcav1.CertAuthorityOverride) (*subcav1.CertAuthorityOverride, error)
+}
 
 // MarshalCertAuthorityOverride marshals a CA override resource.
 func MarshalCertAuthorityOverride(resource *subcav1.CertAuthorityOverride, opts ...MarshalOption) ([]byte, error) {
