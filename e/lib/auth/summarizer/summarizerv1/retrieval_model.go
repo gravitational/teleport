@@ -7,6 +7,8 @@ import (
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
+	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 )
 
 // CreateRetrievalModel creates the RetrievalModel.
@@ -154,6 +156,70 @@ func (s *Service) validateInferenceModelExistence(ctx context.Context, name stri
 		return trace.Wrap(err)
 	} else if err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *Service) TestRetrievalModel(
+	ctx context.Context, req *pb.TestRetrievalModelRequest,
+) (*pb.TestRetrievalModelResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = authCtx.CheckAccessToKind(types.KindRetrievalModel, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if resp := validateRetrievalTestResources(req); resp != nil {
+		return resp, nil
+	}
+
+	provider, err := s.newTestEmbeddingsProvider(ctx, req)
+	if err != nil {
+		return &pb.TestRetrievalModelResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+
+	if _, _, err = provider.GenerateEmbeddings(ctx, "test"); err != nil {
+		return &pb.TestRetrievalModelResponse{
+			Success: false,
+			Message: summarizererrors.FormatRetrievalError(err, req.GetModel()),
+		}, nil
+	}
+
+	return &pb.TestRetrievalModelResponse{
+		Success: true,
+		Message: "Successfully connected to the inference provider and received a response",
+	}, nil
+}
+
+func validateRetrievalTestResources(req *pb.TestRetrievalModelRequest) *pb.TestRetrievalModelResponse {
+	if req.GetModel() == nil {
+		return &pb.TestRetrievalModelResponse{
+			Success: false,
+			Message: "model spec is required",
+		}
+	}
+	testRetrievalModel := apisummarizer.NewRetrievalModel(req.GetModel())
+	if err := apisummarizer.ValidateRetrievalModel(testRetrievalModel); err != nil {
+		return &pb.TestRetrievalModelResponse{
+			Success: false,
+			Message: "invalid model spec: " + err.Error(),
+		}
+	}
+
+	if secret := req.GetSecret(); secret != nil {
+		testInferenceSecret := apisummarizer.NewInferenceSecret("test-secret", secret)
+		if err := apisummarizer.ValidateInferenceSecret(testInferenceSecret); err != nil {
+			return &pb.TestRetrievalModelResponse{
+				Success: false,
+				Message: "invalid secret spec: " + err.Error(),
+			}
+		}
 	}
 	return nil
 }

@@ -93,6 +93,10 @@ type embedResponse struct {
 // GenerateEmbeddings generates vector embeddings for the given text using the
 // configured Bedrock embedding model.
 func (p *EmbeddingProvider) GenerateEmbeddings(ctx context.Context, text string) ([]float32, int, error) {
+	if text == "" {
+		return nil, 0, trace.BadParameter("input text is required")
+	}
+
 	payload, err := json.Marshal(embedRequest{
 		InputText: text,
 	})

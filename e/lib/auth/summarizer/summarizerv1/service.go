@@ -991,7 +991,7 @@ func (s *Service) TestInferenceModel(
 	}
 
 	// Create a test provider based on the model spec
-	provider, err := s.createTestProvider(ctx, req)
+	provider, err := s.newTestProvider(ctx, req)
 	if err != nil {
 		return &pb.TestInferenceModelResponse{
 			Success: false,
@@ -1017,66 +1017,6 @@ func (s *Service) TestInferenceModel(
 		Success: true,
 		Message: "Successfully connected to the inference provider and received a response",
 	}, nil
-}
-
-// createTestProvider creates an inference provider from the test request specs.
-func (s *Service) createTestProvider(ctx context.Context, req *pb.TestInferenceModelRequest) (testProvider, error) {
-	modelSpec := req.GetModel()
-	if modelSpec == nil {
-		return nil, trace.BadParameter("model spec is required")
-	}
-
-	switch providerCfg := modelSpec.Provider.(type) {
-	case *pb.InferenceModelSpec_Openai:
-		if req.GetSecret() == nil {
-			if providerCfg.Openai.GetApiKeySecretRef() == "" {
-				return nil, trace.BadParameter("api_key_secret_ref is required for OpenAI models when no secret is provided in the request")
-			}
-			// Fetch the secret from the backend
-			if secret, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef()); trace.IsNotFound(err) {
-				return nil, trace.BadParameter("secret %q not found in backend; please provide it in the request or ensure it exists", providerCfg.Openai.GetApiKeySecretRef())
-			} else if err != nil {
-				return nil, trace.Wrap(err)
-			} else {
-				req.Secret = secret.Spec
-			}
-		}
-
-		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			ModelProvider:     providerCfg.Openai,
-			SecretSpec:        req.GetSecret(),
-			MaxSessionLength:  modelSpec.GetMaxSessionLengthBytes(),
-			ClientFactory:     s.openAIClientFactory,
-			ModelResourceName: "test-model",
-		})
-		return p, trace.Wrap(err)
-
-	case *pb.InferenceModelSpec_Bedrock:
-		if !s.enableBedrockWithoutRestrictions &&
-			providerCfg.Bedrock.GetIntegration() == "" {
-			return nil, trace.AccessDenied(
-				"access to Amazon Bedrock models provided by Teleport Cloud is restricted; " +
-					"please refer to the documentation for more information on enabling Bedrock integrations",
-			)
-		}
-
-		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
-			Spec:              providerCfg.Bedrock,
-			MaxSessionLength:  modelSpec.GetMaxSessionLengthBytes(),
-			ClientFactory:     s.bedrockClientFactory,
-			ModelResourceName: "test-model",
-			AWSConfigCache:    s.awsConfigCache,
-		})
-		return p, trace.Wrap(err)
-
-	default:
-		return nil, trace.BadParameter("unsupported provider type: %T", modelSpec.Provider)
-	}
-}
-
-// testProvider is a minimal interface for testing inference models.
-type testProvider interface {
-	Summarize(ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser) (string, error)
 }
 
 func validateTestResources(req *pb.TestInferenceModelRequest) *pb.TestInferenceModelResponse {

@@ -3,6 +3,8 @@ package summarizerv1
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -593,4 +595,293 @@ func TestService_RetrievalModel_RestrictedBedrock(t *testing.T) {
 		Model: expectedModel,
 	})
 	require.Error(t, err)
+}
+
+func TestService_TestRetrievalModel(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Mock OpenAI server that always returns 401 Unauthorized to simulate an
+	// invalid API key.
+	mockOpenAIUnauthorized := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error": {"message": "Invalid API key"}}`))
+	}))
+	t.Cleanup(mockOpenAIUnauthorized.Close)
+
+	// Mock OpenAI server that returns a valid embeddings response.
+	mockOpenAISuccess := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"object": "list",
+			"data": [{"object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3]}],
+			"model": "text-embedding-3-small",
+			"usage": {"prompt_tokens": 1, "total_tokens": 1}
+		}`))
+	}))
+	t.Cleanup(mockOpenAISuccess.Close)
+
+	srv := newTestTLSServer(t, withUnrestrictedBedrock())
+	user := createTestUserWithRetrieval(t, srv, "test-user")
+
+	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	// Store a secret in the backend for the api_key_secret_ref tests.
+	storedSecret := summarizer.NewInferenceSecret("stored-secret", &summarizerv1pb.InferenceSecretSpec{
+		Value: "stored-api-key",
+	})
+	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		Secret: storedSecret,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		req             *summarizerv1pb.TestRetrievalModelRequest
+		expectError     bool
+		expectSuccess   bool
+		messageContains string
+	}{
+		{
+			name: "nil model spec",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: nil,
+			},
+			expectSuccess:   false,
+			messageContains: "model spec is required",
+		},
+		{
+			name: "invalid model spec - no embeddings provider",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					InferenceModelName: "some-model",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "invalid model spec",
+		},
+		{
+			// Validation requires api_key_secret_ref for OpenAI models; the
+			// error comes from ValidateRetrievalModel before reaching provider logic.
+			name: "OpenAI without api_key_secret_ref",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId: "text-embedding-3-small",
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "api_key_secret_ref is required",
+		},
+		{
+			// api_key_secret_ref is set but the secret does not exist in the
+			// backend and no inline secret was provided.
+			name: "OpenAI with api_key_secret_ref pointing to non-existent secret",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "non-existent-secret",
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "not found in backend",
+		},
+		{
+			// Inline secret overrides api_key_secret_ref lookup; the mock server
+			// returns 401 to simulate an invalid API key.
+			name: "OpenAI with inline secret and invalid API key",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "some-secret",
+							BaseUrl:         mockOpenAIUnauthorized.URL,
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+				Secret: &summarizerv1pb.InferenceSecretSpec{
+					Value: "invalid-api-key",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "Invalid API key",
+		},
+		{
+			// No inline secret; the provider fetches from the backend using
+			// api_key_secret_ref. The stored secret exists but the mock server
+			// returns 401.
+			name: "OpenAI with stored secret and invalid API key",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "stored-secret",
+							BaseUrl:         mockOpenAIUnauthorized.URL,
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "Invalid API key",
+		},
+		{
+			// Inline secret with a mock server that returns a valid embeddings
+			// response — the full round-trip should succeed.
+			name: "OpenAI with inline secret and successful response",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "some-secret",
+							BaseUrl:         mockOpenAISuccess.URL,
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+				Secret: &summarizerv1pb.InferenceSecretSpec{
+					Value: "valid-api-key",
+				},
+			},
+			expectSuccess:   true,
+			messageContains: "Successfully connected",
+		},
+		{
+			// withUnrestrictedBedrock() is set on this server so the Bedrock
+			// restriction check passes. The call will still fail because there
+			// are no real AWS credentials, but the failure message should NOT
+			// be the "restricted" message.
+			name: "Bedrock unrestricted but no real AWS creds",
+			req: &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
+						Bedrock: &summarizerv1pb.BedrockProvider{
+							BedrockModelId: "amazon.titan-embed-text-v1",
+							Region:         "us-east-1",
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+			},
+			expectSuccess: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := sclt.TestRetrievalModel(ctx, tt.req)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Equal(t, tt.expectSuccess, resp.Success)
+			if tt.messageContains != "" {
+				assert.Contains(t, resp.Message, tt.messageContains)
+			}
+		})
+	}
+}
+
+func TestService_TestRetrievalModel_RBAC(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	cases := []struct {
+		name string
+		verb string
+	}{
+		{name: "missing create verb", verb: types.VerbCreate},
+		{name: "missing update verb", verb: types.VerbUpdate},
+	}
+
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			user := createTestUserWithRetrieval(
+				t, srv, fmt.Sprintf("rbac-test-user-%d", i+1),
+				authtest.WithUserMutator(func(user types.User) {
+					roleName := "deny-" + user.GetName()
+					role, err := types.NewRole(roleName, types.RoleSpecV6{
+						Deny: types.RoleConditions{
+							Rules: []types.Rule{
+								types.NewRule(types.KindRetrievalModel, []string{tc.verb}),
+							},
+						},
+					})
+					require.NoError(t, err)
+					_, err = srv.Auth().UpsertRole(ctx, role)
+					require.NoError(t, err)
+					user.AddRole(roleName)
+				}),
+			)
+
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+			require.NoError(t, err)
+			sclt := clt.SummarizerServiceClient()
+
+			_, err = sclt.TestRetrievalModel(ctx, &summarizerv1pb.TestRetrievalModelRequest{
+				Model: &summarizerv1pb.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "some-secret",
+						},
+					},
+					InferenceModelName: "test-inference-model",
+				},
+			})
+			require.Error(t, err)
+			assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+		})
+	}
+}
+
+func TestService_TestRetrievalModel_RestrictedBedrock(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Server WITHOUT unrestricted Bedrock (simulates Teleport Cloud restriction).
+	srv := newTestTLSServer(t)
+	user := createTestUserWithRetrieval(t, srv, "test-user")
+
+	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	resp, err := sclt.TestRetrievalModel(ctx, &summarizerv1pb.TestRetrievalModelRequest{
+		Model: &summarizerv1pb.RetrievalModelSpec{
+			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
+				Bedrock: &summarizerv1pb.BedrockProvider{
+					BedrockModelId: "amazon.titan-embed-text-v1",
+					Region:         "us-east-1",
+				},
+			},
+			InferenceModelName: "test-inference-model",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.Success)
+	assert.Contains(t, resp.Message, "access to Amazon Bedrock models provided by Teleport Cloud is restricted")
 }

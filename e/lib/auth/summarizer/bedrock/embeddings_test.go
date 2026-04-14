@@ -36,9 +36,7 @@ func TestGenerateEmbeddings(t *testing.T) {
 			name: "empty text",
 			text: "",
 			assert: func(t *testing.T, embeddings []float32, tokenCount int, err error) {
-				require.NoError(t, err)
-				assert.Equal(t, []float32{0.1, 0.2, 0.3}, embeddings)
-				assert.Equal(t, 0, tokenCount)
+				require.Error(t, err)
 			},
 		},
 		{

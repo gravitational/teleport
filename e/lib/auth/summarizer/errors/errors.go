@@ -23,3 +23,19 @@ func FormatInferenceError(err error, modelSpec *summarizerv1pb.InferenceModelSpe
 		return fmt.Sprintf("inference request failed: %v", err)
 	}
 }
+
+// FormatRetrievalError formats errors from OpenAI and AWS Bedrock providers into user-friendly messages.
+func FormatRetrievalError(err error, modelSpec *summarizerv1pb.RetrievalModelSpec) string {
+	if err == nil {
+		return ""
+	}
+
+	switch providerCfg := modelSpec.EmbeddingsProvider.(type) {
+	case *summarizerv1pb.RetrievalModelSpec_Openai:
+		return openai.FormatError(err, providerCfg.Openai)
+	case *summarizerv1pb.RetrievalModelSpec_Bedrock:
+		return bedrock.FormatError(err, providerCfg.Bedrock)
+	default:
+		return fmt.Sprintf("inference request failed: %v", err)
+	}
+}
