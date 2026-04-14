@@ -204,12 +204,27 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := c.identityFile.TLSConfig()
+	priv, err := keys.ParsePrivateKey(c.identityFile.PrivateKey, keys.WithIdentityAPIPath(c.path))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return configureTLS(tlsConfig), nil
+	cert, err := priv.TLSCertificate(c.identityFile.Certs.TLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool := x509.NewCertPool()
+	for _, caCerts := range c.identityFile.CACerts.TLS {
+		if !pool.AppendCertsFromPEM(caCerts) {
+			return nil, trace.BadParameter("invalid CA cert PEM")
+		}
+	}
+
+	return configureTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -220,7 +235,17 @@ func (c *identityCredsFile) SSHClientConfig() (apissh.ClientConfig, error) {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 
-	sshConfig, err := c.identityFile.SSHClientConfig()
+	sshCert, err := sshutils.ParseCertificate(c.identityFile.Certs.SSH)
+	if err != nil {
+		return apissh.ClientConfig{}, trace.Wrap(err)
+	}
+
+	priv, err := keys.ParsePrivateKey(c.identityFile.PrivateKey, keys.WithIdentityAPIPath(c.path))
+	if err != nil {
+		return apissh.ClientConfig{}, trace.Wrap(err)
+	}
+
+	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, priv, c.identityFile.CACerts.SSH...)
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
@@ -478,7 +503,11 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	}
 
 	// This section is essentially id.TLSConfig()
-	cert, err := keys.X509KeyPair(id.Certs.TLS, id.PrivateKey)
+	priv, err := keys.ParsePrivateKey(id.PrivateKey, keys.WithIdentityAPIPath(d.Path))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cert, err := priv.TLSCertificate(id.Certs.TLS)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -494,7 +523,7 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sshPrivateKey, err := keys.ParsePrivateKey(id.PrivateKey)
+	sshPrivateKey, err := keys.ParsePrivateKey(id.PrivateKey, keys.WithIdentityAPIPath(d.Path))
 	if err != nil {
 		return trace.Wrap(err)
 	}

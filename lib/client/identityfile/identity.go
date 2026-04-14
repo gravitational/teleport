@@ -752,7 +752,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
 
-	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
+	priv, err := keys.ParsePrivateKey(ident.PrivateKey, keys.WithIdentityAPIPath(identityPath))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

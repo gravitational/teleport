@@ -102,6 +102,7 @@ type generateOpts struct {
 	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
+	privateKey           *keys.PrivateKey
 	logger               *slog.Logger
 	requestModifiers     []func(*proto.UserCertsRequest)
 }
@@ -147,6 +148,13 @@ func WithCurrentIdentity(identity *Identity) GenerateOption {
 func WithCurrentIdentityFacade(facade *Facade) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.currentIdentity = facade.Get()
+	}
+}
+
+// WithPrivateKey reuses the provided private key when issuing a new identity.
+func WithPrivateKey(privateKey *keys.PrivateKey) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.privateKey = privateKey
 	}
 }
 
@@ -268,14 +276,21 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		keyPurpose = cryptosuites.DatabaseClient
 	}
 
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here, constantly rotate private keys to limit their effective
-	// lifetime.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	key := o.privateKey
+	if key == nil {
+		// Generate a fresh keypair for the impersonated identity. We don't care to
+		// reuse keys here, constantly rotate private keys to limit their effective
+		// lifetime.
+		signer, err := cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+			keyPurpose)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	sshPub, err := ssh.NewPublicKey(key.Public())
@@ -324,13 +339,8 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = o.currentIdentity.SSHCACertBytes
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
+		PrivateKeyBytes: key.PrivateKeyPEM(),
 		PublicKeyBytes:  req.SSHPublicKey,
 	}, certs)
 	if err != nil {

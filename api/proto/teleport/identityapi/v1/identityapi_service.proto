@@ -1,0 +1,65 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.identityapi.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identityapi/v1;identityapiv1";
+
+// IdentityAPIService exposes signing for a Teleport identity without releasing
+// raw private key material to the client.
+service IdentityAPIService {
+  // Ping checks whether the service is alive.
+  rpc Ping(PingRequest) returns (PingResponse) {}
+
+  // Sign produces a signature with the current identity-api private key.
+  rpc Sign(SignRequest) returns (Signature) {}
+}
+
+// PingRequest checks whether the identity-api service is alive.
+message PingRequest {}
+
+// PingResponse contains liveness information for the identity-api service.
+message PingResponse {
+  uint32 pid = 1;
+}
+
+// SignRequest requests a signature from the current identity-api signer.
+message SignRequest {
+  // Digest is the hashed message to sign.
+  bytes digest = 1;
+  // Hash is the hash function used to prepare the digest.
+  Hash hash = 2;
+  // SaltLength specifies the RSA-PSS salt length, if applicable.
+  uint32 salt_length = 3;
+  // PublicKeyDer is the public key expected to be paired with the signer,
+  // encoded in PKIX, ASN.1 DER form.
+  bytes public_key_der = 4;
+}
+
+// Signature contains the resulting private key signature.
+message Signature {
+  bytes signature = 1;
+}
+
+// Hash refers to a specific hash function used during signing.
+enum Hash {
+  HASH_UNSPECIFIED = 0;
+  HASH_NONE = 1;
+  HASH_SHA256 = 2;
+  HASH_SHA512 = 3;
+}

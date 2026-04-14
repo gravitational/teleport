@@ -33,6 +33,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/identityapi"
+	"github.com/gravitational/teleport/api/utils/keys/identityapiagent"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
@@ -43,6 +45,7 @@ const (
 	ECPrivateKeyType         = "EC PRIVATE KEY"
 	OpenSSHPrivateKeyType    = "OPENSSH PRIVATE KEY"
 	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
+	tbotIdentityAPIKeyType   = identityapi.PrivateKeyPEMType
 )
 
 type cryptoPublicKeyI interface {
@@ -257,6 +260,12 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 type ParsePrivateKeyOptions struct {
 	// HardwareKeyService is the hardware key service to use with parsed hardware private keys.
 	HardwareKeyService hardwarekey.Service
+	// IdentityAPIService is the tbot identity-api service to use with parsed
+	// identity-api private keys.
+	IdentityAPIService identityapi.Service
+	// IdentityAPIPath is the path to the identity file whose adjacent identity-api
+	// socket and certificate should be used to resolve parsed identity-api keys.
+	IdentityAPIPath string
 	// ContextualKeyInfo is contextual information associated with the key.
 	ContextualKeyInfo hardwarekey.ContextualKeyInfo
 }
@@ -268,6 +277,21 @@ type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.HardwareKeyService = hwKeyService
+	}
+}
+
+// WithIdentityAPIService sets the identity-api service.
+func WithIdentityAPIService(service identityapi.Service) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.IdentityAPIService = service
+	}
+}
+
+// WithIdentityAPIPath sets the identity file path used to locate the adjacent
+// identity-api socket and pinned certificate.
+func WithIdentityAPIPath(path string) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.IdentityAPIPath = path
 	}
 }
 
@@ -315,6 +339,26 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		}
 
 		return newPrivateKeyWithKeyPEM(hwSigner, keyPEM)
+	case tbotIdentityAPIKeyType:
+		service := appliedOpts.IdentityAPIService
+		if service == nil {
+			if appliedOpts.IdentityAPIPath == "" {
+				return nil, trace.BadParameter("tbot identity-api private key requires an identity file path or signer service")
+			}
+
+			var err error
+			service, err = identityapiagent.NewServiceFromIdentityFile(appliedOpts.IdentityAPIPath)
+			if err != nil {
+				return nil, trace.BadParameter("failed to initialize tbot identity-api signer service: %v", err)
+			}
+		}
+
+		signer, err := identityapi.DecodeSigner(block.Bytes, service)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse tbot identity-api signer: %s", err.Error())
+		}
+
+		return newPrivateKeyWithKeyPEM(signer, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
