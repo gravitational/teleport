@@ -1312,8 +1312,8 @@ func newLLMInferenceEndpointApp(t *testing.T, name string) *types.AppV3 {
 		Name: name,
 	}, types.AppSpecV3{
 		LLM: &types.LLM{
-			Format:   types.LLM_FORMAT_ANTHROPIC,
-			Provider: types.LLM_PROVIDER_ANTHROPIC,
+			Format:   types.LLMFormatAnthropic,
+			Provider: types.LLMProviderAnthropic,
 		},
 	})
 	require.NoError(t, err)

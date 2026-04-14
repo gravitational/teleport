@@ -11257,8 +11257,8 @@ func createTestLLMAppServer(t *testing.T, auth *auth.Server, name string, labels
 		},
 		types.AppSpecV3{
 			LLM: &types.LLM{
-				Format:   types.LLM_FORMAT_ANTHROPIC,
-				Provider: types.LLM_PROVIDER_ANTHROPIC,
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAnthropic,
 			},
 		},
 	)
