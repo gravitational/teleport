@@ -77,7 +77,7 @@ type Application interface {
 	IsTCP() bool
 	// IsMCP returns true if this app represents a MCP server.
 	IsMCP() bool
-	// IsLLM returns true if this app represents a LLM inference endpoint.
+	// IsLLM returns true if this app represents an LLM inference endpoint.
 	IsLLM() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
@@ -610,16 +610,11 @@ func (a *AppV3) checkLLM() error {
 		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
 	case a.Spec.Rewrite != nil:
 		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
+	case a.Spec.AWS != nil:
+		return trace.BadParameter("Inference endpoint %q cannot specify 'aws' configuration", a.GetName())
 	}
 
 	llm := a.Spec.LLM
-	switch {
-	case llm.Format == LLM_FORMAT_UNSPECIFIED:
-		return trace.BadParameter("Inference endpoint %q is missing 'format'", a.GetName())
-	case llm.Provider == LLM_PROVIDER_UNSPECIFIED:
-		return trace.BadParameter("Inference endpoint %q is missing 'provider'", a.GetName())
-	}
-
 	// Ensure the combination between Format and Provider is supported.
 	providers, ok := supportedFormatInferenceProviders[llm.Format]
 	if !ok {
@@ -631,21 +626,20 @@ func (a *AppV3) checkLLM() error {
 			return provider.DisplayName()
 		}, slices.Values(providers))
 
-		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format.DisplayName(), strings.Join(slices.Collect(providersStrings), ","))
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format.DisplayName(), strings.Join(slices.Collect(providersStrings), ", "))
 	}
 
 	for _, model := range llm.Models {
-		if model.Name == "" {
+		switch {
+		case model == nil:
+			continue
+		case model.Name == "":
 			return trace.BadParameter("Inference endpoint %q 'models' elements must include the 'name' property", a.GetName())
 		}
 	}
 
 	// Ensure fallback model is present on the models list.
 	if llm.FallbackModel != "" {
-		if len(llm.Models) == 0 {
-			return trace.BadParameter("Inference endpoint %q specifies a 'fallback_model', but 'models' is empty. The 'fallback_model' must be defined in the 'models' list", a.GetName())
-		}
-
 		if !slices.ContainsFunc(llm.Models, func(model *LLM_Model) bool { return model.Name == llm.FallbackModel }) {
 			return trace.BadParameter("Inference endpoint %q doesn't specify the model used in 'fallback_model'. Update the 'models' list to include the missing model or update the 'fallback_model' to one item of the list", a.GetName())
 		}

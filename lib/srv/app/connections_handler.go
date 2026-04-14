@@ -653,15 +653,15 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
+	//
+	// Note: LLM doesn't require a special handling. It must work like other
+	// HTTP applications.
 	if err != nil {
 		switch {
 		case app.IsTCP():
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
 			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
-		case app.IsLLM():
-			// TODO(gabrielcorado): implement inference endpoint unauthorized connection handler.
-			return nil, trace.AccessDenied("app access denied")
 		default:
 			c.setConnAuth(tlsConn, err)
 		}

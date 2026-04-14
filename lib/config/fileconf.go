@@ -2556,7 +2556,7 @@ type LLM struct {
 type LLMModel struct {
 	// Name defines the model name.
 	Name string `yaml:"name"`
-	// ProviderModel is the model name in the configured provider.
+	// ProviderName is the model name in the configured provider.
 	ProviderName string `yaml:"provider_name,omitempty"`
 }
 
