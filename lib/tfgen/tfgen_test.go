@@ -256,6 +256,38 @@ func TestGenerate_AccessListMember(t *testing.T) {
 	)
 }
 
+func TestGenerate_DependsOn_Single(t *testing.T) {
+	t.Parallel()
+
+	goldenTest(t, &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name: "example-role",
+		},
+		Spec: types.RoleSpecV6{Allow: types.RoleConditions{KubeGroups: []string{"system:masters"}}},
+	},
+		tfgen.WithDependsOn("teleport_role.some-role-id"),
+	)
+}
+
+func TestGenerate_DependsOn_Multiple(t *testing.T) {
+	t.Parallel()
+
+	goldenTest(t, &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name: "example-role",
+		},
+		Spec: types.RoleSpecV6{Allow: types.RoleConditions{KubeGroups: []string{"system:masters"}}},
+	},
+		tfgen.WithDependsOn("teleport_role.some-role-id-1"),
+		tfgen.WithDependsOn("teleport_role.some-role-id-2"),
+		tfgen.WithDependsOn("teleport_role.some-role-id-3"),
+	)
+}
+
 func TestGenerate_ResourceComment(t *testing.T) {
 	t.Parallel()
 
