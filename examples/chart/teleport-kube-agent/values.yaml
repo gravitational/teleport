@@ -105,6 +105,17 @@ joinParams:
   # If method is `kubernetes`, you must set [`teleportClusterName`](#teleportClusterName).
   tokenName: ""
 
+  # joinParams.tokenSecret(string) -- is the secret value tied to the token identified
+  # by `joinparams.tokenName`. It is only valid when `joinParams.method` is `token` and
+  # `joinParams.tokenName` refers to a scoped token.
+  #
+  # When `joinParams.method` is `token` and `joinParams.tokenName`  refers to a
+  # scoped token, this value is required.
+  #
+  # When `joinParams.method` is not `token` or when `joinParams.tokenName` refers to an
+  # unscoped token, this value is ignored.
+  tokenSecret: ""
+
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
 # [Kubernetes JWKS or OIDC](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
