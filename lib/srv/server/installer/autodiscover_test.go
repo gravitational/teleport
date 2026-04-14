@@ -37,7 +37,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
@@ -811,8 +810,6 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		// Config unchanged still runs a health check to catch lingering join failures.
-
 		require.NoError(t, teleportInstaller.Install(ctx))
 
 		for binName, mockBin := range mockBins {
@@ -1312,11 +1309,11 @@ func TestCheckJoinHealth(t *testing.T) {
 			}()
 
 			// Immediate check (not ready). Sleep to trigger second check.
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
 			// Second check (not ready). Sleep past deadline.
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
 			err := <-errC
@@ -1350,10 +1347,10 @@ func TestCheckJoinHealth(t *testing.T) {
 				errC <- inst.checkJoinHealth(t.Context())
 			}()
 
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
-			time.Sleep(5 * time.Second)
+			time.Sleep(inst.readyzPollInterval)
 			synctest.Wait()
 
 			err := <-errC
@@ -1431,10 +1428,10 @@ func TestCheckJoinHealthTimeoutIncludesJournalOutput(t *testing.T) {
 			errC <- inst.checkJoinHealth(t.Context())
 		}()
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(inst.readyzPollInterval)
 		synctest.Wait()
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(inst.readyzPollInterval)
 		synctest.Wait()
 
 		err := <-errC
@@ -1465,10 +1462,10 @@ func TestCheckJoinHealthHandlesMissingSystemctlDiagnostics(t *testing.T) {
 			errC <- inst.checkJoinHealth(t.Context())
 		}()
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(inst.readyzPollInterval)
 		synctest.Wait()
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(inst.readyzPollInterval)
 		synctest.Wait()
 
 		err := <-errC
@@ -1499,7 +1496,7 @@ func TestCheckJoinHealthRetriesSocketUnavailableThenReady(t *testing.T) {
 		}()
 
 		// Call 1 is immediate (connection error, retries). Sleep to trigger call 2.
-		time.Sleep(5 * time.Second)
+		time.Sleep(inst.readyzPollInterval)
 		synctest.Wait()
 
 		// Call 2 returns ready.
@@ -1522,41 +1519,3 @@ func newTestJoinHealthInstaller(tmpDir string) *AutoDiscoverNodeInstaller {
 	}
 }
 
-func TestRedactFlagArgsForTeleportNodeConfigure(t *testing.T) {
-	t.Parallel()
-
-	original := []string{
-		"node",
-		"configure",
-		"--proxy=example.teleport.sh:443",
-		"--token=my-secret-token",
-		"--labels=teleport.dev/instance-id=i-123",
-	}
-
-	redacted := utils.RedactFlagArgs(original, teleportNodeConfigureArgRedactors)
-	maskedToken := "--token=" + backend.MaskKeyName("my-secret-token")
-
-	require.Equal(t, []string{
-		"node",
-		"configure",
-		"--proxy=example.teleport.sh:443",
-		maskedToken,
-		"--labels=teleport.dev/instance-id=i-123",
-	}, redacted)
-	require.Equal(t, []string{
-		"node",
-		"configure",
-		"--proxy=example.teleport.sh:443",
-		"--token=my-secret-token",
-		"--labels=teleport.dev/instance-id=i-123",
-	}, original)
-
-	// Single-dash variant is also redacted (defense in depth).
-	singleDash := []string{"node", "configure", "-token=my-secret-token"}
-	redactedSingleDash := utils.RedactFlagArgs(singleDash, teleportNodeConfigureArgRedactors)
-	require.Equal(t, []string{
-		"node",
-		"configure",
-		"-token=" + backend.MaskKeyName("my-secret-token"),
-	}, redactedSingleDash)
-}

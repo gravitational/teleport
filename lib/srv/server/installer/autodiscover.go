@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
@@ -69,10 +68,6 @@ const (
 	// wait for the install lock before returning a lock contention error.
 	defaultInstallLockGracePeriod = 10 * time.Second
 )
-
-var teleportNodeConfigureArgRedactors = map[string]utils.ArgValueRedactor{
-	"--token": backend.MaskKeyName,
-}
 
 const (
 	discoverNotice = "" +
@@ -456,8 +451,6 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	return trace.Wrap(joinErr)
 }
 
-}
-
 func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context, imdsClient imds.Client) error {
 	nodeLabels, err := fetchNodeAutoDiscoverLabels(ctx, imdsClient)
 	if err != nil {
@@ -502,7 +495,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 	ani.Logger.InfoContext(ctx,
 		"Generating teleport configuration",
 		"teleport", ani.binariesLocation.Teleport,
-		"args", utils.RedactFlagArgs(teleportNodeConfigureArgs, teleportNodeConfigureArgRedactors),
+		"args", teleportNodeConfigureArgs,
 	)
 	teleportNodeConfigureCmd := exec.CommandContext(ctx, ani.binariesLocation.Teleport, teleportNodeConfigureArgs...)
 	teleportNodeConfigureCmdOutput, err := teleportNodeConfigureCmd.CombinedOutput()
