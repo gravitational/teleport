@@ -109,16 +109,7 @@ func (fw *filteringResponseWriter) tryStreaming() bool {
 	}
 
 	contentEncoding := fw.headers.Get("Content-Encoding")
-	pr, pw := io.Pipe()
-	src, dst, err := wrapContentEncoding(pr, fw.target, contentEncoding)
-	if err != nil {
-		pr.Close()
-		pw.Close()
-		if !trace.IsBadParameter(err) {
-			fw.body = io.Discard
-			fw.filterErr = trace.ConnectionProblem(err, "failed to initialize content encoding wrapper for %q", contentEncoding)
-			return true
-		}
+	if contentEncoding != "" && contentEncoding != "identity" && contentEncoding != "gzip" {
 		fw.log.WarnContext(fw.ctx, "Unexpected Content-Encoding, falling back to buffered filter", "content_encoding", contentEncoding)
 		return false
 	}
@@ -127,12 +118,22 @@ func (fw *filteringResponseWriter) tryStreaming() bool {
 	fw.target.Header().Del("Content-Length")
 	fw.target.WriteHeader(fw.status)
 
+	pr, pw := io.Pipe()
 	fw.pipeReader = pr
 	fw.pipeWriter = pw
 	fw.streaming = true
 	fw.body = pw
 
+	// wrapContentEncoding is called inside the goroutine because gzip.NewReader
+	// reads the gzip header from the pipe, which blocks until Write provides data.
+	// Calling it here in WriteHeader would deadlock.
 	go func() {
+		src, dst, err := wrapContentEncoding(pr, fw.target, contentEncoding)
+		if err != nil {
+			fw.filterErr = trace.ConnectionProblem(err, "failed to initialize content encoding wrapper for %q", contentEncoding)
+			fw.log.ErrorContext(fw.ctx, "Streaming filter content encoding setup failed", "error", fw.filterErr)
+			return
+		}
 		filterErr := sf.Filter(src, dst)
 		fw.filterErr = trace.NewAggregate(filterErr, dst.Close(), src.Close())
 		if fw.filterErr != nil {
