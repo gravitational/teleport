@@ -496,4 +496,3 @@ func TestFilter_streaming(t *testing.T) {
 		require.Equal(t, []string{"default/nginx", "default/redis"}, names)
 	})
 }
-

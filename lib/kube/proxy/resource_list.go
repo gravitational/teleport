@@ -352,4 +352,3 @@ func isRequestTargetedToPod(req *http.Request, kube apiResource) string {
 
 	return ""
 }
-
