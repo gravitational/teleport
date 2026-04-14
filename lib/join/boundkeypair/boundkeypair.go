@@ -236,18 +236,18 @@ func (m *consumeRecoveryMutator) validate(
 	// Ensure we have the expected number of rejoins left to prevent going
 	// below zero.
 	if status.RecoveryCount != m.expectRecoveryCount {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (recovery_count)")
 	}
 
 	if spec.Recovery == nil {
 		// Token is invalid, reject
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (recovery_count)")
 	}
 
 	// Ensure the allowed join count has at least not decreased, but allow
 	// for collision with potentially increased values.
 	if spec.Recovery.Limit < m.expectMinRecoveryLimit {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (recovery_count)")
 	}
 
 	return nil
@@ -293,7 +293,7 @@ func (m *boundPublicKeyMutator) validate(
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
 	if status.BoundPublicKey != m.expectPreviousKey {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (bound_public_key)")
 	}
 
 	return nil
@@ -333,12 +333,12 @@ func (m *boundBotInstanceMutator) validate(
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
 	if status.BoundBotInstanceID != m.expectPreviousBotInstance {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (bound_bot_instance_id)")
 	}
 
 	// Bound bot instance IDs are mutually exclusive with bound host IDs
 	if status.BoundHostID != "" {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (bound_bot_instance_id)")
 	}
 
 	return nil
@@ -378,12 +378,12 @@ func (m *boundHostIDMutator) validate(
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
 	if status.BoundHostID != m.expectPreviousHostID {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (bound_host_id)")
 	}
 
 	// Bound bot instance IDs are mutually exclusive to bound host IDs
 	if status.BoundBotInstanceID != "" {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (bound_host_id)")
 	}
 
 	return nil
@@ -440,7 +440,7 @@ func (m *lastRotatedAtMutator) validate(
 	// If the field differs from the expected value in any way, reject
 	// E.g. nil vs not nil, or the value itself differs.
 	if !timePointerEqual(m.expectPrevValue, status.LastRotatedAt) {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (last_rotated_at)")
 	}
 
 	return nil
@@ -483,7 +483,7 @@ func (m *clearRegistrationSecretMutator) validate(
 	status *types.ProvisionTokenStatusV2BoundKeypair,
 ) error {
 	if status.RegistrationSecret != m.oldValue {
-		return trace.AccessDenied("unexpected backend state")
+		return trace.AccessDenied("unexpected backend state (registration_secret)")
 	}
 
 	return nil
