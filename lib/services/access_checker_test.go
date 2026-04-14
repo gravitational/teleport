@@ -924,6 +924,45 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_
 	)
 }
 
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckAccess_RoleRequiresMFA_ForceInBandMFAEnv_AllowsVerifiedLegacyMFA(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	err = accessChecker.CheckAccess(
+		node,
+		AccessState{
+			MFARequired: MFARequiredPerRole,
+			MFAVerified: true, // Simulate MFA has been verified via the legacy out-of-band MFA flow.
+		},
+	)
+	require.NoError(t, err)
+}
+
 func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
