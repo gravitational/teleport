@@ -9011,9 +9011,10 @@ message JamfSpecV1 {
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
 message JamfInventoryEntry {
   option (gogoproto.equal) = true;
-  // Jamf Pro API RSQL filter, used when querying endpoints like
-  // "/api/v1/computers-inventory".
-  // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+  // Jamf Pro API RSQL filter. The set of filterable fields depends on device_type:
+  // - "computers": see https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+  // - "mobile_devices": see https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-detail.
+  // Empty means no filter is applied.
   string filter_rsql = 1 [(gogoproto.jsontag) = "filter_rsql,omitempty"];
   // Sync period for PARTIAL syncs.
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
@@ -9042,6 +9043,12 @@ message JamfInventoryEntry {
   // Custom page size for inventory queries.
   // A server default is used if zeroed or negative.
   int32 page_size = 5 [(gogoproto.jsontag) = "page_size,omitempty"];
+  // device_type is the Jamf device type to sync.
+  // Valid values are "computers" and "mobile_devices". If empty, defaults to
+  // "computers".
+  //
+  // To sync more than one device type, add multiple inventory entries.
+  string device_type = 6 [(gogoproto.jsontag) = "device_type,omitempty"];
 }
 
 // MessageWithHeader is a message with a resource header. This is used primarily
