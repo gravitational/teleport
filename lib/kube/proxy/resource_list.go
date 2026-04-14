@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/kube/proxy/streamfilter"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -140,97 +138,13 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return rw.Status(), nil
 	}
 
-	// Filtering is needed. Pipe the upstream response through so we can
-	// inspect headers and choose the filter path without buffering the body.
-	pipeReader, pipeWriter := io.Pipe()
-	hc := newHeaderCapturer(pipeWriter)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		defer pipeWriter.Close()
-		sess.forwarder.ServeHTTP(hc, req)
-	}()
-	defer func() {
-		pipeReader.Close()
-		<-done
-	}()
-
-	// Wait for upstream to send headers.
-	select {
-	case <-hc.wroteHeader:
-	case <-done:
-		if hc.status == 0 {
-			return http.StatusBadGateway, trace.ConnectionProblem(nil, "upstream closed without response")
-		}
-	}
-
-	status := hc.status
-	contentType := responsewriters.GetContentTypeHeader(hc.headers)
-	contentEncoding := hc.headers.Get("Content-Encoding")
-
-	// For successful list responses with a streaming filter implementation,
-	// filter directly to the client without buffering the entire response.
+	// Filtering is needed. Use a filtering response writer that inspects headers
+	// and routes the body to either the streaming or buffered filter path.
 	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
-	if status == http.StatusOK {
-		sf := streamfilter.New(contentType, matcher)
-		if sf != nil {
-			src, dst, compErr := wrapContentEncoding(pipeReader, w, contentEncoding)
-			if compErr != nil {
-				if trace.IsBadParameter(compErr) {
-					// Kubernetes API servers only use gzip today.
-					// If a new encoding appears, add support in wrapContentEncoding.
-					f.log.WarnContext(ctx, "Unexpected Content-Encoding, falling back to buffered filter", "content_encoding", contentEncoding)
-				} else {
-					return status, trace.ConnectionProblem(compErr, "failed to initialize content encoding wrapper for %q", contentEncoding)
-				}
-			} else {
-				maps.Copy(w.Header(), hc.headers)
-				w.Header().Del("Content-Length")
-				w.WriteHeader(status)
-
-				filterErr := sf.Filter(src, dst)
-
-				// Once headers are sent, we can't signal errors to the client.
-				// A mid-stream failure results in a truncated response.
-				// Log instead of returning the error to prevent the caller from
-				// attempting to write an error response over the already-committed stream.
-				if streamErr := trace.NewAggregate(filterErr, dst.Close(), src.Close()); streamErr != nil {
-					f.log.ErrorContext(ctx, "Streaming filter failed mid-write, client received truncated response", "error", streamErr)
-				}
-				return status, nil // No error returned
-			}
-		}
-	}
-
-	// Buffered fallback for non-200, unsupported content type, or unsupported encoding.
-	memBuffer := responsewriters.NewMemoryResponseWriter()
-	maps.Copy(memBuffer.Header(), hc.headers)
-	memBuffer.WriteHeader(status)
-	if _, copyErr := io.Copy(memBuffer.Buffer(), pipeReader); copyErr != nil {
-		return status, trace.Wrap(copyErr)
-	}
-
-	// filterBuffer filters the response to exclude resources the user doesn't have access to.
-	// The filtered payload will be written into memBuffer again.
-	_, filterSpan := f.cfg.tracer.Start(ctx, "kube.Forwarder/listResourcesList/filterBuffer",
-		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCSystemKey.String("kube"),
-		),
-	)
 	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
-	if err := filterBuffer(filterWrapper, memBuffer); err != nil {
-		filterSpan.End()
-		return memBuffer.Status(), trace.Wrap(err)
-	}
-	filterSpan.End()
-
-	// Copy the filtered payload into target http.ResponseWriter.
-	err := memBuffer.CopyInto(w)
-
-	// Returns the status and any filter error.
-	return memBuffer.Status(), trace.Wrap(err)
+	fw := newFilteringResponseWriter(w, matcher, filterWrapper, f.log, ctx, f.cfg.tracer, f.cfg.KubeServiceType)
+	sess.forwarder.ServeHTTP(fw, req)
+	return fw.Finish()
 }
 
 // matchListRequestShouldBeAllowed assess whether the user is permitted to perform its request
@@ -439,41 +353,3 @@ func isRequestTargetedToPod(req *http.Request, kube apiResource) string {
 	return ""
 }
 
-// headerCapturer is an http.ResponseWriter that captures headers and status,
-// then streams the body to an io.Writer.
-type headerCapturer struct {
-	body        io.Writer
-	headers     http.Header
-	status      int
-	once        sync.Once
-	wroteHeader chan struct{} // closed once headers are captured; used as a signal
-}
-
-func newHeaderCapturer(body io.Writer) *headerCapturer {
-	return &headerCapturer{
-		body:        body,
-		headers:     make(http.Header),
-		wroteHeader: make(chan struct{}),
-	}
-}
-
-func (h *headerCapturer) Header() http.Header {
-	return h.headers
-}
-
-func (h *headerCapturer) WriteHeader(statusCode int) {
-	h.once.Do(func() {
-		h.status = statusCode
-		close(h.wroteHeader)
-	})
-}
-
-func (h *headerCapturer) Write(b []byte) (int, error) {
-	h.WriteHeader(http.StatusOK)
-	return h.body.Write(b)
-}
-
-// Flush implements http.Flusher.
-// The reverse proxy checks for this interface and calls Flush after writes for streaming responses.
-// Since our body is an io.Pipe (synchronous), this is a no-op.
-func (h *headerCapturer) Flush() {}

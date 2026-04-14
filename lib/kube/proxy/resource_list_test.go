@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"testing"
 	"text/template"
 
@@ -36,92 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamfilter"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func Test_headerCapturer(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		setup func(hc *headerCapturer)
-		check func(t *testing.T, hc *headerCapturer, body *bytes.Buffer)
-	}{
-		{
-			name: "captures headers and status",
-			setup: func(hc *headerCapturer) {
-				hc.Header().Set("Content-Type", "application/json")
-				hc.WriteHeader(201)
-			},
-			check: func(t *testing.T, hc *headerCapturer, _ *bytes.Buffer) {
-				require.Equal(t, 201, hc.status)
-				require.Equal(t, "application/json", hc.headers.Get("Content-Type"))
-			},
-		},
-		{
-			name: "WriteHeader called twice keeps first",
-			setup: func(hc *headerCapturer) {
-				hc.WriteHeader(200)
-				hc.WriteHeader(404)
-			},
-			check: func(t *testing.T, hc *headerCapturer, _ *bytes.Buffer) {
-				require.Equal(t, 200, hc.status)
-			},
-		},
-		{
-			name: "Write triggers implicit 200",
-			setup: func(hc *headerCapturer) {
-				hc.Write([]byte("hello"))
-			},
-			check: func(t *testing.T, hc *headerCapturer, _ *bytes.Buffer) {
-				require.Equal(t, http.StatusOK, hc.status)
-			},
-		},
-		{
-			name: "body written to underlying writer",
-			setup: func(hc *headerCapturer) {
-				hc.Write([]byte("hello world"))
-			},
-			check: func(t *testing.T, _ *headerCapturer, body *bytes.Buffer) {
-				require.Equal(t, "hello world", body.String())
-			},
-		},
-		{
-			name: "wroteHeader channel closed on WriteHeader",
-			setup: func(hc *headerCapturer) {
-				hc.WriteHeader(200)
-			},
-			check: func(t *testing.T, hc *headerCapturer, _ *bytes.Buffer) {
-				select {
-				case <-hc.wroteHeader:
-				default:
-					t.Fatal("wroteHeader channel not closed")
-				}
-			},
-		},
-		{
-			name: "wroteHeader channel closed on Write",
-			setup: func(hc *headerCapturer) {
-				hc.Write([]byte("x"))
-			},
-			check: func(t *testing.T, hc *headerCapturer, _ *bytes.Buffer) {
-				select {
-				case <-hc.wroteHeader:
-				default:
-					t.Fatal("wroteHeader channel not closed")
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
-			hc := newHeaderCapturer(&buf)
-			tt.setup(hc)
-			tt.check(t, hc, &buf)
-		})
-	}
-}
 
 func Test_jsonStreamFilter_roundTrip(t *testing.T) {
 	t.Parallel()
