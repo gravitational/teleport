@@ -160,8 +160,6 @@ func TestAutoDiscoverNode_CheckAndSetDefaults(t *testing.T) {
 			conf := tt.initial
 			err := conf.checkAndSetDefaults()
 			require.NoError(t, err)
-			require.Equal(t, 5*time.Second, conf.readyzPollInterval)
-			require.Equal(t, 5*time.Minute, conf.readyzPollTimeout)
 			require.Equal(t, tt.expected, conf)
 		})
 	}
