@@ -106,6 +106,11 @@ func (a *AutoDiscoverNodeInstaller) gatherServiceDiagnostics(ctx context.Context
 		"SubState":    "unknown",
 		"Result":      "unknown",
 	}
+	// systemctl show outputs properties in "Key=Value" format, one per line.
+	// Example output:
+	//   ActiveState=active
+	//   SubState=running
+	//   Result=success
 	for line := range strings.SplitSeq(strings.TrimSpace(stdoutBuf.String()), "\n") {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
@@ -163,7 +168,7 @@ func (a *AutoDiscoverNodeInstaller) getServiceInvocationID(ctx context.Context, 
 
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			a.Logger.DebugContext(ctx, "Failed to retrieve service invocation ID (systemctl show exited non-zero)",
+			a.Logger.DebugContext(ctx, `Failed to retrieve service invocation ID ("systemctl show" exited non-zero)`,
 				"service", serviceName,
 				"exit_code", exitErr.ExitCode(),
 				"stdout", stdout,
@@ -269,8 +274,8 @@ func (a *AutoDiscoverNodeInstaller) runSystemctlCommand(ctx context.Context, arg
 		}
 
 		return trace.Wrap(err,
-			"failed to execute systemctl %s (stdout: %s, stderr: %s)",
-			strings.Join(args, " "),
+			"failed to execute %q (stdout: %s, stderr: %s)",
+			cmd,
 			stdout,
 			stderr,
 		)
