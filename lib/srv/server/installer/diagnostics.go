@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"strings"
 
+	systemddbus "github.com/coreos/go-systemd/v22/dbus"
 	"github.com/gravitational/trace"
 )
 
@@ -69,61 +70,90 @@ const (
 	defaultServiceDiagnosticsUnavailable = "systemd service state: unavailable"
 )
 
+type systemdPropertyGetter func(context.Context, string, string) (*systemddbus.Property, error)
+
+// openSystemdConn opens a systemd D-Bus connection. When newSystemdConn is set
+// (by tests), it uses that override instead of the real D-Bus.
+func (a *AutoDiscoverNodeInstaller) openSystemdConn(ctx context.Context) (dbusConn, error) {
+	if a.newSystemdConn != nil {
+		return a.newSystemdConn(ctx)
+	}
+
+	return systemddbus.NewWithContext(ctx)
+}
+
+// getDBusStringProperty returns a non-empty string property value from systemd.
+// It returns ok=false when the property cannot be retrieved, is missing, is not
+// a string, or is empty. All failure modes are logged at debug level.
+func (a *AutoDiscoverNodeInstaller) getDBusStringProperty(ctx context.Context, getter systemdPropertyGetter, serviceName, propertyName string) (string, bool) {
+	prop, err := getter(ctx, serviceName, propertyName)
+	if err != nil {
+		a.Logger.DebugContext(ctx, "Could not retrieve systemd property",
+			"service", serviceName,
+			"property", propertyName,
+			"error", err,
+		)
+		return "", false
+	}
+	if prop == nil {
+		a.Logger.DebugContext(ctx, "Systemd property lookup returned no value",
+			"service", serviceName,
+			"property", propertyName,
+		)
+		return "", false
+	}
+
+	raw := prop.Value.Value()
+	value, ok := raw.(string)
+	if !ok {
+		a.Logger.DebugContext(ctx, "Ignoring non-string systemd property",
+			"service", serviceName,
+			"property", propertyName,
+			"value_type", fmt.Sprintf("%T", raw),
+		)
+		return "", false
+	}
+	if value == "" {
+		a.Logger.DebugContext(ctx, "Ignoring empty systemd property",
+			"service", serviceName,
+			"property", propertyName,
+		)
+		return "", false
+	}
+
+	return value, true
+}
+
 // gatherServiceDiagnostics returns a one-shot best-effort systemd snapshot (ActiveState,
 // SubState, and Result) for join-failure diagnostics. It never returns an error.
 func (a *AutoDiscoverNodeInstaller) gatherServiceDiagnostics(ctx context.Context, serviceName string) string {
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Systemctl,
-		"show", serviceName,
-		"--property", "ActiveState",
-		"--property", "SubState",
-		"--property", "Result",
-	)
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	if err := cmd.Run(); err != nil {
+	conn, err := a.openSystemdConn(ctx)
+	if err != nil {
 		if ctx.Err() != nil {
 			return defaultServiceDiagnosticsUnavailable
 		}
 
-		stderr := strings.TrimSpace(stderrBuf.String())
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			// systemctl show exited non-zero (e.g. unknown service); stdout
-			// may still contain partial output, so fall through to parse it.
-			a.Logger.DebugContext(ctx, `"systemctl show" exited non-zero while gathering service diagnostics`,
-				"service", serviceName, "exit_code", exitErr.ExitCode(), "stderr", stderr)
-		} else {
-			// Infrastructure error (binary not found, permission denied, etc.).
-			a.Logger.DebugContext(ctx, "Could not gather service diagnostics",
-				"service", serviceName, "error", err, "stderr", stderr)
-			return defaultServiceDiagnosticsUnavailable
-		}
+		a.Logger.DebugContext(ctx, "Could not connect to systemd D-Bus while gathering service diagnostics",
+			"service", serviceName,
+			"error", err,
+		)
+		return defaultServiceDiagnosticsUnavailable
 	}
+	defer conn.Close()
 
 	diagnostics := map[string]string{
 		"ActiveState": "unknown",
 		"SubState":    "unknown",
 		"Result":      "unknown",
 	}
-	// systemctl show outputs properties in "Key=Value" format, one per line.
-	// Example output:
-	//   ActiveState=active
-	//   SubState=running
-	//   Result=success
-	for line := range strings.SplitSeq(strings.TrimSpace(stdoutBuf.String()), "\n") {
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		if value == "" {
-			continue
-		}
-
-		diagnostics[key] = value
+	if value, ok := a.getDBusStringProperty(ctx, conn.GetUnitPropertyContext, serviceName, "ActiveState"); ok {
+		diagnostics["ActiveState"] = value
+	}
+	if value, ok := a.getDBusStringProperty(ctx, conn.GetUnitPropertyContext, serviceName, "SubState"); ok {
+		diagnostics["SubState"] = value
+	}
+	if value, ok := a.getDBusStringProperty(ctx, conn.GetServicePropertyContext, serviceName, "Result"); ok {
+		diagnostics["Result"] = value
 	}
 
 	return fmt.Sprintf("systemd service state: ActiveState=%q, SubState=%q, Result=%q", diagnostics["ActiveState"], diagnostics["SubState"], diagnostics["Result"])
@@ -153,36 +183,63 @@ func buildJournalctlArgs(serviceName, invocationID string) []string {
 	return args
 }
 
+// getServiceInvocationID retrieves a validated systemd InvocationID for serviceName.
+// It returns ("", nil) when the ID is unavailable, invalid, or cannot be retrieved.
+// It returns a non-nil error only if ctx is canceled or expires.
 func (a *AutoDiscoverNodeInstaller) getServiceInvocationID(ctx context.Context, serviceName string) (string, error) {
-	cmd := exec.CommandContext(ctx, a.binariesLocation.Systemctl, "show", serviceName, "--property", "InvocationID", "--value")
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-	err := cmd.Run()
-	stdout := strings.TrimSpace(stdoutBuf.String())
-	stderr := strings.TrimSpace(stderrBuf.String())
+	conn, err := a.openSystemdConn(ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return "", trace.Wrap(ctxErr)
 		}
 
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			a.Logger.DebugContext(ctx, `Failed to retrieve service invocation ID ("systemctl show" exited non-zero)`,
-				"service", serviceName,
-				"exit_code", exitErr.ExitCode(),
-				"stdout", stdout,
-				"stderr", stderr,
-			)
-			return "", nil
+		a.Logger.DebugContext(ctx, "Could not connect to systemd D-Bus while retrieving service invocation ID",
+			"service", serviceName,
+			"error", err,
+		)
+		return "", nil
+	}
+	defer conn.Close()
+
+	prop, err := conn.GetUnitPropertyContext(ctx, serviceName, "InvocationID")
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", trace.Wrap(ctxErr)
 		}
 
-		a.Logger.DebugContext(ctx, "Could not retrieve service invocation ID", "service", serviceName, "error", err, "stdout", stdout, "stderr", stderr)
+		a.Logger.DebugContext(ctx, "Could not retrieve service invocation ID",
+			"service", serviceName,
+			"error", err,
+		)
+		return "", nil
+	}
+	if prop == nil {
+		a.Logger.DebugContext(ctx, "Service invocation ID lookup returned no value",
+			"service", serviceName,
+		)
 		return "", nil
 	}
 
-	invocationID := stdout
-	if invocationID == "" || strings.EqualFold(invocationID, "n/a") {
+	var invocationID string
+	switch value := prop.Value.Value().(type) {
+	case []byte:
+		if len(value) == 0 {
+			a.Logger.DebugContext(ctx, "Ignoring empty service invocation ID",
+				"service", serviceName,
+			)
+			return "", nil
+		}
+		invocationID = hex.EncodeToString(value)
+	case string:
+		if value == "" || strings.EqualFold(value, "n/a") {
+			return "", nil
+		}
+		invocationID = value
+	default:
+		a.Logger.DebugContext(ctx, "Ignoring invalid service invocation ID type",
+			"service", serviceName,
+			"value_type", fmt.Sprintf("%T", value),
+		)
 		return "", nil
 	}
 

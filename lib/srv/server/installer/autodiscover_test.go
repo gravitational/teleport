@@ -251,6 +251,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, "/opt/teleport/example-suffix/bin/teleport", ani.binariesLocation.Teleport)
+			require.Equal(t, "teleport_example-suffix.service", ani.buildTeleportSystemdUnitName())
 		})
 	})
 
@@ -331,8 +332,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 						c.Exit(0)
 					})
 
-					mockBins["systemctl"].Expect("enable", "teleport")
-					mockBins["systemctl"].Expect("restart", "teleport")
+					mockBins["systemctl"].Expect("enable", "teleport.service")
+					mockBins["systemctl"].Expect("restart", "teleport.service")
 
 					require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -407,8 +408,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		mockBins["systemctl"].Expect("enable", "teleport_example-suffix")
-		mockBins["systemctl"].Expect("restart", "teleport_example-suffix")
+		mockBins["systemctl"].Expect("enable", "teleport_example-suffix.service")
+		mockBins["systemctl"].Expect("restart", "teleport_example-suffix.service")
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -485,8 +486,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		mockBins["systemctl"].Expect("enable", "teleport")
-		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["systemctl"].Expect("enable", "teleport.service")
+		mockBins["systemctl"].Expect("restart", "teleport.service")
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -568,8 +569,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		mockBins["systemctl"].Expect("enable", "teleport")
-		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["systemctl"].Expect("enable", "teleport.service")
+		mockBins["systemctl"].Expect("restart", "teleport.service")
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 
@@ -678,8 +679,8 @@ func TestAutoDiscoverNode(t *testing.T) {
 			c.Exit(0)
 		})
 
-		mockBins["systemctl"].Expect("enable", "teleport")
-		mockBins["systemctl"].Expect("restart", "teleport")
+		mockBins["systemctl"].Expect("enable", "teleport.service")
+		mockBins["systemctl"].Expect("restart", "teleport.service")
 
 		require.NoError(t, teleportInstaller.Install(ctx))
 

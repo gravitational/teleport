@@ -20,12 +20,14 @@ package installer
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"testing"
 
 	"github.com/buildkite/bintest/v3"
+	systemddbus "github.com/coreos/go-systemd/v22/dbus"
+	godbus "github.com/godbus/dbus/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,23 +102,6 @@ func newBintestMock(t *testing.T, name string) *bintest.Mock {
 	return mock
 }
 
-func expectSystemctlShowInvocationID(systemctlMock *bintest.Mock, serviceName, invocationID, stderr string) {
-	call := systemctlMock.Expect("show", serviceName, "--property", "InvocationID", "--value")
-	if invocationID == "" && stderr == "" {
-		return
-	}
-
-	call.AndCallFunc(func(c *bintest.Call) {
-		if stderr != "" {
-			fmt.Fprintln(c.Stderr, stderr)
-		}
-		if invocationID != "" {
-			fmt.Fprintln(c.Stdout, invocationID)
-		}
-		c.Exit(0)
-	})
-}
-
 func expectJournalctlCall(journalctlMock *bintest.Mock, serviceName, invocationID, stdoutOutput, stderrOutput string) {
 	args := buildJournalctlArgs(serviceName, invocationID)
 	callArgs := make([]any, 0, len(args))
@@ -139,69 +124,181 @@ func expectJournalctlCall(journalctlMock *bintest.Mock, serviceName, invocationI
 	})
 }
 
+type mockDBusConn struct {
+	expectedServiceName string
+	unitProperties      map[string]*systemddbus.Property
+	serviceProperties   map[string]*systemddbus.Property
+	unitErrors          map[string]error
+	serviceErrors       map[string]error
+	closed              bool
+}
+
+func (m *mockDBusConn) GetUnitPropertyContext(_ context.Context, serviceName, propertyName string) (*systemddbus.Property, error) {
+	if m.expectedServiceName != "" {
+		if serviceName != m.expectedServiceName {
+			return nil, fmt.Errorf("unexpected service name %q", serviceName)
+		}
+	}
+	if err := m.unitErrors[propertyName]; err != nil {
+		return nil, err
+	}
+	return m.unitProperties[propertyName], nil
+}
+
+func (m *mockDBusConn) GetServicePropertyContext(_ context.Context, serviceName, propertyName string) (*systemddbus.Property, error) {
+	if m.expectedServiceName != "" {
+		if serviceName != m.expectedServiceName {
+			return nil, fmt.Errorf("unexpected service name %q", serviceName)
+		}
+	}
+	if err := m.serviceErrors[propertyName]; err != nil {
+		return nil, err
+	}
+	return m.serviceProperties[propertyName], nil
+}
+
+func (m *mockDBusConn) Close() {
+	m.closed = true
+}
+
+func newDBusProperty(name string, value any) *systemddbus.Property {
+	return &systemddbus.Property{Name: name, Value: godbus.MakeVariant(value)}
+}
+
 func TestCaptureJournalFiltersByInvocationID(t *testing.T) {
 	t.Parallel()
 
 	invocationID := "0123456789abcdef0123456789abcdef"
-	systemctlMock := newBintestMock(t, "systemctl")
+	invocationBytes, err := hex.DecodeString(invocationID)
+	require.NoError(t, err)
+	mockConn := &mockDBusConn{
+		expectedServiceName: "teleport.service",
+		unitProperties: map[string]*systemddbus.Property{
+			"InvocationID": newDBusProperty("InvocationID", invocationBytes),
+		},
+	}
 	journalctlMock := newBintestMock(t, "journalctl")
-	expectSystemctlShowInvocationID(systemctlMock, "teleport", invocationID, "systemctl warning")
-	expectJournalctlCall(journalctlMock, "teleport", invocationID, "--unit teleport --no-pager --lines 50 _SYSTEMD_INVOCATION_ID="+invocationID, "")
+	expectJournalctlCall(journalctlMock, "teleport.service", invocationID, "--unit teleport.service --no-pager --lines 50 _SYSTEMD_INVOCATION_ID="+invocationID, "")
 
 	installer := &AutoDiscoverNodeInstaller{
 		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
 			Logger: slog.Default(),
 			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  systemctlMock.Path,
 				Journalctl: journalctlMock.Path,
+			},
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
 			},
 		},
 	}
 
-	got, err := installer.captureJournal(context.Background(), "teleport")
+	got, err := installer.captureJournal(context.Background(), "teleport.service")
 	require.NoError(t, err)
 	require.Contains(t, got, "_SYSTEMD_INVOCATION_ID="+invocationID)
-	require.Contains(t, got, "--unit teleport")
-	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
+	require.Contains(t, got, "--unit teleport.service")
+	require.True(t, mockConn.closed)
 	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
 
 func TestCaptureJournalFallsBackWithoutInvocationID(t *testing.T) {
 	t.Parallel()
 
-	systemctlMock := newBintestMock(t, "systemctl")
+	mockConn := &mockDBusConn{
+		expectedServiceName: "teleport.service",
+		unitProperties: map[string]*systemddbus.Property{
+			"InvocationID": newDBusProperty("InvocationID", "active"),
+		},
+	}
 	journalctlMock := newBintestMock(t, "journalctl")
-	expectSystemctlShowInvocationID(systemctlMock, "teleport", "active", "")
-	expectJournalctlCall(journalctlMock, "teleport", "", "--unit teleport --no-pager --lines 50", "")
+	expectJournalctlCall(journalctlMock, "teleport.service", "", "--unit teleport.service --no-pager --lines 50", "")
 
 	installer := &AutoDiscoverNodeInstaller{
 		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
 			Logger: slog.Default(),
 			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  systemctlMock.Path,
 				Journalctl: journalctlMock.Path,
+			},
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
 			},
 		},
 	}
 
-	got, err := installer.captureJournal(context.Background(), "teleport")
+	got, err := installer.captureJournal(context.Background(), "teleport.service")
 	require.NoError(t, err)
 	require.NotContains(t, got, "_SYSTEMD_INVOCATION_ID=")
-	require.Contains(t, got, "--unit teleport")
-	require.True(t, systemctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "systemctl")
+	require.Contains(t, got, "--unit teleport.service")
+	require.True(t, mockConn.closed)
+	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
+}
+
+func TestCaptureJournalFallsBackWithoutInvocationIDOnNilProp(t *testing.T) {
+	t.Parallel()
+
+	mockConn := &mockDBusConn{expectedServiceName: "teleport.service"}
+	journalctlMock := newBintestMock(t, "journalctl")
+	expectJournalctlCall(journalctlMock, "teleport.service", "", "--unit teleport.service --no-pager --lines 50", "")
+
+	installer := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger: slog.Default(),
+			binariesLocation: packagemanager.BinariesLocation{
+				Journalctl: journalctlMock.Path,
+			},
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
+			},
+		},
+	}
+
+	got, err := installer.captureJournal(context.Background(), "teleport.service")
+	require.NoError(t, err)
+	require.NotContains(t, got, "_SYSTEMD_INVOCATION_ID=")
+	require.Contains(t, got, "--unit teleport.service")
+	require.True(t, mockConn.closed)
+	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
+}
+
+func TestCaptureJournalFallsBackWithoutInvocationIDOnEmptyBytes(t *testing.T) {
+	t.Parallel()
+
+	mockConn := &mockDBusConn{
+		expectedServiceName: "teleport.service",
+		unitProperties: map[string]*systemddbus.Property{
+			"InvocationID": newDBusProperty("InvocationID", []byte{}),
+		},
+	}
+	journalctlMock := newBintestMock(t, "journalctl")
+	expectJournalctlCall(journalctlMock, "teleport.service", "", "--unit teleport.service --no-pager --lines 50", "")
+
+	installer := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger: slog.Default(),
+			binariesLocation: packagemanager.BinariesLocation{
+				Journalctl: journalctlMock.Path,
+			},
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
+			},
+		},
+	}
+
+	got, err := installer.captureJournal(context.Background(), "teleport.service")
+	require.NoError(t, err)
+	require.NotContains(t, got, "_SYSTEMD_INVOCATION_ID=")
+	require.Contains(t, got, "--unit teleport.service")
+	require.True(t, mockConn.closed)
 	require.True(t, journalctlMock.Check(t), "mismatch between expected invocations and actual calls for %q", "journalctl")
 }
 
 func TestCaptureJournalPropagatesContextCancellation(t *testing.T) {
 	t.Parallel()
 
-	mockDir := t.TempDir()
 	installer := &AutoDiscoverNodeInstaller{
 		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
 			Logger: slog.Default(),
-			binariesLocation: packagemanager.BinariesLocation{
-				Systemctl:  filepath.Join(mockDir, "missing-systemctl"),
-				Journalctl: filepath.Join(mockDir, "missing-journalctl"),
+			newSystemdConn: func(ctx context.Context) (dbusConn, error) {
+				return nil, ctx.Err()
 			},
 		},
 	}
@@ -209,8 +306,82 @@ func TestCaptureJournalPropagatesContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	got, err := installer.captureJournal(ctx, "teleport")
+	got, err := installer.captureJournal(ctx, "teleport.service")
 	require.Empty(t, got)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGatherServiceDiagnosticsUsesDBusProperties(t *testing.T) {
+	t.Parallel()
+
+	mockConn := &mockDBusConn{
+		expectedServiceName: "teleport.service",
+		unitProperties: map[string]*systemddbus.Property{
+			"ActiveState": newDBusProperty("ActiveState", "failed"),
+			"SubState":    newDBusProperty("SubState", "exited"),
+		},
+		serviceProperties: map[string]*systemddbus.Property{
+			"Result": newDBusProperty("Result", "exit-code"),
+		},
+	}
+
+	installer := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger: slog.Default(),
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
+			},
+		},
+	}
+
+	got := installer.gatherServiceDiagnostics(context.Background(), "teleport.service")
+	require.Equal(t, `systemd service state: ActiveState="failed", SubState="exited", Result="exit-code"`, got)
+	require.True(t, mockConn.closed)
+}
+
+func TestGatherServiceDiagnosticsHandlesPartialDBusFailures(t *testing.T) {
+	t.Parallel()
+
+	mockConn := &mockDBusConn{
+		expectedServiceName: "teleport.service",
+		unitProperties: map[string]*systemddbus.Property{
+			"ActiveState": newDBusProperty("ActiveState", "failed"),
+		},
+		serviceProperties: map[string]*systemddbus.Property{
+			"Result": newDBusProperty("Result", "exit-code"),
+		},
+		unitErrors: map[string]error{
+			"SubState": assert.AnError,
+		},
+	}
+
+	installer := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger: slog.Default(),
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return mockConn, nil
+			},
+		},
+	}
+
+	got := installer.gatherServiceDiagnostics(context.Background(), "teleport.service")
+	require.Equal(t, `systemd service state: ActiveState="failed", SubState="unknown", Result="exit-code"`, got)
+	require.True(t, mockConn.closed)
+}
+
+func TestGatherServiceDiagnosticsFallsBackWhenDBusUnavailable(t *testing.T) {
+	t.Parallel()
+
+	installer := &AutoDiscoverNodeInstaller{
+		AutoDiscoverNodeInstallerConfig: &AutoDiscoverNodeInstallerConfig{
+			Logger: slog.Default(),
+			newSystemdConn: func(context.Context) (dbusConn, error) {
+				return nil, assert.AnError
+			},
+		},
+	}
+
+	got := installer.gatherServiceDiagnostics(context.Background(), "teleport.service")
+	require.Equal(t, defaultServiceDiagnosticsUnavailable, got)
 }

@@ -33,8 +33,10 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
+	systemddbus "github.com/coreos/go-systemd/v22/dbus"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
@@ -158,7 +160,19 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// journal is a function called to capture recent journal output.
 	// If undefined, it's set to captureJournal.
 	journal func(ctx context.Context, serviceName string) (string, error)
+
+	// newSystemdConn creates a systemd connection for diagnostics collection.
+	// Used for testing.
+	newSystemdConn func(context.Context) (dbusConn, error)
 }
+
+type dbusConn interface {
+	GetUnitPropertyContext(context.Context, string, string) (*systemddbus.Property, error)
+	GetServicePropertyContext(context.Context, string, string) (*systemddbus.Property, error)
+	Close()
+}
+
+var _ dbusConn = (*systemddbus.Conn)(nil)
 
 func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	if c == nil {
@@ -396,8 +410,8 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	serviceName := a.buildTeleportSystemdUnitName()
 	deadline := time.Now().Add(a.readyzPollTimeout)
 
-	// Run the first check immediately, then poll on a reusable timer. Unexpected (non-transient)
-	// errors from check are saved but do not abort the loop; they are surfaced in the timeout diagnostics.
+	// Run the first check immediately. Unexpected (non-transient) errors from check
+	// are saved but do not abort the loop; they are surfaced in the timeout diagnostics.
 	var lastUnexpectedErr error
 	ready, err := a.readyzChecker.check(ctx)
 	if err != nil {
@@ -406,15 +420,28 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 		}
 		lastUnexpectedErr = err
 	}
+	if ready {
+		return nil
+	}
 
+	// Poll on a reusable timer until the node becomes ready or the deadline elapses.
 	pollTimer := time.NewTimer(a.readyzPollInterval)
 	defer pollTimer.Stop()
 
-	for !ready {
-		if !time.Now().Before(deadline) {
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
 			break
 		}
-		pollTimer.Reset(min(a.readyzPollInterval, time.Until(deadline)))
+
+		if !pollTimer.Stop() {
+			select {
+			case <-pollTimer.C:
+			default:
+			}
+		}
+		pollTimer.Reset(min(a.readyzPollInterval, remaining))
+
 		select {
 		case <-pollTimer.C:
 			ready, err = a.readyzChecker.check(ctx)
@@ -423,14 +450,14 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 					return trace.Wrap(ctx.Err())
 				}
 				lastUnexpectedErr = err
+				continue
+			}
+			if ready {
+				return nil
 			}
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
-	}
-
-	if ready {
-		return nil
 	}
 
 	joinErr := &JoinFailureError{
@@ -445,14 +472,31 @@ func (a *AutoDiscoverNodeInstaller) checkJoinHealth(ctx context.Context) error {
 	diagCtx, diagCancel := context.WithTimeout(ctx, joinFailureDiagnosticsTimeout)
 	defer diagCancel()
 
-	joinErr.ServiceDiagnostics = a.diagnostics(diagCtx, serviceName)
+	var (
+		serviceDiagnostics string
+		journalOutput      string
+		journalErr         error
+	)
 
-	journalOutput, captureErr := a.journal(diagCtx, serviceName)
-	if captureErr != nil {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		serviceDiagnostics = a.diagnostics(diagCtx, serviceName)
+	}()
+	go func() {
+		defer wg.Done()
+		journalOutput, journalErr = a.journal(diagCtx, serviceName)
+	}()
+	wg.Wait()
+
+	joinErr.ServiceDiagnostics = serviceDiagnostics
+
+	if journalErr != nil {
 		a.Logger.WarnContext(ctx,
 			"Failed to capture journal for join-failure diagnostics",
 			"service", serviceName,
-			"error", captureErr,
+			"error", journalErr,
 		)
 	}
 	if journalOutput != "" {
@@ -775,10 +819,10 @@ func (ani *AutoDiscoverNodeInstaller) buildTeleportDataDirPath() string {
 
 func (ani *AutoDiscoverNodeInstaller) buildTeleportSystemdUnitName() string {
 	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
-		return "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix
+		return "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix + ".service"
 	}
 
-	return "teleport"
+	return "teleport.service"
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.
