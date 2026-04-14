@@ -134,7 +134,7 @@ func (d *desktopSessionAuditor) getAddr() string {
 
 func (d *desktopSessionAuditor) getName() string {
 	if d.windowsDesktop != nil {
-		return d.getName()
+		return d.windowsDesktop.GetName()
 	} else if d.linuxDesktop != nil {
 		return d.linuxDesktop.GetMetadata().GetName()
 	}
