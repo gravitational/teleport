@@ -630,6 +630,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	return nil
 }
 
+// MarshalJSON is a custom marshaller for JSON format.
+// It is required because the Spec.Credentials proto field is a oneof which doesn't
+// play nice with gogoproto. See comment preceeding [samlConnectorV2JSON].
 func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 	specOut := newSAMLConnectorSpecV2JSON(o.Spec)
 
@@ -653,6 +656,9 @@ func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON is a custom unmarshaller for JSON format.
+// It is required because the Spec.Credentials proto field is a oneof which doesn't
+// play nice with gogoproto. See comment preceeding [samlConnectorV2JSON].
 func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
 	var in samlConnectorV2JSON
 	if err := json.Unmarshal(b, &in); err != nil {
