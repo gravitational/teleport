@@ -56,6 +56,7 @@ func newTestFW(t *testing.T, matcher resourceMatcher) (*filteringResponseWriter,
 		noop.NewTracerProvider().Tracer("test"),
 		"test",
 	)
+	t.Cleanup(func() { fw.Finish() })
 	return fw, rec
 }
 
