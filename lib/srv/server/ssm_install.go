@@ -648,8 +648,10 @@ func (si *SSMInstaller) getCommandStepOutcome(ctx context.Context, step string, 
 }
 
 // trimToRecentTail keeps only the trailing maxChars characters of a string.
-// If trimming happens and the retained chunk contains a newline, it drops the
-// leading partial line so the output starts at a full line boundary.
+// This is intentionally separate from apievents.SSMRun.TrimToMaxSize: here we want to
+// preserve the most recent stdout/stderr diagnostics and keep line boundaries, not just
+// generically truncate fields to fit the event. If trimming happens and the retained chunk
+// contains a newline, it drops the leading partial line so the output starts at a full line boundary.
 func trimToRecentTail(s *string, maxChars int) string {
 	if s == nil || *s == "" || maxChars <= 0 {
 		return ""
