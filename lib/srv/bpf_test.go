@@ -173,8 +173,7 @@ func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	newFilePath := filepath.Join(cmdDir, "newfile")
 
 	// Lookup paths of programs that are also shell builtins.
-	echoPath, err := exec.LookPath("echo")
-	require.NoError(t, err, "echo command is required for these tests but was not found")
+	echoPath := lookResolvedPath(t, "echo")
 
 	// Create a TCP listener for each IP family. Register the listeners
 	// to be closed in case the test fails before the connection
@@ -573,8 +572,7 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 		// free, which can be useful to catch rare bugs in the
 		// BPF disk tracing program.
 		if info.cmdInfo.scriptPath == "" {
-			programPath, err := exec.LookPath(cmdInfo.program)
-			require.NoError(t, err, "%s command is required for these tests but was not found", cmdInfo.program)
+			programPath := lookResolvedPath(t, cmdInfo.program)
 			programPaths[cmdInfo.program] = programPath
 
 			_, ok := programLibs[cmdInfo.program]
@@ -586,8 +584,7 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 			// show the script as the program, but it will act
 			// like the interpreter.
 			programPaths[cmdInfo.program] = info.cmdInfo.scriptPath
-			interpPath, err := exec.LookPath(cmdInfo.interpreter)
-			require.NoError(t, err)
+			interpPath := lookResolvedPath(t, cmdInfo.interpreter)
 
 			_, ok := programLibs[cmdInfo.program]
 			if !ok {
@@ -1217,6 +1214,24 @@ func checkEvent[T comparable](program string, eventField T, expectedFields map[s
 	}
 
 	return false
+}
+
+// lookResolvedPath looks up the given file in PATH and resolves any
+// symlinks in the resulting path. The resolved path is returned.
+// This is necessary when testing on Fedora based distros where
+// /bin is symlinked to /usr/bin. This causes exec.LookPath to return
+// paths in /bin, but the binaries actually reside in /usr/bin and will
+// be correctly reported as being opened from /usr/bin in events.
+func lookResolvedPath(t *testing.T, file string) string {
+	t.Helper()
+
+	path, err := exec.LookPath(file)
+	require.NoError(t, err, "%s command is required for these tests but was not found", file)
+
+	resolved, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err, path)
+
+	return resolved
 }
 
 func quoteStrings(s []string) string {
