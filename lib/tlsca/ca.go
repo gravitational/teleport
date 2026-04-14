@@ -1386,7 +1386,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AgentScope = val
 			}
-			id.AgentScope = attr.Value.(string)
 		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.DelegationSessionID = val
