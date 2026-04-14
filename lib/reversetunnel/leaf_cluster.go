@@ -307,7 +307,7 @@ func (s *leafCluster) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error
 	s.Lock()
 	defer s.Unlock()
 
-	rconn := newRemoteConn(&connConfig{
+	rconn, err := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
 		tunnelType:       string(types.ProxyTunnel),
@@ -316,6 +316,9 @@ func (s *leafCluster) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error
 		offlineThreshold: s.offlineThreshold,
 		discoSub:         s.srv.discoPub.Subscribe(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	s.connections = append(s.connections, rconn)
 	s.lastUsed = 0

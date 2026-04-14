@@ -754,7 +754,7 @@ func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, 
 	s.remoteConnsMtx.Lock()
 	defer s.remoteConnsMtx.Unlock()
 
-	rconn := newRemoteConn(&connConfig{
+	rconn, err := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
 		tunnelType:       string(connType),
@@ -765,6 +765,9 @@ func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, 
 		offlineThreshold: s.offlineThreshold,
 		discoSub:         s.srv.discoPub.Subscribe(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key := connKey{
 		uuid:     nodeID,
 		connType: connType,

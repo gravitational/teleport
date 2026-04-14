@@ -117,15 +117,17 @@ type connConfig struct {
 	discoSub *discoSub
 }
 
-func newRemoteConn(cfg *connConfig) *remoteConn {
+func newRemoteConn(cfg *connConfig) (*remoteConn, error) {
+	if cfg.discoSub == nil {
+		return nil, trace.BadParameter("missing proxy discovery subscription")
+	}
 	c := &remoteConn{
 		logger:     slog.With(teleport.ComponentKey, "discovery"),
 		connConfig: cfg,
 		clock:      clockwork.NewRealClock(),
 		discoSub:   cfg.discoSub,
 	}
-
-	return c
+	return c, nil
 }
 
 func (c *remoteConn) String() string {
