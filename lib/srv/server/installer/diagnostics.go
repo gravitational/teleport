@@ -260,8 +260,8 @@ func (a *AutoDiscoverNodeInstaller) runSystemctlCommand(ctx context.Context, arg
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			return trace.Wrap(err,
-				"systemctl %s exited with code %d (stdout: %s, stderr: %s)",
-				strings.Join(args, " "),
+				"%q exited with code %d (stdout: %s, stderr: %s)",
+				cmd,
 				exitErr.ExitCode(),
 				stdout,
 				stderr,
