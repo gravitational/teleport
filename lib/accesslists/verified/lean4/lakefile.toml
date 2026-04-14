@@ -1,0 +1,11 @@
+name = "FormalVerification"
+version = "0.1.0"
+leanOptions = [{ name = "autoImplicit", value = false }]
+
+[[require]]
+name = "aeneas"
+git = { url = "https://github.com/AeneasVerif/aeneas", subDir = "backends/lean" }
+rev = "864eddb4876d0104802e0fd29bd453f67f48c4be"
+
+[[lean_lib]]
+name = "FormalVerification"
