@@ -579,10 +579,31 @@ func TestService_Create(t *testing.T) {
 	t.Run("invalid cluster name", func(t *testing.T) {
 		t.Parallel()
 
-		caOverride := env.NewOverrideForCAType(t, caType1)
-		caOverride.Metadata.Name = "badclustername"
+		// Fetch the certificate we want to override.
+		const loadKeys = false
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       caType1,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+		require.Len(t, ca.GetActiveKeys().TLS, 1, "Unexpected number of CA active keys")
+		kp := ca.GetActiveKeys().TLS[0]
+		caCert, err := tlsutils.ParseCertificatePEM(kp.Cert)
+		require.NoError(t, err)
 
-		_, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		// Replace the cluster name in the cert with a bad name.
+		const badClusterName = "badclustername"
+		caCert.Subject.Organization = []string{badClusterName}
+
+		// Create the badly-named override.
+		ca.SetActiveKeys(types.CAKeySet{}) // No keyset = no overrides.
+		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
+		caOverride.Metadata.Name = badClusterName
+		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
+			env.NewDisabledCertificateOverride(t, caCert, nil /* externalRoot */),
+		}
+
+		_, err = subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
 			CaOverride: caOverride,
 		})
 		assert.ErrorContains(t, err, `only "`+env.ClusterName+`" is allowed`)
