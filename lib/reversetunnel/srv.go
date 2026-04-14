@@ -376,7 +376,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		offlineThreshold:     offlineThreshold,
 		proxySigner:          cfg.PROXYSigner,
 		gitKeyManager:        gitKeyManager,
-		discoPub:             newDiscoPub(ctx, proxyWatcher),
+		discoPub:             newDiscoPub(ctx, proxyWatcher, cfg.Logger),
 	}
 
 	srv.localCluster, err = newLocalCluster(srv, cfg.ClusterName, cfg.LocalAuthAddresses)

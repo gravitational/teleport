@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -164,6 +165,7 @@ type discoPub struct {
 	cancel  func()
 	watcher *services.GenericWatcher[types.Server, readonly.Server]
 	compact bool
+	log     *slog.Logger
 
 	// pm manages access to [discoPub.proxies], [discoPub.versions], [discoPub.version].
 	// These fields are immutable snapshots. Once a reader copies the pointer, it
@@ -190,7 +192,7 @@ type proxyversion struct {
 }
 
 // newDiscoPub constructs a [discoPub] using the given [services.GenericWatcher].
-func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server]) *discoPub {
+func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Server, readonly.Server], logger *slog.Logger) *discoPub {
 	ctx, cancel := context.WithCancel(ctx)
 	v := os.Getenv("TELEPORT_UNSTABLE_PROXY_COMPACT_DISCOVERY")
 	compact, _ := strconv.ParseBool(v)
@@ -201,6 +203,7 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 		watcher: watcher,
 		subs:    make(map[*discoSub]struct{}),
 		compact: compact,
+		log:     logger,
 	}
 	go pb.run()
 	return pb
@@ -230,6 +233,7 @@ func (pb *discoPub) run() {
 			return
 		case servers, ok := <-pb.watcher.ResourcesC:
 			if !ok {
+				pb.log.WarnContext(pb.ctx, "Proxy discovery watcher closed unexpectedly")
 				return
 			}
 			now := pb.watcher.Clock.Now()

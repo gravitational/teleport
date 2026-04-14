@@ -80,7 +80,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: time.Second,
-		discoPub:         newDiscoPub(ctx, watcher),
+		discoPub:         newDiscoPub(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -166,7 +166,7 @@ func TestLocalClusterOverlap(t *testing.T) {
 		Config:          Config{Clock: clockwork.NewFakeClock()},
 		ctx:             context.Background(),
 		localAuthClient: &mockLocalClusterClient{},
-		discoPub:        newDiscoPub(ctx, watcher),
+		discoPub:        newDiscoPub(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -290,7 +290,7 @@ func TestProxyResync(t *testing.T) {
 		localAuthClient:  &mockLocalClusterClient{},
 		logger:           logtest.NewLogger(),
 		offlineThreshold: 24 * time.Hour,
-		discoPub:         newDiscoPub(ctx, watcher),
+		discoPub:         newDiscoPub(ctx, watcher, logtest.NewLogger()),
 	}
 	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
