@@ -149,7 +149,6 @@ func (r resourceTeleportInstaller) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 	installer = installerResource
-
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportInstaller) Read(ctx context.Context, req tfsdk.ReadResou
 	}
 	
 	installer := installerI.(*apitypes.InstallerV1)
+	
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportInstaller) ImportState(ctx context.Context, req tfsdk.Im
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installerResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

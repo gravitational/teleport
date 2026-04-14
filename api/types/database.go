@@ -733,7 +733,7 @@ func ValidateDatabaseName(name string) error {
 func VNetDNSName(name string) string {
 	hash := sha256.Sum256([]byte(name))
 	base32Encoding := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8])
-	return "db-" + strings.ToLower(base32Encoding)
+	return strings.ToLower(base32Encoding)
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.
@@ -747,11 +747,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid database name")
 	}
 
-	if d.Metadata.Labels == nil {
-		d.Metadata.Labels = make(map[string]string)
+	// Copy the labels map before mutating so callers that share the same
+	// underlying map across goroutines do not race.
+	newLabels := make(map[string]string, len(d.Metadata.Labels)+1)
+	for k, v := range d.Metadata.Labels {
+		newLabels[k] = v
 	}
-
-	d.Metadata.Labels[VNetDNSNameLabel] = VNetDNSName(d.GetName())
+	newLabels[VNetDNSNameLabel] = VNetDNSName(d.GetName())
+	d.Metadata.Labels = newLabels
 
 	for key := range d.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {

@@ -83,14 +83,15 @@ func TestRegisterDatabase(t *testing.T) {
 			require.IsType(t, mcp.TextContent{}, c)
 		}
 
-		// Although we're not sorting by the URI directly, the only field that
-		// is different across the databases is their name and URI (which would
-		// cause them to have the same order). So here we sort by the YAML
-		// contents to avoid having to decode.
+		// Sort tool results by database name to match the databases slice
+		// order. We cannot sort by raw YAML text because internal labels
+		// (e.g. teleport.internal/vnet-dns-name) contain hashes that do
+		// not sort in the same order as the database names.
 		slices.SortFunc(res.Content, func(a, b mcp.Content) int {
-			resourceA := a.(mcp.TextContent).Text
-			resourceB := b.(mcp.TextContent).Text
-			return strings.Compare(resourceA, resourceB)
+			var dbA, dbB DatabaseResource
+			yaml.Unmarshal([]byte(a.(mcp.TextContent).Text), &dbA)
+			yaml.Unmarshal([]byte(b.(mcp.TextContent).Text), &dbB)
+			return strings.Compare(dbA.Metadata.Name, dbB.Metadata.Name)
 		})
 
 		for i, c := range res.Content {

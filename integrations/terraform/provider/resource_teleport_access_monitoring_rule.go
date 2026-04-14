@@ -141,7 +141,6 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 	accessMonitoringRuleResource = accessMonitoringRuleI
 	
 	accessMonitoringRule = accessMonitoringRuleResource
-
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -184,6 +183,7 @@ func (r resourceTeleportAccessMonitoringRule) Read(ctx context.Context, req tfsd
 		return
 	}
 	accessMonitoringRule := accessMonitoringRuleI
+	
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,7 +322,6 @@ func (r resourceTeleportAccessMonitoringRule) ImportState(ctx context.Context, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRuleResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

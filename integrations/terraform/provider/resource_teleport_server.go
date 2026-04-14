@@ -151,7 +151,6 @@ func (r resourceTeleportServer) Create(ctx context.Context, req tfsdk.CreateReso
 		return
 	}
 	server = serverResource
-
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -195,6 +194,7 @@ func (r resourceTeleportServer) Read(ctx context.Context, req tfsdk.ReadResource
 	}
 	
 	server := serverI.(*apitypes.ServerV2)
+	
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -341,7 +341,6 @@ func (r resourceTeleportServer) ImportState(ctx context.Context, req tfsdk.Impor
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyServerV2ToTerraform(ctx, serverResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -149,7 +149,6 @@ func (r resourceTeleportIntegration) Create(ctx context.Context, req tfsdk.Creat
 		return
 	}
 	integration = integrationResource
-
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportIntegration) Read(ctx context.Context, req tfsdk.ReadRes
 	}
 	
 	integration := integrationI.(*apitypes.IntegrationV1)
+	
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportIntegration) ImportState(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integrationResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

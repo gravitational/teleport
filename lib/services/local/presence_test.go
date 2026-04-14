@@ -1267,7 +1267,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 1)
 			require.Equal(t, 1, resp.TotalCount)
-			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
+			wantLabels := map[string]string{"env": "dev"}
+			if tc.kind == types.KindDatabaseServer {
+				wantLabels[types.VNetDNSNameLabel] = types.VNetDNSName(names[0])
+			}
+			require.Equal(t, wantLabels, resp.Resources[0].GetAllLabels())
 		})
 	}
 }

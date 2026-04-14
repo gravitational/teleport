@@ -200,10 +200,10 @@ func testDatabaseCollection_writeText(t *testing.T) {
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
 				[]string{"Name", "Protocol", "URI", "Labels"},
-				[]string{"afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
-				[]string{"database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true)},
-				[]string{"database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
-				[]string{"database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true)},
+				[]string{"afirstDatabase", "redis", "localhost:6379", formatTestDatabaseLabels("afirstDatabase", staticLabelsFixture, longLabelFixture, true)},
+				[]string{"database-A", "mysql", "localhost:3306", formatTestDatabaseLabels("database-A", staticLabelsFixture, nil, true)},
+				[]string{"database-B", "postgres", "localhost:5432", formatTestDatabaseLabels("database-B", staticLabelsFixture, longLabelFixture, true)},
+				[]string{"database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestDatabaseLabels("database-rds-us-west-1-123456789012", staticLabelsFixture, rdsDiscoveredNameLabel, true)},
 			)
 			return table.AsBuffer().String()
 		},
@@ -241,10 +241,10 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
 				[]string{"Host", "Name", "Protocol", "URI", "Labels", "Version"},
-				[]string{"some-host", "afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
-				[]string{"some-host", "database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true), api.Version},
-				[]string{"some-host", "database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
-				[]string{"some-host", "database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true), api.Version},
+				[]string{"some-host", "afirstDatabase", "redis", "localhost:6379", formatTestDatabaseLabels("afirstDatabase", staticLabelsFixture, longLabelFixture, true), api.Version},
+				[]string{"some-host", "database-A", "mysql", "localhost:3306", formatTestDatabaseLabels("database-A", staticLabelsFixture, nil, true), api.Version},
+				[]string{"some-host", "database-B", "postgres", "localhost:5432", formatTestDatabaseLabels("database-B", staticLabelsFixture, longLabelFixture, true), api.Version},
+				[]string{"some-host", "database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestDatabaseLabels("database-rds-us-west-1-123456789012", staticLabelsFixture, rdsDiscoveredNameLabel, true), api.Version},
 			)
 			return table.AsBuffer().String()
 		},
@@ -329,6 +329,20 @@ func mustCreateNewKubeServer(t *testing.T, name, hostname, discoveredName string
 func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 	labels := map[string]string{
 		"date": "Tue 11 Oct 2022 10:21:58 WEST",
+	}
+
+	maps.Copy(labels, l1)
+	maps.Copy(labels, l2)
+	return common.FormatLabels(labels, verbose)
+}
+
+// formatTestDatabaseLabels is like formatTestLabels but includes the
+// teleport.internal/vnet-dns-name label that CheckAndSetDefaults adds
+// and is specific to databases.
+func formatTestDatabaseLabels(dbName string, l1, l2 map[string]string, verbose bool) string {
+	labels := map[string]string{
+		"date":                 "Tue 11 Oct 2022 10:21:58 WEST",
+		types.VNetDNSNameLabel: types.VNetDNSName(dbName),
 	}
 
 	maps.Copy(labels, l1)

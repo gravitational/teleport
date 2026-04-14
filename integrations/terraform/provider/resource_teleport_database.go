@@ -20,6 +20,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	
@@ -149,7 +150,11 @@ func (r resourceTeleportDatabase) Create(ctx context.Context, req tfsdk.CreateRe
 		return
 	}
 	database = databaseResource
-
+	for k := range database.Metadata.Labels {
+		if strings.HasPrefix(k, "teleport.internal/") {
+			delete(database.Metadata.Labels, k)
+		}
+	}
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +198,12 @@ func (r resourceTeleportDatabase) Read(ctx context.Context, req tfsdk.ReadResour
 	}
 	
 	database := databaseI.(*apitypes.DatabaseV3)
+	
+	for k := range database.Metadata.Labels {
+		if strings.HasPrefix(k, "teleport.internal/") {
+			delete(database.Metadata.Labels, k)
+		}
+	}
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -289,6 +300,11 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Errorf("Can not convert %T to DatabaseV3", databaseI), "db"))
 		return
 	}
+	for k := range database.Metadata.Labels {
+		if strings.HasPrefix(k, "teleport.internal/") {
+			delete(database.Metadata.Labels, k)
+		}
+	}
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +354,11 @@ func (r resourceTeleportDatabase) ImportState(ctx context.Context, req tfsdk.Imp
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
+	for k := range databaseResource.Metadata.Labels {
+		if strings.HasPrefix(k, "teleport.internal/") {
+			delete(databaseResource.Metadata.Labels, k)
+		}
+	}
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, databaseResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

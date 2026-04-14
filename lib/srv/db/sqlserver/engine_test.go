@@ -88,7 +88,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -115,7 +115,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -143,7 +143,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -183,7 +183,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -213,7 +213,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -245,7 +245,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -264,7 +264,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -283,7 +283,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -302,7 +302,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						DatabaseService:  "dummy",
 						DatabaseURI:      "uri",
 						DatabaseProtocol: "test",
-						DatabaseLabels:   map[string]string{"env": "prod"},
+						DatabaseLabels:   map[string]string{"env": "prod", types.VNetDNSNameLabel: types.VNetDNSName("dummy")},
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,

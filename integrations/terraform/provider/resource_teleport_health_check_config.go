@@ -141,7 +141,6 @@ func (r resourceTeleportHealthCheckConfig) Create(ctx context.Context, req tfsdk
 	healthCheckConfigResource = healthCheckConfigI
 	
 	healthCheckConfig = healthCheckConfigResource
-
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -184,6 +183,7 @@ func (r resourceTeleportHealthCheckConfig) Read(ctx context.Context, req tfsdk.R
 		return
 	}
 	healthCheckConfig := healthCheckConfigI
+	
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,7 +322,6 @@ func (r resourceTeleportHealthCheckConfig) ImportState(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfigResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

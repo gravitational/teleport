@@ -149,7 +149,6 @@ func (r resourceTeleportOktaImportRule) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 	oktaImportRule = oktaImportRuleResource
-
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportOktaImportRule) Read(ctx context.Context, req tfsdk.Read
 	}
 	
 	oktaImportRule := oktaImportRuleI.(*apitypes.OktaImportRuleV1)
+	
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportOktaImportRule) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRuleResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

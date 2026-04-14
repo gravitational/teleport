@@ -149,7 +149,6 @@ func (r resourceTeleportGithubConnector) Create(ctx context.Context, req tfsdk.C
 		return
 	}
 	githubConnector = githubConnectorResource
-
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.Rea
 	}
 	
 	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
+	
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnectorResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

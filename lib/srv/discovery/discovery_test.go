@@ -4188,6 +4188,11 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryPar
 		default:
 			require.FailNow(t, "unknown cloud label %q", cloudLabel)
 		}
+		// Re-run CheckAndSetDefaults after the name suffix is applied so
+		// computed labels (e.g. vnet-dns-name) use the final database name.
+		dbV3, ok := r.(*types.DatabaseV3)
+		require.True(t, ok, "expected *types.DatabaseV3")
+		require.NoError(t, dbV3.CheckAndSetDefaults())
 	case types.KubeCluster:
 		cloudLabel, ok := r.GetLabel(types.CloudLabel)
 		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")

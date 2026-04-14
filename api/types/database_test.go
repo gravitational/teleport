@@ -1529,8 +1529,8 @@ func TestVNetDNSName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := VNetDNSName(tt.dbName)
 
-			// Must start with "db-" prefix.
-			require.True(t, strings.HasPrefix(result, "db-"), "expected db- prefix, got %q", result)
+			// Must be non-empty.
+			require.NotEmpty(t, result)
 
 			// Must be lowercase (DNS-safe).
 			require.Equal(t, strings.ToLower(result), result, "VNet DNS name must be lowercase")
@@ -1551,7 +1551,7 @@ func TestVNetDNSNameDeterministic(t *testing.T) {
 	// doesn't silently change (which would break VNet lookups).
 	name := "my-postgres"
 	hash := sha256.Sum256([]byte(name))
-	want := "db-" + strings.ToLower(
+	want := strings.ToLower(
 		base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:8]),
 	)
 	require.Equal(t, want, VNetDNSName(name))

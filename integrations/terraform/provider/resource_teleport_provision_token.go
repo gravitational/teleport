@@ -160,7 +160,6 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 	provisionToken = provisionTokenResource
-
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -204,6 +203,7 @@ func (r resourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Read
 	}
 	
 	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
+	
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -349,7 +349,6 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionTokenResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -150,7 +150,6 @@ func (r resourceTeleportMember) Create(ctx context.Context, req tfsdk.CreateReso
 	
 	accessListMember = convert.ToMemberProto(accessListMemberResource)
 	
-
 	diags = schemav1.CopyMemberToTerraform(ctx, accessListMember, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -200,6 +199,7 @@ func (r resourceTeleportMember) Read(ctx context.Context, req tfsdk.ReadResource
 		return
 	}
 	accessListMember := convert.ToMemberProto(accessListMemberI)
+	
 	diags = schemav1.CopyMemberToTerraform(ctx, accessListMember, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -356,7 +356,6 @@ func (r resourceTeleportMember) ImportState(ctx context.Context, req tfsdk.Impor
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = schemav1.CopyMemberToTerraform(ctx, accessListMemberResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

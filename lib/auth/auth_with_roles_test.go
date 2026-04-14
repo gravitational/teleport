@@ -2934,6 +2934,8 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	err = devClt.UpdateDatabase(ctx, adminDatabase)
 	require.True(t, trace.IsAccessDenied(err))
 	adminDatabase.SetStaticLabels(map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic}) // Reset.
+	// Re-derive computed labels.
+	require.NoError(t, adminDatabase.CheckAndSetDefaults())
 
 	// Dev shouldn't be able to get prod database...
 	_, err = devClt.GetDatabase(ctx, adminDatabase.GetName())

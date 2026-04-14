@@ -141,7 +141,6 @@ func (r resourceTeleportStaticHostUser) Create(ctx context.Context, req tfsdk.Cr
 	staticHostUserResource = staticHostUserI
 	
 	staticHostUser = staticHostUserResource
-
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -184,6 +183,7 @@ func (r resourceTeleportStaticHostUser) Read(ctx context.Context, req tfsdk.Read
 		return
 	}
 	staticHostUser := staticHostUserI
+	
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,7 +322,6 @@ func (r resourceTeleportStaticHostUser) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUserResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

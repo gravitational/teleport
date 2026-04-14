@@ -149,7 +149,6 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 		return
 	}
 	user = userResource
-
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportUser) Read(ctx context.Context, req tfsdk.ReadResourceRe
 	}
 	
 	user := userI.(*apitypes.UserV2)
+	
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportUser) ImportState(ctx context.Context, req tfsdk.ImportR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyUserV2ToTerraform(ctx, userResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

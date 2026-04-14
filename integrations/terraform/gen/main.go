@@ -88,6 +88,9 @@ type payload struct {
 	IsPlainStruct bool
 	// HasCheckAndSetDefaults indicates whether the resource type has the CheckAndSetDefaults method
 	HasCheckAndSetDefaults bool
+	// FilterInternalLabels removes teleport.internal/* labels from Metadata.Labels
+	// before writing to Terraform state so server-computed labels don't cause plan drift.
+	FilterInternalLabels bool
 	// ExtraImports contains a list of imports that are being used.
 	ExtraImports []string
 	// TerraformResourceType represents the resource type in Terraform code.
@@ -284,6 +287,7 @@ var (
 		Kind:                   "db",
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_database",
+		FilterInternalLabels:   true,
 		HasCheckAndSetDefaults: true,
 	}
 

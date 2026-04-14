@@ -149,7 +149,6 @@ func (r resourceTeleportLock) Create(ctx context.Context, req tfsdk.CreateResour
 		return
 	}
 	lock = lockResource
-
 	diags = tfschema.CopyLockV2ToTerraform(ctx, lock, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -193,6 +192,7 @@ func (r resourceTeleportLock) Read(ctx context.Context, req tfsdk.ReadResourceRe
 	}
 	
 	lock := lockI.(*apitypes.LockV2)
+	
 	diags = tfschema.CopyLockV2ToTerraform(ctx, lock, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,7 +338,6 @@ func (r resourceTeleportLock) ImportState(ctx context.Context, req tfsdk.ImportR
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	diags = tfschema.CopyLockV2ToTerraform(ctx, lockResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
