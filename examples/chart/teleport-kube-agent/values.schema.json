@@ -71,6 +71,11 @@
                     "type": "string",
                     "default": ""
                 },
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenSecret",
+                    "type": "string",
+                    "default": ""
+                },
                 "method": {
                     "$id": "#/properties/joinParams/method",
                     "type": "string",
