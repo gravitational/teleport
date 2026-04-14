@@ -10,9 +10,67 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
+
+func newTestProvider() *InferenceProvider {
+	p := &InferenceProvider{
+		openAIModelName:   openai.ChatModelGPT5,
+		temperature:       1.0,
+		client:            &fakeClient{},
+		modelResourceName: "test-model",
+	}
+	p.logger = slog.With(teleport.ComponentKey, "openai", "inference_model", p.modelResourceName)
+	return p
+}
+
+func TestCondenseForEmbedding(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	provider := newTestProvider()
+
+	cases := []struct {
+		name   string
+		input  *summarizerv1pb.Summary
+		assert func(t *testing.T, result string, err error)
+	}{
+		{
+			name:  "happy path",
+			input: &summarizerv1pb.Summary{SessionId: "test-session-123"},
+			assert: func(t *testing.T, result string, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "A condensed description of the session for embedding generation.", result)
+			},
+		},
+		{
+			name:  "API error is propagated",
+			input: &summarizerv1pb.Summary{SessionId: "trigger-api-error"},
+			assert: func(t *testing.T, result string, err error) {
+				assert.Error(t, err)
+				assert.Empty(t, result)
+			},
+		},
+		{
+			name:  "bad JSON response returns BadResponseError",
+			input: &summarizerv1pb.Summary{SessionId: "trigger-bad-json"},
+			assert: func(t *testing.T, result string, err error) {
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
+					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",
+				})
+				assert.Empty(t, result)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := provider.CondenseForEmbedding(ctx, tc.input)
+			tc.assert(t, result, err)
+		})
+	}
+}
 
 func TestSummarizeCommand(t *testing.T) {
 	ctx := t.Context()

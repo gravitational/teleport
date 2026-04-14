@@ -235,6 +235,11 @@ func (m *fakeClient) Converse(
 			return handleBedrockSessionAnalysis(content)
 		}
 
+		// Handle structured responses for prose embedding condensation.
+		if strings.HasPrefix(systemPrompt, schema.GetProseEmbedding()) {
+			return handleBedrockProseEmbedding(content)
+		}
+
 		// Handle simple summarization (legacy path).
 		var responsePrefix string
 		switch {
@@ -294,6 +299,60 @@ func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutpu
 	}
 
 	jsonStr, err := json.Marshal(ca)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bedrockruntime.ConverseOutput{
+		Output: &bedrocktypes.ConverseOutputMemberMessage{
+			Value: bedrocktypes.Message{
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: string(jsonStr),
+					},
+				},
+			},
+		},
+		StopReason: bedrocktypes.StopReasonEndTurn,
+		Usage: &bedrocktypes.TokenUsage{
+			InputTokens:  aws.Int32(100),
+			OutputTokens: aws.Int32(50),
+		},
+	}, nil
+}
+
+func handleBedrockProseEmbedding(content string) (*bedrockruntime.ConverseOutput, error) {
+	if strings.Contains(content, "trigger-api-error") {
+		return nil, &smithy.OperationError{
+			ServiceID:     "Bedrock Runtime",
+			OperationName: "Converse",
+			Err:           &smithy.GenericAPIError{Code: "api_error", Message: "prose embedding API error"},
+		}
+	}
+
+	if strings.Contains(content, "trigger-bad-json") {
+		return &bedrockruntime.ConverseOutput{
+			Output: &bedrocktypes.ConverseOutputMemberMessage{
+				Value: bedrocktypes.Message{
+					Content: []bedrocktypes.ContentBlock{
+						&bedrocktypes.ContentBlockMemberText{
+							Value: "not valid json",
+						},
+					},
+				},
+			},
+			StopReason: bedrocktypes.StopReasonEndTurn,
+			Usage: &bedrocktypes.TokenUsage{
+				InputTokens:  aws.Int32(100),
+				OutputTokens: aws.Int32(50),
+			},
+		}, nil
+	}
+
+	pe := &schema.ProseEmbedding{
+		CondensedText: "A condensed description of the session for embedding generation.",
+	}
+	jsonStr, err := json.Marshal(pe)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -109,6 +110,7 @@ func (c *defaultClient) NewChatCompletion(
 ) (*openai.ChatCompletion, error) {
 	return c.clt.Chat.Completions.New(ctx, body, opts...)
 }
+
 func (c *defaultClient) GenerateEmbeddings(ctx context.Context, input openai.EmbeddingNewParams, opts ...option.RequestOption) (*openai.CreateEmbeddingResponse, error) {
 	return c.clt.Embeddings.New(ctx, input, opts...)
 }
@@ -319,10 +321,11 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 		completionParams.Temperature = param.NewOpt(p.temperature)
 	}
 
-	p.logger.DebugContext(ctx, "Sending request to OpenAI",
-		"session_id", sessionID,
-		"model", completionParams.Model,
-	)
+	args := []any{"model", completionParams.Model}
+	if sessionID != "" {
+		args = append(args, "session_id", sessionID)
+	}
+	p.logger.DebugContext(ctx, "Sending request to OpenAI", args...)
 
 	apiRequests.WithLabelValues(p.modelResourceName).Inc()
 	reqInFlightMetric := apiRequestsInFlight.WithLabelValues(p.modelResourceName)
@@ -416,4 +419,33 @@ func FormatError(err error, provider *summarizerv1pb.OpenAIProvider) string {
 
 	// Generic error
 	return fmt.Sprintf("Failed to connect to OpenAI API: %v", err)
+}
+
+func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *summarizerv1pb.Summary) (string, error) {
+	systemPrompt := schema.GetProseEmbedding()
+
+	query, err := protojson.Marshal(input)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to marshal input to JSON")
+	}
+
+	res, err := p.makeStructuredRequest(ctx, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Prose embeddings generated",
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	var proseEmbedding schema.ProseEmbedding
+	if err := json.Unmarshal([]byte(res.result), &proseEmbedding); err != nil {
+		return "", trace.Wrap(summarizererrorstypes.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	return proseEmbedding.CondensedText, nil
 }

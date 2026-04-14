@@ -24,7 +24,7 @@ const promptSeed uint64 = %d
 )
 
 func main() {
-	stems := []string{"prompt-db", "prompt-ssh", "prompt-command", "prompt-root", "prompt-summary"}
+	stems := []string{"prompt-db", "prompt-ssh", "prompt-command", "prompt-root", "prompt-summary", "prompt-proser"}
 	seed := uint64(time.Now().Unix())
 
 	for _, stem := range stems {
@@ -38,7 +38,7 @@ func main() {
 		obfuscated := prompts.Obfuscate(seed, text)
 
 		outPath := filepath.Join(dir, stem+".bin")
-		err = os.WriteFile(outPath, obfuscated, 0666)
+		err = os.WriteFile(outPath, obfuscated, 0o666)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Could not write file %s: %s\n", outPath, err)
 			os.Exit(1)
@@ -47,7 +47,7 @@ func main() {
 
 	seedSourceCode := fmt.Sprintf(codeTemplate, seed)
 	seedPath := filepath.Join(dir, "seed.go")
-	err := os.WriteFile(seedPath, []byte(seedSourceCode), 0666)
+	err := os.WriteFile(seedPath, []byte(seedSourceCode), 0o666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not write file %s: %s\n", seedPath, err)
 		os.Exit(1)

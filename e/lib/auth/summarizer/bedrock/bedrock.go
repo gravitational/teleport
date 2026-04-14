@@ -16,6 +16,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -352,9 +353,14 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 		convInput.InferenceConfig.Temperature = &p.temperature
 	}
 
-	p.logger.DebugContext(ctx, "Sending request to Bedrock",
-		"session_id", sessionID,
+	args := []any{
 		"model", convInput.ModelId,
+	}
+	if sessionID != "" {
+		args = append(args, "session_id", sessionID)
+	}
+	p.logger.DebugContext(ctx, "Sending request to Bedrock",
+		args...,
 	)
 
 	apiRequests.WithLabelValues(p.modelResourceName).Inc()
@@ -525,4 +531,33 @@ func FormatError(err error, provider *summarizerv1pb.BedrockProvider) string {
 
 	// Generic error
 	return fmt.Sprintf("Failed to connect to Amazon Bedrock: %v", err)
+}
+
+func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *summarizerv1pb.Summary) (string, error) {
+	systemPrompt := schema.GetProseEmbedding()
+
+	query, err := protojson.Marshal(input)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to marshal input to JSON")
+	}
+
+	res, err := p.makeStructuredRequest(ctx, "", schema.ProseEmbeddingSchema, systemPrompt, string(query))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Prose embeddings generated",
+		"input_tokens", res.inputTokens,
+		"output_tokens", res.outputTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	var proseEmbedding schema.ProseEmbedding
+	if err := json.Unmarshal([]byte(stripMarkdownCodeBlock(res.result)), &proseEmbedding); err != nil {
+		return "", trace.Wrap(summarizererrorstypes.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	return proseEmbedding.CondensedText, nil
 }

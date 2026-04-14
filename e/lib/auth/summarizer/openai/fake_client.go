@@ -103,5 +103,51 @@ func (m *fakeClient) NewChatCompletion(
 		}, nil
 	}
 
+	// Check system prompt to dispatch structured handlers for non-exact-string content.
+	systemContent := *body.Messages[0].GetContent().AsAny().(*string)
+	if systemContent == schema.GetProseEmbedding() {
+		return handleOpenAIProseEmbedding(content)
+	}
+
 	return nil, nil
+}
+
+func handleOpenAIProseEmbedding(content string) (*openai.ChatCompletion, error) {
+	if strings.Contains(content, "trigger-api-error") {
+		return nil, errors.New("prose embedding API error")
+	}
+
+	if strings.Contains(content, "trigger-bad-json") {
+		return &openai.ChatCompletion{
+			Choices: []openai.ChatCompletionChoice{
+				{
+					FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+					Message: openai.ChatCompletionMessage{
+						Role:    "assistant",
+						Content: "not valid json",
+					},
+				},
+			},
+		}, nil
+	}
+
+	pe := &schema.ProseEmbedding{
+		CondensedText: "A condensed description of the session for embedding generation.",
+	}
+	jsonStr, err := json.Marshal(pe)
+	if err != nil {
+		return nil, err
+	}
+
+	return &openai.ChatCompletion{
+		Choices: []openai.ChatCompletionChoice{
+			{
+				FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: string(jsonStr),
+				},
+			},
+		},
+	}, nil
 }

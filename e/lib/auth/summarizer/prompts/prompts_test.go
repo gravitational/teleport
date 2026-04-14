@@ -34,6 +34,11 @@ func TestPromptsUpToDate(t *testing.T) {
 			prompt:           RootPrompt,
 			obfuscatedPrompt: rootPromptObfuscated,
 		},
+		{
+			filename:         "prompt-proser.txt",
+			prompt:           ProserPrompt,
+			obfuscatedPrompt: proserPromptObfuscated,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.filename, func(t *testing.T) {

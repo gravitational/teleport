@@ -177,6 +177,65 @@ func TestSummarizeCommand(t *testing.T) {
 	}
 }
 
+func TestCondenseForEmbedding(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	cache, err := createCache()
+	require.NoError(t, err)
+
+	provider, err := NewProvider(ctx, ProviderConfig{
+		Spec: &summarizerv1pb.BedrockProvider{
+			Region:         "us-east-1",
+			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+		},
+		ModelResourceName: "claude",
+		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+		AWSConfigCache:    cache,
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name   string
+		input  *summarizerv1pb.Summary
+		assert func(t *testing.T, result string, err error)
+	}{
+		{
+			name:  "happy path",
+			input: &summarizerv1pb.Summary{SessionId: "test-session-123"},
+			assert: func(t *testing.T, result string, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "A condensed description of the session for embedding generation.", result)
+			},
+		},
+		{
+			name:  "API error is propagated",
+			input: &summarizerv1pb.Summary{SessionId: "trigger-api-error"},
+			assert: func(t *testing.T, result string, err error) {
+				assert.Error(t, err)
+				assert.Empty(t, result)
+			},
+		},
+		{
+			name:  "bad JSON response returns BadResponseError",
+			input: &summarizerv1pb.Summary{SessionId: "trigger-bad-json"},
+			assert: func(t *testing.T, result string, err error) {
+				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
+					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",
+				})
+				assert.Empty(t, result)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := provider.CondenseForEmbedding(ctx, tc.input)
+			tc.assert(t, result, err)
+		})
+	}
+}
+
 func createCache() (*awsconfig.Cache, error) {
 	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "dummy-integration"},
