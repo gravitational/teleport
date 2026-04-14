@@ -20,7 +20,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -127,33 +126,6 @@ func (p *Provider) Configure(ctx context.Context, req provider.ConfigureRequest,
 			InternalStorage: botInternalStore,
 			Logger:          slog.Default(),
 		}
-	}
-
-	botCfg := newBotConfig()
-	if err := botCfg.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.AddError(
-			"Error setting defaults for bot config",
-			"Failed to set defaults for bot config: "+err.Error(),
-		)
-		return
-	}
-
-	bot, err := bot.New(botCfg)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error creating tbot",
-			"Failed to create tbot: "+err.Error(),
-		)
-		return
-	}
-
-	// Run bot just to validate that the configuration is correct.
-	if err := bot.OneShot(ctx); err != nil {
-		resp.Diagnostics.AddError(
-			"Error running tbot in provider",
-			"Failed to run tbot\n"+trace.DebugReport(err),
-		)
-		return
 	}
 
 	providerData := providerData{
