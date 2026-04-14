@@ -17,13 +17,11 @@ limitations under the License.
 package types
 
 import (
-	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility with existing SAML connector JSON encoding for this gogoproto type
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -139,6 +137,41 @@ type SAMLConnector interface {
 	GetOAuthClientCredentials() *OAuthClientCredentials
 	// SetOAuthClientCredentials sets the OAuth client credentials.
 	SetOAuthClientCredentials(*OAuthClientCredentials)
+}
+
+type samlConnectorV2JSON struct {
+	Kind     string          `json:"kind"`
+	SubKind  string          `json:"sub_kind,omitempty"`
+	Version  string          `json:"version"`
+	Metadata Metadata        `json:"metadata"`
+	Spec     json.RawMessage `json:"spec"`
+}
+
+type samlConnectorSpecV2JSON struct {
+	Issuer                   string                     `json:"issuer"`
+	SSO                      string                     `json:"sso"`
+	Cert                     string                     `json:"cert"`
+	Display                  string                     `json:"display"`
+	AssertionConsumerService string                     `json:"acs"`
+	Audience                 string                     `json:"audience"`
+	ServiceProviderIssuer    string                     `json:"service_provider_issuer"`
+	EntityDescriptor         string                     `json:"entity_descriptor"`
+	EntityDescriptorURL      string                     `json:"entity_descriptor_url"`
+	AttributesToRoles        []AttributeMapping         `json:"attributes_to_roles"`
+	SigningKeyPair           *AsymmetricKeyPair         `json:"signing_key_pair,omitempty"`
+	Provider                 string                     `json:"provider,omitempty"`
+	EncryptionKeyPair        *AsymmetricKeyPair         `json:"assertion_key_pair,omitempty"`
+	AllowIDPInitiated        bool                       `json:"allow_idp_initiated,omitempty"`
+	ClientRedirectSettings   *SSOClientRedirectSettings `json:"client_redirect_settings,omitempty"`
+	SingleLogoutURL          string                     `json:"single_logout_url,omitempty"`
+	MFASettings              *SAMLConnectorMFASettings  `json:"mfa,omitempty"`
+	ForceAuthn               SAMLForceAuthn             `json:"force_authn,omitempty"`
+	PreferredRequestBinding  string                     `json:"preferred_request_binding,omitempty"`
+	UserMatchers             []string                   `json:"user_matchers,omitempty"`
+	IncludeSubject           bool                       `json:"include_subject,omitempty"`
+	EntraIdGroupsProvider    *EntraIDGroupsProvider     `json:"entra_id_groups_provider,omitempty"`
+
+	Credentials json.RawMessage `json:"credentials,omitempty"`
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -628,25 +661,119 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// MarshalJSON implements [json.Marshaler] for the SAMLConnectorSpecV2.
-// It is required because the Spec.Credentials proto field is a oneof and
-// gogoproto doesn't allow for oneof json tags (https://github.com/gogo/protobuf/issues/623).
-func (o *SAMLConnectorSpecV2) MarshalJSON() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := (&jsonpb.Marshaler{}).Marshal(buf, o); err != nil {
+func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
+	specOut := samlConnectorSpecV2JSON{
+		Issuer:                   o.Spec.Issuer,
+		SSO:                      o.Spec.SSO,
+		Cert:                     o.Spec.Cert,
+		Display:                  o.Spec.Display,
+		AssertionConsumerService: o.Spec.AssertionConsumerService,
+		Audience:                 o.Spec.Audience,
+		ServiceProviderIssuer:    o.Spec.ServiceProviderIssuer,
+		EntityDescriptor:         o.Spec.EntityDescriptor,
+		EntityDescriptorURL:      o.Spec.EntityDescriptorURL,
+		AttributesToRoles:        o.Spec.AttributesToRoles,
+		SigningKeyPair:           o.Spec.SigningKeyPair,
+		Provider:                 o.Spec.Provider,
+		EncryptionKeyPair:        o.Spec.EncryptionKeyPair,
+		AllowIDPInitiated:        o.Spec.AllowIDPInitiated,
+		ClientRedirectSettings:   o.Spec.ClientRedirectSettings,
+		SingleLogoutURL:          o.Spec.SingleLogoutURL,
+		MFASettings:              o.Spec.MFASettings,
+		ForceAuthn:               o.Spec.ForceAuthn,
+		PreferredRequestBinding:  o.Spec.PreferredRequestBinding,
+		UserMatchers:             o.Spec.UserMatchers,
+		IncludeSubject:           o.Spec.IncludeSubject,
+		EntraIdGroupsProvider:    o.Spec.EntraIdGroupsProvider,
+	}
+
+	if oauth := o.GetOAuthClientCredentials(); oauth != nil {
+		var err error
+		specOut.Credentials, err = json.Marshal(struct {
+			Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
+		}{
+			Oauth: oauth,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	specJSON, err := json.Marshal(specOut)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return buf.Bytes(), nil
+	out := samlConnectorV2JSON{
+		Kind:     o.Kind,
+		SubKind:  o.SubKind,
+		Version:  o.Version,
+		Metadata: o.Metadata,
+		Spec:     specJSON,
+	}
+
+	return json.Marshal(out)
 }
 
-// UnmarshalJSON implements [json.Unmarshaler] for the SAMLConnectorSpecV2.
-// It is required because the Spec.Credentials proto field is a oneof and
-// gogoproto doesn't allow for oneof json tags (https://github.com/gogo/protobuf/issues/623).
-func (o *SAMLConnectorSpecV2) UnmarshalJSON(b []byte) error {
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: false}).Unmarshal(bytes.NewReader(b), o); err != nil {
+func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
+	var in samlConnectorV2JSON
+	if err := json.Unmarshal(b, &in); err != nil {
 		return trace.Wrap(err)
 	}
+
+	o.Kind = in.Kind
+	o.SubKind = in.SubKind
+	o.Version = in.Version
+	o.Metadata = in.Metadata
+
+	if len(in.Spec) == 0 {
+		return nil
+	}
+
+	var specIn samlConnectorSpecV2JSON
+	if err := json.Unmarshal(in.Spec, &specIn); err != nil {
+		return trace.Wrap(err)
+	}
+
+	o.Spec = SAMLConnectorSpecV2{
+		Issuer:                   specIn.Issuer,
+		SSO:                      specIn.SSO,
+		Cert:                     specIn.Cert,
+		Display:                  specIn.Display,
+		AssertionConsumerService: specIn.AssertionConsumerService,
+		Audience:                 specIn.Audience,
+		ServiceProviderIssuer:    specIn.ServiceProviderIssuer,
+		EntityDescriptor:         specIn.EntityDescriptor,
+		EntityDescriptorURL:      specIn.EntityDescriptorURL,
+		AttributesToRoles:        specIn.AttributesToRoles,
+		SigningKeyPair:           specIn.SigningKeyPair,
+		Provider:                 specIn.Provider,
+		EncryptionKeyPair:        specIn.EncryptionKeyPair,
+		AllowIDPInitiated:        specIn.AllowIDPInitiated,
+		ClientRedirectSettings:   specIn.ClientRedirectSettings,
+		SingleLogoutURL:          specIn.SingleLogoutURL,
+		MFASettings:              specIn.MFASettings,
+		ForceAuthn:               specIn.ForceAuthn,
+		PreferredRequestBinding:  specIn.PreferredRequestBinding,
+		UserMatchers:             specIn.UserMatchers,
+		IncludeSubject:           specIn.IncludeSubject,
+		EntraIdGroupsProvider:    specIn.EntraIdGroupsProvider,
+	}
+
+	if len(specIn.Credentials) != 0 {
+		var creds struct {
+			Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
+		}
+
+		if err := json.Unmarshal(specIn.Credentials, &creds); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if creds.Oauth != nil {
+			o.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}
+		}
+	}
+
 	return nil
 }
 
