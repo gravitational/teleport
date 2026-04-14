@@ -9,7 +9,12 @@ version: v3
 teleport:
   join_params:
     method: "{{ .Values.joinParams.method }}"
+{{- if .Values.joinParams.tokenSecret }}
+    token_name: "{{ .Values.joinParams.tokenName }}"
+    token_secret: "/etc/teleport-secrets/auth-token"
+{{- else }}
     token_name: "/etc/teleport-secrets/auth-token"
+{{- end }}
   {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
   proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
   {{- else }}
