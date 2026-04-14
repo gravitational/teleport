@@ -364,6 +364,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"windows_desktop_labels", types.KindWindowsDesktop},
 			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
+			{"beam_labels", types.KindBeam},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
 			if err != nil {
@@ -576,6 +577,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
+			types.KindBeam,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {

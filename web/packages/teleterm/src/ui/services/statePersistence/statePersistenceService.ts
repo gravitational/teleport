@@ -66,6 +66,8 @@ export interface StatePersistenceState {
   };
   /** Shows a banner above the cluster list to notify that a new tsh home dir is used. */
   showTshHomeMigrationBanner: boolean;
+  /** Remembers whether the roles section in the identity popover is expanded. */
+  showRolesExpanded?: boolean;
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.

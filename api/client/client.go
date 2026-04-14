@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -79,6 +78,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -87,6 +87,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -120,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -345,7 +347,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					tlsConfig: tlsConfig,
 					addr:      addr,
 				})
-				if sshConfig != nil {
+				if !sshConfig.IsEmpty() {
 					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
@@ -408,7 +410,7 @@ type (
 		addr      string
 		tlsConfig *tls.Config
 		dialer    ContextDialer
-		sshConfig *ssh.ClientConfig
+		sshConfig ssh.ClientConfig
 	}
 )
 
@@ -430,10 +432,10 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
 func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+	dialer := newTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -445,12 +447,12 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 // takes a specific addr parameter to allow the proxy address to be modified
 // when using special credentials.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
 
 	dialer := NewProxyDialer(
-		*params.sshConfig,
+		params.sshConfig,
 		params.cfg.KeepAlivePeriod,
 		params.cfg.DialTimeout,
 		params.addr,
@@ -466,10 +468,10 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 
 // tlsRoutingConnect connects to the Teleport Auth Server through the proxy using TLS Routing.
 func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := newTLSRoutingTunnelDialer(params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
@@ -480,10 +482,10 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 // tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
 // through the proxy using TLS Routing with ALPN connection upgrade.
 func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
-	if params.sshConfig == nil {
+	if params.sshConfig.IsEmpty() {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	dialer := newTLSRoutingWithConnUpgradeDialer(params.sshConfig, params)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
@@ -971,6 +973,12 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 // recording encryption service.
 func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -6250,4 +6258,9 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 // gRPC connection.
 func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
 	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].
+func (c *Client) IssuanceClient() issuancev1pb.IssuanceServiceClient {
+	return issuancev1pb.NewIssuanceServiceClient(c.conn)
 }

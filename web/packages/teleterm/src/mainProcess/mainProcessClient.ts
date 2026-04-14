@@ -21,7 +21,6 @@ import { ipcRenderer } from 'electron';
 import Logger from 'teleterm/logger';
 import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
-import { deserializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -339,9 +338,14 @@ function startAwaitableSenderListener<T>(
 async function ipcInvoke(channel: string, ...args: any[]): Promise<any> {
   const { error, result } = await ipcRenderer.invoke(channel, ...args);
   if (error) {
-    const deserialized = deserializeError(error);
-    logger.error(`Error invoking remote method ${channel}`, deserialized);
-    throw deserialized;
+    logger.error(`Error invoking remote method ${channel}`, error);
+
+    // IMPORTANT: Throw the plain serialized object instead of an Error instance.
+    // When errors cross Electron's context bridge (preload → renderer), custom
+    // properties on Error instances are stripped. By throwing a plain object,
+    // all properties are preserved.
+    // The renderer code (isTshdRpcError, retryWithRelogin) handles plain objects.
+    throw error;
   }
   return result;
 }

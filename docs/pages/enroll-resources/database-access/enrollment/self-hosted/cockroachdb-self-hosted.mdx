@@ -139,7 +139,9 @@ In this configuration, Teleport's CA will be used to issue the server cert,
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-Generate secrets for a CockroachDB node using `tctl`:
+Next, generate secrets for a CockroachDB node using `tctl`. If the output directory
+(i.e. the value of `--out`) does not already exist, it will be created. Secrets
+will be written to this directory:
 
 ```code
 $ tctl auth sign \

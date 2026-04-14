@@ -219,6 +219,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindWorkloadCluster},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindRetrievalModel},
 		{Kind: types.KindValidatedMFAChallenge},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -798,6 +802,8 @@ type Config struct {
 	AppAuthConfig services.AppAuthConfigReader
 	// WorkloadClusterService is a workload cluster service
 	WorkloadClusterService services.WorkloadClusterService
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

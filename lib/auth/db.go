@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -230,7 +229,7 @@ func getServerNames(req *proto.DatabaseCertRequest) []string {
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.DB).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.DB).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
@@ -319,7 +318,7 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 
 // GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
 func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJWTRequest) (*proto.SnowflakeJWTResponse, error) {
-	if !modules.GetModules().Features().GetEntitlement(entitlements.DB).Enabled {
+	if !a.modules.Features().GetEntitlement(entitlements.DB).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}

@@ -149,6 +149,10 @@ message JoinAttrsGitHub {
   string sha = 10;
   // The ID of this GitHub actions workflow run.
   string run_id = 11;
+  // The name of the enterprise that the repository belongs to, if any.
+  string enterprise = 12;
+  // The ID of the enterprise that the repository belongs to, if any.
+  string enterprise_id = 13;
 }
 
 // Attributes that are specific to the AWS IAM (`iam`) join method.

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -573,7 +574,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 // used to access nodes which require per-session mfa. The ceremony is performed directly
 // to make use of the userAuthClient already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
-func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *terminal.WSStream) ([]ssh.AuthMethod, error) {
+func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *terminal.WSStream) ([]ssh.Signer, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
@@ -626,11 +627,11 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	am, err := sshutils.AsAuthMethod(sshCert, pk)
+	signer, err := sshutils.SSHSigner(sshCert, pk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return []ssh.AuthMethod{am}, nil
+	return []ssh.Signer{signer}, nil
 }
 
 func newMFACeremony(
@@ -981,12 +982,12 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		}
 	}
 
-	sshConfig := &ssh.ClientConfig{
+	sshConfig := apissh.ClientConfig{
 		User:            tc.HostLogin,
-		Auth:            tc.AuthMethods,
-		AuthCallback:    authCallback,
+		PublicKeyAuth:   tc.PublicKeyAuthConfig,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
+		AuthCallback:    authCallback,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
@@ -1024,26 +1025,39 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
+	signers, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return t.connectToNodeWithMFABase(ctx, scopePin, ws, tc, accessChecker, getAgent, signer, authMethods)
+	return t.connectToNodeWithMFABase(ctx, scopePin, ws, tc, accessChecker, getAgent, signer, signers)
 }
 
 // connectToNodeWithMFABase attempts to dial the host with the provided auth
 // methods.
-func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
-	sshConfig := &ssh.ClientConfig{
-		User:            tc.HostLogin,
-		Auth:            authMethods,
+func (t *sshBaseHandler) connectToNodeWithMFABase(
+	ctx context.Context,
+	scopePin *scopesv1.Pin,
+	ws terminal.WSConn,
+	tc *client.TeleportClient,
+	accessChecker services.AccessChecker,
+	getAgent sshagent.ClientGetter,
+	agentlessSigner agentless.SignerCreator,
+	signers []ssh.Signer,
+) (*client.NodeClient, error) {
+	sshConfig := apissh.ClientConfig{
+		User: tc.HostLogin,
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return signers, nil
+			},
+		},
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         t.sshDialTimeout,
 	}
 
 	// connect to the node again with the new certs
-	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, agentlessSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

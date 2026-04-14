@@ -21,17 +21,16 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 )
 
 func TestLegacyToResource153(t *testing.T) {
@@ -285,52 +284,110 @@ func TestExpiryConsistency(t *testing.T) {
 	}
 }
 
-func TestConvertResource(t *testing.T) {
-	healthCfg, err := healthcheckconfig.NewHealthCheckConfig("example",
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
-					Name:   types.Wildcard,
-					Values: []string{types.Wildcard},
-				}},
+func TestLegacyMetadataToResource(t *testing.T) {
+	t.Run("copies header fields and unwraps underlying resource", func(t *testing.T) {
+		chal := &mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			SubKind: "subkind",
+			Version: types.V1,
+			Metadata: &types.Metadata{
+				Name:      "some-challenge-name",
+				Namespace: "default",
+				Revision:  "revision-123",
 			},
-		},
-	)
-	require.NoError(t, err)
+		}
 
-	user := &types.UserV2{
-		Kind: "user",
-		Metadata: types.Metadata{
-			Name: "llama",
-		},
-		Spec: types.UserSpecV2{
-			Roles: []string{"human", "camelidae"},
-		},
-	}
+		resource := types.LegacyMetadataToResource(chal)
 
-	t.Run("converts legacy to RFD 153 resource", func(t *testing.T) {
-		resource := types.Resource153ToLegacy(healthCfg)
-		got, err := types.ConvertResource[*healthcheckconfigv1.HealthCheckConfig](resource)
+		// Header fields should be copied over to the resource metadata.
+		require.Equal(t, chal.GetKind(), resource.GetKind())
+		require.Equal(t, chal.GetSubKind(), resource.GetSubKind())
+		require.Equal(t, chal.GetVersion(), resource.GetVersion())
+		require.Equal(t, *chal.GetMetadata(), resource.GetMetadata())
+
+		// UnwrapT should return the original resource pointer.
+		unwrapper := resource.(interface {
+			UnwrapT() *mfav1.ValidatedMFAChallenge
+		})
+		require.Same(t, chal, unwrapper.UnwrapT())
+
+		// Modifying the original resource's metadata should not affect the header metadata.
+		chal.Metadata.Name = "updated-name"
+		require.Equal(t, "some-challenge-name", resource.GetName())
+	})
+
+	t.Run("handles nil metadata", func(t *testing.T) {
+		chal := &mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			SubKind: "subkind",
+			Version: types.V1,
+		}
+
+		resource := types.LegacyMetadataToResource(chal)
+
+		require.Equal(t, chal.GetKind(), resource.GetKind())
+		require.Equal(t, chal.GetSubKind(), resource.GetSubKind())
+		require.Equal(t, chal.GetVersion(), resource.GetVersion())
+		require.Equal(t, types.Metadata{}, resource.GetMetadata())
+	})
+}
+
+func TestConvertResource(t *testing.T) {
+	t.Run("returns resource on direct type assertion", func(t *testing.T) {
+		user := &types.UserV2{
+			Kind: types.KindUser,
+			Metadata: types.Metadata{
+				Name: "alice",
+			},
+		}
+
+		converted, err := types.ConvertResource[*types.UserV2](user)
 		require.NoError(t, err)
-		require.Equal(t, healthCfg, got)
+		require.Same(t, user, converted)
 	})
 
-	t.Run("converts legacy to legacy", func(t *testing.T) {
-		resource := user.DeepCopy()
-		got, err := types.ConvertResource[*types.UserV2](types.Resource(resource))
+	t.Run("unwraps resource153 adapter", func(t *testing.T) {
+		bot := &machineidv1.Bot{
+			Kind: types.KindBot,
+			Metadata: &headerv1.Metadata{
+				Name: "bernard",
+			},
+		}
+
+		resource := types.Resource153ToLegacy(bot)
+
+		converted, err := types.ConvertResource[*machineidv1.Bot](resource)
 		require.NoError(t, err)
-		require.Equal(t, user, got)
+		require.Same(t, bot, converted)
 	})
 
-	t.Run("handles unexpected RFD 153 resource", func(t *testing.T) {
-		resource := types.Resource153ToLegacy(healthCfg)
-		_, err := types.ConvertResource[*types.Server](resource)
-		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.resource153ToLegacyAdapter")
+	t.Run("unwraps legacy metadata adapter", func(t *testing.T) {
+		chal := &mfav1.ValidatedMFAChallenge{
+			Kind: types.KindValidatedMFAChallenge,
+			Metadata: &types.Metadata{
+				Name: "challenge",
+			},
+		}
+
+		resource := types.LegacyMetadataToResource(chal)
+
+		converted, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](resource)
+		require.NoError(t, err)
+		require.Same(t, chal, converted)
 	})
 
-	t.Run("handles unexpected legacy resource", func(t *testing.T) {
-		resource := user.DeepCopy()
-		_, err := types.ConvertResource[*types.Server](types.Resource(resource))
-		require.ErrorContains(t, err, "expected resource type *types.Server, got *types.UserV2")
+	t.Run("returns bad parameter on mismatched type", func(t *testing.T) {
+		user := &types.UserV2{
+			Kind: types.KindUser,
+			Metadata: types.Metadata{
+				Name: "changeling",
+			},
+		}
+
+		converted, err := types.ConvertResource[*machineidv1.Bot](user)
+		require.Nil(t, converted)
+
+		var expected *machineidv1.Bot
+		require.ErrorIs(t, err, trace.BadParameter("expected resource type %T, got %T", expected, user))
 	})
 }

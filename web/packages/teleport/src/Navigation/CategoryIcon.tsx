@@ -61,6 +61,9 @@ export function CategoryIcon({
     case NavigationCategory.MachineWorkloadId:
       Icon = Icons.Bots;
       break;
+    case NavigationCategory.Beams:
+      Icon = Icons.Planet;
+      break;
     default:
       return null;
   }

@@ -34,6 +34,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
@@ -184,6 +185,22 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
 		out.Resource = &proto.Event_WorkloadCluster{
 			WorkloadCluster: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
+		out.Resource = &proto.Event_InferenceModel{
+			InferenceModel: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
+		out.Resource = &proto.Event_InferenceSecret{
+			InferenceSecret: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
+		out.Resource = &proto.Event_InferencePolicy{
+			InferencePolicy: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
+		out.Resource = &proto.Event_RetrievalModel{
+			RetrievalModel: r.UnwrapT(),
 		}
 	case validatedMFAChallengeUnwrapper:
 		out.Resource = &proto.Event_ValidatedMFAChallenge{
@@ -704,10 +721,22 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWorkloadCluster(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetInferenceModel(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetInferenceSecret(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetInferencePolicy(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetRetrievalModel(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetValidatedMFAChallenge(); r != nil {
-		out.Resource = &validatedMFAChallengeResource{
+		out.Resource = &validatedMFAChallengeResourceWrapper{
 			Resource: types.LegacyMetadataToResource(r),
-			chal:     r,
+			inner:    r,
 		}
 		return &out, nil
 	} else {
@@ -734,20 +763,25 @@ type validatedMFAChallengeUnwrapper interface {
 	UnwrapT() *mfav1.ValidatedMFAChallenge
 }
 
-type validatedMFAChallengeResource struct {
+// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
+type validatedMFAChallengeResourceWrapper struct {
 	types.Resource
 
-	chal *mfav1.ValidatedMFAChallenge
+	inner *mfav1.ValidatedMFAChallenge
 }
 
-func (r *validatedMFAChallengeResource) GetTargetCluster() string {
-	if r.chal == nil || r.chal.GetSpec() == nil {
+func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
+	if r.inner == nil || r.inner.GetSpec() == nil {
 		return ""
 	}
 
-	return r.chal.GetSpec().GetTargetCluster()
+	return r.inner.GetSpec().GetTargetCluster()
 }
 
-func (r *validatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	return r.chal
+func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
+	if r == nil {
+		return nil
+	}
+
+	return r.inner
 }

@@ -52,12 +52,13 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/selinux"
 )
 
@@ -110,11 +111,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon.")
 	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
-	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
-	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	networking := app.Command(teleport.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
-	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
-	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
+	sftp := app.Command(reexecconstants.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
+	exec := app.Command(reexecconstants.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
+	networking := app.Command(reexecconstants.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
+	checkHomeDir := app.Command(reexecconstants.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
+	park := app.Command(reexecconstants.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
 
 	// define start flags:
@@ -747,13 +748,13 @@ Examples:
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
-		srv.RunAndExit(teleport.ExecSubCommand)
+		reexec.RunAndExit(reexecconstants.ExecSubCommand)
 	case networking.FullCommand():
-		srv.RunAndExit(teleport.NetworkingSubCommand)
+		reexec.RunAndExit(reexecconstants.NetworkingSubCommand)
 	case checkHomeDir.FullCommand():
-		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
+		reexec.RunAndExit(reexecconstants.CheckHomeDirSubCommand)
 	case park.FullCommand():
-		srv.RunAndExit(teleport.ParkSubCommand)
+		reexec.RunAndExit(reexecconstants.ParkSubCommand)
 	case waitNoResolveCmd.FullCommand():
 		err = onWaitNoResolve(waitFlags)
 	case waitDurationCmd.FullCommand():

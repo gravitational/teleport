@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -260,8 +259,7 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
 			Metadata: &types.Metadata{
-				Name:      keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
-				Namespace: defaults.Namespace,
+				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
 			},
 			Spec: &mfav1.ValidatedMFAChallengeSpec{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
@@ -284,35 +282,20 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 
-	return ValidatedMFAChallengeToResource(chal), nil
+	return &validatedMFAChallengeResourceWrapper{
+		Resource: types.LegacyMetadataToResource(chal),
+		inner:    chal,
+	}, nil
 }
 
 // TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-func ValidatedMFAChallengeToResource(chal *mfav1.ValidatedMFAChallenge) types.Resource {
-	metadata := types.Metadata{}
-	if chal.GetMetadata() != nil {
-		metadata = *chal.GetMetadata()
-	}
-
-	return &watchedValidatedMFAChallengeResource{
-		Resource: &types.ResourceHeader{
-			Kind:     chal.GetKind(),
-			SubKind:  chal.GetSubKind(),
-			Version:  chal.GetVersion(),
-			Metadata: metadata,
-		},
-		inner: chal,
-	}
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type watchedValidatedMFAChallengeResource struct {
+type validatedMFAChallengeResourceWrapper struct {
 	types.Resource
 
 	inner *mfav1.ValidatedMFAChallenge
 }
 
-func (r *watchedValidatedMFAChallengeResource) GetTargetCluster() string {
+func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
 	if r.inner == nil || r.inner.GetSpec() == nil {
 		return ""
 	}
@@ -320,7 +303,7 @@ func (r *watchedValidatedMFAChallengeResource) GetTargetCluster() string {
 	return r.inner.GetSpec().GetTargetCluster()
 }
 
-func (r *watchedValidatedMFAChallengeResource) UnwrapT() *mfav1.ValidatedMFAChallenge {
+func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
 	if r == nil {
 		return nil
 	}

@@ -35,6 +35,9 @@ import (
 	"time"
 )
 
+// clusterName is the name of the Teleport cluster used for E2E testing.
+const clusterName = "teleport-e2e"
+
 type teleportInstance struct {
 	log         *slog.Logger
 	teleportBin string
@@ -147,6 +150,7 @@ func (t *teleportInstance) stop() {
 }
 
 type TeleportConfig struct {
+	ClusterName    string
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int
