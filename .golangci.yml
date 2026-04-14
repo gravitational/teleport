@@ -9,6 +9,7 @@ linters:
     - depguard
     - errorlint
     - forbidigo
+    - forcetypeassert
     - govet
     - ineffassign
     - misspell
@@ -90,6 +91,7 @@ linters:
             - '**/lib/cloud/imds/**'
           allow:
             - github.com/gravitational/teleport/lib/cloud/imds
+            - github.com/gravitational/teleport/lib/cloud/aws/config
           deny:
             - pkg: github.com/gravitational/teleport/lib/auth$
               desc: lib/auth should not be imported to prevent increasing binary size, prefer lib/auth/authclient instead
@@ -381,6 +383,15 @@ linters:
         - pattern: ^semver\.New$
           pkg: ^github.com/coreos/go-semver/semver$
           msg: construct a semver.Version manually or use semver.NewVersion
+        - pattern: ^[^\.]+\.LoadDefaultConfig$
+          pkg: ^github.com/aws/aws-sdk-go-v2/config$
+          msg: use github.com/gravitational/teleport/lib/cloud/aws/config.LoadDefaultConfig to ensure region validation
+        - pattern: ^ssh\.(Dial|NewClient|NewClientConn)$
+          pkg: ^golang\.org/x/crypto/ssh$
+          msg: Use api/ssh package to construct SSH clients with proper defaults
+        - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
+          pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
+          msg: Use api/ssh package to construct SSH clients with proper defaults
       analyze-types: true
     misspell:
       locale: US
@@ -507,6 +518,57 @@ linters:
           - forbidigo
         path: lib/utils/aws/stsutils/stscreds_v1.go
         text: stscreds.NewCredentials
+      - linters:
+          - forbidigo
+        path: lib/cloud/aws/config/config.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: examples/dynamoathenamigration/migration.go
+        text: LoadDefaultConfig
+      - linters:
+          - forbidigo
+        path: e/scripts/loadtest-login/main.go
+        text: LoadDefaultConfig
+
+      # Only the api/observability/tracing/ssh package is allowed to call x/crypto/ssh new client functions directly.
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: ssh.NewClient
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: ssh.NewClientConn
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/observability/tracing/ssh/
+        text: NewClientConnWithTimeout
+
+      # Only the api/ssh package is allowed to call the api/observability/tracing/ssh package directly. All others must use the api/ssh package.
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.Dial
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientWithTimeout
+      - linters:
+          - forbidigo
+        path: ^api/ssh/
+        text: tracessh.NewClientConnWithTimeout
+
+      # TODO: Fix forced type assertions in the rest of the codebase and remove this exclusion so that the linter can
+      # enforce this rule everywhere.
+      - linters:
+          - forcetypeassert
+        path-except: ^lib/tlsca/ca\.go$
+
     paths:
       - (^|/)node_modules/
       - ^api/gen/

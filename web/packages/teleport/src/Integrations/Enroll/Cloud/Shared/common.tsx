@@ -16,39 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 import styled from 'styled-components';
 
-import { Button, ButtonPrimary, Flex } from 'design';
-import { Check, Copy } from 'design/Icon';
+import { ButtonPrimary, Flex } from 'design';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-
-export function CopyTerraformButton({
-  onClick,
-}: {
-  onClick: (e: React.SyntheticEvent) => void;
-}) {
-  const [configCopied, setConfigCopied] = useState(false);
-
-  const handleClick = (e: React.SyntheticEvent) => {
-    onClick(e);
-
-    if (!e.defaultPrevented) {
-      setConfigCopied(true);
-      setTimeout(() => setConfigCopied(false), 1000);
-    }
-  };
-
-  return (
-    <Button fill="border" intent="primary" onClick={handleClick} gap={2}>
-      {configCopied ? <Check size="small" /> : <Copy size="small" />}
-      Copy Terraform Module
-    </Button>
-  );
-}
 
 type CheckIntegrationButtonProps = {
   integrationExists?: boolean;

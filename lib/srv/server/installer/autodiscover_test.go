@@ -306,7 +306,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 						"--proxy=proxy.example.com",
 						"--join-method=azure",
 						"--token=my-token",
-						"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+						"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 						"--azure-client-id=azure-client-id",
 					).AndCallFunc(func(c *bintest.Call) {
 						// create a teleport.yaml configuration file
@@ -380,7 +380,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy="+proxyPublicAddr,
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -456,7 +456,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy="+proxyPublicAddr,
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -538,7 +538,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy=proxy.example.com",
 			"--join-method=gcp",
 			"--token=my-token",
-			"--labels=teleport.dev/project-id=my-project,teleport.internal/name=my-name,teleport.internal/project-id=my-project,teleport.internal/zone=my-zone",
+			"--labels=teleport.dev/name=my-name,teleport.dev/project-id=my-project,teleport.dev/zone=my-zone,teleport.internal/name=my-name,teleport.internal/project-id=my-project,teleport.internal/zone=my-zone",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
 			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
@@ -643,7 +643,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -708,7 +708,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -771,7 +771,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -834,7 +834,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 			"--proxy=proxy.example.com",
 			"--join-method=azure",
 			"--token=my-token",
-			"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+			"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 			"--azure-client-id=azure-client-id",
 		).AndCallFunc(func(c *bintest.Call) {
 			// create a teleport.yaml configuration file
@@ -863,7 +863,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 				"--proxy=proxy.example.com",
 				"--join-method=azure",
 				"--token=my-token",
-				"--labels=teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
+				"--labels=teleport.dev/region=eastus,teleport.dev/resource-group=TestGroup,teleport.dev/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.dev/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4,teleport.internal/region=eastus,teleport.internal/resource-group=TestGroup,teleport.internal/subscription-id=5187AF11-3581-4AB6-A654-59405CD40C44,teleport.internal/vm-id=ED7DAC09-6E73-447F-BD18-AF4D1196C1E4",
 				"--azure-client-id=azure-client-id",
 			).AndCallFunc(func(c *bintest.Call) {
 				// create a teleport.yaml configuration file

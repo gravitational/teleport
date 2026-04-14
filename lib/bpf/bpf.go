@@ -29,6 +29,7 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
@@ -44,9 +45,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ArgsCacheSize is the number of args events to store before dropping args
-// events.
-const ArgsCacheSize = len(commandDataT{}.Argv)
+const (
+	// ArgsCacheSize is the number of args events to store before dropping args
+	// events.
+	ArgsCacheSize = len(commandDataT{}.Argv)
+
+	// eventSendTimeout is the maximum time to wait for an event to be sent
+	// to be emitted to the Audit log.
+	eventSendTimeout = 10 * time.Second
+)
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
@@ -82,6 +89,10 @@ type Service struct {
 	// conn is a BPF programs that hooks connect.
 	// conn is set only when restricted sessions are enabled.
 	conn *conn
+
+	lostEvents EventCount
+
+	wg sync.WaitGroup
 }
 
 // New creates a BPF service.
@@ -152,11 +163,31 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		"elapsed", time.Since(start),
 	)
 
-	go s.processNetworkEvents()
-
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
-	go s.processAccessEvents()
+	s.wg.Go(func() {
+		for event := range s.exec.events() {
+			s.emitCommandEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.open.events() {
+			s.emitDiskEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.conn.v4Events() {
+			s.emit4NetworkEvent(event)
+		}
+	})
+	s.wg.Go(func() {
+		for event := range s.conn.v6Events() {
+			s.emit6NetworkEvent(event)
+		}
+	})
+
+	// Log the number of lost events.
+	s.wg.Go(s.logLostEvents)
 
 	return s, nil
 }
@@ -177,8 +208,9 @@ func (s *Service) Close(restarting bool) error {
 		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
 	}
 
-	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
 	s.closeFunc()
+
+	s.wg.Wait()
 
 	return nil
 }
@@ -270,13 +302,27 @@ func (s *Service) Enabled() bool {
 	return true
 }
 
-func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+// LostEvents returns the total number of lost events for command, disk,
+// and network events since the service was started.
+func (s *Service) LostEvents() EventCount {
+	return EventCount{
+		commandEvents: s.exec.lostCounter.Count(),
+		diskEvents:    s.open.lostCounter.Count(),
+		networkEvents: s.conn.lostCounter.Count(),
+	}
+}
+
+func sendEvents(eventType string, bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	defer eventBuf.Close()
+	defer close(bpfEvents)
+
+	timer := time.NewTimer(eventSendTimeout)
+	defer timer.Stop()
 
 	for {
 		rec, err := eventBuf.Read()
 		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
+			if errors.Is(err, ringbuf.ErrClosed) || errors.Is(err, ringbuf.ErrFlushed) {
 				logger.DebugContext(context.Background(), "Received signal, exiting")
 				return
 			}
@@ -284,39 +330,40 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 			return
 		}
 
-		bpfEvents <- rec.RawSample[:]
-	}
-}
-
-// processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
-// the audit log.
-// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
-func (s *Service) processAccessEvents() {
-	for {
+		// Avoid blocking on the channel if the buffer is full, this
+		// could prevent the service from shutting down.
+		timer.Reset(eventSendTimeout)
 		select {
-		// Program execution.
-		case event := <-s.exec.events():
-			s.emitCommandEvent(event)
-		// Disk access.
-		case event := <-s.open.events():
-			s.emitDiskEvent(event)
-		case <-s.closeContext.Done():
-			return
+		case bpfEvents <- rec.RawSample[:]:
+		case <-timer.C:
+			logger.WarnContext(context.Background(), "Enhanced session recording event buffer is full, dropping event", "event_type", eventType)
 		}
 	}
 }
 
-// processNetworkEvents pulls networks events of the ring buffer and emits them
-// to the audit log.
-func (s *Service) processNetworkEvents() {
+func (s *Service) logLostEvents() {
+	const interval = 5 * time.Second
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
 	for {
 		select {
-		// Network access (IPv4).
-		case event := <-s.conn.v4Events():
-			s.emit4NetworkEvent(event)
-		// Network access (IPv6).
-		case event := <-s.conn.v6Events():
-			s.emit6NetworkEvent(event)
+		case <-timer.C:
+			le := s.LostEvents()
+			newlyLost := le.Delta(s.lostEvents)
+			if !newlyLost.Empty() {
+				logger.WarnContext(s.closeContext, "Lost some Enhanced Session Recording events in the last 5 seconds due to a full eBPF ringbuffer, consider increasing the buffer sizes; see https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/#create-a-configuration-file for more information",
+					"command_events",
+					newlyLost.commandEvents,
+					"disk_events",
+					newlyLost.diskEvents,
+					"network_events",
+					newlyLost.networkEvents,
+				)
+			}
+
+			s.lostEvents = le
+			timer.Reset(interval)
 		case <-s.closeContext.Done():
 			return
 		}

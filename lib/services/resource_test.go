@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestParseShortcut will test parsing of shortcuts.
@@ -181,6 +182,12 @@ func TestParseShortcut(t *testing.T) {
 		"access_requests": {expectedOutput: types.KindAccessRequest},
 		"accessrequest":   {expectedOutput: types.KindAccessRequest},
 		"accessrequests":  {expectedOutput: types.KindAccessRequest},
+
+		"scoped_role_assignment":  {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scoped_role_assignments": {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scopedroleassignment":    {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scopedroleassignments":   {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"sra":                     {expectedOutput: scopedaccess.KindScopedRoleAssignment},
 
 		"unknown_type": {expectedErr: true},
 	}

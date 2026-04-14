@@ -25,9 +25,11 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
@@ -56,6 +58,10 @@ func (process *TeleportProcess) initKubernetes() {
 		k8s := modules.GetProtoEntitlement(&features, entitlements.K8s)
 		if !k8s.Enabled {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
+			// Do not close conn: it is stored in process.connectors
+			// by RegisterWithAuthServer and rotation code reads it.
+			process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
+			process.OnHeartbeat(teleport.ComponentKube)(nil)
 			return nil
 		}
 		if err := process.initKubernetesService(logger, conn); err != nil {
@@ -132,13 +138,17 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				InsecureMode:             process.Config.InsecureMode,
-				Component:                teleport.ComponentKube,
-				HostUUID:                 conn.HostID(),
-				Resolver:                 conn.TunnelProxyResolver(),
-				Client:                   conn.Client,
-				AccessPoint:              accessPoint,
-				AuthMethods:              conn.ClientAuthMethods(),
+				InsecureMode: process.Config.InsecureMode,
+				Component:    teleport.ComponentKube,
+				HostUUID:     conn.HostID(),
+				Resolver:     conn.TunnelProxyResolver(),
+				Client:       conn.Client,
+				AccessPoint:  accessPoint,
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return conn.ClientSigners(), nil
+					},
+				},
 				Cluster:                  teleportClusterName,
 				Server:                   shtl,
 				FIPS:                     process.Config.FIPS,

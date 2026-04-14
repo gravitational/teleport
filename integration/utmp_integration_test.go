@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -106,20 +107,24 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
-		sshConfig := &ssh.ClientConfig{
-			User:            teleportTestUser,
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		sshConfig := apissh.ClientConfig{
+			User: teleportTestUser,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{up.certSigner}, nil
+				},
+			},
 			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 		}
 
-		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+		client, err := apissh.Dial(t.Context(), "tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
 		defer func() {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
 
-		se, err := client.NewSession()
+		se, err := client.NewSession(t.Context())
 		require.NoError(t, err)
 		defer se.Close()
 
@@ -129,8 +134,8 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
-		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
-		err = se.Shell()
+		require.NoError(t, se.RequestPty(t.Context(), "xterm", 80, 80, modes), nil)
+		err = se.Shell(t.Context())
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
@@ -146,20 +151,24 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	})
 
 	t.Run("unsuccessful login is logged in btmp", func(t *testing.T) {
-		sshConfig := &ssh.ClientConfig{
-			User:            teleportFakeUser,
-			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+		sshConfig := apissh.ClientConfig{
+			User: teleportFakeUser,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{up.certSigner}, nil
+				},
+			},
 			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 		}
 
-		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+		client, err := apissh.Dial(t.Context(), "tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
 		defer func() {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
 
-		se, err := client.NewSession()
+		se, err := client.NewSession(t.Context())
 		require.NoError(t, err)
 		defer se.Close()
 
@@ -169,8 +178,8 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
-		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
-		err = se.Shell()
+		require.NoError(t, se.RequestPty(t.Context(), "xterm", 80, 80, modes), nil)
+		err = se.Shell(t.Context())
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {

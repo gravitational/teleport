@@ -496,6 +496,31 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
+// AppendPutUserParamsActions adds conditional actions to an atomic write to
+// create or update the user params resource (without secrets, mfa devices).
+func (s *IdentityService) AppendPutUserParamsActions(
+	actions []backend.ConditionalAction,
+	user types.User,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateUser(user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	withoutSecrets, ok := user.WithoutSecrets().(types.User)
+	if !ok {
+		return nil, trace.BadParameter("WithoutSecrets returned a different type (this is a bug)")
+	}
+	item, err := itemFromUser(withoutSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
+}
+
 // CompareAndSwapUser updates a user, but fails if the user (as exists in the
 // backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
@@ -718,6 +743,24 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	return trace.NewAggregate(notifErrors...)
+}
+
+// AppendDeleteUserParamsActions adds conditional actions to an atomic write
+// to delete the user params resource.
+//
+// Note: the returned actions will NOT delete the user's password, MFA devices,
+// etc. so is only really suitable for bot users, in most cases you should use
+// DeleteUser instead.
+func (s *IdentityService) AppendDeleteUserParamsActions(
+	actions []backend.ConditionalAction,
+	user string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
