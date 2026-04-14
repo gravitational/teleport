@@ -866,21 +866,13 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 	return true
 }
 
-// relayServerHeartbeatV2 is a heartbeat driver for Relay heartbeats.
-type relayServerHeartbeatV2 struct {
-	log *slog.Logger
-	// getServer should return a relay_server item with no expiry. The value is
-	// checked against the previous relay_server with protobuf equality.
-	getServer func(ctx context.Context) (*presencev1.RelayServer, error)
-
-	last *presencev1.RelayServer
-}
-
 // linuxDesktopHeartbeatV2 is the heartbeatV2 implementation for linux desktops.
 type linuxDesktopHeartbeatV2 struct {
 	getDesktop func(ctx context.Context) (*linuxdesktopv1.LinuxDesktop, error)
 	prev       *linuxdesktopv1.LinuxDesktop
 }
+
+var _ heartbeatV2Driver = (*linuxDesktopHeartbeatV2)(nil)
 
 func (h *linuxDesktopHeartbeatV2) Poll(ctx context.Context) (changed bool) {
 	if h.prev == nil {
@@ -908,7 +900,7 @@ func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory
 	switch {
 	case hello.Capabilities == nil:
 		return false
-	case hello.Capabilities != nil && !hello.Capabilities.LinuxDesktopHeartbeats:
+	case !hello.Capabilities.LinuxDesktopHeartbeats:
 		return false
 	}
 
@@ -926,6 +918,16 @@ func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory
 	}
 	h.prev = desktop
 	return true
+}
+
+// relayServerHeartbeatV2 is a heartbeat driver for Relay heartbeats.
+type relayServerHeartbeatV2 struct {
+	log *slog.Logger
+	// getServer should return a relay_server item with no expiry. The value is
+	// checked against the previous relay_server with protobuf equality.
+	getServer func(ctx context.Context) (*presencev1.RelayServer, error)
+
+	last *presencev1.RelayServer
 }
 
 var _ heartbeatV2Driver = (*relayServerHeartbeatV2)(nil)

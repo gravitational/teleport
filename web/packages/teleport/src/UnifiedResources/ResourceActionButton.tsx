@@ -69,7 +69,7 @@ export const ResourceActionButton = ({ resource }: Props) => {
     case 'windows_desktop':
       return <DesktopConnect desktop={resource} />;
     case 'linux_desktop':
-      return <LinuxDesktopConnect desktop={resource} />
+      return <DesktopConnect desktop={resource} />
     case 'git_server':
       return <GitServerConnect gitServer={resource} />;
     default:
@@ -119,9 +119,12 @@ const NodeConnect = ({ node }: { node: Node }) => {
 };
 
 const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
+  const linuxDesktop = desktop.kind == 'linux_desktop'
   const { clusterId } = useStickyClusterId();
   const startRemoteDesktopSession = (username: string, desktopName: string) => {
-    const url = cfg.getDesktopRoute({
+    let route = linuxDesktop ? cfg.getLinuxDesktopRoute : cfg.getDesktopRoute;
+
+    const url = route({
       clusterId,
       desktopName,
       username,
@@ -136,48 +139,7 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
     e.preventDefault();
-    return startRemoteDesktopSession(login, desktop.name);
-  }
-
-  return (
-    <MenuLogin
-      width="123px"
-      inputType={MenuInputType.FILTER}
-      textTransform="none"
-      alignButtonWidthToMenu
-      getLoginItems={handleOnOpen}
-      onSelect={handleOnSelect}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
-  );
-};
-
-const LinuxDesktopConnect = ({ desktop }: { desktop: Desktop }) => {
-  const { clusterId } = useStickyClusterId();
-  const startRemoteDesktopSession = (username: string, desktopName: string) => {
-    const url = cfg.getLinuxDesktopRoute({
-      clusterId,
-      desktopName,
-      username,
-    });
-
-    openNewTab(url);
-  };
-
-  function handleOnOpen() {
-    return makeDesktopLoginOptions(clusterId, desktop.name, desktop.logins);
-  }
-
-  function handleOnSelect(e: React.SyntheticEvent, login: string) {
-    e.preventDefault();
-    return startRemoteDesktopSession(login, desktop.host_id);
+    return startRemoteDesktopSession(login, linuxDesktop ? desktop.host_id : desktop.name);
   }
 
   return (

@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   Alert,
-  Box, Button,
+  Box,
   ButtonPrimary,
   Flex,
   H2,
@@ -57,11 +57,7 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
-import {List} from "teleport/Bots/List/Bots.story";
 import {FieldSelect} from "shared/components/FieldSelect";
-import {sessions} from "teleport/Sessions/fixtures";
-import session from "teleport/services/session";
-import {Session} from "node:inspector";
 import Validation from "shared/components/Validation";
 
 export interface DesktopSessionProps {

@@ -68,14 +68,14 @@ pub unsafe extern "C" fn encode_qoiz(
 #[no_mangle]
 pub unsafe extern "C" fn free_encoding_result(frames: EncodingResult) {
     if frames.error_code == CGOErrCode::ErrCodeFailure {
-        drop(Box::from_raw(slice::from_raw_parts_mut(
+        drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
             frames.error_msg,
             frames.length,
         )));
     } else {
-        let frames = Box::from_raw(slice::from_raw_parts_mut(frames.pdus, frames.length));
+        let frames = Box::from_raw(ptr::slice_from_raw_parts_mut(frames.pdus, frames.length));
         for frame in frames {
-            drop(Box::from_raw(slice::from_raw_parts_mut(
+            drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
                 frame.data,
                 frame.length,
             )));
@@ -91,6 +91,8 @@ fn inner_encode_qoiz(
     height: u16,
 ) -> Result<Vec<Vec<u8>>, EncodeError> {
     let mut data = qoi::encode_to_vec(input, width as u32, height as u32)?;
+    // our frames always have alpha set to 0xFF so we set channels number to 3 as it is
+    // required by ironrdp decoding routine
     data[12] = 3;
     let data = zstd::encode_all(data.as_slice(), 0)?;
     let update =

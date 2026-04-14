@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
@@ -34,9 +35,7 @@ var asciiRE = regexp.MustCompile("[[:^ascii:]]")
 var modeCount atomic.Uint64
 
 const (
-	dpi       = 96
-	maxWidth  = 8192
-	maxHeight = 8192
+	dpi = 96
 )
 
 func init() {
@@ -74,7 +73,7 @@ type Backend struct {
 	selectionAtom   xproto.Atom
 
 	// AuthorityFile is XAuthority file used for securing X11 socket, it'll be deleted when backend is closed
-	AuthorityFile   *os.File
+	AuthorityFile   string
 	authorityCookie []byte
 }
 
@@ -92,12 +91,21 @@ func IsBackendPresent() bool {
 	}
 }
 
+func isBackendSafe() bool {
+	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
+	case "", "xvfb":
+		return true
+	default:
+		return false
+	}
+}
+
 func getBackendCommand(ctx context.Context, authorityFile string) (*exec.Cmd, error) {
 	switch backend := os.Getenv("TELEPORT_LINUX_DESKTOP_BACKEND"); backend {
 	case "", "xvfb":
 		return exec.CommandContext(ctx, "Xvfb",
 			"-displayfd", "1",
-			"-screen", "0", fmt.Sprintf("%dx%dx24", maxWidth, maxHeight),
+			"-screen", "0", fmt.Sprintf("%dx%dx24", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight),
 			"-nolock",
 			"-dpi", fmt.Sprintf("%d", dpi),
 			"-dpms",
@@ -110,7 +118,7 @@ func getBackendCommand(ctx context.Context, authorityFile string) (*exec.Cmd, er
 		// once - it's intended only for testing
 		return exec.CommandContext(ctx, "Xvfb",
 			"-displayfd", "1",
-			"-screen", "0", fmt.Sprintf("%dx%dx24", maxWidth, maxHeight),
+			"-screen", "0", fmt.Sprintf("%dx%dx24", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight),
 			"-nolock",
 			"-dpi", fmt.Sprintf("%d", dpi),
 			"-dpms",
@@ -124,7 +132,7 @@ func getBackendCommand(ctx context.Context, authorityFile string) (*exec.Cmd, er
 		// what's happening in the session
 		return exec.CommandContext(ctx, "Xephyr",
 			"-displayfd", "1",
-			"-screen", fmt.Sprintf("%dx%dx24", maxWidth, maxHeight),
+			"-screen", fmt.Sprintf("%dx%dx24", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight),
 			"-nolock",
 			"-listen", "tcp",
 			"-auth", authorityFile), nil
@@ -152,6 +160,10 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	}
 	if !IsBackendPresent() {
 		return nil, trace.NotFound("Backend is not installed")
+	}
+
+	if !isBackendSafe() {
+		config.Logger.WarnContext(ctx, "Selected backend is not safe for production usage! Please use 'xvfb' instead.")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -219,6 +231,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if _, err := authorityFile.Write(entry); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	authorityFile.Close()
 
 	conn, setup, err := connectToDisplay(display, cookie)
 	if err != nil {
@@ -266,15 +279,10 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// force DPI to 96
-	if err := randr.SetScreenSizeChecked(conn, window, 8192, 8192, 2167, 2167).Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Set DPI
-	widthMm := pixelsToMm(maxWidth)
-	heightMm := pixelsToMm(maxHeight)
-	if err := randr.SetScreenSizeChecked(conn, window, maxWidth, maxHeight, widthMm, heightMm).Check(); err != nil {
+	widthMm := pixelsToMm(types.MaxRDPScreenWidth)
+	heightMm := pixelsToMm(types.MaxRDPScreenHeight)
+	if err := randr.SetScreenSizeChecked(conn, window, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight, widthMm, heightMm).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -292,9 +300,11 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		targetsAtom:     targetsAtom,
 		utf8Atom:        utf8Atom,
 		selectionAtom:   selectionAtom,
-		AuthorityFile:   authorityFile,
+		AuthorityFile:   authorityFile.Name(),
 		authorityCookie: cookie,
 	}
+
+	x.clipboardData.Store(&[]byte{})
 
 	go x.processClipboardEvents()
 
@@ -361,9 +371,10 @@ func (x *Backend) root() xproto.Window {
 
 // Close stops the Backend process and waits for it to exit.
 func (x *Backend) Close() error {
+	x.conn.Close()
 	x.cancel()
 
-	os.Remove(x.AuthorityFile.Name())
+	os.Remove(x.AuthorityFile)
 
 	var e *exec.ExitError
 
@@ -385,6 +396,14 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 		return nil, nil, trace.Wrap(err)
 	}
 	setup := xproto.Setup(conn)
+
+	success := false
+
+	defer func() {
+		if !success {
+			conn.Close()
+		}
+	}()
 
 	if err := xtest.Init(conn); err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -414,6 +433,7 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 		return nil, nil, trace.Wrap(err)
 	}
 
+	success = true
 	return conn, setup, nil
 }
 
@@ -494,8 +514,8 @@ func (x *Backend) SendMouseMove(px, py int16) error {
 
 // Resize changes the virtual screen size.
 func (x *Backend) Resize(width, height uint16) error {
-	if width > maxWidth || height > maxHeight {
-		return trace.BadParameter("invalid size %dx%d, maximum size is %dx%d", width, height, maxWidth, maxHeight)
+	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
+		return trace.BadParameter("invalid size %dx%d, maximum size is %dx%d", width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 
 	if found, err := x.setScreenSize(width, height); err != nil {

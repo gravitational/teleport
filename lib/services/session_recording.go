@@ -38,7 +38,8 @@ func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checke
 			SubKind: "",
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: linuxEnd.DesktopName,
+				Name:   linuxEnd.DesktopName,
+				Labels: linuxEnd.DesktopLabels,
 			},
 			Spec: &linuxdesktopv1.LinuxDesktopSpec{
 				Addr: linuxEnd.DesktopAddr,

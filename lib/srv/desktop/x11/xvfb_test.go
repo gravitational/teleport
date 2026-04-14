@@ -248,7 +248,7 @@ func TestClipboard(t *testing.T) {
 
 	env := []string{
 		fmt.Sprintf("DISPLAY=%s", xvfb.Display),
-		fmt.Sprintf("XAUTHORITY=%s", xvfb.AuthorityFile.Name()),
+		fmt.Sprintf("XAUTHORITY=%s", xvfb.AuthorityFile),
 	}
 
 	cmd := exec.CommandContext(t.Context(), "xclip", "-selection", "clipboard", "-o")

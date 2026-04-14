@@ -452,7 +452,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(completion compl
 	}
 
 	if errorCode != legacy.ErrCodeNil {
-		code = libevents.DesktopSharedDirectoryWriteFailureCode
+		code = libevents.DesktopSharedDirectoryReadFailureCode
 	}
 
 	return &events.DesktopSharedDirectoryRead{

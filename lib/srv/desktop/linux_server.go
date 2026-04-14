@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"os"
 	"os/user"
 	"slices"
 	"strconv"
@@ -445,6 +446,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 			if err != nil {
 				log.ErrorContext(ctx, "failed to get current user", "error", err)
 				sendTDPError("Internal server error")
+				return
 			}
 			targetUser, err := user.Lookup(username)
 			if err != nil {
@@ -466,7 +468,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 					return
 				}
 
-				if err := backend.AuthorityFile.Chown(uid, gid); err != nil {
+				if err := os.Chown(backend.AuthorityFile, uid, gid); err != nil {
 					log.ErrorContext(ctx, "couldn't change Xauthority file ownership", "error", err)
 					sendTDPError("Internal server error")
 					return
@@ -485,9 +487,15 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 			sessionStarted = true
 
-			if m.ScreenSpec != nil {
-				log.ErrorContext(ctx, "missing screen spec", "error", err)
+			if m.ScreenSpec == nil {
+				log.ErrorContext(ctx, "missing screen spec")
 				sendTDPError("Missing screen specification.")
+				return
+			}
+
+			if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
+				log.ErrorContext(ctx, "invalid screen size", "width", m.ScreenSpec.Width, "height", m.ScreenSpec.Height)
+				sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
 				return
 			}
 
@@ -519,7 +527,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		case *tdpb.SessionSelection:
 			xsession, ok := xsessions[m.Name]
 			if !ok {
-				log.WarnContext(ctx, "failed to get xsession", "error", err)
+				log.WarnContext(ctx, "failed to get xsession", "name", m.Name)
 				sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Name))
 				return
 			}
@@ -530,8 +538,13 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 				Login:          username,
 				ChildLogConfig: s.cfg.ChildLogConfig,
 				Display:        backend.Display,
-				AuthorityFile:  backend.AuthorityFile.Name(),
+				AuthorityFile:  backend.AuthorityFile,
 			})
+			if err != nil {
+				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
+				sendTDPError("Couldn't start Xsession.")
+				return
+			}
 			defer cmd.Close()
 			go func() {
 				err := cmd.Wait()
@@ -544,10 +557,6 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 					sendTDPError("Xsession was terminated with error")
 				}
 			}()
-			if err != nil {
-				log.ErrorContext(ctx, "failed to start Xsession", "error", err)
-				sendTDPError("Couldn't start Xsession.")
-			}
 		case *tdpb.MouseMove:
 			if err := backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
 				log.ErrorContext(ctx, "failed to send mouse move", "error", err)

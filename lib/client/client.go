@@ -187,8 +187,8 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// desktop, as specified by RouteToWindowsDesktop.
 		return proto.UserCertsRequest_WindowsDesktop
 	case p.RouteToLinuxDesktop.LinuxDesktop != "":
-		// Windows desktop means a request for a TLS certificate for access to a specific
-		// desktop, as specified by RouteToWindowsDesktop.
+		// Linux desktop means a request for a TLS certificate for access to a specific
+		// desktop, as specified by RouteToLinuxDesktop.
 		return proto.UserCertsRequest_LinuxDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the

@@ -115,6 +115,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 
 	outr, outw, err := os.Pipe()
 	if err != nil {
+		inr.Close()
 		return nil, trace.Wrap(err)
 	}
 	go func() {
@@ -123,6 +124,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 			line := scanner.Text()
 			cfg.Logger.Log(ctx, logutils.TraceLevel, line)
 		}
+		outr.Close()
 	}()
 
 	cmd, err := reexec.ConfigureCommand(ctx, cfg.Logger, cfg.ChildLogConfig.Writer, cmdmsg, reexecconstants.ExecSubCommand, inr, outw, outw)

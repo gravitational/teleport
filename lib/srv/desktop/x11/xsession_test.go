@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 func TestGetAvailableXSessions(t *testing.T) {
 	_, helperFile, _, _ := runtime.Caller(0)
 	fixtureDir := filepath.Join(filepath.Dir(helperFile), "testdata")
-	require.NoError(t, os.Setenv("TELEPORT_XSESSIONS_PATH", fixtureDir))
+	t.Setenv("TELEPORT_XSESSIONS_PATH", fixtureDir)
 
 	entries, err := GetAvailableXSessions(nil, nil)
 	require.NoError(t, err)

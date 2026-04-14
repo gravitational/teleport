@@ -2906,8 +2906,6 @@ type LinuxDesktopService struct {
 	Service `yaml:",inline"`
 	// Labels are the configured linux desktops service labels.
 	Labels map[string]string `yaml:"labels,omitempty"`
-	// PublicAddr is a list of advertised public addresses of this service.
-	PublicAddr apiutils.Strings `yaml:"public_addr,omitempty"`
 }
 
 // WindowsHostLabelRule describes how a set of labels should be applied to
