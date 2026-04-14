@@ -55,7 +55,12 @@ const (
 	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
 	// waitTimeoutPad is extra waiter headroom beyond the installer's join-failure timeout.
 	// The installer decides success/failure based on whether join completes in time.
-	// This pad avoids reporting a temporary "still running" SSM state as the final outcome
+	// This pad avoids reporting a temporary "still running" SSM state as the final outcome.
+	// Tradeoff: EC2 install handling is still synchronous in discovery, so a wedged
+	// SSM invocation can delay later groups until waitTimeout elapses.
+	//
+	// TODO(carlisia): Decouple SSM result waiting from synchronous discovery
+	// iterations so a wedged invocation does not stall later EC2 groups.
 	waitTimeoutPad = 10 * time.Minute
 
 	// waitTimeout is how long we wait for AWS to report a terminal command state
