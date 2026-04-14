@@ -13,7 +13,6 @@ import EnrollmentMethods, { Method } from '@site/src/components/Pages/Landing/En
 import Resources from '@site/src/components/Pages/Homepage/Resources';
 import Integrations from "@site/src/components/Pages/Homepage/Integrations";
 
-import agenticAiImg from '@version/docs/img/agentic-ai/agentic-ai-hero.png';
 import shieldCheckSvg from "@site/src/components/Icon/svg/shield-check2.svg";
 import keySvg from "@site/src/components/Icon/svg/key.svg";
 import gaugeSvg from "@site/src/components/Icon/svg/gauge.svg";
@@ -37,8 +36,14 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 
 <LandingHero
   title="Teleport Agentic Identity Framework"
-  subTitle="Design and reference implementation for the secure deployment of agents on infrastructure."
-  image={agenticAiImg}
+  image="https://website.goteleport.com/_uploads/agentic_header_image_ff2a05f709.png"
+  linksTitle="A strong, unified identity must come before AI scale"
+  linksTitleSize="lg"
+  linksDescription={
+    <>
+      AI Agents are autonomous actors, but legacy infrastructure treats them like simple scripts. Hardcoding long-lived secrets (API keys) and static permissions into agents creates a brittle, unmanageable attack surface. The Agentic Identity Framework treats agents as first-class citizens, giving them cryptographically-secured identities with ephemeral privileges that allow them to access infrastructure securely when needed, without managing secrets.
+    </>
+  }
   links={[
     {
       title: "Deploy agents safely across infrastructure",
@@ -97,13 +102,16 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
     },
   ]}
 >
-  Use cases and solutions with built-in security invariants, observability, and governance.
-  Integrate security into agentic systems from the initial design phase.
+  The Teleport Agentic Identity Framework is a standards-driven security architecture and a reference implementation for deploying AI agents across infrastructure. It provides designs and reference implementations for safe agent adoption across infrastructure with built-in security invariants, observability, and governance.
 </LandingHero>
 
+## Architecture overview
+
 <EnrollmentMethods
-  title="Agentic Identity"
-  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure."
+  title="A. Identity (the foundation)"
+  titleType="h3"
+  titleSize="md"
+  description="Just as you use TouchID/SSO to log in, your agents need a strong identity. We use Teleport Machine and Workload Identity to attest the agent's running environment and issue a short-lived X.509 certificate."
   desktopColumnsCount={3}
   linkColor="purple"
   fontSize="xl"
@@ -145,8 +153,10 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="Agentic Access"
-  description="You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
+  title="B. Access"
+  titleType="h3"
+  titleSize="md"
+  description="Once an agent has an identity, it needs access to be useful. You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
   desktopColumnsCount={3}
   linkColor="purple"
   fontSize="xl"
@@ -191,7 +201,9 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="Agentic Security"
+  title="C. Security"
+  titleType="h3"
+  titleSize="md"
   description="Teleport provides discovery, detection, and analytics for AI agents and MCP servers to reduce shadow deployments and context poisoning attacks."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -222,7 +234,9 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="Scheduling & Orchestration"
+  title="D. Scheduling and orchestration"
+  titleType="h3"
+  titleSize="md"
   description="Integrations and SDKs for modern agentic orchestration tools enable secure identities for agentic workflows accessing resources like databases and git repositories, as well as file sharing and developer tooling."
   desktopColumnsCount={3}
   linkColor="purple"
@@ -257,6 +271,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 <Resources
   title="Cloud providers"
   variant="doc"
+  titleSize="h2"
   resources={[
     {
       title: "Bare Metal",
