@@ -237,30 +237,37 @@ func (pb *discoPub) run() {
 				return
 			}
 			now := pb.watcher.Clock.Now()
-			pb.pm.Lock()
-			pb.version++
-			pb.proxies = servers
-			prevVersions := pb.versions
-			pb.versions = make(map[string]proxyversion, len(servers))
-			for _, server := range servers {
-				pv, ok := prevVersions[server.GetName()]
-				if !ok || !server.Expiry().Equal(pv.expiry) {
-					pv.version = pb.version
-					pv.updated = now
-				}
-				pv.expiry = server.Expiry()
-				pb.versions[server.GetName()] = pv
-			}
-			pb.pm.Unlock()
 
-			pb.sm.Lock()
-			for s := range pb.subs {
-				select {
-				case s.notify <- struct{}{}:
-				default:
+			func() {
+				pb.pm.Lock()
+				defer pb.pm.Unlock()
+
+				pb.version++
+				pb.proxies = servers
+				prevVersions := pb.versions
+				pb.versions = make(map[string]proxyversion, len(servers))
+				for _, server := range servers {
+					pv, ok := prevVersions[server.GetName()]
+					if !ok || !server.Expiry().Equal(pv.expiry) {
+						pv.version = pb.version
+						pv.updated = now
+					}
+					pv.expiry = server.Expiry()
+					pb.versions[server.GetName()] = pv
 				}
-			}
-			pb.sm.Unlock()
+			}()
+
+			func() {
+				pb.sm.Lock()
+				defer pb.sm.Unlock()
+
+				for s := range pb.subs {
+					select {
+					case s.notify <- struct{}{}:
+					default:
+					}
+				}
+			}()
 		}
 	}
 }
