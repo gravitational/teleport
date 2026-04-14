@@ -353,6 +353,7 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 		Roles:                    newRoleNames,
 		Traits:                   c.User.GetTraits(),
 		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
+		DelegationSessionID:      c.Checker.DelegationSessionID(),
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
@@ -967,6 +968,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAccessList, services.RO()),
 				types.NewRule(types.KindHealthCheckConfig, services.RO()),
 				types.NewRule(types.KindAppAuthConfig, services.RO()),
+				types.NewRule(types.KindValidatedMFAChallenge, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{

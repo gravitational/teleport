@@ -225,6 +225,8 @@ Optional:
 Optional:
 
 - `actor` (String) The personal account that initiated the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `enterprise` (String) The name of the enterprise in which the repository is stored.
+- `enterprise_id` (String) The ID of the enterprise in which the repository is stored.
 - `environment` (String) The name of the environment used by the job.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `ref` (String) The git ref that triggered the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `ref_type` (String) The type of ref, for example: "branch".

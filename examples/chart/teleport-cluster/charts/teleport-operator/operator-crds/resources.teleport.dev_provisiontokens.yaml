@@ -316,6 +316,10 @@ spec:
                       properties:
                         actor:
                           type: string
+                        enterprise:
+                          type: string
+                        enterprise_id:
+                          type: string
                         environment:
                           type: string
                         ref:

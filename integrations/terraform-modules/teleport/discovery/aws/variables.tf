@@ -27,11 +27,11 @@ variable "teleport_discovery_group_name" {
 variable "match_aws_resource_types" {
   description = "Deprecated legacy input. Use aws_matchers instead. AWS resource types to match when discovering resources with Teleport."
   type        = list(string)
-  default     = null
-  nullable    = true
+  default     = []
+  nullable    = false
 
   validation {
-    condition = var.match_aws_resource_types == null || alltrue([
+    condition = alltrue([
       for rt in var.match_aws_resource_types :
       contains([
         "ec2"
@@ -42,19 +42,19 @@ variable "match_aws_resource_types" {
 }
 
 variable "aws_matchers" {
-  description = "AWS resource discovery matchers."
+  description = "AWS resource discovery matchers. Valid values for aws_matchers.types are: ec2, eks."
   type = list(object({
     types                = list(string)
-    regions              = list(string)
+    regions              = optional(list(string), ["*"])
     tags                 = optional(map(list(string)), { "*" : ["*"] })
     setup_access_for_arn = optional(string, "")
     kube_app_discovery   = optional(bool, true)
   }))
-  default  = null
-  nullable = true
+  default  = []
+  nullable = false
 
   validation {
-    condition = var.aws_matchers == null || alltrue([
+    condition = alltrue([
       for matcher in var.aws_matchers :
       length(matcher.types) > 0 && length(matcher.regions) > 0
     ])
@@ -62,7 +62,7 @@ variable "aws_matchers" {
   }
 
   validation {
-    condition = var.aws_matchers == null || alltrue(flatten([
+    condition = alltrue(flatten([
       for matcher in var.aws_matchers : [
         for rt in matcher.types :
         contains(["ec2", "eks"], rt)
@@ -72,7 +72,7 @@ variable "aws_matchers" {
   }
 
   validation {
-    condition = var.aws_matchers == null || !anytrue([
+    condition = !anytrue([
       for matcher in var.aws_matchers :
       contains(matcher.types, "eks") && contains(matcher.regions, "*")
     ])
@@ -80,7 +80,7 @@ variable "aws_matchers" {
   }
 
   validation {
-    condition = var.aws_matchers == null || !anytrue([
+    condition = !anytrue([
       for matcher in var.aws_matchers :
       matcher.setup_access_for_arn != "" && !contains(matcher.types, "eks")
     ])
@@ -130,15 +130,15 @@ variable "aws_iam_policy_document" {
 variable "match_aws_regions" {
   description = "Deprecated legacy input. Use aws_matchers instead. AWS regions to discover. The default matches all AWS regions."
   type        = list(string)
-  default     = null
-  nullable    = true
+  default     = ["*"]
+  nullable    = false
 }
 
 variable "match_aws_tags" {
   description = "Deprecated legacy input. Use aws_matchers instead. AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
   type        = map(list(string))
-  default     = null
-  nullable    = true
+  default     = { "*" : ["*"] }
+  nullable    = false
 }
 
 variable "aws_iam_policy_name" {
@@ -214,7 +214,7 @@ variable "teleport_provision_token_use_name_prefix" {
 variable "discovery_service_iam_credential_source" {
   description = "Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration."
   type = object({
-    use_oidc_integration = optional(bool)
+    use_oidc_integration = optional(bool, true)
     trust_role = optional(object({
       role_arn    = string
       external_id = optional(string, "")
@@ -231,13 +231,13 @@ variable "discovery_service_iam_credential_source" {
       var.discovery_service_iam_credential_source.use_oidc_integration
       && var.discovery_service_iam_credential_source.trust_role != null
     )
-    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID. If the AWS IAM role for discovery will be attached directly to the discovery service instance outside of this module, then set `use_oidc_integration` to false and leave `trust_role` unset."
+    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID, but not both."
   }
 
   validation {
     condition = !(
       !var.discovery_service_iam_credential_source.use_oidc_integration
-      && try(var.discovery_service_iam_credential_source.trust_role.role_arn == "", false)
+      && try(var.discovery_service_iam_credential_source.trust_role.role_arn, "") == ""
     )
     error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
   }
