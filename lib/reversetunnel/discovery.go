@@ -54,9 +54,11 @@ type discoveryProxy struct {
 		Name string `json:"name"`
 	} `json:"metadata"`
 
-	ProxyGroupID         string        `json:"gid,omitempty"`
-	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
-	TTL                  time.Duration `json:"ttl,omitempty"`
+	ProxyGroupID         string `json:"gid,omitempty"`
+	ProxyGroupGeneration uint64 `json:"ggen,omitempty"`
+	// TTL is used by the agent [track.Tracker] for proxy expiry. This allows
+	// server side override of the trackers default expiry.
+	TTL time.Duration `json:"ttl,omitempty"`
 }
 
 // SetProxies overwrites the proxy list in the discoveryRequest with data from
@@ -141,12 +143,12 @@ func (s *discoSub) Wait() <-chan struct{} {
 // Get returns each [discoveryProxy] fetches the latest set of proxies. If compaction
 // is enabled ony the changes since the last fetch is returned.
 func (s *discoSub) Get() []discoveryProxy {
-	return s.pb.get(s, true)
+	return s.pb.get(s, discoGetParams{sinceLastVersion: true})
 }
 
 // GetAll returns all [discoveryProxy]s.
 func (s *discoSub) GetAll() []discoveryProxy {
-	return s.pb.get(s, false)
+	return s.pb.get(s, discoGetParams{sinceLastVersion: false})
 }
 
 // Close cleans up resources allocated for the subscriber.
@@ -164,10 +166,17 @@ type discoPub struct {
 	compact bool
 
 	// pm manages access to [discoPub.proxies], [discoPub.versions], [discoPub.version].
-	pm       sync.RWMutex
-	proxies  []types.Server
+	// These fields are immutable snapshots. Once a reader copies the pointer, it
+	// can be used outside the mutex because writes replace the whole value instead
+	// of mutating it in place.
+	pm sync.RWMutex
+	// proxies is the lastest set of servers received from the watcher.
+	proxies []types.Server
+	// proxy version associates a proxy by name with the version at which its
+	// expiry last changed.
 	versions map[string]proxyversion
-	version  uint64
+	// version is incremented each time a proxy watch event is receieved.
+	version uint64
 
 	// sm manages access to [discoPub.subs].
 	sm   sync.Mutex
@@ -282,9 +291,15 @@ func (pb *discoPub) Close() {
 	pb.watcher.Close()
 }
 
-// get fetches the latest set of [discoveryProxy]s. If sinceLastVersion is true
-// only proxies that have updated their expiry since the last get will be returned.
-func (pb *discoPub) get(s *discoSub, sinceLastVersion bool) []discoveryProxy {
+// discoGetParams contains parameters for [discoPub.get].
+type discoGetParams struct {
+	// sinceLastVersion indicates that only proxies that have been fetched since
+	// the last get by the subscriber will be returned.
+	sinceLastVersion bool
+}
+
+// get fetches the latest set of [discoveryProxy]s.
+func (pb *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 	pb.pm.RLock()
 	proxies := pb.proxies
 	version := pb.version
@@ -299,7 +314,7 @@ func (pb *discoPub) get(s *discoSub, sinceLastVersion bool) []discoveryProxy {
 
 	now := pb.watcher.Clock.Now()
 	disco := make([]discoveryProxy, 0, len(proxies))
-	lastVersion := s.version.Swap(version)
+	lastVersion := sub.version.Swap(version)
 	for _, proxy := range proxies {
 		if compact {
 			pv, ok := versions[proxy.GetName()]
@@ -309,7 +324,7 @@ func (pb *discoPub) get(s *discoSub, sinceLastVersion bool) []discoveryProxy {
 			if pv.updated.Add(defaults.ProxyAnnounceTTL()).Before(now) {
 				continue
 			}
-			if sinceLastVersion && lastVersion >= pv.version {
+			if params.sinceLastVersion && lastVersion >= pv.version {
 				continue
 			}
 		}
