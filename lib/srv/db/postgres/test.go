@@ -115,7 +115,7 @@ type TestServer struct {
 // cancellable.
 type pidHandle struct {
 	// secretKey is checked for equality when cancel request is received.
-	secretKey uint32
+	secretKey []byte
 	// cancel cancels the operation in progress, if any.
 	cancel context.CancelFunc
 }
@@ -363,7 +363,7 @@ func (s *TestServer) handleCancelRequest(client *pgproto3.Backend, req *pgproto3
 	s.pidMu.Lock()
 	defer s.pidMu.Unlock()
 	p, ok := s.pids[req.ProcessID]
-	if ok && p != nil && p.secretKey == req.SecretKey && p.cancel != nil {
+	if ok && p != nil && bytes.Equal(p.secretKey, req.SecretKey) && p.cancel != nil {
 		p.cancel()
 	}
 }
@@ -610,11 +610,6 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Expect Execute message.
 	_, err = s.receiveExecuteMessage(client)
 	if err != nil {
@@ -668,11 +663,6 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteRe
 	}
 	// Extract user name.
 	name, err := getVarchar(bind.ParameterFormatCodes[0], bind.Parameters[0])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -749,11 +739,6 @@ func (s *TestServer) handleUpdatePermissions(client *pgproto3.Backend) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Expect Execute message.
 	_, err = s.receiveExecuteMessage(client)
 	if err != nil {
@@ -801,11 +786,6 @@ func (s *TestServer) handleSchemaInfo(client *pgproto3.Backend) error {
 	}
 	// Expect Bind message.
 	_, err = s.receiveBindMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1085,7 +1065,7 @@ const TestLongRunningQuery = "pg_sleep(forever)"
 const TestErrorQuery = "select err"
 
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
-const testSecretKey = 1234
+var testSecretKey = []byte{0, 0, 0x04, 0xD2}
 
 // userParameterName is the parameter name that contains the username used to
 // connect.
