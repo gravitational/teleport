@@ -2471,12 +2471,7 @@ type DatabaseRoleMatcher struct {
 
 // Match matches database role against provided role and condition.
 func (m *DatabaseRoleMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	for _, dbRole := range role.GetDatabaseRoles(condition) {
-		if dbRole == m.Role {
-			return true, nil
-		}
-	}
-	return false, nil
+	return slices.Contains(role.GetDatabaseRoles(condition), m.Role), nil
 }
 
 // String returns the matcher's string representation.

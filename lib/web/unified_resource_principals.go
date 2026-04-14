@@ -40,6 +40,9 @@ type UnifiedResourcePrincipals struct {
 	DBNames *webui.PrincipalSet
 	// DBRoles is populated for databases.
 	DBRoles *webui.PrincipalSet
+	// DBAutoUserEnabled indicates that auto-user provisioning is enabled for
+	// a database resource, considering both granted and requestable roles.
+	DBAutoUserEnabled bool
 }
 
 // PrincipalsForUnifiedResourceOpts configures PrincipalsForUnifiedResource.
@@ -79,6 +82,19 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 		result.AWSRoleARNs = arns
 	case types.DatabaseServer:
 		result.DBUsers, result.DBNames, result.DBRoles = databasePrincipals(opts, r)
+		db := r.GetDatabase()
+		// Determine auto-user status considering both granted and requestable roles.
+		if mode, err := opts.AccessChecker.DatabaseAutoUserMode(db); err == nil {
+			result.DBAutoUserEnabled = db.IsAutoUsersEnabled() && mode.IsEnabled()
+		}
+		// When showing requestable resources/principals, enriched db_roles from
+		// search_as_roles indicate auto-create is enabled on the requestable
+		// checker (CheckDatabaseRoles only returns non-empty when
+		// CreateDatabaseUserMode is enabled on some role in the checker's RoleSet).
+		if !result.DBAutoUserEnabled && (opts.IncludeRequestable || opts.UseSearchAsRoles) &&
+			db.IsAutoUsersEnabled() && len(opts.Resource.GetPrincipals(types.PrincipalKindDBRoles)) > 0 {
+			result.DBAutoUserEnabled = true
+		}
 	}
 
 	return result, nil
@@ -197,7 +213,7 @@ func principalSetFromSlice(principals []string) *webui.PrincipalSet {
 		return nil
 	}
 	s := set.New(principals...)
-	return &webui.PrincipalSet{All: s, Granted: s}
+	return &webui.PrincipalSet{All: s, Granted: s.Clone()}
 }
 
 // filterByIdentityPrincipals returns the intersection of allowedLogins with

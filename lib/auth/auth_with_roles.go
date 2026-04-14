@@ -1431,58 +1431,26 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 // getEnrichedDatabasePrincipals returns the full set of database users, names, and roles
 // visible to the user (including requestable principals via search_as_roles).
 // It uses the requestable access checker if available, falling back to the base checker.
+//
+// db_users and db_names are computed via EnumerateDatabaseUsers/EnumerateDatabaseNames,
+// which apply auto-user-provisioning shortcuts (e.g. returning only the Teleport
+// username when auto-user is enabled). This is fine because the frontend gates
+// on autoUsersEnabled and hides db_users when auto-user provisioning is active.
 func (l *unifiedResourceLister) getEnrichedDatabasePrincipals(database types.Database) (users, names, roles []string) {
 	checker := l.getAccessChecker()
 	if checker == nil {
 		return nil, nil, nil
 	}
 
-	users = allowedDatabaseEntities(checker, database,
-		func(role types.Role, ct types.RoleConditionType) []string { return role.GetDatabaseUsers(ct) },
-		func(entity string) services.RoleMatcher { return services.NewDatabaseUserMatcher(database, entity) },
-	)
-	names = allowedDatabaseEntities(checker, database,
-		func(role types.Role, ct types.RoleConditionType) []string { return role.GetDatabaseNames(ct) },
-		func(entity string) services.RoleMatcher { return &services.DatabaseNameMatcher{Name: entity} },
-	)
+	if res, err := checker.EnumerateDatabaseUsers(database); err == nil {
+		users, _ = res.ToEntities()
+	}
+	namesResult := checker.EnumerateDatabaseNames(database)
+	names, _ = namesResult.ToEntities()
 	if r, err := checker.CheckDatabaseRoles(database, nil); err == nil && len(r) > 0 {
 		roles = r
 	}
 	return users, names, roles
-}
-
-// allowedDatabaseEntities collects all database entities (users or names) from
-// all roles and filters them against the full AccessChecker.
-func allowedDatabaseEntities(
-	checker services.AccessChecker,
-	database types.Database,
-	getEntities func(types.Role, types.RoleConditionType) []string,
-	newMatcher func(string) services.RoleMatcher,
-) []string {
-	// Collect all entities across all roles, marking denied ones.
-	mapped := make(map[string]bool)
-	for _, role := range checker.Roles() {
-		for _, e := range getEntities(role, types.Allow) {
-			if _, set := mapped[e]; !set {
-				mapped[e] = true
-			}
-		}
-		for _, e := range getEntities(role, types.Deny) {
-			mapped[e] = false
-		}
-	}
-
-	// Filter to entities allowed by the full RoleSet for this database.
-	var allowed []string
-	for entity, notDenied := range mapped {
-		if !notDenied {
-			continue
-		}
-		if err := checker.CheckAccess(database, services.AccessState{MFAVerified: true}, newMatcher(entity)); err == nil {
-			allowed = append(allowed, entity)
-		}
-	}
-	return allowed
 }
 
 // getAccessChecker returns the services.AccessChecker from the most-privileged

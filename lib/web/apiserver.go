@@ -3551,18 +3551,27 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			unifiedResources = append(
-				unifiedResources,
-				ui.MakeDatabaseFromDatabaseServer(r, ui.MakeDatabaseFromDatabaseServerConfig{
-					AccessChecker:      accessChecker,
-					InteractiveChecker: h.cfg.DatabaseREPLRegistry,
-					RequiresRequest:    enriched.RequiresRequest,
-					SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
-					DBUsers:            principals.DBUsers,
-					DBNames:            principals.DBNames,
-					DBRoles:            principals.DBRoles,
-				}),
-			)
+			cfg := ui.MakeDatabaseFromDatabaseServerConfig{
+				AccessChecker:      accessChecker,
+				InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+				RequiresRequest:    enriched.RequiresRequest,
+				SupportedFeatures:  componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+				Principals: &ui.DatabasePrincipals{
+					Users:           principals.DBUsers,
+					Names:           principals.DBNames,
+					Roles:           principals.DBRoles,
+					AutoUserEnabled: principals.DBAutoUserEnabled,
+				},
+			}
+			if principals != nil {
+				cfg.Principals = &ui.DatabasePrincipals{
+					Users:           principals.DBUsers,
+					Names:           principals.DBNames,
+					Roles:           principals.DBRoles,
+					AutoUserEnabled: principals.DBAutoUserEnabled,
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeDatabaseFromDatabaseServer(r, cfg))
 		case types.AppServer:
 			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
 				Resource:           enriched,

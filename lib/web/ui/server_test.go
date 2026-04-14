@@ -841,10 +841,11 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 	interactiveChecker := &mockDatabaseInteractiveChecker{}
 
 	for name, tc := range map[string]struct {
-		roles        services.RoleSet
-		db           *types.DatabaseV3
+		roles      services.RoleSet
+		db         *types.DatabaseV3
 		assertResult require.ValueAssertionFunc
-		username     string
+		username   string
+		principals *DatabasePrincipals
 	}{
 		"names wildcard": {
 			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
@@ -964,6 +965,70 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
 			},
 		},
+		"auto-user enabled via principals": {
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+					},
+				},
+			}),
+			principals: &DatabasePrincipals{
+				Roles: &PrincipalSet{
+					All:     set.New("reader", "writer"),
+					Granted: set.New[string](),
+				},
+				AutoUserEnabled: true,
+			},
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.True(t, db.AutoUsersEnabled)
+				require.ElementsMatch(t, []string{"reader", "writer"}, db.DatabaseRoles)
+			},
+		},
+		"auto-user enabled via principals with empty db_roles": {
+			db:       makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			username: "alice",
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+					},
+				},
+			}),
+			principals: &DatabasePrincipals{
+				AutoUserEnabled: true,
+			},
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.True(t, db.AutoUsersEnabled)
+			},
+		},
+		"auto-user falls back to base checker when principals not set": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_OFF,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v any, _ ...any) {
+				db, _ := v.(Database)
+				require.False(t, db.AutoUsersEnabled)
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{Username: tc.username}, "clusterName", tc.roles)
@@ -971,12 +1036,18 @@ func TestMakeDatabaseConnectOptions(t *testing.T) {
 				AccessChecker:      accessChecker,
 				InteractiveChecker: interactiveChecker,
 				RequiresRequest:    false,
+				Principals:         tc.principals,
 			})
 			tc.assertResult(t, single)
 
-			multi := MakeDatabases([]*types.DatabaseV3{tc.db}, accessChecker, interactiveChecker)
-			require.Len(t, multi, 1)
-			tc.assertResult(t, multi[0])
+			// MakeDatabases doesn't accept Principals (it uses the base
+			// AccessChecker fallback), so only assert when the test case
+			// doesn't rely on enriched principals.
+			if tc.principals == nil {
+				multi := MakeDatabases([]*types.DatabaseV3{tc.db}, accessChecker, interactiveChecker)
+				require.Len(t, multi, 1)
+				tc.assertResult(t, multi[0])
+			}
 		})
 	}
 }

@@ -41,27 +41,11 @@ type SSHLogin struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-// DatabaseUserDetail describes a database user with request metadata.
-type DatabaseUserDetail struct {
-	// User is the database user name.
-	User string `json:"user"`
-	// RequiresRequest indicates whether this user requires an access request to be used.
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
-}
-
-// DatabaseNameDetail describes a database name with request metadata.
-type DatabaseNameDetail struct {
-	// Name is the database name.
-	Name string `json:"name"`
-	// RequiresRequest indicates whether this name requires an access request to be used.
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
-}
-
-// DatabaseRoleDetail describes a database role with request metadata.
-type DatabaseRoleDetail struct {
-	// Role is the database role.
-	Role string `json:"role"`
-	// RequiresRequest indicates whether this role requires an access request to be used.
+// DatabasePrincipalDetail describes a database principal with request metadata.
+type DatabasePrincipalDetail struct {
+	// Value is the principal value.
+	Value string `json:"value"`
+	// RequiresRequest indicates whether this principal requires an access request to be used.
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
@@ -179,39 +163,12 @@ func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
 	})
 }
 
-func buildDatabaseUserDetailsFromSet(ps *PrincipalSet) []DatabaseUserDetail {
+func buildDatabaseDetailsFromSet(ps *PrincipalSet) []DatabasePrincipalDetail {
 	if ps == nil {
 		return nil
 	}
-	return sliceutils.Map(ps.All.Elements(), func(u string) DatabaseUserDetail {
-		return DatabaseUserDetail{
-			User:            u,
-			RequiresRequest: !ps.Granted.Contains(u),
-		}
-	})
-}
-
-func buildDatabaseNameDetailsFromSet(ps *PrincipalSet) []DatabaseNameDetail {
-	if ps == nil {
-		return nil
-	}
-	return sliceutils.Map(ps.All.Elements(), func(n string) DatabaseNameDetail {
-		return DatabaseNameDetail{
-			Name:            n,
-			RequiresRequest: !ps.Granted.Contains(n),
-		}
-	})
-}
-
-func buildDatabaseRoleDetailsFromSet(ps *PrincipalSet) []DatabaseRoleDetail {
-	if ps == nil {
-		return nil
-	}
-	return sliceutils.Map(ps.All.Elements(), func(r string) DatabaseRoleDetail {
-		return DatabaseRoleDetail{
-			Role:            r,
-			RequiresRequest: !ps.Granted.Contains(r),
-		}
+	return sliceutils.Map(ps.All.Elements(), func(principal string) DatabasePrincipalDetail {
+		return DatabasePrincipalDetail{Value: principal, RequiresRequest: !ps.Granted.Contains(principal)}
 	})
 }
 
@@ -425,13 +382,13 @@ type Database struct {
 	DatabaseRoles []string `json:"database_roles,omitempty"`
 	// DatabaseUserDetails provides per-user metadata (e.g. whether a user requires an access request).
 	// Only populated when the handler has requestable principal info.
-	DatabaseUserDetails []DatabaseUserDetail `json:"databaseUserDetails,omitempty"`
+	DatabaseUserDetails []DatabasePrincipalDetail `json:"databaseUserDetails,omitempty"`
 	// DatabaseNameDetails provides per-name metadata (e.g. whether a name requires an access request).
 	// Only populated when the handler has requestable principal info.
-	DatabaseNameDetails []DatabaseNameDetail `json:"databaseNameDetails,omitempty"`
+	DatabaseNameDetails []DatabasePrincipalDetail `json:"databaseNameDetails,omitempty"`
 	// DatabaseRoleDetails provides per-role metadata (e.g. whether a role requires an access request).
 	// Only populated when the handler has requestable principal info.
-	DatabaseRoleDetails []DatabaseRoleDetail `json:"databaseRoleDetails,omitempty"`
+	DatabaseRoleDetails []DatabasePrincipalDetail `json:"databaseRoleDetails,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -476,29 +433,39 @@ type DatabaseInteractiveChecker interface {
 	IsSupported(protocol string) bool
 }
 
+// DatabasePrincipals holds enriched principal data for a database resource,
+// computed by PrincipalsForUnifiedResource considering both granted and
+// requestable (search_as_roles) access. When provided to MakeDatabase, it
+// takes precedence over computing principals from the base AccessChecker.
+type DatabasePrincipals struct {
+	// Users holds granted and requestable database user principals.
+	Users *PrincipalSet
+	// Names holds granted and requestable database name principals.
+	Names *PrincipalSet
+	// Roles holds granted and requestable database role principals.
+	Roles *PrincipalSet
+	// AutoUserEnabled indicates that auto-user provisioning is enabled,
+	// considering both granted and requestable roles.
+	AutoUserEnabled bool
+}
+
 type MakeDatabaseConfig struct {
 	AccessChecker      services.AccessChecker
 	InteractiveChecker DatabaseInteractiveChecker
 	// RequiresRequest is whether the DB resource requires an Access Request to access
 	RequiresRequest bool
-	// DBUsers holds granted and requestable database user principals.
-	// When nil, users are computed from AccessChecker.
-	DBUsers *PrincipalSet
-	// DBNames holds granted and requestable database name principals.
-	// When nil, names are computed from AccessChecker.
-	DBNames *PrincipalSet
-	// DBRoles holds granted and requestable database role principals.
-	// When nil, roles are computed from AccessChecker.
-	DBRoles           *PrincipalSet
+	// Principals holds enriched principal data from the unified resource
+	// listing. When nil, principals are computed from AccessChecker (the path
+	// taken by non-unified-resource endpoints like databases.go, servers.go).
+	Principals        *DatabasePrincipals
 	SupportedFeatures *componentfeaturesv1.ComponentFeatures
 }
 
 // MakeDatabase creates database objects.
 //
-// When PrincipalSet fields (DBUsers, DBNames, DBRoles) are provided, they are
-// used for both the flat principal lists and the per-principal detail objects.
-// When nil, principals are computed from AccessChecker (legacy path for
-// non-unified-resource endpoints).
+// When Principals is provided, its fields are used for both the flat principal
+// lists and the per-principal detail objects. When nil, principals and
+// auto-user status are computed from AccessChecker.
 func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	var (
 		autoUserEnabled bool
@@ -507,27 +474,35 @@ func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 		dbRoles         []string
 	)
 
-	// Compute principals from PrincipalSets when available, else from AccessChecker.
-	if c.DBUsers != nil {
-		dbUsers = c.DBUsers.All.Elements()
-	} else if res, err := c.AccessChecker.EnumerateDatabaseUsers(database); err == nil {
-		dbUsers, _ = res.ToEntities()
-	}
-	if c.DBNames != nil {
-		dbNames = c.DBNames.All.Elements()
+	p := c.Principals
+	if p != nil {
+		// Use enriched principals from the unified resource listing.
+		if p.Users != nil {
+			dbUsers = p.Users.All.Elements()
+		}
+		if p.Names != nil {
+			dbNames = p.Names.All.Elements()
+		}
+		if p.Roles != nil {
+			dbRoles = p.Roles.All.Elements()
+		}
+		autoUserEnabled = p.AutoUserEnabled
 	} else {
+		// Fall back to computing from the base AccessChecker. This is the path taken by
+		// non-unified-resource endpoints that don't have enriched principal data.
+		if res, err := c.AccessChecker.EnumerateDatabaseUsers(database); err == nil {
+			dbUsers, _ = res.ToEntities()
+		}
 		dbNamesResult := c.AccessChecker.EnumerateDatabaseNames(database)
 		dbNames, _ = dbNamesResult.ToEntities()
-	}
-	if c.DBRoles != nil {
-		dbRoles = c.DBRoles.All.Elements()
-	} else if roles, err := c.AccessChecker.CheckDatabaseRoles(database, nil); err == nil {
-		if len(roles) > 0 {
-			dbRoles = roles
+		if roles, err := c.AccessChecker.CheckDatabaseRoles(database, nil); err == nil {
+			if len(roles) > 0 {
+				dbRoles = roles
+			}
 		}
-	}
-	if autoUser, err := c.AccessChecker.DatabaseAutoUserMode(database); err == nil {
-		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
+		if autoUser, err := c.AccessChecker.DatabaseAutoUserMode(database); err == nil {
+			autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
+		}
 	}
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
@@ -565,9 +540,11 @@ func MakeDatabase(database types.Database, c MakeDatabaseConfig) Database {
 	}
 
 	// Build per-principal detail objects from PrincipalSets.
-	db.DatabaseUserDetails = buildDatabaseUserDetailsFromSet(c.DBUsers)
-	db.DatabaseNameDetails = buildDatabaseNameDetailsFromSet(c.DBNames)
-	db.DatabaseRoleDetails = buildDatabaseRoleDetailsFromSet(c.DBRoles)
+	if p != nil {
+		db.DatabaseUserDetails = buildDatabaseDetailsFromSet(p.Users)
+		db.DatabaseNameDetails = buildDatabaseDetailsFromSet(p.Names)
+		db.DatabaseRoleDetails = buildDatabaseDetailsFromSet(p.Roles)
+	}
 
 	return db
 }
@@ -579,12 +556,9 @@ type MakeDatabaseFromDatabaseServerConfig struct {
 	RequiresRequest bool
 	// SupportedFeatures contains ComponentFeatures supported by this DB Server and all other involved components.
 	SupportedFeatures *componentfeaturesv1.ComponentFeatures
-	// DBUsers holds granted and requestable database user principals.
-	DBUsers *PrincipalSet
-	// DBNames holds granted and requestable database name principals.
-	DBNames *PrincipalSet
-	// DBRoles holds granted and requestable database role principals.
-	DBRoles *PrincipalSet
+	// Principals holds enriched principal data from the unified resource
+	// listing. When nil, principals are computed from AccessChecker.
+	Principals *DatabasePrincipals
 }
 
 // MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
@@ -595,14 +569,10 @@ func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, c MakeDatabas
 		AccessChecker:      c.AccessChecker,
 		InteractiveChecker: c.InteractiveChecker,
 		RequiresRequest:    c.RequiresRequest,
-		DBUsers:            c.DBUsers,
-		DBNames:            c.DBNames,
-		DBRoles:            c.DBRoles,
+		SupportedFeatures:  c.SupportedFeatures,
+		Principals:         c.Principals,
 	})
 	db.TargetHealth = dbServer.GetTargetHealth()
-	if c.SupportedFeatures != nil {
-		db.SupportedFeatureIDs = c.SupportedFeatures.GetFeatures()
-	}
 	return db
 }
 
