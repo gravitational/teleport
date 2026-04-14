@@ -30,7 +30,7 @@ import (
 	awsratelimit "github.com/aws/aws-sdk-go-v2/aws/ratelimit"
 	awsretry "github.com/aws/aws-sdk-go-v2/aws/retry"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
@@ -146,7 +146,7 @@ func SQSPublisherFunc(queueURL string, sqsClient *sqs.Client) messagePublisherFu
 }
 
 type s3uploader interface {
-	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) //nolint:staticcheck // TODO(tigrato)
+	UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error)
 }
 
 type PublisherConfig struct {
@@ -197,7 +197,7 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 
 	return NewPublisher(PublisherConfig{
 		MessagePublisher: messagePublisher,
-		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) { //nolint:staticcheck // TODO(tigrato)
+		Uploader: transfermanager.New(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})),
 		PayloadBucket: cfg.largeEventsBucket,
@@ -261,7 +261,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
 	path := path.Join(p.PayloadPrefix, uid)
-	out, err := p.Uploader.Upload(ctx, &s3.PutObjectInput{
+	out, err := p.Uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: &p.PayloadBucket,
 		Key:    &path,
 		Body:   bytes.NewBuffer(marshaledEvent),

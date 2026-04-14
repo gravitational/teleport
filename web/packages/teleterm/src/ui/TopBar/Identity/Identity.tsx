@@ -109,6 +109,7 @@ export function IdentityContainer() {
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setOpen(false)}
         popoverCss={() => `max-width: min(450px, 90%)`}
+        updatePositionOnChildResize
       >
         <Container>
           {activeRootCluster && (

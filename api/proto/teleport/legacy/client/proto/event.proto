@@ -40,6 +40,7 @@ import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/subca/v1/cert_authority_override.proto";
+import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
@@ -249,5 +250,13 @@ message Event {
     teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
     // CertAuthorityOverride allows admins to override Teleport CA certificates.
     teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
+    // InferenceModel is a resource for defining inference models.
+    teleport.summarizer.v1.InferenceModel InferenceModel = 91;
+    // InferenceSecret is a resource for defining inference secrets.
+    teleport.summarizer.v1.InferenceSecret InferenceSecret = 92;
+    // InferencePolicy is a resource for defining inference policies.
+    teleport.summarizer.v1.InferencePolicy InferencePolicy = 93;
+    // RetrievalModel is a resource for defining retrieval models.
+    teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
   }
 }

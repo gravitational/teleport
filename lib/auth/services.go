@@ -44,6 +44,7 @@ type Services struct {
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders

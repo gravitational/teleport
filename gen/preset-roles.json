@@ -1179,6 +1179,18 @@
           },
           {
             "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [

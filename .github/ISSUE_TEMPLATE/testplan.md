@@ -1915,8 +1915,8 @@ proxy_service:
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
   - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
   - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
-- Keyboard Layout
-  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+- Keyboard Layout (Changes take effect after signing out of the Windows session on the remote host)
+  - [ ] If "System" is chosen in preferences, the default layout for the remote server is used
   - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility

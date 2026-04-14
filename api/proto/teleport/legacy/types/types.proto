@@ -1701,6 +1701,10 @@ message ProvisionTokenSpecV2GitHub {
     string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
     // The type of ref, for example: "branch".
     string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
+    // The name of the enterprise in which the repository is stored.
+    string Enterprise = 9 [(gogoproto.jsontag) = "enterprise,omitempty"];
+    // The ID of the enterprise in which the repository is stored.
+    string EnterpriseID = 10 [(gogoproto.jsontag) = "enterprise_id,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
