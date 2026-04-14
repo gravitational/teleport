@@ -163,10 +163,7 @@ func (f *jsonFilter) filterArray(
 		}
 
 		allowed, err := f.matcher.Match(name, namespace)
-		if err != nil {
-			return scratch, trace.Wrap(err)
-		}
-		if !allowed {
+		if err != nil || !allowed {
 			continue
 		}
 

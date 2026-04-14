@@ -347,10 +347,14 @@ func TestFilter_edgeCases(t *testing.T) {
 			},
 		},
 		{
-			name:    "matcher error propagated",
+			name:    "matcher error denies item",
 			input:   []byte(`{"apiVersion":"v1","kind":"PodList","metadata":{},"items":[{"metadata":{"name":"x","namespace":"y"}}]}`),
 			matcher: &testMatcher{allowFn: func(_, _ string) (bool, error) { return false, errors.New("boom") }},
-			wantErr: "boom",
+			check: func(t *testing.T, result map[string]any) {
+				arr, ok := result["items"].([]any)
+				require.True(t, ok)
+				require.Empty(t, arr)
+			},
 		},
 		{
 			name:    "empty JSON object",
