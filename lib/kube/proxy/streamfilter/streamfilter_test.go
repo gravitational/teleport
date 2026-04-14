@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"slices"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -439,3 +441,59 @@ func TestExtractTableRowMeta(t *testing.T) {
 		})
 	}
 }
+
+// TestFilter_streaming verifies that items are written to the output incrementally
+// as they arrive from the upstream, not buffered until the entire response is received.
+// It also verifies that denied items never appear in the output.
+func TestFilter_streaming(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		matcher := matcherAllowNamespace("default")
+		sf := New("application/json", matcher)
+		require.NotNil(t, sf)
+
+		// src pipe: test writes upstream JSON, filter reads.
+		// dst: plain buffer is safe because synctest.Wait() guarantees the
+		// filter goroutine is idle (blocked on pipe read) before we inspect output.
+		srcR, srcW := io.Pipe()
+		var dst bytes.Buffer
+
+		go func() {
+			sf.Filter(srcR, &dst)
+		}()
+
+		// Write preamble + first item (allowed).
+		io.WriteString(srcW, `{"apiVersion":"v1","kind":"PodList","metadata":{"resourceVersion":"1"},"items":[`)
+		io.WriteString(srcW, `{"metadata":{"name":"nginx","namespace":"default"}}`)
+		synctest.Wait()
+
+		out := dst.String()
+		require.Contains(t, out, `"apiVersion"`, "preamble should be written before all items arrive")
+		require.Contains(t, out, `"nginx"`, "first allowed item should arrive incrementally")
+
+		// Write denied item.
+		io.WriteString(srcW, `,{"metadata":{"name":"coredns","namespace":"kube-system"}}`)
+		synctest.Wait()
+
+		out = dst.String()
+		require.NotContains(t, out, `"coredns"`, "denied item must not appear in output")
+
+		// Write second allowed item.
+		io.WriteString(srcW, `,{"metadata":{"name":"redis","namespace":"default"}}`)
+		synctest.Wait()
+
+		out = dst.String()
+		require.Contains(t, out, `"redis"`, "second allowed item should arrive incrementally")
+
+		// Close the JSON list and upstream pipe.
+		io.WriteString(srcW, `]}`)
+		srcW.Close()
+		synctest.Wait()
+
+		// Final output should be valid JSON with exactly the allowed items.
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(dst.Bytes(), &result), "output should be valid JSON: %s", dst.String())
+		names := itemNames(t, result, "items")
+		require.Equal(t, []string{"default/nginx", "default/redis"}, names)
+	})
+}
+
