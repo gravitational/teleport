@@ -604,9 +604,18 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
+	var expiry time.Time
+	usage := c.cfg.Session.GetUsage()
+	// If the session is for the `access_graph_api` usage, then there is no
+	// bearer token being used so we should use the cert expiry time instead
+	if usage == types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+		expiry = c.cfg.Session.GetExpiryTime()
+	} else {
+		expiry = c.cfg.Session.GetBearerTokenExpiryTime()
+	}
+
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}

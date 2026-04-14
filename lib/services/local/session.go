@@ -320,10 +320,14 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 		return trace.Wrap(err)
 	}
 	sessionMetadata := session.GetMetadata()
+	expiry := sessionMetadata.Expiry()
+	if session.GetUsage() != types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+		expiry = backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), expiry)
+	}
 	item := backend.Item{
 		Key:      webSessionKey(session.GetName()),
 		Value:    value,
-		Expires:  backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Expires:  expiry,
 		Revision: rev,
 	}
 	_, err = r.backend.Put(ctx, item)

@@ -20,16 +20,14 @@ package accessgraph
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	accessgraphclient "github.com/gravitational/access-graph/api/client"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -125,31 +123,23 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		return false, nil
 	}
 
-	client, closeFn, err := clientFunc(ctx)
+	creds, err := c.loadAccessGraphCredentials(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer closeFn(ctx)
+	proxyAddr = creds.proxyAddr
 
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return true, trace.Wrap(err)
-	}
-	if !isAccessGraphLicensedAndEnabled(pingResp) {
-		return true, trace.AccessDenied("Access Graph requires a Teleport Enterprise Auth Server with Access Graph enabled")
-	}
-
-	if proxyAddr == "" {
-		proxyAddr = pingResp.GetProxyPublicAddr()
-	}
-
-	fmt.Println("Using proxy address:", proxyAddr)
+	slog.DebugContext(ctx, "Resolved proxy address for Access Graph command", "proxy_addr", proxyAddr)
 
 	if proxyAddr == "" {
 		return true, trace.NotFound("proxy public address is not configured")
 	}
 
-	accessGraphClient, err := c.newAccessGraphClient(ctx, proxyAddr)
+	if err := c.ensureAccessGraphCert(ctx, creds, clientFunc); err != nil {
+		return true, trace.Wrap(err)
+	}
+
+	accessGraphClient, err := c.newAccessGraphClient(ctx, proxyAddr, creds.keyRing)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -159,18 +149,4 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 	}
 
 	return true, trace.Wrap(commandFunc(ctx, args))
-}
-
-func isAccessGraphLicensedAndEnabled(pingResp proto.PingResponse) bool {
-	features := pingResp.GetServerFeatures()
-	entitlement := features.GetEntitlements()[string(entitlements.Policy)]
-	licensed := entitlement != nil && entitlement.GetEnabled()
-	if !licensed && features.GetPolicy() != nil {
-		licensed = features.GetPolicy().GetEnabled()
-	}
-	if !licensed {
-		return false
-	}
-
-	return features.GetAccessGraph()
 }

@@ -29,8 +29,6 @@ import (
 
 	accessgraph "github.com/gravitational/access-graph/api/client"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
-	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/trace"
 )
 
@@ -98,34 +96,7 @@ func checkResponse(statusCode int, body []byte) error {
 	return nil
 }
 
-func (c *AccessGraphCommand) newAccessGraphClient(ctx context.Context, proxyAddr string) (*accessgraph.ClientWithResponses, error) {
-	if len(c.ccf.AuthServerAddr) != 0 {
-		proxyAddr = c.ccf.AuthServerAddr[0]
-	}
-
-	hwks := libhwk.NewService(ctx, nil /* prompt */)
-	clientStore := client.NewFSClientStore(c.config.TeleportHome, client.WithHardwareKeyService(hwks))
-	if c.ccf.IdentityFilePath != "" {
-		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
-		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, c.ccf.IdentityFilePath, proxyAddr, ""); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	profile, err := clientStore.ReadProfileStatus(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if profile.IsExpired(time.Now()) {
-		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
-	}
-
-	idx := client.KeyRingIndex{ProxyHost: profile.Name, Username: profile.Username}
-	keyRing, err := clientStore.GetKeyRing(idx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *AccessGraphCommand) newAccessGraphClient(ctx context.Context, proxyAddr string, keyRing *client.KeyRing) (*accessgraph.ClientWithResponses, error) {
 	httpClient, err := newAccessGraphHTTPClient(proxyAddr, keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,6 +110,11 @@ func (c *AccessGraphCommand) newAccessGraphClient(ctx context.Context, proxyAddr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	slog.DebugContext(ctx, "Initialized Access Graph API client",
+		"proxy_addr", proxyAddr,
+		"username", keyRing.Username,
+	)
 	return accessGraphClient, nil
 }
 
@@ -160,6 +136,9 @@ func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*http.
 		Timeout: 30 * time.Second,
 	}
 
-	slog.Debug("Initialized Access Graph HTTP client with TLS config from keyring", "proxyAddr", proxyAddr)
+	slog.Debug("Created Access Graph HTTP client",
+		"proxy_addr", proxyAddr,
+		"server_name", baseTLSConfig.ServerName,
+	)
 	return httpClient, nil
 }
