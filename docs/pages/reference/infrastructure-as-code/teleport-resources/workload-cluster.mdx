@@ -1,0 +1,43 @@
+---
+title: Workload Cluster Resource Reference
+sidebar_label: Workload Cluster
+description: Provides a comprehensive list of fields for the Teleport workload cluster resource.
+---
+
+The workload_cluster resource defines a child Teleport Cloud cluster managed
+from a parent Teleport Cloud cluster.
+
+Use this resource to provision a child cluster in Teleport Cloud and configure
+the initial bot that will authenticate to that child cluster.
+
+Find out more about configuring bots in the
+[Machine & Workload Identity configuration reference](../../machine-workload-identity/configuration.mdx)
+and supported join methods in the
+[join methods reference](../../deployment/join-methods.mdx).
+
+Example definition:
+
+```yaml
+kind: workload_cluster
+version: v1
+metadata:
+  name: child
+spec:
+  regions:
+    - name: us-west-2
+  bot:
+    # Teleport Cloud creates a bot, token, and role with this name
+    # in the child cluster.
+    name: example-iam
+  token:
+    # Allow tbot to join the child cluster using the below IAM role.
+    join_method: iam
+    allow:
+      - aws_account: "123456789012"
+        aws_arn: "arn:aws:iam::123456789012:role/example-tbot-role"
+status:
+  # The Teleport Proxy address of the child cluster.
+  domain: child.teleport.sh
+  # The current state of the child cluster in Teleport Cloud.
+  state: active
+```
