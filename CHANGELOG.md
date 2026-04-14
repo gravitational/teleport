@@ -21,6 +21,14 @@ other services. The limit is aggregated across all apps on the
 `connection_limits` configured, those values apply to app access
 connections after upgrading to v19.
 
+#### CLI --help Output Improvements
+
+In the past, Teleport CLI programs printed all subcommands, subcommands'
+subcommands, and so on, when the `--help` option was specified. Additionally,
+the output was written to stderr, rather than stdout. `--help` output now
+goes to stdout, and contains info on only one level of subcommands. Affected
+programs include `teleport`, `tsh`, `tctl`, `tbot`, and `teleport-update`.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service
