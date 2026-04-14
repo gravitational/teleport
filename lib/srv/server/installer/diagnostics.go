@@ -91,7 +91,7 @@ func (a *AutoDiscoverNodeInstaller) gatherServiceDiagnostics(ctx context.Context
 		if errors.As(err, &exitErr) {
 			// systemctl show exited non-zero (e.g. unknown service); stdout
 			// may still contain partial output, so fall through to parse it.
-			a.Logger.DebugContext(ctx, "systemctl show exited non-zero while gathering service diagnostics",
+			a.Logger.DebugContext(ctx, `"systemctl show" exited non-zero while gathering service diagnostics`,
 				"service", serviceName, "exit_code", exitErr.ExitCode(), "stderr", stderr)
 		} else {
 			// Infrastructure error (binary not found, permission denied, etc.).
