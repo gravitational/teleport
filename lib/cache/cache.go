@@ -219,6 +219,11 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindWorkloadCluster},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindRetrievalModel},
+		{Kind: types.KindValidatedMFAChallenge},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -689,7 +694,7 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
@@ -797,6 +802,8 @@ type Config struct {
 	AppAuthConfig services.AppAuthConfigReader
 	// WorkloadClusterService is a workload cluster service
 	WorkloadClusterService services.WorkloadClusterService
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

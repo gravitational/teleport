@@ -54,6 +54,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowSquareIn} text="ArrowSquareIn" />
     <IconBox IconCmpt={Icon.ArrowSquareOut} text="ArrowSquareOut" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
+    <IconBox IconCmpt={Icon.ArrowUpRight} text="ArrowUpRight" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
     <IconBox IconCmpt={Icon.ArrowsOut} text="ArrowsOut" />
     <IconBox IconCmpt={Icon.BedrockLogo} text="BedrockLogo" />
@@ -130,6 +131,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.FastForward} text="FastForward" />
     <IconBox IconCmpt={Icon.FilmStrip} text="FilmStrip" />
     <IconBox IconCmpt={Icon.FingerprintSimple} text="FingerprintSimple" />
+    <IconBox IconCmpt={Icon.Flag} text="Flag" />
     <IconBox IconCmpt={Icon.Floppy} text="Floppy" />
     <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />

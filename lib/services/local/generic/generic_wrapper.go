@@ -175,3 +175,13 @@ func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey stri
 		}
 	}
 }
+
+// MakeBackendItem returns a backend.Item for the given resource.
+func (s *ServiceWrapper[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	return s.service.MakeBackendItem(newResourceMetadataAdapter(resource))
+}
+
+// BackendKey returns a backend.Key for the resource with the given name.
+func (s *ServiceWrapper[T]) BackendKey(name string) backend.Key {
+	return s.service.resourceKey(name)
+}

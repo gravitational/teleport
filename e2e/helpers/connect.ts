@@ -25,13 +25,13 @@ import { fileURLToPath } from 'node:url';
 import {
   _electron as electron,
   expect,
-  test as base,
   type Page,
   TestInfo,
   ElectronApplication,
 } from '@playwright/test';
 
 import { connectTshBin, connectAppDir, password, startUrl } from './env';
+import { test as fixtureBase } from './fixtures';
 
 export async function launchApp(homeDir: string) {
   const requireFromApp = module.createRequire(
@@ -86,7 +86,7 @@ export interface App {
   appConfigPath: string;
 }
 
-export const test = base.extend<{
+export const test = fixtureBase.extend<{
   autoLogin: boolean;
   /**
    * Sets app config before launching the app.
@@ -118,6 +118,8 @@ export const test = base.extend<{
     }
   },
 });
+
+test.use({ fixtures: ['connect'] });
 
 export type AppConfigSetup =
   | {

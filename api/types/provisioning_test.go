@@ -298,6 +298,44 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			desc: "github valid enterprise only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Enterprise: "my-enterprise",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github valid enterprise_id only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								EnterpriseID: "123456",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc: "github ghes valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{

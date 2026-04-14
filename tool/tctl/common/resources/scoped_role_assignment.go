@@ -16,7 +16,6 @@
 package resources
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -81,19 +80,34 @@ func scopedRoleAssignmentHandler() Handler {
 	return Handler{
 		getHandler:    getScopedRoleAssignment,
 		createHandler: createScopedRoleAssignment,
+		updateHandler: updateScopedRoleAssignment,
 		deleteHandler: deleteScopedRoleAssignment,
 		description:   "A scoped role assignment binds scoped role permissions to a user at a limited scope",
 	}
 }
 
 func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	if opts.Force {
-		return trace.BadParameter("scoped role assignment creation does not support --force")
-	}
-
 	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// use upsert when --force is set and the assignment already has a name (i.e. it was previously
+	// created and the user is re-applying the same resource file). if there is no name, fall through
+	// to create, which will generate one server-side.
+	if opts.Force && r.GetMetadata().GetName() != "" {
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+			Assignment: r,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf(
+			"%v %q has been upserted\n",
+			scopedaccess.KindScopedRoleAssignment,
+			rsp.GetAssignment().GetMetadata().GetName(),
+		)
+		return nil
 	}
 
 	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
@@ -112,13 +126,35 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	return nil
 }
 
+func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+		Assignment: r,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(
+		"%v %q has been updated\n",
+		scopedaccess.KindScopedRoleAssignment,
+		r.GetMetadata().GetName(),
+	)
+
+	return nil
+}
+
 func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name != "" {
-		// Default to dynamic if the user didn't specify a subkind.
-		subKind := cmp.Or(ref.SubKind, scopedaccess.SubKindDynamic)
+		if ref.SubKind == "" {
+			return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", ref.Name)
+		}
 		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    ref.Name,
-			SubKind: subKind,
+			SubKind: ref.SubKind,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -135,6 +171,12 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref
 }
 
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if ref.SubKind == "" {
+		return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, ref.Name)
+	}
+	if ref.SubKind == scopedaccess.SubKindMaterialized {
+		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
+	}
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 		Name:    ref.Name,
 		SubKind: ref.SubKind,

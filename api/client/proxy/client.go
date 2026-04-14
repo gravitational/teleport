@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/ssh"
 	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
@@ -60,7 +60,7 @@ type ClientConfig struct {
 	// to the gRPC client.
 	StreamInterceptors []grpc.StreamClientInterceptor
 	// SSHConfig is the [ssh.ClientConfig] used to connect to the Proxy SSH server.
-	SSHConfig *ssh.ClientConfig
+	SSHConfig ssh.ClientConfig
 	// DialTimeout defines how long to attempt dialing before timing out.
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
@@ -95,9 +95,6 @@ type ClientConfig struct {
 func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
-	}
-	if c.SSHConfig == nil {
-		return trace.BadParameter("missing required parameter SSHConfig")
 	}
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
@@ -185,8 +182,8 @@ func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (mc insecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
+func (mc insecureCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry. insecureCredentials never expire.
@@ -438,14 +435,13 @@ func (c *Client) Close() error {
 // SSHConfig returns the [ssh.ClientConfig] for the provided user which
 // should be used when creating a [tracessh.Client] with the returned
 // [net.Conn] from [Client.DialHost].
-func (c *Client) SSHConfig(user string) *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		Config:            c.cfg.SSHConfig.Config,
+func (c *Client) SSHConfig(user string) ssh.ClientConfig {
+	return ssh.ClientConfig{
+		SSHConfig:         c.cfg.SSHConfig.SSHConfig,
 		User:              user,
-		Auth:              c.cfg.SSHConfig.Auth,
+		PublicKeyAuth:     c.cfg.SSHConfig.PublicKeyAuth,
 		HostKeyCallback:   c.cfg.SSHConfig.HostKeyCallback,
 		BannerCallback:    c.cfg.SSHConfig.BannerCallback,
-		ClientVersion:     c.cfg.SSHConfig.ClientVersion,
 		HostKeyAlgorithms: c.cfg.SSHConfig.HostKeyAlgorithms,
 		Timeout:           c.cfg.SSHConfig.Timeout,
 	}

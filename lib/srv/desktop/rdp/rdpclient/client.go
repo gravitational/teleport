@@ -207,7 +207,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetHeight(), hello.ScreenSpec.GetHeight()))
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.
@@ -1150,7 +1150,8 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 			Create: &tdpbv1.SharedDirectoryRequest_Create{
-				Path: C.GoString(req.path),
+				Path:     C.GoString(req.path),
+				FileType: req.file_type,
 			},
 		},
 	})

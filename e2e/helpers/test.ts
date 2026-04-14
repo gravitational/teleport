@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { test as base } from '@playwright/test';
-
+import { test as base } from './fixtures';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 
 export const CLUSTER_NAME = 'teleport-e2e';

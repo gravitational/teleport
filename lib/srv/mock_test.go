@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -348,7 +349,7 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 // ChildLogConfig returns a noop log configuration.
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
-		ExecLogConfig: ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level:  slog.LevelDebug,
 			Format: "json",
 		},

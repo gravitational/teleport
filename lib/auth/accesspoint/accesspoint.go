@@ -72,7 +72,7 @@ type Config struct {
 	Access                  services.Access
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
-	AppSession              services.AppSession
+	AppSession              services.AppSessionReader
 	Applications            services.Applications
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
@@ -117,6 +117,7 @@ type Config struct {
 	Plugin                  services.Plugins
 	AppAuthConfig           services.AppAuthConfigReader
 	WorkloadClusterService  services.WorkloadClusterService
+	Summarizer              services.Summarizer
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -206,6 +207,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		AppAuthConfig:           cfg.AppAuthConfig,
 		WorkloadClusterService:  cfg.WorkloadClusterService,
+		Summarizer:              cfg.Summarizer,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

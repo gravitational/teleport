@@ -1657,22 +1657,54 @@ message ProvisionTokenSpecV2GitHub {
     // Sub also known as Subject is a string that roughly uniquely identifies
     // the workload. The format of this varies depending on the type of
     // github action run.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // The repository from where the workflow is running.
     // This includes the name of the owner e.g `gravitational/teleport`
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Repository = 2 [(gogoproto.jsontag) = "repository,omitempty"];
     // The name of the organization in which the repository is stored.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string RepositoryOwner = 3 [(gogoproto.jsontag) = "repository_owner,omitempty"];
     // The name of the workflow.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Workflow = 4 [(gogoproto.jsontag) = "workflow,omitempty"];
     // The name of the environment used by the job.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Environment = 5 [(gogoproto.jsontag) = "environment,omitempty"];
     // The personal account that initiated the workflow run.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Actor = 6 [(gogoproto.jsontag) = "actor,omitempty"];
     // The git ref that triggered the workflow run.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
     string Ref = 7 [(gogoproto.jsontag) = "ref,omitempty"];
     // The type of ref, for example: "branch".
     string RefType = 8 [(gogoproto.jsontag) = "ref_type,omitempty"];
+    // The name of the enterprise in which the repository is stored.
+    string Enterprise = 9 [(gogoproto.jsontag) = "enterprise,omitempty"];
+    // The ID of the enterprise in which the repository is stored.
+    string EnterpriseID = 10 [(gogoproto.jsontag) = "enterprise_id,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
@@ -4077,6 +4109,17 @@ message RoleConditions {
   // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
   // access to Linux desktops.
   string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
+
+  // BeamLabels are used in the RBAC system to allow/deny access to beams.
+  wrappers.LabelValues BeamLabels = 50 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "beam_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // BeamLabelsExpression is a predicate expression used to allow/deny access
+  // to beams.
+  string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -5095,6 +5138,8 @@ message KubernetesClusterV3 {
   ];
   // Status is the resource status.
   KubernetesClusterStatus status = 6;
+  // The scope of the kube cluster.
+  string scope = 7;
 }
 
 // KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
@@ -9314,7 +9359,7 @@ message AccessGraphAWSSync {
 message AccessGraphAzureSync {
   // SubscriptionID Is the ID of the Azure subscription to sync resources from
   string SubscriptionID = 1 [(gogoproto.jsontag) = "subscription_id,omitempty"];
-  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
   string Integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 

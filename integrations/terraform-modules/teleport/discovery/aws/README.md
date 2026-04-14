@@ -1,6 +1,6 @@
 ## AWS Discovery Terraform module
 
-This Terraform module creates the AWS and Teleport cluster resources necessary for a Teleport cluster to discover resources in AWS.
+This Terraform module creates the AWS and Teleport cluster resources necessary for a Teleport cluster to discover AWS resources.
 
 - AWS IAM role for Teleport Discovery Service to assume.
 - AWS IAM policy attached to the IAM role that grants the AWS permissions necessary for Teleport to discover resources in AWS.
@@ -34,13 +34,38 @@ module "aws_discovery" {
     Terraform = "true"
     Env       = "dev"
   }
-  # Match EC2 instances that have the AWS tag "origin=example"
-  match_aws_resource_types = ["ec2"]
-  match_aws_tags = {
-    origin = ["example"]
-  }
+
+  # Configure matchers to discover EC2 instances and EKS clusters.
+  aws_matchers = [
+    {
+      types   = ["ec2"]
+      # EC2 discovery supports wildcard to find instances in all regions.
+      regions = ["*"]
+      tags = {
+        origin = ["example"]
+      }
+    },
+    {
+      types   = ["eks"]
+      # EKS requires region selection.
+      regions = ["us-east-1"]
+      tags = {
+        team = ["platform"]
+      }
+    }
+  ]
 }
 ```
+
+### `aws_matchers` fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `types` | `list(string)` | (required) | AWS resource types to discover. Allowed values: `ec2`, `eks`. |
+| `regions` | `list(string)` | (required) | AWS regions to search. EC2 supports `"*"` for all regions. EKS requires explicit regions. |
+| `tags` | `map(list(string))` | `{ "*" : ["*"] }` | AWS resource tags to match. The default matches all resources. |
+| `setup_access_for_arn` | `string` | `""` | ARN to configure access for discovered EKS clusters. Only supported for EKS matchers. |
+| `kube_app_discovery` | `bool` | `true` | Teleport's Kubernetes App Discovery will automatically identify and enroll to Teleport HTTP applications running inside a Kubernetes cluster. |
 
 ## How to get help
 
@@ -56,7 +81,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | terraform | >= 1.5.7 |
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.5.1 |
+| teleport | >= 18.7.4 |
 | tls | >= 4.0 |
 
 ## Providers
@@ -65,7 +90,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 |------|---------|
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.5.1 |
+| teleport | >= 18.7.4 |
 | tls | >= 4.0 |
 
 ## Modules
@@ -101,12 +126,13 @@ No modules.
 | aws\_iam\_policy\_use\_name\_prefix | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
 | aws\_iam\_role\_name | Name for the AWS IAM role for discovery. | `string` | `"teleport-discovery"` | no |
 | aws\_iam\_role\_use\_name\_prefix | Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix. | `bool` | `true` | no |
+| aws\_matchers | AWS resource discovery matchers. Valid values for aws\_matchers.types are: ec2, eks. | ```list(object({ types = list(string) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) setup_access_for_arn = optional(string, "") kube_app_discovery = optional(bool, true) }))``` | `[]` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_aws\_iam\_openid\_connect\_provider | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
-| discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
-| match\_aws\_regions | AWS regions to discover. The default matches all AWS regions. | `list(string)` | ```[ "*" ]``` | no |
-| match\_aws\_resource\_types | AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`. | `list(string)` | n/a | yes |
-| match\_aws\_tags | AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | ```{ "*": [ "*" ] }``` | no |
+| discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool, true) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
+| match\_aws\_regions | Deprecated legacy input. Use aws\_matchers instead. AWS regions to discover. The default matches all AWS regions. | `list(string)` | ```[ "*" ]``` | no |
+| match\_aws\_resource\_types | Deprecated legacy input. Use aws\_matchers instead. AWS resource types to match when discovering resources with Teleport. | `list(string)` | `[]` | no |
+| match\_aws\_tags | Deprecated legacy input. Use aws\_matchers instead. AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | ```{ "*": [ "*" ] }``` | no |
 | teleport\_discovery\_config\_name | Name for the `teleport_discovery_config` resource. | `string` | `"discovery"` | no |
 | teleport\_discovery\_config\_use\_name\_prefix | Determines whether the name of the Teleport discovery config (`teleport_discovery_config_name`) is used as a prefix. | `bool` | `true` | no |
 | teleport\_discovery\_group\_name | Teleport discovery group to use. For discovery configuration to apply, this name must match at least one Teleport Discovery Service instance's configured `discovery_group`. For Teleport Cloud clusters, use "cloud-discovery-group". | `string` | n/a | yes |

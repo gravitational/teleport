@@ -115,7 +115,7 @@ type resourceSchemaConfig struct {
 	versionOverride      string
 	customSpecFields     []string
 	additionalRootFields []string
-	kindContainsVersion  bool
+	kindWithoutVersion   bool
 	additionalColumns    []apiextv1.CustomResourceColumnDefinition
 }
 
@@ -133,10 +133,11 @@ func withNameOverride(name string) resourceSchemaOption {
 	}
 }
 
-// set this only on new multi-version resources
-func withVersionInKindOverride() resourceSchemaOption {
+// Here for backward compatibility-only.
+// DO NOT SET on new resources. See RFD 169 for more details.
+func legacyWithoutVersionInKindOverride() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.kindContainsVersion = true
+		cfg.kindWithoutVersion = true
 	}
 }
 
@@ -233,7 +234,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		resourceKind = cfg.nameOverride
 	}
 	kubernetesKind := resourceKind
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		kubernetesKind = resourceKind + strings.ToUpper(resourceVersion)
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
@@ -241,7 +242,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	root, ok := generator.roots[kubernetesKind]
 	if !ok {
 		pluralName := strings.ToLower(english.PluralWord(2, resourceKind, ""))
-		if cfg.kindContainsVersion {
+		if !cfg.kindWithoutVersion {
 			pluralName = pluralName + resourceVersion
 		}
 		root = &RootSchema{
@@ -257,7 +258,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	// For legacy CRs with a single version, we use the Teleport version as the
 	// Kubernetes API version
 	kubernetesVersion := resourceVersion
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		// For new multi-version resources we always set the version to "v1" as
 		// the Teleport version is also in the CR kind.
 		kubernetesVersion = "v1"

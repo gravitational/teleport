@@ -70,6 +70,7 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -1808,17 +1809,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
+	authSettings.Scopes = scopes.ScopesStatusToString(pr.ScopesStatus)
+
 	return webclient.PingResponse{
-		Auth:                   authSettings,
-		Proxy:                  *proxyConfig,
-		ServerVersion:          teleport.Version,
-		MinClientVersion:       teleport.MinClientSemVer().String(),
-		ClusterName:            h.auth.clusterName,
-		AutomaticUpgrades:      pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:             h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:                h.cfg.Modules.BuildType(),
-		FIPS:                   h.cfg.Modules.IsBoringBinary(),
-		AuthServerScopesStatus: scopes.ScopesStatusToString(pr.ScopesStatus),
+		Auth:              authSettings,
+		Proxy:             *proxyConfig,
+		ServerVersion:     teleport.Version,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
+		ClusterName:       h.auth.clusterName,
+		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		Edition:           h.cfg.Modules.BuildType(),
+		FIPS:              h.cfg.Modules.IsBoringBinary(),
 	}, nil
 }
 
@@ -2193,6 +2195,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessGraphConfigSet:        accessGraphConfigSet,
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
+		BeamsUI: clusterFeatures.GetBeamsUI(),
 	}
 
 	if clusterName != nil {
@@ -5680,11 +5683,15 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 	}
 
 	config := &client.Config{
-		Username:          sctx.GetUser(),
-		Agent:             agent,
-		NonInteractive:    true,
-		TLS:               tlsConfig,
-		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
+		Username:       sctx.GetUser(),
+		Agent:          agent,
+		NonInteractive: true,
+		TLS:            tlsConfig,
+		PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return signers, nil
+			},
+		},
 		ProxySSHPrincipal: cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,

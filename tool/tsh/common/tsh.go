@@ -2519,6 +2519,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
+	// When the scope changes between logins (e.g. scoped→unscoped or vice
+	// versa), clear all Teleport keys for this proxy from the SSH agent.
+	if scopeChanged {
+		if agent := tc.LocalAgent(); agent != nil {
+			proxyIdx := client.KeyRingIndex{ProxyHost: tc.WebProxyHost()}
+			if err := agent.UnloadKeyRing(proxyIdx); err != nil {
+				logger.WarnContext(cf.Context, "Failed to unload old keys from agent on scope change", "error", err)
+			}
+		}
+	}
+
 	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
 	if err != nil {
 		return trace.Wrap(err)
@@ -4214,7 +4225,7 @@ func retryWithAccessRequest(
 	}
 
 	// Print and log the original AccessDenied error.
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
+	fmt.Fprint(os.Stderr, utils.UserMessageFromError(origErr))
 	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 	if err := promptUserForAccessRequestDetails(cf, req); err != nil {
 		return trace.Wrap(err)
@@ -4599,7 +4610,7 @@ func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 		}
 
 		// For unexpected errors, print the error message before converting to an exitCodeError.
-		fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
+		fmt.Fprint(tc.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: status})
 	}
 	return trace.Wrap(err)
@@ -4618,7 +4629,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		fmt.Fprint(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")
@@ -4642,7 +4653,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.Context, cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", trace.UserMessage(err))
 		} else {
 			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}

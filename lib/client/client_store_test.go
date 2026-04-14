@@ -38,6 +38,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/profile"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -446,13 +447,13 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, srv.Start())
 		defer srv.Close()
 
-		clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
+		clt, err := apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
 		require.NoError(t, err)
 		defer clt.Close()
 
 		// Call new session to initiate opening new channel. This should get
 		// rejected and fail.
-		_, err = clt.NewSession()
+		_, err = clt.NewSession(t.Context())
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
@@ -471,7 +472,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
-		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
+		_, err = apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
 	})
 }
