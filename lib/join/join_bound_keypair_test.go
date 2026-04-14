@@ -1702,7 +1702,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 	require.NoError(t, err)
 
 	// Create a scoped role assignment for the bot.
-	_, err = srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 		Assignment: &scopedaccessv1.ScopedRoleAssignment{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			Version: types.V1,
@@ -1721,6 +1721,15 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 		},
 	})
 	require.NoError(t, err)
+
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, time.Second*10, 100*time.Millisecond)
 }
 
 func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
