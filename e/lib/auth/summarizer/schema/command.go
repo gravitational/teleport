@@ -48,5 +48,3 @@ type CommandAnalysis struct {
 
 	InferenceErrorMessage string
 }
-
-var CommandAnalysisSchema = generateSchema[CommandAnalysis]()

@@ -16,5 +16,3 @@ type SessionAnalysis struct {
 	TooLarge              bool
 	CommandAnalysisFailed bool
 }
-
-var SessionAnalysisSchema = generateSchema[SessionAnalysis]()

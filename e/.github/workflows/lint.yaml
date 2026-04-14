@@ -33,9 +33,11 @@ jobs:
           filters: |
             go:
               - '.github/workflows/lint.yaml'
+              - 'Makefile'
               - '**.go'
               - 'go.mod'
               - 'go.sum'
+              - 'lib/auth/summarizer/schema/generated/**'
             workflows:
               - added|modified:
                 - '.github/workflows/*.yaml'
@@ -86,6 +88,9 @@ jobs:
 
       - name: Check if test symbols are included in binaries
         run: make -C e lint-test-symbols
+
+      - name: Check generated summarizer schemas
+        run: make -C e lint-schemagen
 
       - name: Mark paths as safe
         run: git config --global --add safe.directory "$( realpath . )"

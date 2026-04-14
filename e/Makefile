@@ -594,6 +594,14 @@ lint-test-symbols: ensure-goda
 		exit 1; \
 	fi
 
+.PHONY: schemagen
+schemagen:
+	GOWORK=off go -C tooling/schemagen run .
+
+.PHONY: lint-schemagen
+lint-schemagen: schemagen
+	git diff --exit-code -- lib/auth/summarizer/schema/generated
+
 $(TEST_LOG_DIR):
 	mkdir -p $(TEST_LOG_DIR)
 

@@ -10,10 +10,6 @@ type ProseEmbedding struct {
 	CondensedText string `json:"condensed_text" jsonschema:"required" jsonschema_description:"The generated text used for embedding generation."`
 }
 
-// ProseEmbeddingSchema is the JSON schema for ProseEmbedding, used to constrain
-// structured output from the LLM to the expected shape.
-var ProseEmbeddingSchema = generateSchema[ProseEmbedding]()
-
 // GetProseEmbedding returns the system prompt used to instruct the LLM to
 // produce a dense prose embedding of a session.
 func GetProseEmbedding() string {
