@@ -28,6 +28,7 @@ import (
 	"os/user"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -244,6 +245,23 @@ func (s *LinuxService) Close() error {
 	return nil
 }
 
+type tracker struct {
+	mu           sync.Mutex
+	lastActivity time.Time
+}
+
+func (t *tracker) GetClientLastActive() time.Time {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastActivity
+}
+
+func (t *tracker) UpdateClientActivity() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.lastActivity = time.Now()
+}
+
 // Serve starts serving TLS connections for plainLis. plainLis should be a TCP
 // listener and Serve will handle TLS internally.
 func (s *LinuxService) Serve(plainLis net.Listener) error {
@@ -283,14 +301,21 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
 		if err := tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
-			log.ErrorContext(context.Background(), "Failed to send TDPB error message", "error", err, "message", message)
+			log.ErrorContext(ctx, "Failed to send TDPB error message", "error", err, "message", message)
 		}
+	}
+
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get cluster networking config", "error", err)
+		sendTDPError("Failed to get cluster networking config")
+		return
 	}
 
 	// Check connection limits.
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
-		log.ErrorContext(context.Background(), "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
+		log.ErrorContext(ctx, "Could not parse client IP", "addr", proxyConn.RemoteAddr().String(), "error", err)
 		sendTDPError("Internal error.")
 		return
 	}
@@ -300,7 +325,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	log = log.With("session_id", sessionID)
 
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
-		log.WarnContext(context.Background(), "Connection limit exceeded, rejecting connection")
+		log.WarnContext(ctx, "Connection limit exceeded, rejecting connection")
 		sendTDPError("Connection limit exceeded.")
 		return
 	}
@@ -407,6 +432,43 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	sessionStarted := false
 
+	track := tracker{}
+
+	track.UpdateClientActivity()
+
+	monitorCfg := srv.MonitorConfig{
+		Context:               ctx,
+		Conn:                  tdpConn,
+		Clock:                 s.cfg.Clock,
+		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
+		Logger:                s.cfg.Logger,
+		Emitter:               s.cfg.Emitter,
+		EmitterContext:        s.closeCtx,
+		LockWatcher:           s.cfg.LockWatcher,
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{LinuxDesktop: desktop.GetMetadata().GetName()}),
+		Tracker:               &track,
+		TeleportUser:          identity.Username,
+		UserOriginClusterName: identity.OriginClusterName,
+		ServerID:              s.cfg.Heartbeat.HostUUID,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
+	}
+
+	if err := srv.StartMonitor(monitorCfg); err != nil {
+		// if we can't establish a connection monitor then we can't enforce RBAC.
+		// consider this a connection failure and return an error
+		// (in the happy path, rdpc remains open until Wait() completes)
+		startEvent := audit.makeLinuxSessionStart(err)
+		s.record(ctx, recorder, startEvent)
+		s.emit(ctx, startEvent)
+
+		log.ErrorContext(ctx, "failed to start monitor", "error", err)
+		sendTDPError("Couldn't start connection monitor.")
+		return
+	}
+
 	defer func() {
 		if sessionStarted {
 			endEvent := audit.makeLinuxSessionEnd(recordSession)
@@ -425,6 +487,20 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 			log.ErrorContext(ctx, "got error reading message", "error", err)
 			return
 		}
+
+		// If the message was due to user input, then we update client activity
+		// in order to refresh the client_idle_timeout checks.
+		//
+		// Note: we count some of the directory sharing messages as client activity
+		// because we don't want a session to be closed due to inactivity during a large
+		// file transfer.
+		switch msg.(type) {
+		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
+			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
+
+			track.UpdateClientActivity()
+		}
+
 		switch m := msg.(type) {
 		case *tdpb.ClientHello:
 			username = m.Username
