@@ -135,8 +135,10 @@ helm repo update
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
   --set roles="{{.set_roles}}" \
-  --set proxyAddr={{.proxy_server}} \
-  --set authToken={{.token}} \
+  --set proxyAddr={{.proxy_server}} \{{if .secret}}
+  --set "joinParams.tokenName={{.token}}" \
+  --set "joinParams.tokenSecret={{.secret}}" \{{else}}
+  --set authToken={{.token}} \{{end}}
   --set updater.enabled=true \
   --create-namespace \
   --namespace=teleport-agent \
