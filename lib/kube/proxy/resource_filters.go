@@ -120,7 +120,7 @@ type resourceFilterer struct {
 // The rest are constant for the entire request (determined by the URL and HTTP method),
 // so can be resolved once when the matcher is constructed.
 type resourceMatcher interface {
-	match(name, namespace string) (bool, error)
+	Match(name, namespace string) (bool, error)
 }
 
 func newMatcher(mr metaResource, allowed, denied []types.KubernetesResource, log *slog.Logger) resourceMatcher {
@@ -194,7 +194,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		result, err := d.matcher.match(o.GetName(), o.GetNamespace())
+		result, err := d.matcher.Match(o.GetName(), o.GetNamespace())
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -302,7 +302,7 @@ type kubeObjectInterface interface {
 
 // filterResource validates if the user should access the current resource.
 func (d *resourceFilterer) filterResource(resource kubeObjectInterface) (bool, error) {
-	return d.matcher.match(resource.GetName(), resource.GetNamespace())
+	return d.matcher.Match(resource.GetName(), resource.GetNamespace())
 }
 
 func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.KubernetesResource {
@@ -328,7 +328,7 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table) (*metav1.Table
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if result, err := d.matcher.match(resource.Name, resource.Namespace); err != nil {
+		if result, err := d.matcher.Match(resource.Name, resource.Namespace); err != nil {
 			d.log.WarnContext(context.Background(), "Unable to compile regex expression", "error", err)
 		} else if result {
 			resources = append(resources, *row)
@@ -460,7 +460,7 @@ func (d *resourceFilterer) filterUnstructuredList(obj *unstructured.Unstructured
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		if result, err := d.matcher.match(resource.GetName(), resource.GetNamespace()); err != nil {
+		if result, err := d.matcher.Match(resource.GetName(), resource.GetNamespace()); err != nil {
 			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		} else if result {
 			filteredList = append(filteredList, resource.Object)
@@ -480,7 +480,7 @@ type defaultMatcher struct {
 	deniedResources  []types.KubernetesResource
 }
 
-func (m *defaultMatcher) match(name, namespace string) (bool, error) {
+func (m *defaultMatcher) Match(name, namespace string) (bool, error) {
 	resource := types.KubernetesResource{
 		Kind:      m.kind,
 		Namespace: namespace,

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	"github.com/gravitational/teleport/lib/kube/proxy/streamfilter"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -171,7 +172,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// filter directly to the client without buffering the entire response.
 	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
 	if status == http.StatusOK {
-		sf := newStreamFilter(contentType, matcher)
+		sf := streamfilter.New(contentType, matcher)
 		if sf != nil {
 			src, dst, compErr := wrapContentEncoding(pipeReader, w, contentEncoding)
 			if compErr != nil {
@@ -187,7 +188,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 				w.Header().Del("Content-Length")
 				w.WriteHeader(status)
 
-				filterErr := sf.filter(src, dst)
+				filterErr := sf.Filter(src, dst)
 
 				// Once headers are sent, we can't signal errors to the client.
 				// A mid-stream failure results in a truncated response.
@@ -437,3 +438,42 @@ func isRequestTargetedToPod(req *http.Request, kube apiResource) string {
 
 	return ""
 }
+
+// headerCapturer is an http.ResponseWriter that captures headers and status,
+// then streams the body to an io.Writer.
+type headerCapturer struct {
+	body        io.Writer
+	headers     http.Header
+	status      int
+	once        sync.Once
+	wroteHeader chan struct{} // closed once headers are captured; used as a signal
+}
+
+func newHeaderCapturer(body io.Writer) *headerCapturer {
+	return &headerCapturer{
+		body:        body,
+		headers:     make(http.Header),
+		wroteHeader: make(chan struct{}),
+	}
+}
+
+func (h *headerCapturer) Header() http.Header {
+	return h.headers
+}
+
+func (h *headerCapturer) WriteHeader(statusCode int) {
+	h.once.Do(func() {
+		h.status = statusCode
+		close(h.wroteHeader)
+	})
+}
+
+func (h *headerCapturer) Write(b []byte) (int, error) {
+	h.WriteHeader(http.StatusOK)
+	return h.body.Write(b)
+}
+
+// Flush implements http.Flusher.
+// The reverse proxy checks for this interface and calls Flush after writes for streaming responses.
+// Since our body is an io.Pipe (synchronous), this is a no-op.
+func (h *headerCapturer) Flush() {}

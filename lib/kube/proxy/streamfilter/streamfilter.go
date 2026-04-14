@@ -16,37 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package proxy
+// Package streamfilter implements streaming RBAC filtering for Kubernetes
+// list responses. It uses json.Decoder with json.RawMessage to decode
+// individual items incrementally, apply a matcher to each item, and write
+// matching items to the output without buffering the entire response.
+package streamfilter
 
 import (
-	"compress/gzip"
 	"encoding/json"
 	"io"
-	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 )
 
-// streamFilter filters a Kubernetes list response by reading from src and
-// writing filtered output to dst, without buffering the entire response.
-type streamFilter interface {
-	filter(src io.Reader, dst io.Writer) error
+// Matcher matches a Kubernetes resource by name and namespace.
+type Matcher interface {
+	Match(name, namespace string) (bool, error)
 }
 
-// newStreamFilter returns a streaming filter for the given content type,
+// Filter filters a Kubernetes list response by reading from src and
+// writing filtered output to dst, without buffering the entire response.
+type Filter interface {
+	Filter(src io.Reader, dst io.Writer) error
+}
+
+// New returns a streaming filter for the given content type,
 // or nil if no streaming implementation is available for that type.
-func newStreamFilter(contentType string, matcher resourceMatcher) streamFilter {
+func New(contentType string, matcher Matcher) Filter {
 	switch {
 	case strings.Contains(contentType, "application/json"):
-		return &jsonStreamFilter{matcher: matcher}
+		return &jsonFilter{matcher: matcher}
 	default:
 		return nil
 	}
 }
 
-// jsonStreamFilter performs streaming RBAC filtering on a Kubernetes JSON list response.
+// jsonFilter performs streaming RBAC filtering on a Kubernetes JSON list response.
 // It parses the top-level JSON object incrementally using json.Decoder,
 // writes non-items fields through unchanged,
 // and filters the items/rows array one element at a time using the matcher.
@@ -54,11 +60,11 @@ func newStreamFilter(contentType string, matcher resourceMatcher) streamFilter {
 //
 // Supports both regular list responses ("items" array)
 // and server-side Table format ("rows" array with nested object.metadata).
-type jsonStreamFilter struct {
-	matcher resourceMatcher
+type jsonFilter struct {
+	matcher Matcher
 }
 
-func (f *jsonStreamFilter) filter(src io.Reader, dst io.Writer) error {
+func (f *jsonFilter) Filter(src io.Reader, dst io.Writer) error {
 	decoder := json.NewDecoder(src)
 	w := &jsonStreamWriter{dst: dst, firstField: true}
 	scratch := make(json.RawMessage, 0, 2048)
@@ -120,7 +126,7 @@ type metaExtractor func(item json.RawMessage) (name, namespace string, err error
 // to each element, and writes the filtered array to the writer.
 // The scratch buffer is reused across calls to reduce allocations.
 // Returns the (possibly grown) scratch buffer for reuse.
-func (f *jsonStreamFilter) filterArray(
+func (f *jsonFilter) filterArray(
 	decoder *json.Decoder,
 	w *jsonStreamWriter,
 	scratch json.RawMessage,
@@ -156,7 +162,7 @@ func (f *jsonStreamFilter) filterArray(
 			continue
 		}
 
-		allowed, err := f.matcher.match(name, namespace)
+		allowed, err := f.matcher.Match(name, namespace)
 		if err != nil {
 			return scratch, trace.Wrap(err)
 		}
@@ -202,7 +208,6 @@ type kubeTableRowEnvelope struct {
 	} `json:"object"`
 }
 
-// extractItemMeta extracts name and namespace from a regular list item.
 func extractItemMeta(item json.RawMessage) (name, namespace string, err error) {
 	var env kubeItemEnvelope
 	if err := json.Unmarshal(item, &env); err != nil {
@@ -214,7 +219,6 @@ func extractItemMeta(item json.RawMessage) (name, namespace string, err error) {
 	return env.Metadata.Name, env.Metadata.Namespace, nil
 }
 
-// extractTableRowMeta extracts name and namespace from a Table row's embedded object metadata.
 func extractTableRowMeta(item json.RawMessage) (name, namespace string, err error) {
 	var env kubeTableRowEnvelope
 	if err := json.Unmarshal(item, &env); err != nil {
@@ -235,13 +239,11 @@ type jsonStreamWriter struct {
 	firstField bool // tracks whether the next top-level field is the first
 }
 
-// writeRaw writes a raw string to the output.
 func (w *jsonStreamWriter) writeRaw(s string) error {
 	_, err := io.WriteString(w.dst, s)
 	return trace.Wrap(err)
 }
 
-// writeKey writes a JSON key with comma separator if needed.
 func (w *jsonStreamWriter) writeKey(key string) error {
 	if !w.firstField {
 		if err := w.writeRaw(","); err != nil {
@@ -260,7 +262,6 @@ func (w *jsonStreamWriter) writeKey(key string) error {
 	return w.writeRaw(":")
 }
 
-// writeKeyValue writes a JSON key-value pair.
 func (w *jsonStreamWriter) writeKeyValue(key string, value json.RawMessage) error {
 	if err := w.writeKey(key); err != nil {
 		return trace.Wrap(err)
@@ -269,7 +270,6 @@ func (w *jsonStreamWriter) writeKeyValue(key string, value json.RawMessage) erro
 	return trace.Wrap(err)
 }
 
-// expectDelim reads the next token from the decoder and verifies it matches the expected delimiter.
 func expectDelim(decoder *json.Decoder, expected rune) error {
 	token, err := decoder.Token()
 	if err != nil {
@@ -282,7 +282,6 @@ func expectDelim(decoder *json.Decoder, expected rune) error {
 	return nil
 }
 
-// decodeStringToken reads the next token from the decoder and returns it as a string.
 func decodeStringToken(decoder *json.Decoder) (string, error) {
 	token, err := decoder.Token()
 	if err != nil {
@@ -294,63 +293,3 @@ func decodeStringToken(decoder *json.Decoder) (string, error) {
 	}
 	return s, nil
 }
-
-// wrapContentEncoding returns a reader/writer pair that handles Content-Encoding.
-// For gzip, it wraps the reader in a gzip decompressor and the writer in a pooled gzip compressor.
-// For identity or no encoding, it returns no-op closers.
-// Returns an error for unsupported encodings.
-func wrapContentEncoding(r io.Reader, w io.Writer, contentEncoding string) (io.ReadCloser, io.WriteCloser, error) {
-	switch contentEncoding {
-	case "", "identity":
-		return io.NopCloser(r), &nopCloserWrapper{w}, nil
-	case "gzip":
-		gzReader, err := gzip.NewReader(r)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		gzWriter := gzipPool.Get().(*gzip.Writer)
-		gzWriter.Reset(w)
-		return gzReader, &gzipWrapper{gzWriter}, nil
-	default:
-		return nil, nil, trace.BadParameter("unsupported Content-Encoding: %s", contentEncoding)
-	}
-}
-
-// headerCapturer is an http.ResponseWriter that captures headers and status,
-// then streams the body to an io.Writer.
-type headerCapturer struct {
-	body        io.Writer
-	headers     http.Header
-	status      int
-	once        sync.Once
-	wroteHeader chan struct{} // closed once headers are captured; used as a signal
-}
-
-func newHeaderCapturer(body io.Writer) *headerCapturer {
-	return &headerCapturer{
-		body:        body,
-		headers:     make(http.Header),
-		wroteHeader: make(chan struct{}),
-	}
-}
-
-func (h *headerCapturer) Header() http.Header {
-	return h.headers
-}
-
-func (h *headerCapturer) WriteHeader(statusCode int) {
-	h.once.Do(func() {
-		h.status = statusCode
-		close(h.wroteHeader)
-	})
-}
-
-func (h *headerCapturer) Write(b []byte) (int, error) {
-	h.WriteHeader(http.StatusOK)
-	return h.body.Write(b)
-}
-
-// Flush implements http.Flusher.
-// The reverse proxy checks for this interface and calls Flush after writes for streaming responses.
-// Since our body is an io.Pipe (synchronous), this is a no-op.
-func (h *headerCapturer) Flush() {}

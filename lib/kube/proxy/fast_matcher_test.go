@@ -302,7 +302,7 @@ func TestNamespaceKindFallback(t *testing.T) {
 			expected, err := matchKubernetesResource(tt.input, true, tt.allowed, tt.denied)
 			require.NoError(t, err)
 
-			got, err := m.match(tt.input.Name, tt.input.Namespace)
+			got, err := m.Match(tt.input.Name, tt.input.Namespace)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
 		})
@@ -662,11 +662,11 @@ func TestMatcherEquivalence(t *testing.T) {
 					expected, err := matchKubernetesResource(tt.resource, tt.isClusterWideResource, tc.allowed, tc.denied)
 					require.NoError(t, err)
 
-					fastResult, err := fm.match(tt.resource.Name, tt.resource.Namespace)
+					fastResult, err := fm.Match(tt.resource.Name, tt.resource.Namespace)
 					require.NoError(t, err)
 					require.Equal(t, expected, fastResult, "fastMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
 
-					defaultResult, err := dm.match(tt.resource.Name, tt.resource.Namespace)
+					defaultResult, err := dm.Match(tt.resource.Name, tt.resource.Namespace)
 					require.NoError(t, err)
 					require.Equal(t, expected, defaultResult, "defaultMatcher mismatch for %s/%s", tt.resource.Namespace, tt.resource.Name)
 				})
@@ -726,7 +726,7 @@ func TestMatcherEquivalenceMatrix(t *testing.T) {
 								continue
 							}
 
-							fastResult, err := fm.match(inputName, inputNS)
+							fastResult, err := fm.Match(inputName, inputNS)
 							if err != nil {
 								continue
 							}
@@ -735,7 +735,7 @@ func TestMatcherEquivalenceMatrix(t *testing.T) {
 								kind: kind, verb: verb, apiGroup: inputAG,
 								allowedResources: allowed,
 							}
-							defaultResult, err := dm.match(inputName, inputNS)
+							defaultResult, err := dm.Match(inputName, inputNS)
 							if err != nil {
 								continue
 							}
