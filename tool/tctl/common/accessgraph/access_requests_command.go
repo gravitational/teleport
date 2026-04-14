@@ -30,6 +30,7 @@ import (
 	models "github.com/gravitational/access-graph/api/client/models/logs"
 	"github.com/gravitational/teleport"
 	types "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -107,7 +108,7 @@ func (c *AccessGraphCommand) AccessRequestsList(ctx context.Context, args access
 }
 
 func constructAccessRequestsListQuery(args accessRequestsListArgs) accessgraph.ExecuteLogsQueryV1Params {
-	queryParts := []string{"event_type:access_request.create"}
+	queryParts := []string{"event_type:(access_request.create OR access_request.review OR access_request.expire OR access_request.update OR access_request.delete)"}
 	if args.kind != "" {
 		queryParts = append(queryParts, fmt.Sprintf("target_kind:%s", args.kind))
 	}
@@ -120,8 +121,9 @@ func constructAccessRequestsListQuery(args accessRequestsListArgs) accessgraph.E
 	if args.approver != "" {
 		queryParts = append(queryParts, fmt.Sprintf("approver:%s", args.approver))
 	}
-
 	query := strings.Join(queryParts, " AND ")
+
+	fmt.Println(query)
 
 	return accessgraph.ExecuteLogsQueryV1Params{
 		Query:     &query,
@@ -136,8 +138,26 @@ func displayAccessRequests(out io.Writer, logs []models.AccessgraphStorageV1alph
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(out, logs))
 	case teleport.Text:
-		return trace.NotImplemented("not yet implemented")
+		return trace.Wrap(displayAccessRequestsText(out, logs))
 	default:
 		return trace.Wrap(utils.WriteYAML(out, logs))
 	}
+}
+
+func displayAccessRequestsText(out io.Writer, logs []models.AccessgraphStorageV1alphaEvent) error {
+	table := asciitable.MakeTable([]string{"ID", "User", "State"})
+
+	for _, log := range logs {
+		ev, err := log.EventData.AsTeleportAuditLog()
+		if err != nil {
+			return trace.Wrap(err, "failed to parse event data for log ID %q", log.Uuid)
+		}
+		table.AddRow([]string{
+			log.Target.Resource,
+			log.Identity.Name,
+			string(ev["state"].(string)),
+		})
+	}
+	_, err := fmt.Fprintln(out, table.AsBuffer().String())
+	return trace.Wrap(err)
 }

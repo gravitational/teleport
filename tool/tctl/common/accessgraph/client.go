@@ -162,5 +162,4 @@ func newAccessGraphHTTPClient(proxyAddr string, keyRing *client.KeyRing) (*http.
 
 	slog.Debug("Initialized Access Graph HTTP client with TLS config from keyring", "proxyAddr", proxyAddr)
 	return httpClient, nil
-
 }

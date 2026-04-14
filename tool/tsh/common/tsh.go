@@ -2681,7 +2681,7 @@ func issueAccessGraphCertOnLogin(ctx context.Context, keyRing *client.KeyRing, r
 		return trace.Wrap(err)
 	}
 
-	expires, err := keyRing.TeleportTLSCertValidBefore()
+	expires, err := keyRing.CertValidBefore()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -20,6 +20,7 @@ package accessgraph
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -141,6 +142,9 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 	if proxyAddr == "" {
 		proxyAddr = pingResp.GetProxyPublicAddr()
 	}
+
+	fmt.Println("Using proxy address:", proxyAddr)
+
 	if proxyAddr == "" {
 		return true, trace.NotFound("proxy public address is not configured")
 	}
