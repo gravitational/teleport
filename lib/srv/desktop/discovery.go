@@ -26,6 +26,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -114,52 +115,6 @@ func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.W
 	}
 
 	return result
-}
-
-// startDesktopDiscovery starts fetching desktops from LDAP, periodically
-// registering and unregistering them as necessary.
-func (s *WindowsService) startDesktopDiscovery() error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
-		// Match all desktops with one of our LDAP labels.
-		// This ensures the desktop was discovered via LDAP and not created with dynamic registration.
-		Matcher: func(d types.WindowsDesktop) bool {
-			_, ok := d.GetLabel(types.DiscoveryLabelWindowsOS)
-			return ok
-		},
-		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
-		GetNewResources:     s.getDesktopsFromLDAP,
-		OnCreate:            s.upsertDesktop,
-		OnUpdate:            s.updateDesktop,
-		OnDelete:            s.deleteDesktop,
-		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop).With("reconciler", "ldap"),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		// reconcile once before starting the ticker, so that desktops show up immediately
-		// (we still have a small delay to give the LDAP client time to initialize)
-		s.cfg.Clock.Sleep(15 * time.Second)
-		if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
-		}
-
-		t := s.cfg.Clock.NewTicker(s.cfg.DiscoveryInterval)
-		defer t.Stop()
-		for {
-			select {
-			case <-s.closeCtx.Done():
-				return
-			case <-t.Chan():
-				if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
-					s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
-				}
-			}
-		}
-	}()
-
-	return nil
 }
 
 func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
@@ -411,21 +366,53 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	return desktop, nil
 }
 
-// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
-// according to the up-to-date list of dynamic Windows desktop resources. The reconciler runs until the
-// provided context expires.
-func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
-	if len(s.cfg.ResourceMatchers) == 0 {
-		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
-		return nil
-	}
+// startReconciler starts the service's reconciler, which is used to handle both LDAP discovery as well
+// as dynamic registration. The reconciler runs until the provided context expires.
+func (s *WindowsService) startReconciler(ctx context.Context) error {
+	s.cfg.Logger.DebugContext(ctx, "Starting reconciler")
+
 	// errCh is used to indicate whether the background reconciliation routine
 	// starts successfully
 	errCh := make(chan error)
 
 	go func() {
-		s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
-		watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
+		dynamicDesktops := make(map[string]types.WindowsDesktop)
+
+		newDesktops := func() map[string]types.WindowsDesktop {
+			ldapDesktops := make(map[string]types.WindowsDesktop)
+			if len(s.cfg.Discovery) > 0 {
+				maps.Copy(ldapDesktops, s.getDesktopsFromLDAP())
+			}
+
+			// Combine the results from the last watcher update with the LDAP results
+			maps.Copy(ldapDesktops, dynamicDesktops)
+			return ldapDesktops
+		}
+
+		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+			Matcher: func(desktop types.WindowsDesktop) bool {
+				// Our matcher needs to match both dynamic desktops from the config's resources section
+				// and any LDAP-discovered hosts from this this service. To make sure we get any LDAP
+				// hosts, we add a matcher for one of the labels that we always use for LDAP discovery.
+				matchers := slices.Clone(s.cfg.ResourceMatchers)
+				matchers = append(matchers, services.ResourceMatcher{
+					Labels: types.Labels{types.DiscoveryLabelWindowsOS: []string{"*"}},
+				})
+				return services.MatchResourceLabels(matchers, desktop.GetAllLabels())
+			},
+			GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(ctx) },
+			GetNewResources:     func() map[string]types.WindowsDesktop { return newDesktops() },
+			OnCreate:            s.upsertDesktop,
+			OnUpdate:            s.updateDesktop,
+			OnDelete:            s.deleteDesktop,
+			Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
+		})
+		if err != nil {
+			errCh <- trace.Wrap(err, "creating reconciler")
+			return
+		}
+
+		dynamicWatcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
 			DynamicWindowsDesktopGetter: s.cfg.AccessPoint,
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentWindowsDesktop,
@@ -433,40 +420,37 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 			},
 		})
 		if err != nil {
-			errCh <- trace.Wrap(err)
+			errCh <- trace.Wrap(err, "creating dynamic desktop watcher")
 			return
 		}
-
-		defer watcher.Close()
-		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
-
-		currentResources := make(map[string]types.WindowsDesktop)
-		var newResources map[string]types.WindowsDesktop
-
-		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
-			Matcher: func(desktop types.WindowsDesktop) bool {
-				return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
-			},
-			GetCurrentResources: func() map[string]types.WindowsDesktop { return currentResources },
-			GetNewResources:     func() map[string]types.WindowsDesktop { return newResources },
-			OnCreate:            s.upsertDesktop,
-			OnUpdate:            s.updateDesktop,
-			OnDelete:            s.deleteDesktop,
-			Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
-		})
-		if err != nil {
-			errCh <- trace.Wrap(err)
-			return
-		}
+		defer dynamicWatcher.Close()
 
 		// If we got here, the reconciler is running.
 		errCh <- nil
 
+		// Do periodic reconciliations, using the discovery interval if LDAP discovery
+		// is enabled, otherwise using the default interval.
+		interval := s.cfg.DiscoveryInterval
+		if len(s.cfg.Discovery) == 0 {
+			interval = apidefaults.ServerAnnounceTTL / 2
+		}
+		expiryDuration := interval * 2
+
+		// TODO: do one LDAP discovery before entering the loop so that desktops
+		// show up quickly after starting the service rather than waiting for the
+		// first full interval to pass.
+
 		for {
 			select {
-			case desktops := <-watcher.ResourcesC:
-				start := s.cfg.Clock.Now()
-				newResources = make(map[string]types.WindowsDesktop)
+			case <-ctx.Done():
+				return
+			case <-dynamicWatcher.Done():
+				return
+
+			// Changes to dynamic desktops were detected.
+			case desktops := <-dynamicWatcher.ResourcesC:
+				s.cfg.Logger.DebugContext(ctx, "Reconciling due to dynamic desktop change")
+				clear(dynamicDesktops)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)
 					if err != nil {
@@ -474,30 +458,8 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 						continue
 					}
 
-					// TODO: the reconciler's default comparison func is going to mark new resources
-					// different just because the expiry timestamp differs.
-					//
-					// Note: we can use a longer expiry here if/when we update the agent to remove
-					// resources on shutdown (like we already do for apps).
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
-					newResources[dynamicDesktop.GetName()] = desktop
-				}
-				if err := reconciler.Reconcile(ctx); err != nil {
-					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
-					continue
-				}
-				currentResources = newResources
-				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
-			case <-s.cfg.Clock.After(retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)):
-				start := s.cfg.Clock.Now()
-
-				// We currently use a relatively short expiration period so that desktops associated with
-				// an agent that terminates will expire shortly after the agent stops heartbeating them.
-				//
-				// As a result, we must also run the reconciler periodically to "renew" the desktop
-				// heartbeat and prevent it from expiring while the agent is healthy.
-				for _, desktop := range newResources {
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+					dynamicDesktops[dynamicDesktop.GetName()] = desktop
 				}
 
 				if err := reconciler.Reconcile(ctx); err != nil {
@@ -505,17 +467,24 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 					continue
 				}
 
-				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
+			// Periodic reconcile, which serves to both perform LDAP discovery
+			// and to push out the expiry of dynamic hosts if no other changes
+			// have triggered the watcher.
+			case <-s.cfg.Clock.After(retryutils.SeventhJitter(interval)):
+				s.cfg.Logger.DebugContext(ctx, "Performing periodic reconciliation")
+				for _, desktop := range dynamicDesktops {
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+				}
 
-			case <-watcher.Done():
-				return
-			case <-ctx.Done():
-				return
+				if err := reconciler.Reconcile(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					s.cfg.Logger.ErrorContext(s.closeCtx, "Periodic reconciliation failed", "error", err)
+				}
 			}
 		}
+
 	}()
 
-	return trace.Wrap(<-errCh, "could not start dynamic desktop reconciler")
+	return trace.Wrap(<-errCh, "starting reconciler")
 }
 
 func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDesktop) (*types.WindowsDesktopV3, error) {

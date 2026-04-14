@@ -438,22 +438,14 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(s.cfg.ResourceMatchers) == 0 && len(s.cfg.Discovery) == 0 {
+		s.cfg.Logger.WarnContext(ctx, "LDAP discovery and dynamic registration are both disabled, no reconciler will run")
+	} else if err := s.startReconciler(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.startStaticHostHeartbeats(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if err := s.startDynamicReconciler(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(s.cfg.Discovery) > 0 {
-		if err := s.startDesktopDiscovery(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if len(s.cfg.Heartbeat.StaticHosts) == 0 {
-		s.cfg.Logger.WarnContext(ctx, "desktop discovery via LDAP is disabled, and no hosts are defined in the configuration; there will be no Windows desktops available to connect")
-	} else {
-		s.cfg.Logger.InfoContext(ctx, "desktop discovery via LDAP is disabled, set 'base_dn' to enable")
 	}
 
 	ok = true
