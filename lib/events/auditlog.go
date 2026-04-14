@@ -613,7 +613,8 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				case *apievents.SessionStart,
 					*apievents.DatabaseSessionStart,
 					*apievents.AppSessionStart,
-					*apievents.WindowsDesktopSessionStart:
+					*apievents.WindowsDesktopSessionStart,
+					*apievents.MCPSessionStart:
 					l.log.DebugContext(ctx, "Found session start event", "session_id", string(sessionID), "event_type", fmt.Sprintf("%T", event))
 					sessionStartCh <- event
 					startEventSent = true
