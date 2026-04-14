@@ -50,7 +50,6 @@ type filteringResponseWriter struct {
 	tracer          oteltrace.Tracer
 	kubeServiceType string
 
-	pipeReader *io.PipeReader
 	pipeWriter *io.PipeWriter
 	memBuffer  *responsewriters.MemoryResponseWriter
 	filterErr  error
@@ -120,7 +119,6 @@ func (fw *filteringResponseWriter) tryStreaming() bool {
 	fw.target.WriteHeader(fw.status)
 
 	pr, pw := io.Pipe()
-	fw.pipeReader = pr
 	fw.pipeWriter = pw
 	fw.streaming = true
 	fw.filterDone = make(chan struct{})
@@ -131,6 +129,10 @@ func (fw *filteringResponseWriter) tryStreaming() bool {
 	// Calling it here in WriteHeader would deadlock.
 	go func() {
 		defer close(fw.filterDone)
+		// Close the read end of the pipe when done to unblock any pending
+		// pipeWriter.Write in ServeHTTP (e.g. if the filter exits early
+		// due to a client disconnect).
+		defer pr.Close()
 		src, dst, err := wrapContentEncoding(pr, fw.target, contentEncoding)
 		if err != nil {
 			fw.filterErr = trace.ConnectionProblem(err, "failed to initialize content encoding wrapper for %q", contentEncoding)
@@ -163,7 +165,6 @@ func (fw *filteringResponseWriter) Finish() (int, error) {
 	if fw.streaming {
 		fw.pipeWriter.Close()
 		<-fw.filterDone
-		fw.pipeReader.Close()
 		return fw.status, nil
 	}
 
