@@ -139,41 +139,6 @@ type SAMLConnector interface {
 	SetOAuthClientCredentials(*OAuthClientCredentials)
 }
 
-type samlConnectorV2JSON struct {
-	Kind     string          `json:"kind"`
-	SubKind  string          `json:"sub_kind,omitempty"`
-	Version  string          `json:"version"`
-	Metadata Metadata        `json:"metadata"`
-	Spec     json.RawMessage `json:"spec"`
-}
-
-type samlConnectorSpecV2JSON struct {
-	Issuer                   string                     `json:"issuer"`
-	SSO                      string                     `json:"sso"`
-	Cert                     string                     `json:"cert"`
-	Display                  string                     `json:"display"`
-	AssertionConsumerService string                     `json:"acs"`
-	Audience                 string                     `json:"audience"`
-	ServiceProviderIssuer    string                     `json:"service_provider_issuer"`
-	EntityDescriptor         string                     `json:"entity_descriptor"`
-	EntityDescriptorURL      string                     `json:"entity_descriptor_url"`
-	AttributesToRoles        []AttributeMapping         `json:"attributes_to_roles"`
-	SigningKeyPair           *AsymmetricKeyPair         `json:"signing_key_pair,omitempty"`
-	Provider                 string                     `json:"provider,omitempty"`
-	EncryptionKeyPair        *AsymmetricKeyPair         `json:"assertion_key_pair,omitempty"`
-	AllowIDPInitiated        bool                       `json:"allow_idp_initiated,omitempty"`
-	ClientRedirectSettings   *SSOClientRedirectSettings `json:"client_redirect_settings,omitempty"`
-	SingleLogoutURL          string                     `json:"single_logout_url,omitempty"`
-	MFASettings              *SAMLConnectorMFASettings  `json:"mfa,omitempty"`
-	ForceAuthn               SAMLForceAuthn             `json:"force_authn,omitempty"`
-	PreferredRequestBinding  string                     `json:"preferred_request_binding,omitempty"`
-	UserMatchers             []string                   `json:"user_matchers,omitempty"`
-	IncludeSubject           bool                       `json:"include_subject,omitempty"`
-	EntraIdGroupsProvider    *EntraIDGroupsProvider     `json:"entra_id_groups_provider,omitempty"`
-
-	Credentials json.RawMessage `json:"credentials,omitempty"`
-}
-
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
 func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, error) {
 	o := &SAMLConnectorV2{
@@ -662,41 +627,12 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 }
 
 func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
-	specOut := samlConnectorSpecV2JSON{
-		Issuer:                   o.Spec.Issuer,
-		SSO:                      o.Spec.SSO,
-		Cert:                     o.Spec.Cert,
-		Display:                  o.Spec.Display,
-		AssertionConsumerService: o.Spec.AssertionConsumerService,
-		Audience:                 o.Spec.Audience,
-		ServiceProviderIssuer:    o.Spec.ServiceProviderIssuer,
-		EntityDescriptor:         o.Spec.EntityDescriptor,
-		EntityDescriptorURL:      o.Spec.EntityDescriptorURL,
-		AttributesToRoles:        o.Spec.AttributesToRoles,
-		SigningKeyPair:           o.Spec.SigningKeyPair,
-		Provider:                 o.Spec.Provider,
-		EncryptionKeyPair:        o.Spec.EncryptionKeyPair,
-		AllowIDPInitiated:        o.Spec.AllowIDPInitiated,
-		ClientRedirectSettings:   o.Spec.ClientRedirectSettings,
-		SingleLogoutURL:          o.Spec.SingleLogoutURL,
-		MFASettings:              o.Spec.MFASettings,
-		ForceAuthn:               o.Spec.ForceAuthn,
-		PreferredRequestBinding:  o.Spec.PreferredRequestBinding,
-		UserMatchers:             o.Spec.UserMatchers,
-		IncludeSubject:           o.Spec.IncludeSubject,
-		EntraIdGroupsProvider:    o.Spec.EntraIdGroupsProvider,
-	}
+	specOut := newSAMLConnectorSpecV2JSON(o.Spec)
 
-	if oauth := o.GetOAuthClientCredentials(); oauth != nil {
-		var err error
-		specOut.Credentials, err = json.Marshal(struct {
-			Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
-		}{
-			Oauth: oauth,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	var err error
+	specOut.Credentials, err = json.Marshal(buildSAMLConnectorCredentials(o.Spec))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	specJSON, err := json.Marshal(specOut)
@@ -704,15 +640,13 @@ func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	out := samlConnectorV2JSON{
+	return json.Marshal(samlConnectorV2JSON{
 		Kind:     o.Kind,
 		SubKind:  o.SubKind,
 		Version:  o.Version,
 		Metadata: o.Metadata,
 		Spec:     specJSON,
-	}
-
-	return json.Marshal(out)
+	})
 }
 
 func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
@@ -735,43 +669,12 @@ func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
 		return trace.Wrap(err)
 	}
 
-	o.Spec = SAMLConnectorSpecV2{
-		Issuer:                   specIn.Issuer,
-		SSO:                      specIn.SSO,
-		Cert:                     specIn.Cert,
-		Display:                  specIn.Display,
-		AssertionConsumerService: specIn.AssertionConsumerService,
-		Audience:                 specIn.Audience,
-		ServiceProviderIssuer:    specIn.ServiceProviderIssuer,
-		EntityDescriptor:         specIn.EntityDescriptor,
-		EntityDescriptorURL:      specIn.EntityDescriptorURL,
-		AttributesToRoles:        specIn.AttributesToRoles,
-		SigningKeyPair:           specIn.SigningKeyPair,
-		Provider:                 specIn.Provider,
-		EncryptionKeyPair:        specIn.EncryptionKeyPair,
-		AllowIDPInitiated:        specIn.AllowIDPInitiated,
-		ClientRedirectSettings:   specIn.ClientRedirectSettings,
-		SingleLogoutURL:          specIn.SingleLogoutURL,
-		MFASettings:              specIn.MFASettings,
-		ForceAuthn:               specIn.ForceAuthn,
-		PreferredRequestBinding:  specIn.PreferredRequestBinding,
-		UserMatchers:             specIn.UserMatchers,
-		IncludeSubject:           specIn.IncludeSubject,
-		EntraIdGroupsProvider:    specIn.EntraIdGroupsProvider,
-	}
+	o.Spec = specIn.toProto()
 
-	if len(specIn.Credentials) != 0 {
-		var creds struct {
-			Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
-		}
-
-		if err := json.Unmarshal(specIn.Credentials, &creds); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if creds.Oauth != nil {
-			o.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}
-		}
+	var err error
+	o.Spec.Credentials, err = parseSAMLConnectorCredentials(specIn.Credentials)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -913,4 +816,146 @@ func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOptio
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.NoFollowURLs = !follow
 	}
+}
+
+// samlConnectorV2JSON and samlConnectorSpecV2JSON mirror the normal SAML connector resources types,
+// except for replacing connector.Spec and spec.Credentials with JSON-specific representations.
+//
+// This is required because gogoproto doesn't allow for oneof json tags, which otherwise breaks
+// the connector.spec.credentials field. See https://github.com/gogo/protobuf/issues/623.
+//
+// TODO(nixpig): Investigate a less repetitive SAML connector JSON path that preserves the existing
+// format. Other unsuccessful approaches already tried:
+//  - Embedding SAMLConnectorSpecV2 and shadowing Credentials field still emitted both "credentials" and "Credentials".
+//  - Marshaling using protojson/protoadapt broke existing field names, such as "acs".
+//  - Custom marshaling for only nested Credentials field, had no effect because it wasn't picked up by FastMarshal/FastUnmarshal path.
+
+// samlConnectorV2JSON is the JSON representation of SAMLConnectorV2,
+// replacing Spec with a JSON-specific representation.
+type samlConnectorV2JSON struct {
+	Kind     string   `json:"kind"`
+	SubKind  string   `json:"sub_kind,omitempty"`
+	Version  string   `json:"version"`
+	Metadata Metadata `json:"metadata"`
+	// Spec is a JSON-specific representation of the Spec.
+	Spec json.RawMessage `json:"spec"`
+}
+
+// samlConnectorSpecV2JSON is the JSON representation of SAMLConnectorSpecV2,
+// replacing Credetials with a JSON-specific representation.
+type samlConnectorSpecV2JSON struct {
+	Issuer                   string                     `json:"issuer"`
+	SSO                      string                     `json:"sso"`
+	Cert                     string                     `json:"cert"`
+	Display                  string                     `json:"display"`
+	AssertionConsumerService string                     `json:"acs"`
+	Audience                 string                     `json:"audience"`
+	ServiceProviderIssuer    string                     `json:"service_provider_issuer"`
+	EntityDescriptor         string                     `json:"entity_descriptor"`
+	EntityDescriptorURL      string                     `json:"entity_descriptor_url"`
+	AttributesToRoles        []AttributeMapping         `json:"attributes_to_roles"`
+	SigningKeyPair           *AsymmetricKeyPair         `json:"signing_key_pair,omitempty"`
+	Provider                 string                     `json:"provider,omitempty"`
+	EncryptionKeyPair        *AsymmetricKeyPair         `json:"assertion_key_pair,omitempty"`
+	AllowIDPInitiated        bool                       `json:"allow_idp_initiated,omitempty"`
+	ClientRedirectSettings   *SSOClientRedirectSettings `json:"client_redirect_settings,omitempty"`
+	SingleLogoutURL          string                     `json:"single_logout_url,omitempty"`
+	MFASettings              *SAMLConnectorMFASettings  `json:"mfa,omitempty"`
+	ForceAuthn               SAMLForceAuthn             `json:"force_authn,omitempty"`
+	PreferredRequestBinding  string                     `json:"preferred_request_binding,omitempty"`
+	UserMatchers             []string                   `json:"user_matchers,omitempty"`
+	IncludeSubject           bool                       `json:"include_subject,omitempty"`
+	EntraIdGroupsProvider    *EntraIDGroupsProvider     `json:"entra_id_groups_provider,omitempty"`
+	// Credentials is a JSON-specific representation of the Credentials oneof.
+	Credentials json.RawMessage `json:"credentials,omitempty"`
+}
+
+// newSAMLConnectorSpecV2JSON creates a JSON representation of SAMLConnectorSpecV2.
+// Note: The Credentials oneof field needs to be handled separately.
+func newSAMLConnectorSpecV2JSON(spec SAMLConnectorSpecV2) samlConnectorSpecV2JSON {
+	return samlConnectorSpecV2JSON{
+		Issuer:                   spec.Issuer,
+		SSO:                      spec.SSO,
+		Cert:                     spec.Cert,
+		Display:                  spec.Display,
+		AssertionConsumerService: spec.AssertionConsumerService,
+		Audience:                 spec.Audience,
+		ServiceProviderIssuer:    spec.ServiceProviderIssuer,
+		EntityDescriptor:         spec.EntityDescriptor,
+		EntityDescriptorURL:      spec.EntityDescriptorURL,
+		AttributesToRoles:        spec.AttributesToRoles,
+		SigningKeyPair:           spec.SigningKeyPair,
+		Provider:                 spec.Provider,
+		EncryptionKeyPair:        spec.EncryptionKeyPair,
+		AllowIDPInitiated:        spec.AllowIDPInitiated,
+		ClientRedirectSettings:   spec.ClientRedirectSettings,
+		SingleLogoutURL:          spec.SingleLogoutURL,
+		MFASettings:              spec.MFASettings,
+		ForceAuthn:               spec.ForceAuthn,
+		PreferredRequestBinding:  spec.PreferredRequestBinding,
+		UserMatchers:             spec.UserMatchers,
+		IncludeSubject:           spec.IncludeSubject,
+		EntraIdGroupsProvider:    spec.EntraIdGroupsProvider,
+	}
+}
+
+// toProto converts the JSON representation of the data back to the original SAMLConnectorSpecV2 type.
+// Note: The Credentials oneof field needs to be handled separately.
+func (s *samlConnectorSpecV2JSON) toProto() SAMLConnectorSpecV2 {
+	return SAMLConnectorSpecV2{
+		Issuer:                   s.Issuer,
+		SSO:                      s.SSO,
+		Cert:                     s.Cert,
+		Display:                  s.Display,
+		AssertionConsumerService: s.AssertionConsumerService,
+		Audience:                 s.Audience,
+		ServiceProviderIssuer:    s.ServiceProviderIssuer,
+		EntityDescriptor:         s.EntityDescriptor,
+		EntityDescriptorURL:      s.EntityDescriptorURL,
+		AttributesToRoles:        s.AttributesToRoles,
+		SigningKeyPair:           s.SigningKeyPair,
+		Provider:                 s.Provider,
+		EncryptionKeyPair:        s.EncryptionKeyPair,
+		AllowIDPInitiated:        s.AllowIDPInitiated,
+		ClientRedirectSettings:   s.ClientRedirectSettings,
+		SingleLogoutURL:          s.SingleLogoutURL,
+		MFASettings:              s.MFASettings,
+		ForceAuthn:               s.ForceAuthn,
+		PreferredRequestBinding:  s.PreferredRequestBinding,
+		UserMatchers:             s.UserMatchers,
+		IncludeSubject:           s.IncludeSubject,
+		EntraIdGroupsProvider:    s.EntraIdGroupsProvider,
+	}
+}
+
+// samlConnectorCredentialsJSON is used to store credentials data to use in place of the
+// spec.Credentials oneof in a JSON representation.
+type samlConnectorCredentialsJSON struct {
+	Oauth *OAuthClientCredentials `json:"oauth,omitempty"`
+}
+
+// buildSAMLConnectorCredentials creates a JSON representation of the spec.Credentials oneof.
+func buildSAMLConnectorCredentials(spec SAMLConnectorSpecV2) *samlConnectorCredentialsJSON {
+	if oauth := spec.GetOauth(); oauth != nil {
+		return &samlConnectorCredentialsJSON{Oauth: oauth}
+	}
+	return nil
+}
+
+// parseSAMLConnectorCredentials converts spec.Credentials data from JSON representation into a Credentials oneof form.
+func parseSAMLConnectorCredentials(raw json.RawMessage) (isSAMLConnectorSpecV2_Credentials, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	var creds samlConnectorCredentialsJSON
+	if err := json.Unmarshal(raw, &creds); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if creds.Oauth != nil {
+		return &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}, nil
+	}
+
+	return nil, nil
 }
