@@ -530,10 +530,12 @@ func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
 	r.Spec.IncludeSubject = includeSubject
 }
 
+// GetOAuthClientCredentials returns the OAuth client credentials.
 func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
 	return r.Spec.GetOauth()
 }
 
+// SetOAuthClientCredentials sets the OAuth client credentials.
 func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredentials) {
 	if creds == nil {
 		r.Spec.Credentials = nil
@@ -542,10 +544,12 @@ func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredential
 	r.Spec.Credentials = &SAMLConnectorSpecV2_Oauth{Oauth: creds}
 }
 
+// GetEntraIDGroupsProvider returns Entra ID groups provider.
 func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
 	return r.Spec.EntraIdGroupsProvider
 }
 
+// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
 func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
 	entra := r.Spec.EntraIdGroupsProvider
 	return entra != nil && entra.Disabled
