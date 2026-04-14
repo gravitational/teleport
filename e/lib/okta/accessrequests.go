@@ -258,6 +258,7 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		Matcher: func(resource types.AccessRequest) bool {
 			return a.matcher(ctx, resource)
 		},
+		CompareResources:    func(ar1, ar2 types.AccessRequest) int { return services.EqualFromBool(ar1.IsEqual(ar2)) },
 		GetCurrentResources: a.accessRequests.CopyAsMap,
 		GetNewResources:     a.newAccessRequests.CopyAsMap,
 		OnCreate:            a.onCreate,
