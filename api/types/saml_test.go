@@ -210,16 +210,6 @@ func TestSAMLEntraIDCredentialsValidation(t *testing.T) {
 			assertErr: require.Error,
 		},
 		{
-			name: "empty client secret",
-			credentials: &types.SAMLConnectorSpecV2_Oauth{
-				Oauth: &types.OAuthClientCredentials{
-					ClientId:     "test-client-id",
-					ClientSecret: "",
-				},
-			},
-			assertErr: require.Error,
-		},
-		{
 			name: "empty client ID",
 			credentials: &types.SAMLConnectorSpecV2_Oauth{
 				Oauth: &types.OAuthClientCredentials{

@@ -616,9 +616,6 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		if oauth.ClientId == "" {
 			return trace.BadParameter("missing required client_id in credentials.oauth")
 		}
-		if oauth.ClientSecret == "" {
-			return trace.BadParameter("missing required client_secret in credentials.oauth")
-		}
 	}
 
 	if entra := o.GetEntraIDGroupsProvider(); entra != nil {
