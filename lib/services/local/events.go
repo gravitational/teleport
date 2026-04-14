@@ -283,6 +283,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppAuthConfigParser()
 		case types.KindWorkloadCluster:
 			parser = newWorkloadClusterParser()
+		case types.KindValidatedMFAChallenge:
+			parser = newValidatedMFAChallengeParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue

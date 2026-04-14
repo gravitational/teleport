@@ -263,3 +263,63 @@ func TestWatchKindContains(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchKindMatchesValidatedMFAChallengeResource(t *testing.T) {
+	t.Parallel()
+
+	filter := &ValidatedMFAChallengeFilter{
+		TargetCluster: "root",
+	}
+
+	kind := WatchKind{
+		Kind:   KindValidatedMFAChallenge,
+		Filter: filter.IntoMap(),
+	}
+
+	for _, tc := range []struct {
+		name          string
+		targetCluster string
+		want          bool
+	}{
+		{
+			name:          "matching target cluster",
+			targetCluster: "root",
+			want:          true,
+		},
+		{
+			name:          "different target cluster",
+			targetCluster: "leaf",
+			want:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			match, err := kind.Matches(
+				Event{
+					Type: OpPut,
+					Resource: &mockValidatedMFAChallenge{
+						ResourceHeader: &ResourceHeader{
+							Kind:    KindValidatedMFAChallenge,
+							Version: V1,
+							Metadata: Metadata{
+								Name: "challenge",
+							},
+						},
+						targetCluster: tc.targetCluster,
+					},
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, match)
+		})
+	}
+}
+
+type mockValidatedMFAChallenge struct {
+	*ResourceHeader
+
+	targetCluster string
+}
+
+func (r *mockValidatedMFAChallenge) GetTargetCluster() string {
+	return r.targetCluster
+}
