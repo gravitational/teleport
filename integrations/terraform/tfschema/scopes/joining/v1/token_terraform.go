@@ -263,6 +263,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 								"registration_secret": {
 									Description: "A secret that joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.registration_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
 									Optional:    true,
+									Sensitive:   true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
