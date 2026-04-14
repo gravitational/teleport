@@ -957,6 +957,9 @@ func buildSAMLConnectorCredentials(spec SAMLConnectorSpecV2) (*samlConnectorCred
 	case nil:
 		return nil, nil
 	case *SAMLConnectorSpecV2_Oauth:
+		if creds.Oauth == nil {
+			return nil, nil
+		}
 		return &samlConnectorCredentialsJSON{Oauth: creds.Oauth}, nil
 	default:
 		return nil, trace.BadParameter("unsupported SAML credentials type: %T", creds)
@@ -978,6 +981,6 @@ func parseSAMLConnectorCredentials(raw json.RawMessage) (isSAMLConnectorSpecV2_C
 	case creds.Oauth != nil:
 		return &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}, nil
 	default:
-		return nil, trace.BadParameter("unsupported SAML credentials")
+		return nil, nil
 	}
 }
