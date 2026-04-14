@@ -18,7 +18,6 @@ package subcav1
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"sync"
 	"testing"
@@ -32,11 +31,14 @@ import (
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // EnvParams hold creation parameters for [Env].
@@ -74,6 +76,15 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		"SetClusterName()",
 	)
 
+	km, err := keystore.NewManager(t.Context(),
+		&servicecfg.KeystoreConfig{},
+		&keystore.Options{
+			ClusterName:          cn,
+			AuthPreferenceGetter: ccs,
+			Clock:                env.Clock,
+		})
+	require.NoError(t, err, "keystore.NewManager()")
+
 	env.MockEmitter = &eventstest.MockRecorderEmitter{}
 
 	authorizer := p.Authorizer
@@ -83,10 +94,12 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 
 	// subcav1.Service.
 	service, err := New(ServiceParams{
-		Logger:                  slog.Default(),
+		Logger:                  logtest.NewLogger(),
 		CachedClusterNameGetter: ccs,
 		CachedSubCA:             env.SubCA,
+		CachedTrust:             env.Trust,
 		SubCA:                   env.SubCA,
+		KeystoreManager:         km,
 		Authorizer:              authorizer,
 		Emitter:                 env.MockEmitter,
 	})

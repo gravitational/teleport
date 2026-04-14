@@ -18,6 +18,12 @@ package subcav1
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -25,6 +31,8 @@ import (
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -56,6 +64,14 @@ type SubCAStorage interface {
 	) (*subcav1.CertAuthorityOverride, error)
 }
 
+// KeystoreManager is a subset of keystore.Manager methods used in CRL and CSR
+// generation.
+//
+// See lib/auth/keystore.Manager.
+type KeystoreManager interface {
+	TLSSigner(ctx context.Context, keypair *types.TLSKeyPair) (crypto.Signer, error)
+}
+
 // ServiceParams holds creation parameters for [Service].
 type ServiceParams struct {
 	Logger *slog.Logger
@@ -64,9 +80,15 @@ type ServiceParams struct {
 	// CachedSubCA is a cached Sub CA storage service.
 	// Used by read-only RPC.
 	CachedSubCA CachedSubCAStorage
+	// CachedTrust is a cached Trust storage service.
+	CachedTrust services.AuthorityGetter
 	// SubCA is a non-cached Sub CA storage service.
 	// Used by write RPCs.
 	SubCA SubCAStorage
+
+	// KeystoreManager is the interface to the Auth TLS private keys.
+	// Used on CRL and CSR signing.
+	KeystoreManager KeystoreManager
 
 	Authorizer authz.Authorizer
 	Emitter    apievents.Emitter
@@ -80,7 +102,10 @@ type Service struct {
 
 	cachedClusterNameGetter services.ClusterNameGetter
 	cachedSubCA             CachedSubCAStorage
+	cachedTrust             services.AuthorityGetter
 	subCA                   SubCAStorage
+
+	keystoreManager KeystoreManager
 
 	authorizer authz.Authorizer
 	emitter    apievents.Emitter
@@ -95,8 +120,12 @@ func New(p ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("param CachedClusterNameGetter required")
 	case p.CachedSubCA == nil:
 		return nil, trace.BadParameter("param CachedSubCA required")
+	case p.CachedTrust == nil:
+		return nil, trace.BadParameter("param CachedTrust required")
 	case p.SubCA == nil:
 		return nil, trace.BadParameter("param SubCA required")
+	case p.KeystoreManager == nil:
+		return nil, trace.BadParameter("param KeystoreManager required")
 	case p.Authorizer == nil:
 		return nil, trace.BadParameter("param Authorizer required")
 	case p.Emitter == nil:
@@ -107,10 +136,149 @@ func New(p ServiceParams) (*Service, error) {
 		logger:                  p.Logger,
 		cachedClusterNameGetter: p.CachedClusterNameGetter,
 		cachedSubCA:             p.CachedSubCA,
+		cachedTrust:             p.CachedTrust,
 		subCA:                   p.SubCA,
+		keystoreManager:         p.KeystoreManager,
 		authorizer:              p.Authorizer,
 		emitter:                 p.Emitter,
 	}, nil
+}
+
+func (s *Service) CreateCSR(
+	ctx context.Context,
+	req *subcav1.CreateCSRRequest,
+) (*subcav1.CreateCSRResponse, error) {
+	if req.CaType == "" {
+		return nil, trace.BadParameter("ca_type required")
+	}
+	if req.PublicKeyHash != nil {
+		return nil, trace.BadParameter("public_key_hash not implemented")
+	}
+	if req.CustomSubject != nil {
+		return nil, trace.BadParameter("custom_subject not implemented")
+	}
+	if err := s.authorizeCAOverride(
+		ctx, adminActionNotNeeded, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Read cluster name.
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "read cluster name")
+	}
+
+	// Read CA.
+	ca, err := s.cachedTrust.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.CertAuthType(req.CaType),
+		DomainName: cn.GetClusterName(),
+	}, true /* loadKeys */)
+	if err != nil {
+		return nil, trace.Wrap(err, "read CA")
+	}
+
+	// Prepare CA signers, as many as possible for this Auth instance.
+	candidateSigners, err := s.getCandidateCSRSigners(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "prepare signers")
+	}
+	if len(candidateSigners) == 0 {
+		return nil, trace.BadParameter(
+			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
+	}
+
+	resp := &subcav1.CreateCSRResponse{
+		Csrs: make([]*subcav1.CertificateSigningRequest, 0, len(candidateSigners)),
+	}
+	for _, candidateSigner := range candidateSigners {
+		signer := candidateSigner.Signer
+		cert := candidateSigner.Cert
+
+		// Construct Subject from the matching CA certificate.
+		subj := pkix.Name{
+			ExtraNames: cert.Subject.Names,
+		}
+		// Remove serial number (OID 2.5.4.5).
+		subj.ExtraNames = removeOID(subj.ExtraNames, []int{2, 5, 4, 5})
+
+		// Create CSR.
+		certReq := &x509.CertificateRequest{
+			PublicKey: signer.Public(),
+			Subject:   subj,
+		}
+		csrDER, err := x509.CreateCertificateRequest(rand.Reader, certReq, signer)
+		if err != nil {
+			return nil, trace.Wrap(err, "create certificate request")
+		}
+		csrPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: csrDER,
+		})
+
+		resp.Csrs = append(resp.Csrs, &subcav1.CertificateSigningRequest{
+			Pem: string(csrPEM),
+		})
+	}
+
+	return resp, nil
+}
+
+type candidateCSRSigner struct {
+	Signer crypto.Signer
+	Cert   *x509.Certificate
+}
+
+func (s *Service) getCandidateCSRSigners(
+	ctx context.Context,
+	ca types.CertAuthority,
+) ([]*candidateCSRSigner, error) {
+	activeTLS := ca.GetActiveKeys().TLS
+	additionalTLS := ca.GetAdditionalTrustedKeys().TLS
+
+	lenAllKeys := len(activeTLS) + len(additionalTLS)
+	if lenAllKeys == 0 {
+		return nil, trace.BadParameter(
+			"certificate authority has no active or additional keys")
+	}
+
+	resp := make([]*candidateCSRSigner, 0, lenAllKeys)
+
+	// Attempt to create as many signers/CSRs as we can, from both active and
+	// additional key sets.
+	for i, kps := range [][]*types.TLSKeyPair{
+		activeTLS,
+		additionalTLS,
+	} {
+		isActive := i == 0
+		for j, kp := range kps {
+			signer, err := s.keystoreManager.TLSSigner(ctx, kp)
+			switch {
+			case errors.Is(err, keystore.ErrUnusableKey):
+				s.logger.DebugContext(ctx,
+					"Skipping unusable keypair during CSR generation",
+					"is_active", isActive,
+					"index", j,
+				)
+				continue
+			case err != nil:
+				return nil, trace.Wrap(err, "create signer (is_active=%v, index=%d)", isActive, j)
+			}
+
+			cert, err := tlsutils.ParseCertificatePEM(kp.Cert)
+			if err != nil {
+				return nil, trace.Wrap(err, "parse CA certificate (is_active=%v, index=%d)", isActive, j)
+			}
+
+			resp = append(resp, &candidateCSRSigner{
+				Signer: signer,
+				Cert:   cert,
+			})
+		}
+	}
+
+	// TODO(codingllama): Notify user of keys that could not be used?
+
+	return resp, nil
 }
 
 func (s *Service) CreateCertAuthorityOverride(
