@@ -485,6 +485,12 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 			sessionStarted = true
 
+			if m.ScreenSpec != nil {
+				log.ErrorContext(ctx, "missing screen spec", "error", err)
+				sendTDPError("Missing screen specification.")
+				return
+			}
+
 			width := uint16(m.ScreenSpec.Width)
 			height := uint16(m.ScreenSpec.Height)
 			screenSize.Store(&xproto.Rectangle{
