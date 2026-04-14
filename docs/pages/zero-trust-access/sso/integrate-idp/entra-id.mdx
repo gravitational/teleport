@@ -32,7 +32,7 @@ An OIDC-based Entra ID IdP configuration version is available in this [guide](en
 
 ## Prerequisites
 
-Before you get started, you’ll need:
+Before you get started, you'll need:
 
 - A Microsoft Entra ID admin account with access to creating non-gallery
   applications (P2 License).
@@ -153,18 +153,20 @@ Now, create a SAML connector resource using `tctl`.
 
 ```code
 $ tctl sso configure saml --preset ad \
---entity-descriptor https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml\?appid\=b8d06e01... \
---attributes-to-roles <Var name="mapping_1" /> \
---attributes-to-roles <Var name="mapping_2" /> / > azure-connector.yaml
+  --entity-descriptor "https://login.microsoftonline.com/<Directory ID>/federationmetadata/2007-06/federationmetadata.xml?appid=<App ID>" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<admins-group-object-id>,auditor,editor" \
+  --attributes-to-roles "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<devs-group-object-id>,access" \
+  > azure-connector.yaml
 ```
 
-In the example above:
+Replace the following values in the example above:
 
-- `--entity-descriptor` specifies the app federation metadata URL saved in the
-  previous step.
-- Each `--attributes-to-roles` specifies the name of the schema definition for groups,
-  groups, the UUID of an AD group, and the Teleport role that members of the group
-  will be assigned.
+| Placeholder | Description |
+|-------------|-------------|
+| `<Directory ID>` | Your Microsoft Entra AD tenant (directory) ID. |
+| `<App ID>` | The application ID of the Microsoft Entra AD enterprise app. The `--entity-descriptor` flag specifies the app federation metadata URL saved in the previous step. |
+| <Var name="mapping_1"/> | The first group-to-role mapping in the format `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,<group-object-id>,<teleport-role>`. Each `--attributes-to-roles` flag specifies the schema definition name for groups, the UUID of an AD group, and the Teleport role that members of the group will be assigned. For example: `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,b9b12345-1234-1234-1234-123456789012,auditor,editor`. |
+| <Var name="mapping_2"/> | A second group-to-role mapping in the same format. For example: `http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,a1a09876-9876-9876-9876-987654321098,access`. Add or remove `--attributes-to-roles` flags as needed for each group. |
 
 The file `azure-connector.yaml` should now resemble the following:
 
@@ -226,7 +228,7 @@ $ tctl create -f azure-connector.yaml
 Entra ID's SAML token encryption encrypts the SAML assertions sent to Teleport
 during SSO redirect.
 
-Token encryption is an Microsoft Entra ID premium feature and requires a
+Token encryption is a Microsoft Entra ID premium feature and requires a
 separate license. Since traffic between Entra ID and the Teleport Proxy Service
 already uses HTTPS, token encryption is optional. To determine whether you
 should enable token encryption, read the Entra ID
