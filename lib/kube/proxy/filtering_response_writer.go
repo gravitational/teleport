@@ -165,7 +165,7 @@ func (fw *filteringResponseWriter) Finish() (int, error) {
 	if fw.streaming {
 		fw.pipeWriter.Close()
 		<-fw.filterDone
-		return fw.status, nil
+		return fw.status, fw.filterErr
 	}
 
 	_, filterSpan := fw.tracer.Start(fw.ctx, "kube.Forwarder/listResourcesList/filterBuffer",

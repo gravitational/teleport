@@ -62,6 +62,11 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	// status holds the returned response code.
 	var status int
+	defer func() {
+		if status != 0 {
+			f.emitAuditEvent(req, sess, status)
+		}
+	}()
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
@@ -100,7 +105,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		}
 	}
 
-	f.emitAuditEvent(req, sess, status)
 	return nil, nil
 }
 
