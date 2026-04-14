@@ -168,10 +168,6 @@ func (fw *filteringResponseWriter) Finish() (int, error) {
 		return fw.status, nil
 	}
 
-	if fw.memBuffer == nil {
-		return fw.status, fw.filterErr
-	}
-
 	_, filterSpan := fw.tracer.Start(fw.ctx, "kube.Forwarder/listResourcesList/filterBuffer",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
