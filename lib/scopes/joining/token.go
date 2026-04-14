@@ -182,7 +182,7 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
 	}
 
-	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+	if err := scopes.StrongValidate(spec.GetBotScope()); err != nil {
 		return trace.Wrap(err, "validating scoped token bot_scope")
 	}
 
