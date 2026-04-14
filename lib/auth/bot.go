@@ -589,7 +589,7 @@ func (a *Server) generateInitialBotCerts(
 	botScope, _ := userState.GetLabel(types.BotScopeLabel)
 	scopeAwareChecker, err := a.AccessCheckerForScope(
 		ctx,
-		botScope, // safe when empty
+		botScope, // treated as unscoped when empty
 		userState,
 		[]types.ResourceAccessID{}, // bots do not support access requests
 	)

@@ -458,7 +458,9 @@ func (a *Server) GenerateBotCertsForJoin(
 		if mode := scoped.GetScoped().GetSpec().GetUsageMode(); joining.TokenUsageMode(mode) != joining.TokenUsageModeBot {
 			a.logger.WarnContext(ctx, "scoped token usage mode must be 'bot' for bot joining",
 				"usage_mode", mode,
+				"token_name", token.GetSafeName(),
 			)
+			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
 		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
