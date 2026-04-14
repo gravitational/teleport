@@ -636,10 +636,16 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 	specOut := newSAMLConnectorSpecV2JSON(o.Spec)
 
-	var err error
-	specOut.Credentials, err = json.Marshal(buildSAMLConnectorCredentials(o.Spec))
+	creds, err := buildSAMLConnectorCredentials(o.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if creds != nil {
+		var err error
+		specOut.Credentials, err = json.Marshal(creds)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	specJSON, err := json.Marshal(specOut)
@@ -669,6 +675,7 @@ func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
 	o.SubKind = in.SubKind
 	o.Version = in.Version
 	o.Metadata = in.Metadata
+	o.Spec = SAMLConnectorSpecV2{}
 
 	if len(in.Spec) == 0 {
 		return nil
@@ -945,11 +952,15 @@ type samlConnectorCredentialsJSON struct {
 }
 
 // buildSAMLConnectorCredentials creates a JSON representation of the spec.Credentials oneof.
-func buildSAMLConnectorCredentials(spec SAMLConnectorSpecV2) *samlConnectorCredentialsJSON {
-	if oauth := spec.GetOauth(); oauth != nil {
-		return &samlConnectorCredentialsJSON{Oauth: oauth}
+func buildSAMLConnectorCredentials(spec SAMLConnectorSpecV2) (*samlConnectorCredentialsJSON, error) {
+	switch creds := spec.Credentials.(type) {
+	case nil:
+		return nil, nil
+	case *SAMLConnectorSpecV2_Oauth:
+		return &samlConnectorCredentialsJSON{Oauth: creds.Oauth}, nil
+	default:
+		return nil, trace.BadParameter("unsupported SAML credentials type: %T", creds)
 	}
-	return nil
 }
 
 // parseSAMLConnectorCredentials converts spec.Credentials data from JSON representation into a Credentials oneof form.
@@ -963,9 +974,10 @@ func parseSAMLConnectorCredentials(raw json.RawMessage) (isSAMLConnectorSpecV2_C
 		return nil, trace.Wrap(err)
 	}
 
-	if creds.Oauth != nil {
+	switch {
+	case creds.Oauth != nil:
 		return &SAMLConnectorSpecV2_Oauth{Oauth: creds.Oauth}, nil
+	default:
+		return nil, trace.BadParameter("unsupported SAML credentials")
 	}
-
-	return nil, nil
 }
