@@ -2703,32 +2703,6 @@ app_service:
 			name:   "LLM inference endpoint",
 			outErr: require.NoError,
 		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: anthropic
-      inference:
-        format: random
-        provider: anthropic
-`,
-			name:   "LLM inference endpoint unsupported format",
-			outErr: require.Error,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: anthropic
-      inference:
-        format: anthropic
-        provider: random
-`,
-			name:   "LLM inference endpoint unsupported provider",
-			outErr: require.Error,
-		},
 	}
 
 	for _, tt := range tests {

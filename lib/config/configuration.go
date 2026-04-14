@@ -2156,17 +2156,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if application.LLM != nil {
-			format, err := types.DecodeLLMFormat(application.LLM.Format)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			provider, err := types.DecodeLLMProvider(application.LLM.Provider)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			app.LLM = &types.LLM{
-				Format:        format,
-				Provider:      provider,
+				Format:        application.LLM.Format,
+				Provider:      application.LLM.Provider,
 				FallbackModel: application.LLM.FallbackModel,
 			}
 			app.LLM.Models = make([]*types.LLM_Model, 0, len(application.LLM.Models))

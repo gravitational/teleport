@@ -17,14 +17,11 @@ limitations under the License.
 package types
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
 	"testing"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -764,8 +761,8 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{
 				URI: "mcp+stdio://teleport-mcp-demo",
 				LLM: &LLM{
-					Format:   LLM_FORMAT_ANTHROPIC,
-					Provider: LLM_PROVIDER_ANTHROPIC,
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
 				},
 			},
 			wantErr: require.Error,
@@ -881,8 +878,8 @@ func TestLLMSubKind(t *testing.T) {
 		Name: "my-app",
 	}, AppSpecV3{
 		LLM: &LLM{
-			Format:   LLM_FORMAT_ANTHROPIC,
-			Provider: LLM_PROVIDER_ANTHROPIC,
+			Format:   LLMFormatAnthropic,
+			Provider: LLMProviderAnthropic,
 		},
 	})
 	require.NoError(t, err)
@@ -894,20 +891,20 @@ func TestLLMConfiguration(t *testing.T) {
 	// Given an inference endpoint configuration, ensure the selected values for
 	// 'format' and 'provider' are compatible.
 	t.Run("format and provider combination", func(t *testing.T) {
-		for formatName, format := range LLM_Format_value {
-			supportedProviders := supportedFormatInferenceProviders[LLM_Format(format)]
-			for providerName, provider := range LLM_Provider_value {
-				t.Run(formatName+" "+providerName, func(t *testing.T) {
+		for _, format := range SupportedLLMFormats {
+			supportedProviders := supportedFormatInferenceProviders[format]
+			for _, provider := range SupportedLLMProviders {
+				t.Run(format+" "+provider, func(t *testing.T) {
 					_, err := NewAppV3(Metadata{
 						Name: "my-app",
 					}, AppSpecV3{
 						LLM: &LLM{
-							Format:   LLM_Format(format),
-							Provider: LLM_Provider(provider),
+							Format:   format,
+							Provider: provider,
 						},
 					})
 					// If it is supported, we don't expect errors.
-					if slices.Contains(supportedProviders, LLM_Provider(provider)) {
+					if slices.Contains(supportedProviders, provider) {
 						require.NoError(t, err)
 						return
 					}
@@ -946,8 +943,8 @@ func TestLLMConfiguration(t *testing.T) {
 					Name: "my-app",
 				}, AppSpecV3{
 					LLM: &LLM{
-						Format:   LLM_FORMAT_ANTHROPIC,
-						Provider: LLM_PROVIDER_ANTHROPIC,
+						Format:   LLMFormatAnthropic,
+						Provider: LLMProviderAnthropic,
 						Models:   tc.models,
 					},
 				})
@@ -964,8 +961,8 @@ func TestLLMConfiguration(t *testing.T) {
 				Name: "my-app",
 			}, AppSpecV3{
 				LLM: &LLM{
-					Format:   LLM_FORMAT_ANTHROPIC,
-					Provider: LLM_PROVIDER_ANTHROPIC,
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
 					Models: []*LLM_Model{
 						{Name: "claude-opus-4-6"},
 					},
@@ -985,8 +982,8 @@ func TestLLMConfiguration(t *testing.T) {
 						Name: "my-app",
 					}, AppSpecV3{
 						LLM: &LLM{
-							Format:        LLM_FORMAT_ANTHROPIC,
-							Provider:      LLM_PROVIDER_ANTHROPIC,
+							Format:        LLMFormatAnthropic,
+							Provider:      LLMProviderAnthropic,
 							Models:        models,
 							FallbackModel: "claude-sonnet-4-6",
 						},
@@ -997,7 +994,7 @@ func TestLLMConfiguration(t *testing.T) {
 		})
 	})
 
-	t.Run("invalid app configurations", func(t *testing.T) {
+	t.Run("invalid configurations", func(t *testing.T) {
 		for name, modifySpec := range map[string]func(AppSpecV3) AppSpecV3{
 			"mcp": func(spec AppSpecV3) AppSpecV3 {
 				spec.MCP = &MCP{
@@ -1026,250 +1023,24 @@ func TestLLMConfiguration(t *testing.T) {
 				spec.AWS = &AppAWS{ExternalID: "default-external-id"}
 				return spec
 			},
+			"llm provider": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Provider = "random"
+				return spec
+			},
+			"llm format": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Format = "random"
+				return spec
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				spec := modifySpec(AppSpecV3{
 					LLM: &LLM{
-						Format:   LLM_FORMAT_ANTHROPIC,
-						Provider: LLM_PROVIDER_ANTHROPIC,
+						Format:   LLMFormatAnthropic,
+						Provider: LLMFormatAnthropic,
 					},
 				})
 				_, err := NewAppV3(Metadata{Name: "my-app"}, spec)
 				require.Error(t, err)
-			})
-		}
-	})
-}
-
-func TestLLMFormatValue(t *testing.T) {
-	t.Run("marshal", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			value         LLM_Format
-			expectedValue require.ValueAssertionFunc
-			expectedErr   require.ErrorAssertionFunc
-		}{
-			"openai value": {
-				value: LLM_FORMAT_OPENAI,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLMFormatOpenAIString, i1)
-				},
-				expectedErr: require.NoError,
-			},
-			"anthropic value": {
-				value: LLM_FORMAT_ANTHROPIC,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLMFormatAnthropicString, i1)
-				},
-				expectedErr: require.NoError,
-			},
-			"empty value": {
-				value:         LLM_FORMAT_UNSPECIFIED,
-				expectedValue: require.Empty,
-				expectedErr:   require.NoError,
-			},
-			"invalid value": {
-				value:         LLM_Format(999),
-				expectedValue: require.Nil,
-				expectedErr:   require.Error,
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Run("json", func(t *testing.T) {
-					val, err := json.Marshal(&tc.value)
-					tc.expectedErr(t, err)
-					if val != nil {
-						tc.expectedValue(t, string(bytes.Trim(val, "\"")))
-					} else {
-						tc.expectedValue(t, val)
-					}
-				})
-
-				t.Run("yaml", func(t *testing.T) {
-					val, err := yaml.Marshal(&tc.value)
-					tc.expectedErr(t, err)
-					if val != nil {
-						tc.expectedValue(t, string(bytes.Trim(bytes.TrimSpace(val), "\"")))
-					} else {
-						tc.expectedValue(t, val)
-					}
-				})
-			})
-		}
-	})
-
-	t.Run("unmarshal", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			value         string
-			expectedErr   require.ErrorAssertionFunc
-			expectedValue require.ValueAssertionFunc
-		}{
-			"openai value": {
-				value:       LLMFormatOpenAIString,
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_FORMAT_OPENAI, i1, i2)
-				},
-			},
-			"anthropic value": {
-				value:       LLMFormatAnthropicString,
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_FORMAT_ANTHROPIC, i1, i2)
-				},
-			},
-			"empty value": {
-				value:       "",
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_FORMAT_UNSPECIFIED, i1, i2)
-				},
-			},
-			"invalid value": {
-				value:       "hello",
-				expectedErr: require.Error,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_FORMAT_UNSPECIFIED, i1, i2)
-				},
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Run("json", func(t *testing.T) {
-					var r LLM_Format
-					err := json.Unmarshal(fmt.Appendf(nil, "%q", tc.value), &r)
-					tc.expectedErr(t, err)
-					tc.expectedValue(t, r)
-				})
-
-				t.Run("yaml", func(t *testing.T) {
-					var r LLM_Format
-					err := yaml.Unmarshal(fmt.Appendf(nil, "%q", tc.value), &r)
-					tc.expectedErr(t, err)
-					tc.expectedValue(t, r)
-				})
-			})
-		}
-	})
-}
-
-func TestLLMProviderValue(t *testing.T) {
-	t.Run("marshal", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			value         LLM_Provider
-			expectedValue require.ValueAssertionFunc
-			expectedErr   require.ErrorAssertionFunc
-		}{
-			"openai value": {
-				value: LLM_PROVIDER_OPENAI,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLMProviderOpenAIString, i1)
-				},
-				expectedErr: require.NoError,
-			},
-			"anthropic value": {
-				value: LLM_PROVIDER_ANTHROPIC,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLMProviderAnthropicString, i1)
-				},
-				expectedErr: require.NoError,
-			},
-			"bedrock value": {
-				value: LLM_PROVIDER_AWS_BEDROCK,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLMProviderAWSBedrockString, i1)
-				},
-				expectedErr: require.NoError,
-			},
-			"empty value": {
-				value:         LLM_PROVIDER_UNSPECIFIED,
-				expectedValue: require.Empty,
-				expectedErr:   require.NoError,
-			},
-			"invalid value": {
-				value:         LLM_Provider(999),
-				expectedValue: require.Nil,
-				expectedErr:   require.Error,
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Run("json", func(t *testing.T) {
-					val, err := json.Marshal(&tc.value)
-					tc.expectedErr(t, err)
-					if val != nil {
-						tc.expectedValue(t, string(bytes.Trim(val, "\"")))
-					} else {
-						tc.expectedValue(t, val)
-					}
-				})
-
-				t.Run("yaml", func(t *testing.T) {
-					val, err := yaml.Marshal(&tc.value)
-					tc.expectedErr(t, err)
-					if val != nil {
-						tc.expectedValue(t, string(bytes.Trim(bytes.TrimSpace(val), "\"")))
-					} else {
-						tc.expectedValue(t, val)
-					}
-				})
-			})
-		}
-	})
-
-	t.Run("unmarshal", func(t *testing.T) {
-		for name, tc := range map[string]struct {
-			value         string
-			expectedErr   require.ErrorAssertionFunc
-			expectedValue require.ValueAssertionFunc
-		}{
-			"openai value": {
-				value:       LLMProviderOpenAIString,
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_PROVIDER_OPENAI, i1, i2)
-				},
-			},
-			"anthropic value": {
-				value:       LLMProviderAnthropicString,
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_PROVIDER_ANTHROPIC, i1, i2)
-				},
-			},
-			"bedrock value": {
-				value:       LLMProviderAWSBedrockString,
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_PROVIDER_AWS_BEDROCK, i1, i2)
-				},
-			},
-			"empty value": {
-				value:       "",
-				expectedErr: require.NoError,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_PROVIDER_UNSPECIFIED, i1, i2)
-				},
-			},
-			"invalid value": {
-				value:       "hello",
-				expectedErr: require.Error,
-				expectedValue: func(tt require.TestingT, i1 any, i2 ...any) {
-					require.Equal(t, LLM_PROVIDER_UNSPECIFIED, i1, i2)
-				},
-			},
-		} {
-			t.Run(name, func(t *testing.T) {
-				t.Run("json", func(t *testing.T) {
-					var r LLM_Provider
-					err := json.Unmarshal(fmt.Appendf(nil, "%q", tc.value), &r)
-					tc.expectedErr(t, err)
-					tc.expectedValue(t, r)
-				})
-
-				t.Run("yaml", func(t *testing.T) {
-					var r LLM_Provider
-					err := yaml.Unmarshal(fmt.Appendf(nil, "%q", tc.value), &r)
-					tc.expectedErr(t, err)
-					tc.expectedValue(t, r)
-				})
 			})
 		}
 	})

@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"iter"
 	"net/url"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/iterutils"
 	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
@@ -591,9 +589,9 @@ func (a *AppV3) checkMCPStdio() error {
 
 // supportedFormatInferenceProviders determines which provider can serve an API
 // format.
-var supportedFormatInferenceProviders = map[LLM_Format][]LLM_Provider{
-	LLM_FORMAT_ANTHROPIC: {LLM_PROVIDER_ANTHROPIC, LLM_PROVIDER_AWS_BEDROCK},
-	LLM_FORMAT_OPENAI:    {LLM_PROVIDER_OPENAI},
+var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
+	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
+	LLMFormatOpenAI:    {LLMProviderOpenAI},
 }
 
 func (a *AppV3) checkLLM() error {
@@ -616,17 +614,14 @@ func (a *AppV3) checkLLM() error {
 
 	llm := a.Spec.LLM
 	// Ensure the combination between Format and Provider is supported.
+	// This also covers the requirement of supported format and provider values.
 	providers, ok := supportedFormatInferenceProviders[llm.Format]
 	if !ok {
-		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'", a.GetName(), llm.Format.DisplayName())
+		return trace.BadParameter("Inference endpoint %q format %q doesn't have any valid 'provider'. Supported formats are: %s", a.GetName(), llm.Format, strings.Join(SupportedLLMFormats, ", "))
 	}
 
 	if !slices.Contains(providers, llm.Provider) {
-		providersStrings := iterutils.Map(func(provider LLM_Provider) string {
-			return provider.DisplayName()
-		}, slices.Values(providers))
-
-		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format.DisplayName(), strings.Join(slices.Collect(providersStrings), ", "))
+		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
 	}
 
 	for _, model := range llm.Models {
@@ -794,200 +789,39 @@ func GetMCPServerTransportType(uri string) string {
 	}
 }
 
-const (
-	// LLMFormatOpenAIString represents the OpenAI LLM API format.
-	LLMFormatOpenAIString = "openai"
-	// LLMFormatAnthropicString represents the Anthropic LLM API format.
-	LLMFormatAnthropicString = "anthropic"
-)
-
-// DisplayName is the human-readable display name of the LLM format.
-func (h LLM_Format) DisplayName() string {
-	enc, err := h.encode()
-	if err != nil {
-		return ""
-	}
-	return enc
-}
-
-// UnmarshalYAML supports parsing LLM_Format from string.
-func (h *LLM_Format) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var val any
-	err := unmarshal(&val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	format, err := DecodeLLMFormat(val)
-	*h = format
-	return trace.Wrap(err)
-}
-
-// MarshalYAML marshals LLM_Format to yaml.
-func (h *LLM_Format) MarshalYAML() (interface{}, error) {
-	val, err := h.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return val, nil
-}
-
-// MarshalJSON marshals LLM_Format to json bytes.
-func (h *LLM_Format) MarshalJSON() ([]byte, error) {
-	val, err := h.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := json.Marshal(val)
-	return out, trace.Wrap(err)
-}
-
-// UnmarshalJSON supports parsing LLM_Format from string.
-func (h *LLM_Format) UnmarshalJSON(data []byte) error {
-	var val any
-	err := json.Unmarshal(data, &val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	format, err := DecodeLLMFormat(val)
-	*h = format
-	return trace.Wrap(err)
-}
-
-func (h LLM_Format) encode() (string, error) {
-	switch h {
-	case LLM_FORMAT_UNSPECIFIED:
-		return "", nil
-	case LLM_FORMAT_OPENAI:
-		return LLMFormatOpenAIString, nil
-	case LLM_FORMAT_ANTHROPIC:
-		return LLMFormatAnthropicString, nil
-	}
-
-	return "", trace.BadParameter("invalid llm api format %v", h)
-}
-
-// DecodeLLMFormat decodes a value into LLM_Format.
-func DecodeLLMFormat(val any) (LLM_Format, error) {
-	var str string
-	switch val := val.(type) {
-	case string:
-		str = val
-	default:
-		return LLM_FORMAT_UNSPECIFIED, trace.BadParameter("bad value type %T, expected string", val)
-	}
-
-	switch str {
-	case "":
-		return LLM_FORMAT_UNSPECIFIED, nil
-	case LLMFormatOpenAIString:
-		return LLM_FORMAT_OPENAI, nil
-	case LLMFormatAnthropicString:
-		return LLM_FORMAT_ANTHROPIC, nil
-	default:
-		return LLM_FORMAT_UNSPECIFIED, trace.BadParameter("invalid llm api format %v", val)
-	}
-}
+// LLMFormat indicates the API format used by clients to use an inference
+// endpoint.
+type LLMFormat = string
 
 const (
-	// LLMProviderOpenAIString represents the OpenAI LLM inference provider.
-	LLMProviderOpenAIString = "openai"
-	// LLMProviderAnthropicString represents the Anthropic LLM inference provider.
-	LLMProviderAnthropicString = "anthropic"
-	// LLMProviderAWSBedrockString represents the AWS Bedrock LLM inference provider.
-	LLMProviderAWSBedrockString = "bedrock"
+	// LLMFormatUnspecified represents an empty LLM API format.
+	LLMFormatUnspecified LLMProvider = ""
+	// LLMFormatOpenAI represents the OpenAI LLM API format.
+	LLMFormatOpenAI LLMFormat = "openai"
+	// LLMFormatAnthropic represents the Anthropic LLM API format.
+	LLMFormatAnthropic LLMFormat = "anthropic"
 )
 
-// DisplayName is the human-readable display name of the LLM provider.
-func (h LLM_Provider) DisplayName() string {
-	enc, err := h.encode()
-	if err != nil {
-		return ""
-	}
-	return enc
-}
+// SupportedLLMFormats is the list of supported LLM API formats.
+var SupportedLLMFormats = []LLMFormat{LLMFormatOpenAI, LLMFormatAnthropic}
 
-// UnmarshalYAML supports parsing LLM_Provider from string.
-func (h *LLM_Provider) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var val any
-	err := unmarshal(&val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// LLMProvider determines which service serves the LLM inference endpoint.
+type LLMProvider = string
 
-	provider, err := DecodeLLMProvider(val)
-	*h = provider
-	return trace.Wrap(err)
-}
+const (
+	// LLMProviderUnspecified represents an empty inference provider.
+	LLMProviderUnspecified LLMProvider = ""
+	// LLMProviderOpenAI represents the OpenAI LLM inference provider.
+	LLMProviderOpenAI LLMProvider = "openai"
+	// LLMProviderAnthropic represents the Anthropic LLM inference provider.
+	LLMProviderAnthropic LLMProvider = "anthropic"
+	// LLMProviderAWSBedrock represents the AWS Bedrock LLM inference provider.
+	LLMProviderAWSBedrock LLMProvider = "bedrock"
+)
 
-// MarshalYAML marshals LLM_Provider to yaml.
-func (h *LLM_Provider) MarshalYAML() (interface{}, error) {
-	val, err := h.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return val, nil
-}
-
-// MarshalJSON marshals LLM_Provider to json bytes.
-func (h *LLM_Provider) MarshalJSON() ([]byte, error) {
-	val, err := h.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := json.Marshal(val)
-	return out, trace.Wrap(err)
-}
-
-// UnmarshalJSON supports parsing LLM_Provider from string.
-func (h *LLM_Provider) UnmarshalJSON(data []byte) error {
-	var val any
-	err := json.Unmarshal(data, &val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	provider, err := DecodeLLMProvider(val)
-	*h = provider
-	return trace.Wrap(err)
-}
-
-func (h LLM_Provider) encode() (string, error) {
-	switch h {
-	case LLM_PROVIDER_UNSPECIFIED:
-		return "", nil
-	case LLM_PROVIDER_OPENAI:
-		return LLMProviderOpenAIString, nil
-	case LLM_PROVIDER_ANTHROPIC:
-		return LLMProviderAnthropicString, nil
-	case LLM_PROVIDER_AWS_BEDROCK:
-		return LLMProviderAWSBedrockString, nil
-	}
-
-	return "", trace.BadParameter("invalid llm provider %v", h)
-}
-
-// DecodeLLMProvider decodes a value into LLM_Provider.
-func DecodeLLMProvider(val any) (LLM_Provider, error) {
-	var str string
-	switch val := val.(type) {
-	case string:
-		str = val
-	default:
-		return LLM_PROVIDER_UNSPECIFIED, trace.BadParameter("bad value type %T, expected string", val)
-	}
-
-	switch str {
-	case "":
-		return LLM_PROVIDER_UNSPECIFIED, nil
-	case LLMProviderOpenAIString:
-		return LLM_PROVIDER_OPENAI, nil
-	case LLMProviderAnthropicString:
-		return LLM_PROVIDER_ANTHROPIC, nil
-	case LLMProviderAWSBedrockString:
-		return LLM_PROVIDER_AWS_BEDROCK, nil
-	default:
-		return LLM_PROVIDER_UNSPECIFIED, trace.BadParameter("invalid llm provider %v", val)
-	}
+// SupportedLLMProviders is the list of supported LLM inference providers.
+var SupportedLLMProviders = []LLMProvider{
+	LLMProviderOpenAI,
+	LLMProviderAnthropic,
+	LLMProviderAWSBedrock,
 }

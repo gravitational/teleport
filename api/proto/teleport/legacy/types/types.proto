@@ -1218,29 +1218,6 @@ message PortRange {
 
 // LLM contains LLM inference endpoint related configurations.
 message LLM {
-  // Format indicates the API format used by clients to use an inference
-  // endpoint.
-  enum Format {
-    // FORMAT_UNSPECIFIED is the default non-specified format.
-    FORMAT_UNSPECIFIED = 0;
-    // FORMAT_OPENAI is the OpenAI API format.
-    FORMAT_OPENAI = 1;
-    // FORMAT_ANTHROPIC is the Anthropic API format.
-    FORMAT_ANTHROPIC = 2;
-  }
-
-  // Provider determines which service serves the LLM inference endpoint.
-  enum Provider {
-    // PROVIDER_UNSPECIFIED is the default non-specified provider.
-    PROVIDER_UNSPECIFIED = 0;
-    // PROVIDER_OPENAI indicates the inference is served by OpenAI.
-    PROVIDER_OPENAI = 1;
-    // PROVIDER_ANTHROPIC indicates the inference is served by Anthropic.
-    PROVIDER_ANTHROPIC = 2;
-    // PROVIDER_AWS_BEDROCK indicates the inference is served by AWS Bedrock.
-    PROVIDER_AWS_BEDROCK = 3;
-  }
-
   // Model is a provider model definition.
   message Model {
     // Name defines the model name. This is the requested value.
@@ -1250,9 +1227,9 @@ message LLM {
   }
 
   // Defines the LLM inference API format.
-  Format format = 1;
+  string format = 1;
   // Defines which inference provider will be used to serve the requests.
-  Provider provider = 2;
+  string provider = 2;
   // Defines the list of supported models, and optionally their name on the
   // inference provider.
   repeated Model models = 3;
