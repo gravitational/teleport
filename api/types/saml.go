@@ -632,7 +632,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 
 // MarshalJSON is a custom marshaller for JSON format.
 // It is required because the Spec.Credentials proto field is a oneof which doesn't
-// play nice with gogoproto. See comment preceeding [samlConnectorV2JSON].
+// play nice with gogoproto. See comment preceding [samlConnectorV2JSON].
 func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 	specOut := newSAMLConnectorSpecV2JSON(o.Spec)
 
@@ -658,7 +658,7 @@ func (o *SAMLConnectorV2) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON is a custom unmarshaller for JSON format.
 // It is required because the Spec.Credentials proto field is a oneof which doesn't
-// play nice with gogoproto. See comment preceeding [samlConnectorV2JSON].
+// play nice with gogoproto. See comment preceding [samlConnectorV2JSON].
 func (o *SAMLConnectorV2) UnmarshalJSON(b []byte) error {
 	var in samlConnectorV2JSON
 	if err := json.Unmarshal(b, &in); err != nil {
@@ -828,7 +828,7 @@ func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOptio
 	}
 }
 
-// samlConnectorV2JSON and samlConnectorSpecV2JSON mirror the normal SAML connector resources types,
+// samlConnectorV2JSON and samlConnectorSpecV2JSON mirror the normal SAML connector resource types,
 // except for replacing connector.Spec and spec.Credentials with JSON-specific representations.
 //
 // This is required because gogoproto doesn't allow for oneof json tags, which otherwise breaks
@@ -852,7 +852,7 @@ type samlConnectorV2JSON struct {
 }
 
 // samlConnectorSpecV2JSON is the JSON representation of SAMLConnectorSpecV2,
-// replacing Credetials with a JSON-specific representation.
+// replacing Credentials with a JSON-specific representation.
 type samlConnectorSpecV2JSON struct {
 	Issuer                   string                     `json:"issuer"`
 	SSO                      string                     `json:"sso"`
