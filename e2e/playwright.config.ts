@@ -44,8 +44,9 @@ export default defineConfig({
   use: {
     ignoreHTTPSErrors: true,
     baseURL,
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    trace: 'on',
+    screenshot: 'on',
+    video: 'retain-on-failure',
   },
 
   projects: [
