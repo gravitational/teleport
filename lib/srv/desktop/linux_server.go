@@ -751,6 +751,7 @@ func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error
 		if err == nil {
 			sess.sendTDPError("Xsession was terminated")
 		} else {
+			sess.log.Error("Xsession was terminated", "error", err)
 			sess.sendTDPError("Xsession was terminated with error")
 		}
 	}()
