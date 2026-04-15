@@ -27,7 +27,7 @@ import (
 )
 
 func CommandOSTweaks(cmd *exec.Cmd) {
-	cmd.Path = "/proc/self/exe"
+	setLinuxReexecPath(cmd)
 
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)
@@ -43,7 +43,7 @@ func CommandOSTweaks(cmd *exec.Cmd) {
 // we should rework the parker to block on a pipe so it can exit when its parent
 // is terminated
 func parkerCommandOSTweaks(cmd *exec.Cmd) {
-	cmd.Path = "/proc/self/exe"
+	setLinuxReexecPath(cmd)
 
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = new(syscall.SysProcAttr)
