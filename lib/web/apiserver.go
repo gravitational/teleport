@@ -1718,18 +1718,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	group := r.URL.Query().Get(webclient.AgentUpdateGroupParameter)
 	updaterID := r.URL.Query().Get(webclient.AgentUpdateIDParameter)
 
-	return webclient.PingResponse{
+	authSettings.Scopes = scopes.ScopesStatusToString(pr.ScopesStatus)
 
-		Auth:                   authSettings,
-		Proxy:                  *proxyConfig,
-		ServerVersion:          teleport.Version,
-		MinClientVersion:       teleport.MinClientSemVer().String(),
-		ClusterName:            h.auth.clusterName,
-		AutomaticUpgrades:      pr.ServerFeatures.GetAutomaticUpgrades(),
-		AutoUpdate:             h.automaticUpdateSettings184(r.Context(), group, updaterID),
-		Edition:                modules.GetModules().BuildType(),
-		FIPS:                   modules.IsBoringBinary(),
-		AuthServerScopesStatus: scopes.ScopesStatusToString(pr.ScopesStatus),
+	return webclient.PingResponse{
+		Auth:              authSettings,
+		Proxy:             *proxyConfig,
+		ServerVersion:     teleport.Version,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
+		ClusterName:       h.auth.clusterName,
+		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
+		Edition:           modules.GetModules().BuildType(),
+		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
