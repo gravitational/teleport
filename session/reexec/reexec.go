@@ -1000,6 +1000,8 @@ func RunAndExit(commandType string) {
 		code, err = runCheckHomeDir()
 	case reexecconstants.ParkSubCommand:
 		code, err = runPark()
+	case reexecconstants.TrueSubCommand:
+		// nothing to do
 	case reexecconstants.SFTPSubCommand:
 		initLogger("sftp", os.Stderr, ExecLogConfig{})
 		err = reexecsftp.RunSFTP(slog.Default())
@@ -1047,6 +1049,7 @@ func IsReexec() bool {
 		reexecconstants.NetworkingSubCommand,
 		reexecconstants.CheckHomeDirSubCommand,
 		reexecconstants.ParkSubCommand,
+		reexecconstants.TrueSubCommand,
 		reexecconstants.SFTPSubCommand:
 		return true
 	default:
