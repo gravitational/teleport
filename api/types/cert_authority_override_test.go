@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCertAuthorityOverrideID_DisplayName(t *testing.T) {
+func TestCertAuthorityOverrideID_FullName(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -65,7 +65,7 @@ func TestCertAuthorityOverrideID_DisplayName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, test.want, test.id.DisplayName(), "DisplayName mismatch")
+			assert.Equal(t, test.want, test.id.FullName(), "DisplayName mismatch")
 		})
 	}
 }

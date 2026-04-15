@@ -20,8 +20,8 @@ type CertAuthorityOverrideID struct {
 	CAType      string
 }
 
-// DisplayName returns a user-friendly representation of the ID.
-func (id *CertAuthorityOverrideID) DisplayName() string {
+// FullName returns the "full name" of the resource, "{CAType}/{ClusterName}".
+func (id *CertAuthorityOverrideID) FullName() string {
 	if id == nil || (id.CAType == "" && id.ClusterName == "") {
 		return ""
 	}

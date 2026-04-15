@@ -154,7 +154,7 @@ func (s *SubCAService) GetCertAuthorityOverride(
 
 	// Name has no effect on the query, it's only used for errors.
 	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
-	name := id.DisplayName()
+	name := id.FullName()
 
 	resource, err := service.GetResource(ctx, name)
 	return resource, trace.Wrap(err)
@@ -186,7 +186,7 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 
 	// Name has no effect on the query, it's only used for errors.
 	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
-	name := id.DisplayName()
+	name := id.FullName()
 
 	return trace.Wrap(service.DeleteResource(ctx, name))
 }
