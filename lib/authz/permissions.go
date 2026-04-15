@@ -1004,10 +1004,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 }
 
 // RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role)
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1016,8 +1016,51 @@ func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecord
 	return services.NewRoleSet(definitions...), nil
 }
 
-// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role.
-func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role with
+// consideration for whether the definition be will be used in a scoped context.
+func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole, isScoped bool) (types.Role, error) {
+	if isScoped {
+		return scopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+	}
+	return unscopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+}
+
+// scopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in a scoped context.
+func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+	switch role {
+	case types.RoleNode:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleNode)
+	case types.RoleKube:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+					},
+				},
+			},
+		)
+	}
+
+	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
+}
+
+// unscopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in an unscoped context.
+func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.RoleFromSpec(
@@ -1402,7 +1445,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 		// all other certs encode a single system role
 		systemRoles = []types.SystemRole{r.Role}
 	}
-	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, systemRoles...)
+	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, r.GetIdentity().AgentScope != "", systemRoles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

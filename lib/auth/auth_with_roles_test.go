@@ -52,6 +52,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -64,6 +65,7 @@ import (
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -3179,6 +3181,295 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
+	})
+}
+
+func TestKubeCRUDFromKubeService(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withBufconnListener())
+
+	scopedIdent := authtest.TestBuiltin(types.RoleKube)
+	// override the agent scope in the test identity
+	builtinRole, ok := scopedIdent.I.(authz.BuiltinRole)
+	require.True(t, ok, "expected ident to be a builtin role")
+
+	builtinRole.Identity.AgentScope = "/test"
+	scopedIdent.I = builtinRole
+
+	scopedKubeClient, err := srv.NewClient(scopedIdent)
+	require.NoError(t, err)
+
+	unscopedKubeClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleKube))
+	require.NoError(t, err)
+
+	// create an admin client to create resources and setup for test cases
+	adminClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	const clusterName = "kube-cluster"
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: clusterName,
+			Labels: map[string]string{
+				"env": "test",
+			},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
+	require.NoError(t, err)
+
+	err = adminClient.CreateKubernetesCluster(ctx, kubeCluster)
+	require.NoError(t, err)
+
+	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	waitingContainer, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{
+		Metadata: &headerv1.Metadata{
+			Name: "waiting-container",
+		},
+		Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+			Username:      "user",
+			Cluster:       clusterName,
+			Namespace:     "namespace",
+			PodName:       "pod-name",
+			ContainerName: "waiting-container",
+			Patch:         []byte("patch"),
+			PatchType:     kubewaitingcontainer.ApplyPatchType,
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("CreateKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
+		err := unscopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("UpdateKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
+		err := unscopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesCluster", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to fetch a kube cluster
+		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.NoError(t, err)
+		require.NotNil(t, cluster)
+
+		// scoped kube clients SHOULD NOT be able to fetch a kube cluster
+		_, err = scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesClusters", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to list kube clusters
+		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		// scoped kube clients SHOULD NOT be able to list a kube clusters
+		clusters, err = scopedKubeClient.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+	})
+
+	t.Run("ListKubernetesClusters", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to list kube clusters
+		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		// scoped kube clients SHOULD NOT be able to list kube clusters
+		clusters, _, err = scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+	})
+
+	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube clients should be able to delete a kube cluster
+		err := unscopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteAllKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube clients should be able to delete all kube clusters
+		err := unscopedKubeClient.DeleteAllKubernetesClusters(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.DeleteAllKubernetesClusters(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("UpsertKubernetesServer", func(t *testing.T) {
+		// unscoped kube service SHOULD be able to upsert a kube server
+		_, err = unscopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+
+		// scoped kube service SHOULD NOT be able to upsert a kube server
+		_, err = scopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesServers", func(t *testing.T) {
+		// unscoped kube service clients SHOULD be able to get a list of kube servers
+		servers, err := unscopedKubeClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+
+		// scoped kube service clients SHOULD NOT be able to get a list of kube servers
+		servers, err = scopedKubeClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeleteKubernetesServer", func(t *testing.T) {
+		ks := kubeServer
+		ks.SetName("kube-server-for-deletion")
+		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
+		require.NoError(t, err)
+
+		// unscoped kube clients SHOULD be able to delete a kube server
+		err = unscopedKubeClient.DeleteKubernetesServer(ctx, "host-id", ks.GetName())
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to delete a kube server
+		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", "host-id")
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteAllKubernetesServers", func(t *testing.T) {
+		ks := kubeServer
+		ks.SetName("kube-server-for-deletion")
+		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
+		require.NoError(t, err)
+
+		// unscoped kube clients SHOULD be able to delete all kube servers
+		err = unscopedKubeClient.DeleteAllKubernetesServers(ctx)
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to delete all kube servers
+		err = scopedKubeClient.DeleteAllKubernetesServers(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("CreateKubernetesWaitingContainer", func(t *testing.T) {
+		const wcName = "create-waiting-container"
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
+				Name: wcName,
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+				Username:      waitingContainer.GetSpec().GetUsername(),
+				Cluster:       waitingContainer.GetSpec().GetCluster(),
+				Namespace:     waitingContainer.GetSpec().GetNamespace(),
+				PodName:       waitingContainer.GetSpec().GetPodName(),
+				ContainerName: wcName,
+				Patch:         waitingContainer.GetSpec().GetPatch(),
+				PatchType:     waitingContainer.GetSpec().GetPatchType(),
+			},
+		}
+
+		// unscoped kube service clients SHOULD be able to create a kube waiting container
+		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
+		require.NoError(t, err)
+
+		// cleanup waiting container
+		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
+			Username:      wc.GetSpec().GetUsername(),
+			Cluster:       wc.GetSpec().GetCluster(),
+			Namespace:     wc.GetSpec().GetNamespace(),
+			PodName:       wc.GetSpec().GetPodName(),
+			ContainerName: wc.GetSpec().GetContainerName(),
+		})
+		require.NoError(t, err)
+
+		// scoped kube service clients SHOULD NOT be able to create a kube waiting container
+		_, err = scopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteKubernetesWaitingContainer", func(t *testing.T) {
+		const wcName = "delete-waiting-container"
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
+				Name: wcName,
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+				Username:      waitingContainer.GetSpec().GetUsername(),
+				Cluster:       waitingContainer.GetSpec().GetCluster(),
+				Namespace:     waitingContainer.GetSpec().GetNamespace(),
+				PodName:       waitingContainer.GetSpec().GetPodName(),
+				ContainerName: wcName,
+				Patch:         waitingContainer.GetSpec().GetPatch(),
+				PatchType:     waitingContainer.GetSpec().GetPatchType(),
+			},
+		}
+
+		// unscoped kube service clients SHOULD be able to create a kube waiting container
+		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
+		require.NoError(t, err)
+
+		deleteReq := &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
+			Username:      wc.GetSpec().GetUsername(),
+			Cluster:       wc.GetSpec().GetCluster(),
+			Namespace:     wc.GetSpec().GetNamespace(),
+			PodName:       wc.GetSpec().GetPodName(),
+			ContainerName: wc.GetSpec().GetContainerName(),
+		}
+		// cleanup waiting container
+		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
+		require.NoError(t, err)
+
+		// scoped kube service clients SHOULD NOT be able to delete a kube waiting container
+		err = scopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesWaitingContainer", func(t *testing.T) {
+		req := &kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest{
+			Username:      waitingContainer.GetSpec().GetUsername(),
+			Cluster:       waitingContainer.GetSpec().GetCluster(),
+			Namespace:     waitingContainer.GetSpec().GetNamespace(),
+			PodName:       waitingContainer.GetSpec().GetPodName(),
+			ContainerName: waitingContainer.GetSpec().GetContainerName(),
+		}
+		// unscoped kube clients SHOULD be able to fetch a kube waiting containers
+		_, err := unscopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to fetch a kube waiting containers
+		_, err = scopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 }
 
