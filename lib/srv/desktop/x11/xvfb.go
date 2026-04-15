@@ -345,6 +345,7 @@ func (x *Backend) processEvents() {
 		}
 		switch event := event.(type) {
 		case randr.ScreenChangeNotifyEvent:
+			x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "event", event)
 			x.mu.Lock()
 			width := x.width
 			height := x.height
