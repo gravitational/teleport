@@ -25,6 +25,8 @@ import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Label as LabelProto } from 'gen-proto-ts/teleport/lib/teleterm/v1/label_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
@@ -34,11 +36,11 @@ import {
 } from 'shared/hooks/useAsync';
 
 import { isWebApp } from 'teleterm/services/tshd/app';
-import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   DisplayResults,
   isClusterSearchFilter,
+  LabelMatch,
   ResourceMatch,
   ResourceSearchResult,
   SearchFilter,
@@ -426,7 +428,7 @@ export function getActionPickerStatus({
   inputValue: string;
   filters: SearchFilter[];
   filterActions: SearchAction[];
-  allClusters: tsh.Cluster[];
+  allClusters: Cluster[];
   resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
 }): ActionPickerStatus {
   if (!inputValue) {
@@ -619,11 +621,10 @@ function ResourceTypeFilterItem(
 
 export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   const { searchResult } = props;
-  const server = searchResult.resource;
-  const hasUuidMatches = searchResult.resourceMatches.some(
-    match => match.field === 'name'
-  );
   const mainField = 'hostname';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasUuidMatches = visibleMatches.hasMatchOnField('name');
+  const hasAddrMatches = visibleMatches.hasMatchOnField('addr');
 
   return (
     <ResourceItem
@@ -637,25 +638,23 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
       clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
       searchResult={props.searchResult}
       details={
-        <Labels searchResult={searchResult}>
-          <ResourceFields>
-            {server.tunnel ? (
-              <span title="This node is connected to the cluster through a reverse tunnel">
-                ↵ tunnel
-              </span>
-            ) : (
-              <span>
-                <HighlightField field="addr" searchResult={searchResult} />
-              </span>
-            )}
+        <Labels labels={visibleMatches.labels}>
+          {(hasAddrMatches || hasUuidMatches) && (
+            <ResourceFields>
+              {hasAddrMatches && (
+                <span>
+                  <HighlightField field="addr" searchResult={searchResult} />
+                </span>
+              )}
 
-            {hasUuidMatches && (
-              <span>
-                UUID:{' '}
-                <HighlightField field={'name'} searchResult={searchResult} />
-              </span>
-            )}
-          </ResourceFields>
+              {hasUuidMatches && (
+                <span>
+                  UUID:{' '}
+                  <HighlightField field={'name'} searchResult={searchResult} />
+                </span>
+              )}
+            </ResourceFields>
+          )}
         </Labels>
       }
     />
@@ -666,19 +665,27 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   const { searchResult } = props;
   const db = searchResult.resource;
   const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasDescMatches = visibleMatches.hasMatchOnField('desc');
+  const hasTypeMatches = visibleMatches.hasMatchOnField('type');
+  const hasProtocolMatches = visibleMatches.hasMatchOnField('protocol');
 
-  const $resourceFields = (
+  const $resourceFields = (hasTypeMatches ||
+    hasProtocolMatches ||
+    hasDescMatches) && (
     <ResourceFields>
-      <span
-        css={`
-          flex-shrink: 0;
-        `}
-      >
-        <HighlightField field="type" searchResult={searchResult} />
-        /
-        <HighlightField field="protocol" searchResult={searchResult} />
-      </span>
-      {db.desc && (
+      {(hasTypeMatches || hasProtocolMatches) && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField field="type" searchResult={searchResult} />
+          /
+          <HighlightField field="protocol" searchResult={searchResult} />
+        </span>
+      )}
+      {hasDescMatches && (
         <span
           css={`
             overflow: hidden;
@@ -711,10 +718,10 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
           {db.desc.length >= 30 ? (
             <>
               {$resourceFields}
-              <Labels searchResult={searchResult} />
+              <Labels labels={visibleMatches.labels} />
             </>
           ) : (
-            <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+            <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
           )}
         </>
       }
@@ -726,10 +733,14 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   const { searchResult } = props;
   const app = searchResult.resource;
   const mainField = app.friendlyName ? 'friendlyName' : 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasAddrWithProtocolMatches =
+    visibleMatches.hasMatchOnField('addrWithProtocol');
+  const hasDescMatches = visibleMatches.hasMatchOnField('desc');
 
-  const $resourceFields = (app.addrWithProtocol || app.desc) && (
+  const $resourceFields = (hasAddrWithProtocolMatches || hasDescMatches) && (
     <ResourceFields>
-      {app.addrWithProtocol && (
+      {hasAddrWithProtocolMatches && (
         <span
           css={`
             flex-shrink: 0;
@@ -741,7 +752,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
           />
         </span>
       )}
-      {app.desc && (
+      {hasDescMatches && (
         <span
           css={`
             overflow: hidden;
@@ -774,10 +785,10 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
           {app.desc.length >= 30 ? (
             <>
               {$resourceFields}
-              <Labels searchResult={searchResult} />
+              <Labels labels={visibleMatches.labels} />
             </>
           ) : (
-            <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+            <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
           )}
         </>
       }
@@ -790,8 +801,12 @@ export function WindowsDesktopItem(
 ) {
   const { searchResult } = props;
   const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
+  const hasAddrWithoutDefaultPortMatches = visibleMatches.hasMatchOnField(
+    'addrWithoutDefaultPort'
+  );
 
-  const $resourceFields = (
+  const $resourceFields = hasAddrWithoutDefaultPortMatches && (
     <ResourceFields>
       <span
         css={`
@@ -817,7 +832,9 @@ export function WindowsDesktopItem(
           : 'Connect to desktop'
       }
       clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
-      details={<Labels searchResult={searchResult}>{$resourceFields}</Labels>}
+      details={
+        <Labels labels={visibleMatches.labels}>{$resourceFields}</Labels>
+      }
     />
   );
 }
@@ -847,6 +864,7 @@ function getAppItemCopy(
 export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
   const mainField = 'name';
+  const visibleMatches = getVisibleMatches(searchResult, mainField);
 
   return (
     <ResourceItem
@@ -859,9 +877,61 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
           : 'Log in to Kubernetes cluster'
       }
       clusterName={props.getOptionalClusterName(searchResult.resource.uri)}
-      details={<Labels searchResult={searchResult} />}
+      details={<Labels labels={visibleMatches.labels} />}
     />
   );
+}
+
+/**
+ * Computes secondary matches to display in the item details.
+ * Excludes resource/lable matches for terms already found by the main field,
+ * so we don't overwhelm users with too much information.
+ */
+function getVisibleMatches(
+  searchResult: ResourceSearchResult,
+  mainField: ResourceMatch<ResourceSearchResult['kind']>['field']
+) {
+  const mainFieldMatchedTerms = new Set(
+    searchResult.resourceMatches
+      .filter(match => match.field === mainField)
+      .map(match => match.searchTerm)
+  );
+
+  const secondaryResourceMatchFields = new Set<
+    ResourceMatch<ResourceSearchResult['kind']>['field']
+  >();
+  for (const match of searchResult.resourceMatches) {
+    if (!mainFieldMatchedTerms.has(match.searchTerm)) {
+      secondaryResourceMatchFields.add(match.field);
+    }
+  }
+
+  const labelMatches = searchResult.labelMatches.filter(
+    match => !mainFieldMatchedTerms.has(match.searchTerm)
+  );
+  const labelScores = new Map<string, number>();
+  for (const match of labelMatches) {
+    const currentScore = labelScores.get(match.labelName) || 0;
+    labelScores.set(match.labelName, currentScore + match.score);
+  }
+
+  const labels = searchResult.resource.labels
+    .filter(label => labelScores.has(label.name))
+    .toSorted(
+      (a, b) =>
+        // Highest score first.
+        (labelScores.get(b.name) || 0) - (labelScores.get(a.name) || 0)
+    );
+
+  return {
+    labels: {
+      list: labels,
+      matches: labelMatches,
+    },
+    hasMatchOnField: (
+      field: ResourceMatch<ResourceSearchResult['kind']>['field']
+    ) => secondaryResourceMatchFields.has(field),
+  };
 }
 
 export function NoResultsItem(props: {
@@ -994,32 +1064,25 @@ export function ResourceSearchErrorsItem(props: {
 
 function Labels(
   props: React.PropsWithChildren<{
-    searchResult: ResourceSearchResult;
+    labels: {
+      list: LabelProto[];
+      matches: LabelMatch[];
+    };
   }>
 ) {
-  const { searchResult } = props;
+  const { labels } = props;
 
-  // Label name to score.
-  const scoreMap: Map<string, number> = new Map();
-  searchResult.labelMatches.forEach(match => {
-    const currentScore = scoreMap.get(match.labelName) || 0;
-    scoreMap.set(match.labelName, currentScore + match.score);
-  });
-
-  const sortedLabelsList = [...searchResult.resource.labels];
-  sortedLabelsList.sort(
-    (a, b) =>
-      // Highest score first.
-      (scoreMap.get(b.name) || 0) - (scoreMap.get(a.name) || 0)
-  );
+  if (!(props.children || labels.list.length)) {
+    return;
+  }
 
   return (
     <LabelsFlex>
       {props.children}
-      {sortedLabelsList.map(label => (
+      {labels.list.map(label => (
         <Label
           key={label.name + label.value}
-          searchResult={searchResult}
+          labelMatches={labels.matches}
           label={label}
         />
       ))}
@@ -1045,14 +1108,9 @@ const ResourceFields = styled(Flex).attrs({ gap: 1 })`
   font-size: ${props => props.theme.fontSizes[0]}px;
 `;
 
-function Label(props: {
-  searchResult: ResourceSearchResult;
-  label: tsh.Label;
-}) {
-  const { searchResult: item, label } = props;
-  const labelMatches = item.labelMatches.filter(
-    match => match.labelName == label.name
-  );
+function Label(props: { labelMatches: LabelMatch[]; label: LabelProto }) {
+  let { label, labelMatches } = props;
+  labelMatches = labelMatches.filter(match => match.labelName == label.name);
   const nameMatches = labelMatches
     .filter(match => match.kind === 'label-name')
     .map(match => match.searchTerm);
