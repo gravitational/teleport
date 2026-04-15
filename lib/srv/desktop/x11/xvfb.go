@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -53,6 +54,7 @@ type Config struct {
 // Backend is responsible for communication with selected X11 backend.
 // It handles mouse and keyboard inputs, clipboard interactions, resizing and tracking changed regions.
 type Backend struct {
+	mu     sync.Mutex
 	config Config
 
 	ctx    context.Context
@@ -66,7 +68,7 @@ type Backend struct {
 	// Display contains X11 display string (:N) for started backend
 	Display string
 
-	clipboardData   atomic.Pointer[[]byte]
+	clipboardData   []byte
 	clipboardWindow xproto.Window
 	clipboardAtom   xproto.Atom
 	targetsAtom     xproto.Atom
@@ -76,6 +78,9 @@ type Backend struct {
 	// AuthorityFile is XAuthority file used for securing X11 socket, it'll be deleted when backend is closed
 	AuthorityFile   string
 	authorityCookie []byte
+
+	width  uint16
+	height uint16
 }
 
 // IsBackendPresent reports whether the binary required by selected backend is available in PATH.
@@ -316,17 +321,17 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		selectionAtom:   selectionAtom,
 		AuthorityFile:   authorityFile.Name(),
 		authorityCookie: cookie,
+		width:           types.MaxRDPScreenWidth,
+		height:          types.MaxRDPScreenHeight,
 	}
 
-	x.clipboardData.Store(&[]byte{})
-
-	go x.processClipboardEvents()
+	go x.processEvents()
 
 	success = true
 	return x, nil
 }
 
-func (x *Backend) processClipboardEvents() {
+func (x *Backend) processEvents() {
 	for {
 		event, err := x.conn.WaitForEvent()
 		if event == nil && err == nil {
@@ -337,11 +342,24 @@ func (x *Backend) processClipboardEvents() {
 			continue
 		}
 		switch event := event.(type) {
+		case randr.ScreenChangeNotifyEvent:
+			x.mu.Lock()
+			width := x.width
+			height := x.height
+			x.mu.Unlock()
+
+			if event.Width != width || event.Height != height {
+				if err := x.Resize(width, height); err != nil {
+					x.config.Logger.ErrorContext(x.ctx, "Couldn't restore resolution", "error", err)
+				}
+			}
 		case xproto.SelectionRequestEvent:
 			if event.Property == xproto.AtomNone {
 				event.Property = x.selectionAtom
 			}
-			data := *x.clipboardData.Load()
+			x.mu.Lock()
+			data := x.clipboardData
+			x.mu.Unlock()
 			switch event.Target {
 			case x.utf8Atom:
 				xproto.ChangeProperty(x.conn, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(data)), data)
@@ -601,6 +619,10 @@ func (x *Backend) setScreenSize(width, height uint16) (bool, error) {
 				return false, trace.Wrap(err)
 			}
 
+			x.mu.Lock()
+			x.width = width
+			x.height = height
+			x.mu.Unlock()
 			return true, nil
 		}
 	}
@@ -609,7 +631,9 @@ func (x *Backend) setScreenSize(width, height uint16) (bool, error) {
 
 // SetClipboardData stores clipboard data and claims clipboard ownership.
 func (x *Backend) SetClipboardData(data []byte) error {
-	x.clipboardData.Store(&data)
+	x.mu.Lock()
+	x.clipboardData = data
+	x.mu.Unlock()
 	err := xproto.SetSelectionOwnerChecked(x.conn, x.clipboardWindow, x.clipboardAtom, 0).Check()
 	return trace.Wrap(err)
 }
