@@ -108,11 +108,14 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 	}
 
 	loginTime := time.Now()
-	ttyFullName, err := os.Readlink(tty.Name())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	ttyName := ""
+	if tty != nil {
+		ttyFullName, err := os.Readlink(tty.Name())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ttyName = strings.TrimPrefix(ttyFullName, "/dev/")
 	}
-	ttyName := strings.TrimPrefix(ttyFullName, "/dev/")
 
 	var anySucceeded bool
 	session := &Session{

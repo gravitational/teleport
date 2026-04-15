@@ -13,9 +13,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	sshreexec "github.com/gravitational/teleport/lib/sshutils/reexec"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/envutils"
-	sshreexec "github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
