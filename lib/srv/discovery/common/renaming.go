@@ -197,9 +197,14 @@ func applyDiscoveryNameSuffix(resource types.ResourceWithLabels, suffix string) 
 	}
 	// set the originally discovered name as a label.
 	labels[types.DiscoveredNameLabel] = discoveredName
-	resource.SetStaticLabels(labels)
 	// update the resource name with a suffix.
-	resource.SetName(fmt.Sprintf("%s-%s", discoveredName, suffix))
+	resourceNameWithSuffix := fmt.Sprintf("%s-%s", discoveredName, suffix)
+	resource.SetName(resourceNameWithSuffix)
+	// Recompute the VNet DNS label from the final name after the suffix is applied.
+	if _, ok := resource.(types.Database); ok {
+		labels[types.VNetDNSNameLabel] = types.VNetDNSName(resourceNameWithSuffix)
+	}
+	resource.SetStaticLabels(labels)
 }
 
 // suffixValidatorFn is a func that validates a suffix.
