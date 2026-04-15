@@ -6282,7 +6282,7 @@ func (c *Client) GetCertAuthorityOverride(
 
 	// TODO(codingllama): Consider adding ClusterName to requests so the server
 	//  can handle them appropriately/uniformly.
-	if id.ClusterName != "" && resp.CaOverride.GetMetadata().GetName() != id.ClusterName {
+	if id.ClusterName != "" && resp.GetCaOverride().GetMetadata().GetName() != id.ClusterName {
 		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
 	}
 
