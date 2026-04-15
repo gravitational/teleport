@@ -87,7 +87,7 @@ func (r resourceTeleportClusterMaintenanceConfig) Create(ctx context.Context, re
 		return
 	}
 
-	if clusterMaintenanceConfigBefore == nil {
+	if clusterMaintenanceConfigBefore == nil || trace.IsNotFound(err) {
 		clusterMaintenanceConfigBefore = &apitypes.ClusterMaintenanceConfigV1{}
 	}
 	clusterMaintenanceConfig = clusterMaintenanceConfig.WithNonce(math.MaxUint64).(*apitypes.ClusterMaintenanceConfigV1)
@@ -179,6 +179,10 @@ func (r resourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, req 
 	}
 
 	clusterMaintenanceConfigI, err := r.p.Client.GetClusterMaintenanceConfig(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterMaintenanceConfig", trace.Wrap(err), "cluster_maintenance_config"))
 		return
