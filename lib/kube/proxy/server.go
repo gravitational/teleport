@@ -169,6 +169,10 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		if c.KubernetesServersWatcher == nil {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
 		}
+	case KubeService:
+		if c.Scope != "" && c.KubernetesServersWatcher != nil {
+			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
+		}
 	}
 
 	if c.Log == nil {
