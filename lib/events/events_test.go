@@ -284,6 +284,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	InferencePolicyCreateEvent:                    &apievents.InferencePolicyCreate{},
 	InferencePolicyUpdateEvent:                    &apievents.InferencePolicyUpdate{},
 	InferencePolicyDeleteEvent:                    &apievents.InferencePolicyDelete{},
+	RetrievalModelCreateEvent:                     &apievents.RetrievalModelCreate{},
+	RetrievalModelUpdateEvent:                     &apievents.RetrievalModelUpdate{},
+	RetrievalModelDeleteEvent:                     &apievents.RetrievalModelDelete{},
 	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
 	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
 	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
@@ -1554,6 +1557,66 @@ func TestInferenceEvents(t *testing.T) {
 			},
 			eventType:  InferencePolicyDeleteEvent,
 			eventCode:  InferencePolicyDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "RetrievalModelCreate",
+			event: &apievents.RetrievalModelCreate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelCreateEvent,
+					Code:        RetrievalModelCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelCreateEvent,
+			eventCode:  RetrievalModelCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelUpdate",
+			event: &apievents.RetrievalModelUpdate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelUpdateEvent,
+					Code:        RetrievalModelUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelUpdateEvent,
+			eventCode:  RetrievalModelUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelDelete",
+			event: &apievents.RetrievalModelDelete{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelDeleteEvent,
+					Code:        RetrievalModelDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelDeleteEvent,
+			eventCode:  RetrievalModelDeleteCode,
 			hasPayload: false,
 		},
 	}

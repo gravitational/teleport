@@ -5067,6 +5067,9 @@ message OneOf {
     events.SessionSummarized SessionSummarized = 247;
     events.CertAuthorityOverrideEvent CertAuthorityOverrideEvent = 248;
     events.AppSessionLLMRequest AppSessionLLMRequest = 249;
+    events.RetrievalModelCreate RetrievalModelCreate = 250;
+    events.RetrievalModelUpdate RetrievalModelUpdate = 251;
+    events.RetrievalModelDelete RetrievalModelDelete = 252;
   }
 }
 
@@ -10176,6 +10179,132 @@ message InferencePolicyUpdate {
 
 // InferencePolicyDelete is emitted when an inference policy is deleted.
 message InferencePolicyDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// RetrievalModelCreate is emitted when a retrieval model is created.
+message RetrievalModelCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the retrieval model data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// RetrievalModelUpdate is emitted when a retrieval model is updated.
+message RetrievalModelUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Payload contains the retrieval model data.
+  google.protobuf.Struct Payload = 6 [
+    (gogoproto.jsontag) = "payload,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+// RetrievalModelDelete is emitted when a retrieval model is deleted.
+message RetrievalModelDelete {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,

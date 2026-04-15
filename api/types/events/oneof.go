@@ -1008,6 +1008,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InferencePolicyDelete{
 			InferencePolicyDelete: e,
 		}
+	case *RetrievalModelCreate:
+		out.Event = &OneOf_RetrievalModelCreate{
+			RetrievalModelCreate: e,
+		}
+	case *RetrievalModelUpdate:
+		out.Event = &OneOf_RetrievalModelUpdate{
+			RetrievalModelUpdate: e,
+		}
+	case *RetrievalModelDelete:
+		out.Event = &OneOf_RetrievalModelDelete{
+			RetrievalModelDelete: e,
+		}
 	case *SessionSummarized:
 		out.Event = &OneOf_SessionSummarized{
 			SessionSummarized: e,

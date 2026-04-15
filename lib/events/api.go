@@ -1024,6 +1024,13 @@ const (
 	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
 	InferencePolicyDeleteEvent = "inference_policy.delete"
 
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
+
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
 

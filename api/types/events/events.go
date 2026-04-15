@@ -2908,6 +2908,18 @@ func (m *InferencePolicyDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *RetrievalModelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
