@@ -70,6 +70,12 @@ export class TtyPlayer extends Player<TtyEvent> {
 
     this.addons.push(this.aspectFitAddon, linksAddon);
 
+    this.aspectFitAddon.activate(this.terminal);
+
+    for (const addon of this.addons) {
+      this.terminal.loadAddon(addon);
+    }
+
     // @xterm/addon-image relies on WebAssembly internally. The vite plugin
     // guard-wasm-globals rewrites bare WebAssembly references so the module can
     // be statically imported without crashing; construction and activation will
@@ -79,13 +85,7 @@ export class TtyPlayer extends Player<TtyEvent> {
       this.terminal.loadAddon(imageAddon);
       this.addons.push(imageAddon);
     } catch (e) {
-      this.logger.error('Failed to load image addon:', e.message);
-    }
-
-    this.aspectFitAddon.activate(this.terminal);
-
-    for (const addon of this.addons) {
-      this.terminal.loadAddon(addon);
+      this.logger.error(`Failed to load image addon: ${e.message}`);
     }
 
     let webglAddon: WebglAddon | undefined;
