@@ -564,75 +564,96 @@ func (x *Backend) Resize(width, height uint16) error {
 		return trace.BadParameter("invalid size %dx%d, maximum size is %dx%d", width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 
-	if found, err := x.setScreenSize(width, height); err != nil {
-		return trace.Wrap(err)
-	} else if found {
-		return nil
-	}
-
 	conn := x.conn
 	root := x.root()
 
-	modeName := fmt.Sprintf("m%d", modeCount.Inc())
-
-	id, err := conn.NewId()
+	resources, err := randr.GetScreenResources(conn, x.root()).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mode, err := randr.CreateMode(conn, root, randr.ModeInfo{
-		Id:      id,
-		Width:   width,
-		Height:  height,
-		NameLen: uint16(len(modeName)),
-	}, modeName).Reply()
+	crtc := resources.Crtcs[0]
+	crtcInfo, err := randr.GetCrtcInfo(conn, crtc, xproto.TimeCurrentTime).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	screenResources, err := randr.GetScreenResources(conn, root).Reply()
+
+	var mode randr.Mode
+	found := false
+	for _, m := range resources.Modes {
+		if m.Width == width && m.Height == height {
+			mode = randr.Mode(m.Id)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		modeName := fmt.Sprintf("m%d", modeCount.Inc())
+
+		id, err := conn.NewId()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m, err := randr.CreateMode(conn, root, randr.ModeInfo{
+			Id:      id,
+			Width:   width,
+			Height:  height,
+			NameLen: uint16(len(modeName)),
+		}, modeName).Reply()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		mode = m.Mode
+		if err := randr.AddOutputModeChecked(conn, resources.Outputs[0], mode).Check(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	_, err = randr.SetCrtcConfig(
+		conn,
+		crtc,
+		xproto.TimeCurrentTime,
+		crtcInfo.Timestamp,
+		crtcInfo.X,
+		crtcInfo.Y,
+		mode,
+		crtcInfo.Rotation,
+		crtcInfo.Outputs,
+	).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := randr.AddOutputModeChecked(conn, screenResources.Outputs[0], mode.Mode).Check(); err != nil {
+
+	if err := x.setScreenSize(width, height); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if found, err := x.setScreenSize(width, height); err != nil {
-		return trace.Wrap(err)
-	} else if found {
-		return nil
-	}
-
-	return trace.NotFound("could not find a screen with width %d and height %d", width, height)
+	return nil
 }
 
-func (x *Backend) setScreenSize(width, height uint16) (bool, error) {
+func (x *Backend) setScreenSize(width, height uint16) error {
 	screen, err := randr.GetScreenInfo(x.conn, x.root()).Reply()
 	if err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	for i := 0; i < len(screen.Sizes); i++ {
 		if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
 			_, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
 			if err != nil {
-				return false, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
 			// Recalculate physical dimensions to preserve DPI
 			widthMm := pixelsToMm(width)
 			heightMm := pixelsToMm(height)
 			if err := randr.SetScreenSizeChecked(x.conn, x.root(), width, height, widthMm, heightMm).Check(); err != nil {
-				return false, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
-			x.mu.Lock()
-			x.width = width
-			x.height = height
-			x.mu.Unlock()
-
-			return true, nil
+			return nil
 		}
 	}
-	return false, nil
+	return trace.NotFound("could not find a screen with width %d and height %d", width, height)
 }
 
 // SetClipboardData stores clipboard data and claims clipboard ownership.
