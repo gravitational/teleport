@@ -16,34 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package sftp
+package sftputils
 
 import (
 	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// localFS provides API for accessing the files on
+// LocalFS provides API for accessing the files on
 // the local file system
-type localFS struct{}
+type LocalFS struct{}
 
-func (l localFS) Type() string {
+func (l LocalFS) Type() string {
 	return "local"
 }
 
-func (l localFS) Glob(pattern string) ([]string, error) {
+func (l LocalFS) Glob(pattern string) ([]string, error) {
 	return filepath.Glob(pattern)
 }
 
-func (l localFS) Stat(path string) (os.FileInfo, error) {
+func (l LocalFS) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
-func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
+func (l LocalFS) ReadDir(path string) ([]os.FileInfo, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -68,7 +66,7 @@ func (l localFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (l localFS) Open(path string) (File, error) {
+func (l LocalFS) Open(path string) (File, error) {
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -78,16 +76,16 @@ func (l localFS) Open(path string) (File, error) {
 	return &fileWrapper{File: f}, nil
 }
 
-func (l localFS) Create(path string, _ int64) (File, error) {
+func (l LocalFS) Create(path string, _ int64) (File, error) {
 	return l.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (l localFS) OpenFile(path string, flags int) (File, error) {
-	return os.OpenFile(path, flags, defaults.FilePermissions)
+func (l LocalFS) OpenFile(path string, flags int) (File, error) {
+	return os.OpenFile(path, flags, 0o644)
 }
 
-func (l localFS) Mkdir(path string) error {
-	err := os.MkdirAll(path, defaults.DirectoryPermissions)
+func (l LocalFS) Mkdir(path string) error {
+	err := os.MkdirAll(path, 0o755)
 	if err != nil && !os.IsExist(err) {
 		return err
 	}
@@ -95,59 +93,59 @@ func (l localFS) Mkdir(path string) error {
 	return nil
 }
 
-func (l localFS) Chmod(path string, mode os.FileMode) error {
+func (l LocalFS) Chmod(path string, mode os.FileMode) error {
 	return os.Chmod(path, mode)
 }
 
-func (l localFS) Chtimes(path string, atime, mtime time.Time) error {
+func (l LocalFS) Chtimes(path string, atime, mtime time.Time) error {
 	return os.Chtimes(path, atime, mtime)
 }
 
-func (l localFS) Rename(oldpath, newpath string) error {
+func (l LocalFS) Rename(oldpath, newpath string) error {
 	return os.Rename(oldpath, newpath)
 }
 
-func (l localFS) Lstat(name string) (os.FileInfo, error) {
+func (l LocalFS) Lstat(name string) (os.FileInfo, error) {
 	return os.Lstat(name)
 }
 
-func (l localFS) RemoveAll(path string) error {
+func (l LocalFS) RemoveAll(path string) error {
 	return os.RemoveAll(path)
 }
 
-func (l localFS) Link(oldname, newname string) error {
+func (l LocalFS) Link(oldname, newname string) error {
 	return os.Link(oldname, newname)
 }
 
-func (l localFS) Symlink(oldname, newname string) error {
+func (l LocalFS) Symlink(oldname, newname string) error {
 	return os.Symlink(oldname, newname)
 }
 
-func (l localFS) Remove(name string) error {
+func (l LocalFS) Remove(name string) error {
 	return os.Remove(name)
 }
 
-func (l localFS) Chown(name string, uid, gid int) error {
+func (l LocalFS) Chown(name string, uid, gid int) error {
 	return os.Chown(name, uid, gid)
 }
 
-func (l localFS) Truncate(name string, size int64) error {
+func (l LocalFS) Truncate(name string, size int64) error {
 	return os.Truncate(name, size)
 }
 
-func (l localFS) Readlink(name string) (string, error) {
+func (l LocalFS) Readlink(name string) (string, error) {
 	return os.Readlink(name)
 }
 
-func (l localFS) Getwd() (string, error) {
+func (l LocalFS) Getwd() (string, error) {
 	return os.Getwd()
 }
 
-func (l localFS) RealPath(path string) (string, error) {
+func (l LocalFS) RealPath(path string) (string, error) {
 	return Realpath(path)
 }
 
-func (l localFS) Close() error {
+func (l LocalFS) Close() error {
 	return nil
 }
 
