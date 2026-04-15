@@ -837,12 +837,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	createUsers := err == nil
 
+	// Adapt send /receive handlers to run as Interceptors.
+	asInterceptor := func(handler func(tdp.Message) error) tdp.Interceptor {
+		return func(message tdp.Message) ([]tdp.Message, error) {
+			return []tdp.Message{message}, handler(message)
+		}
+	}
+
 	// it's important that we set the OnSend and OnRecv handlers prior to
 	// initializing the client so that we capture all relevant data in the
 	// session recording
 	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
+	sendInterceptor := asInterceptor(s.makeTDPSendHandler(ctx, recorder, delay, audit))
+	receiveIntercetpr := asInterceptor(s.makeTDPReceiveHandler(ctx, recorder, delay, audit))
 
 	width, height := desktop.GetScreenSize()
 	log = log.With("screen_size", fmt.Sprintf("%dx%d", width, height))
@@ -876,8 +883,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
+	// read the client hello and wrap the connection with a translation layer (if needed)
+	translatedConn, hello, err := rdpclient.PrepareConnecton(clientProtocol, tdpConn, log)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// These hooks snoop for TDPB messages (ignoring legacy TDP) to create necessary audit events.
+	// The client emits only TDPB messages natively, so as long as we run these hooks *above* the translation
+	// interceptors they will be able to properly interpret inbound/outbound messages for audit.
+	auditedConn := tdp.NewReadWriteInterceptor(translatedConn, receiveIntercetpr, sendInterceptor)
+
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
-	rdpc, err := rdpclient.New(tdpConn, rdpclient.Config{
+	rdpc, err := rdpclient.New(auditedConn, hello, rdpclient.Config{
 		LicenseStore:          s.cfg.LicenseStore,
 		HostID:                s.cfg.Heartbeat.HostUUID,
 		Logger:                log,
@@ -1010,7 +1028,11 @@ func populateCertMetadata(metadata *events.WindowsCertificateMetadata, cert *x50
 	metadata.EnhancedKeyUsage = enhancedKeyUsages
 }
 
-func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int64, m tdp.Message, data []byte, recorder libevents.SessionPreparerRecorder) {
+func (s *WindowsService) recordEvent(ctx context.Context, t time.Time, delay int64, m tdp.Message, recorder libevents.SessionPreparerRecorder) {
+	data, err := m.Encode()
+	if err != nil {
+		s.cfg.Logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
+	}
 	e := &events.DesktopRecording{
 		Metadata: events.Metadata{
 			Type: libevents.DesktopRecordingEvent,
@@ -1038,13 +1060,12 @@ func (s *WindowsService) makeTDPSendHandler(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message, b []byte) {
-	return func(msg tdp.Message, data []byte) {
+) func(m tdp.Message) error {
+	return func(msg tdp.Message) error {
 		switch m := msg.(type) {
 		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, data, recorder)
+			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
 		case *tdpb.ClipboardData:
 			// the TDP send handler emits a clipboard receive event, because we
 			// received clipboard data from the remote desktop and are sending
@@ -1060,23 +1081,22 @@ func (s *WindowsService) makeTDPSendHandler(
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					if err := tdpConn.Close(); err != nil {
-						s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
-					}
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
 					s.emit(ctx, errorEvent)
+					return err
 				}
 			case *tdpbv1.SharedDirectoryRequest_Read_:
 				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
 				if errorEvent != nil {
 					// if we can't audit due to a full cache, abort the connection
 					// as a security measure
-					if err := tdpConn.Close(); err != nil {
-						s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation", "session_id", audit.sessionID)
-					}
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
 					s.emit(ctx, errorEvent)
+					return err
 				}
 			}
 		}
+		return nil
 	}
 }
 
@@ -1084,18 +1104,12 @@ func (s *WindowsService) makeTDPReceiveHandler(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message) {
-	return func(m tdp.Message) {
+) func(m tdp.Message) error {
+	return func(m tdp.Message) error {
 		switch msg := m.(type) {
 		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
-			b, err := m.Encode()
-			if err != nil {
-				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
-			}
-
-			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, b, recorder)
+			s.recordEvent(ctx, s.cfg.Clock.Now().UTC().Round(time.Millisecond), delay(), m, recorder)
 		case *tdpb.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
@@ -1107,11 +1121,9 @@ func (s *WindowsService) makeTDPReceiveHandler(
 			if errorEvent != nil {
 				// if we can't audit due to a full cache, abort the connection
 				// as a security measure
-				if err := tdpConn.Close(); err != nil {
-					s.cfg.Logger.ErrorContext(ctx, "error when terminating session for audit cache maximum size violation",
-						"session_id", audit.sessionID, "error", err)
-				}
+				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation", "")
 				s.emit(ctx, errorEvent)
+				return err
 			}
 		case *tdpb.SharedDirectoryResponse:
 			// shared directory audit events can be noisy, so we use a compactor
@@ -1123,6 +1135,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(completionID(msg.CompletionId), msg.ErrorCode, op.Write))
 			}
 		}
+		return nil
 	}
 }
 
