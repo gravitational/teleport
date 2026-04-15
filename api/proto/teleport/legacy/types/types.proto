@@ -1957,6 +1957,8 @@ message ProvisionTokenSpecV2Azure {
     // ResourceGroups is a list of Azure resource groups the node is allowed
     // to join from.
     repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
+    // Tenant is the Azure Tenant ID.
+    string tenant = 3 [(gogoproto.jsontag) = "tenant,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.

@@ -1302,6 +1302,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
+							"tenant": {
+								Description: "Tenant is the Azure Tenant ID.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							},
 						}),
 						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 						Optional:    true,
@@ -16929,6 +16934,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["tenant"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Azure.Allow.tenant"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Azure.Allow.tenant", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Tenant = t
+																		}
+																	}
+																}
 															}
 															obj.Allow[k] = t
 														}
@@ -20512,6 +20534,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 																		c.Unknown = false
 																		tf.Attrs["resource_groups"] = c
 																	}
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["tenant"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Azure.Allow.tenant"})
+																} else {
+																	v, ok := tf.Attrs["tenant"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Azure.Allow.tenant", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Azure.Allow.tenant", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Tenant) == ""
+																	}
+																	v.Value = string(obj.Tenant)
+																	v.Unknown = false
+																	tf.Attrs["tenant"] = v
 																}
 															}
 														}
