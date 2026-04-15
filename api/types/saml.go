@@ -514,7 +514,8 @@ func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
 	return r.Spec.Credentials.Oauth
 }
 
-// SetOAuthClientCredentials sets the OAuth client credentials.
+// SetOAuthClientCredentials sets the OAuth client credentials. If any other type of credentials is set,
+// they'll be overwritten, ensuring only one credentials type is set.
 func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredentials) {
 	if creds == nil {
 		r.Spec.Credentials = nil
@@ -534,13 +535,12 @@ func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
 	return entra != nil && entra.Disabled
 }
 
+// count returns the number of credential types set on the SAML connector.
 func (c *SAMLConnectorCredentials) count() int {
 	count := 0
-
 	if c.Oauth != nil {
 		count++
 	}
-
 	return count
 }
 
@@ -602,6 +602,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	}
 
 	if creds := o.Spec.Credentials; creds != nil {
+		// Validate that only one credentials type may be configured,
+		// since gogoproto issue prevents use of oneof.
+		// See https://github.com/gogo/protobuf/issues/623.
 		if creds.count() > 1 {
 			return trace.BadParameter("only one credentials type may be configured")
 		}
