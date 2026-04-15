@@ -62,7 +62,6 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 }
 
 func TestNetworkingCommand(t *testing.T) {
-	t.Parallel()
 	testNetworkingCommand(t, "")
 }
 
@@ -95,12 +94,33 @@ func testNetworkingCommand(t *testing.T, login string) {
 		scx.Identity.Login = login
 	}
 
+	// Set the XAUTHORITY environment variable to a nonexistent file to
+	// test that it is unset in the networking child process.
+	xAuthOriginal, xauthFileSet := os.LookupEnv(x11.XAuthFileEnvVar)
+	const xauthFile = "/does/not/exist"
+	t.Setenv(x11.XAuthFileEnvVar, xauthFile)
+
 	// Start networking subprocess.
 	command, err := ConfigureCommand(scx)
 	require.NoError(t, err)
 	proc, err := networking.NewProcess(ctx, command)
 	require.NoError(t, err)
 	t.Cleanup(func() { proc.Close() })
+
+	// Ensure that ConfigureCommand unsets the XAUTHORITY environment
+	// variable.
+	require.NotContains(t, command.Env, x11.XAuthFileEnvVar+"="+xauthFile)
+
+	// Restore the original XAUTHORITY environment variable, otherwise this
+	// test will fail in GHA.
+	// This is essentially replicating what t.Setenv will do once the test
+	// finishes so no need to use t.Setenv here and enqueue an unnecessary
+	// t.Cleanup call.
+	if xauthFileSet {
+		os.Setenv(x11.XAuthFileEnvVar, xAuthOriginal)
+	} else {
+		os.Unsetenv(x11.XAuthFileEnvVar)
+	}
 
 	t.Run("local port forward", func(t *testing.T) {
 		testLocalPortForward(ctx, t, proc)
