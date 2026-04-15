@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITerminalAddon, Terminal } from '@xterm/xterm';
@@ -67,9 +66,16 @@ export class TtyPlayer extends Player<TtyEvent> {
     });
 
     const linksAddon = new WebLinksAddon();
-    const imageAddon = new ImageAddon();
 
-    this.addons.push(this.aspectFitAddon, linksAddon, imageAddon);
+    this.addons.push(this.aspectFitAddon, linksAddon);
+
+    // @xterm/addon-image uses WebAssembly at the top level, so we load it dynamically to
+    // avoid crashing the app when WebAssembly is unavailable.
+    import('@xterm/addon-image').then(({ ImageAddon }) => {
+      const imageAddon = new ImageAddon();
+      this.addons.push(imageAddon);
+      this.terminal?.loadAddon(imageAddon);
+    }).catch(() => {});
 
     this.aspectFitAddon.activate(this.terminal);
 

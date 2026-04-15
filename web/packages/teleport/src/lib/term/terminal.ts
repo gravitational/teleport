@@ -17,10 +17,9 @@
  */
 
 import { FitAddon } from '@xterm/addon-fit';
-import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
-import { ITheme, Terminal } from '@xterm/xterm';
+import { ITerminalAddon, ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import {
   SearchAddon,
@@ -53,7 +52,7 @@ export default class TtyTerminal implements TerminalSearcher {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
-  _imageAddon = new ImageAddon();
+  _imageAddon: ITerminalAddon | undefined;
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon | undefined;
@@ -103,8 +102,14 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
-    this.term.loadAddon(this._imageAddon);
     this.term.loadAddon(this._searchAddon);
+
+    // @xterm/addon-image uses WebAssembly at the top level, so we load it dynamically to
+    // avoid crashing the app when WebAssembly is unavailable.
+    import('@xterm/addon-image').then(({ ImageAddon }) => {
+      this._imageAddon = new ImageAddon();
+      this.term.loadAddon(this._imageAddon);
+    }).catch(() => {});
 
     try {
       // The constructor may throw if WebGL is not supported.
@@ -208,7 +213,7 @@ export default class TtyTerminal implements TerminalSearcher {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
-    this._imageAddon.dispose();
+    this._imageAddon?.dispose();
     this._searchAddon?.dispose();
     this._webglAddon?.dispose();
     this._el.innerHTML = null;
