@@ -393,6 +393,8 @@ func (x *Backend) processEvents() {
 			x.config.ClipboardDataReceiver(prop.Value)
 		case xfixes.SelectionNotifyEvent:
 			xproto.ConvertSelection(x.conn, x.clipboardWindow, x.clipboardAtom, x.utf8Atom, x.selectionAtom, 0)
+		default:
+			x.config.Logger.WarnContext(x.ctx, "Unrecognized event", "event", event)
 		}
 	}
 }
@@ -623,6 +625,7 @@ func (x *Backend) setScreenSize(width, height uint16) (bool, error) {
 			x.width = width
 			x.height = height
 			x.mu.Unlock()
+
 			return true, nil
 		}
 	}
