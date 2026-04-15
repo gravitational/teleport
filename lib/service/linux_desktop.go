@@ -25,9 +25,12 @@ import (
 	"net/http"
 	"strings"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -98,14 +101,19 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:                teleport.ComponentLinuxDesktop,
-			HostUUID:                 conn.HostID(),
-			Resolver:                 tunnelAddrResolver,
-			Client:                   conn.Client,
-			Server:                   listener,
-			AccessPoint:              accessPoint,
-			AuthMethods:              conn.ClientAuthMethods(),
+			InsecureMode: process.Config.InsecureMode,
+			Component:    teleport.ComponentLinuxDesktop,
+			HostUUID:     conn.HostID(),
+			Resolver:     tunnelAddrResolver,
+			Client:       conn.Client,
+			AccessPoint:  accessPoint,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return conn.ClientSigners(), nil
+				},
+			},
 			Cluster:                  conn.ClusterName(),
+			Server:                   listener,
 			FIPS:                     process.Config.FIPS,
 			ConnectedProxyGetter:     proxyGetter,
 			StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
@@ -261,7 +269,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 
 func getChildLogConfig(cfg *servicecfg.Config) *srv.ChildLogConfig {
 	return &srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
 			Level:        cfg.LoggerLevel.Level(),
 			Format:       strings.ToLower(cfg.LogConfig.Format),
 			ExtraFields:  cfg.LogConfig.ExtraFields,
