@@ -802,6 +802,10 @@ func (sess *linuxSession) processScreenChanges() {
 			changes = []xproto.Rectangle{*currentScreenSize}
 		}
 		for _, change := range changes {
+			changeSize := int(change.Width) * int(change.Height)
+			if changeSize == 0 {
+				continue
+			}
 			size += int(change.Width) * int(change.Height)
 			img, err := sess.backend.GetImage(change)
 			if err != nil && !utils.IsOKNetworkError(err) {
@@ -821,7 +825,9 @@ func (sess *linuxSession) processScreenChanges() {
 			}
 		}
 		delta := time.Since(start)
-		sess.log.Log(sess.ctx, logutils.TraceLevel, "Frame encoded", "time", delta, "size", size)
+		if size > 0 {
+			sess.log.Log(sess.ctx, logutils.TraceLevel, "Frame encoded", "time", delta, "size", size)
+		}
 		select {
 		case <-sess.ctx.Done():
 			return
