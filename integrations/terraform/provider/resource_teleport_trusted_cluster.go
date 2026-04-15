@@ -149,6 +149,7 @@ func (r resourceTeleportTrustedCluster) Create(ctx context.Context, req tfsdk.Cr
 		return
 	}
 	trustedCluster = trustedClusterResource
+
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportTrustedCluster) Read(ctx context.Context, req tfsdk.Read
 	}
 	
 	trustedCluster := trustedClusterI.(*apitypes.TrustedClusterV2)
-	
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportTrustedCluster) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedClusterResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

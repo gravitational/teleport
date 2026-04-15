@@ -24,9 +24,6 @@ import (
     "encoding/hex"
 {{- end }}
 	"fmt"
-{{- if .FilterInternalLabels }}
-	"strings"
-{{- end }}
 {{- if .StatePoll }}
 	"time"
 {{- end }}
@@ -237,13 +234,6 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{.VarName}} = {{.VarName}}Resource
 	{{- end }}
 
-	{{- if .FilterInternalLabels }}
-	for k := range {{.VarName}}.Metadata.Labels {
-		if strings.HasPrefix(k, "teleport.internal/") {
-			delete({{.VarName}}.Metadata.Labels, k)
-		}
-	}
-	{{- end }}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -364,13 +354,6 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{end -}}
-	{{- if .FilterInternalLabels }}
-	for k := range {{.VarName}}.Metadata.Labels {
-		if strings.HasPrefix(k, "teleport.internal/") {
-			delete({{.VarName}}.Metadata.Labels, k)
-		}
-	}
-	{{- end }}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -501,13 +484,6 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
-	{{- if .FilterInternalLabels }}
-	for k := range {{.VarName}}.Metadata.Labels {
-		if strings.HasPrefix(k, "teleport.internal/") {
-			delete({{.VarName}}.Metadata.Labels, k)
-		}
-	}
-	{{- end }}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -638,13 +614,6 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-	{{- if .FilterInternalLabels }}
-	for k := range {{.VarName}}Resource.Metadata.Labels {
-		if strings.HasPrefix(k, "teleport.internal/") {
-			delete({{.VarName}}Resource.Metadata.Labels, k)
-		}
-	}
-	{{- end }}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}Resource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

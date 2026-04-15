@@ -149,6 +149,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) Create(ctx context.Context, req 
 		return
 	}
 	samlIdPServiceProvider = samlIdPServiceProviderResource
+
 	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportSAMLIdPServiceProvider) Read(ctx context.Context, req tf
 	}
 	
 	samlIdPServiceProvider := samlIdPServiceProviderI.(*apitypes.SAMLIdPServiceProviderV1)
-	
 	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportSAMLIdPServiceProvider) ImportState(ctx context.Context,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProviderResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

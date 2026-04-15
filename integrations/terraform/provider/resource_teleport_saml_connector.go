@@ -149,6 +149,7 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 		return
 	}
 	samlConnector = samlConnectorResource
+
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.ReadR
 	}
 	
 	samlConnector := samlConnectorI.(*apitypes.SAMLConnectorV2)
-	
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportSAMLConnector) ImportState(ctx context.Context, req tfsd
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnectorResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

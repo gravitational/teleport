@@ -141,6 +141,7 @@ func (r resourceTeleportInferenceModel) Create(ctx context.Context, req tfsdk.Cr
 	inferenceModelResource = inferenceModelI
 	
 	inferenceModel = inferenceModelResource
+
 	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +184,6 @@ func (r resourceTeleportInferenceModel) Read(ctx context.Context, req tfsdk.Read
 		return
 	}
 	inferenceModel := inferenceModelI
-	
 	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,6 +322,7 @@ func (r resourceTeleportInferenceModel) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModelResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

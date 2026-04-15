@@ -147,6 +147,7 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 	inferenceSecretResource = inferenceSecretI
 	
 	inferenceSecret = inferenceSecretResource
+
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -191,7 +192,6 @@ func (r resourceTeleportInferenceSecret) Read(ctx context.Context, req tfsdk.Rea
 		return
 	}
 	inferenceSecret := inferenceSecretI
-	
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

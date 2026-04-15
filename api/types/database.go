@@ -736,6 +736,17 @@ func VNetDNSName(name string) string {
 	return strings.ToLower(base32Encoding)
 }
 
+// SetVNetDNSLabel sets the teleport.internal/vnet-dns-name label on a
+// database's static labels based on its current name.
+func SetVNetDNSLabel(db Database) {
+	labels := db.GetStaticLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[VNetDNSNameLabel] = VNetDNSName(db.GetName())
+	db.SetStaticLabels(labels)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
@@ -747,14 +758,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid database name")
 	}
 
-	// Copy the labels map before mutating so callers that share the same
-	// underlying map across goroutines do not race.
-	newLabels := make(map[string]string, len(d.Metadata.Labels)+1)
-	for k, v := range d.Metadata.Labels {
-		newLabels[k] = v
-	}
-	newLabels[VNetDNSNameLabel] = VNetDNSName(d.GetName())
-	d.Metadata.Labels = newLabels
+	SetVNetDNSLabel(d)
 
 	for key := range d.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {

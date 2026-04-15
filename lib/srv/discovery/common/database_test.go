@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -531,7 +532,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
 			Name:        "cluster-1-custom-myendpoint2",
 			Description: "Aurora cluster in us-east-1 (custom endpoint)",
-			Labels:      expectedLabels,
+			Labels:      maps.Clone(expectedLabels),
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
 			URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
@@ -813,7 +814,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
 				Name:        "mycluster-2-custom-myendpoint2",
 				Description: "Aurora cluster in us-east-1 (custom endpoint)",
-				Labels:      expectedLabels,
+				Labels:      maps.Clone(expectedLabels),
 			}, types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",

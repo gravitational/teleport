@@ -143,6 +143,7 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 	trustedDeviceResource = trustedDeviceI
 	
 	trustedDevice = trustedDeviceResource
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -185,7 +186,6 @@ func (r resourceTeleportDeviceV1) Read(ctx context.Context, req tfsdk.ReadResour
 		return
 	}
 	trustedDevice := trustedDeviceI
-	
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -323,6 +323,7 @@ func (r resourceTeleportDeviceV1) ImportState(ctx context.Context, req tfsdk.Imp
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDeviceResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

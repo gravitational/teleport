@@ -141,6 +141,7 @@ func (r resourceTeleportScopedToken) Create(ctx context.Context, req tfsdk.Creat
 	scopedTokenResource = scopedTokenI
 	
 	scopedToken = scopedTokenResource
+
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +184,6 @@ func (r resourceTeleportScopedToken) Read(ctx context.Context, req tfsdk.ReadRes
 		return
 	}
 	scopedToken := scopedTokenI
-	
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,6 +322,7 @@ func (r resourceTeleportScopedToken) ImportState(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedTokenResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

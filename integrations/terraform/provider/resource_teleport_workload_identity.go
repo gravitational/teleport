@@ -140,6 +140,7 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 	workloadIdentityResource = workloadIdentityI
 	
 	workloadIdentity = workloadIdentityResource
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -182,7 +183,6 @@ func (r resourceTeleportWorkloadIdentity) Read(ctx context.Context, req tfsdk.Re
 		return
 	}
 	workloadIdentity := workloadIdentityI
-	
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -321,6 +321,7 @@ func (r resourceTeleportWorkloadIdentity) ImportState(ctx context.Context, req t
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentityResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

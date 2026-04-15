@@ -149,6 +149,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		return
 	}
 	desktop = desktopResource
+
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req tfs
 	}
 	
 	desktop := desktopI.(*apitypes.DynamicWindowsDesktopV1)
-	
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportDynamicWindowsDesktop) ImportState(ctx context.Context, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktopResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

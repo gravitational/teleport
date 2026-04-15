@@ -149,6 +149,7 @@ func (r resourceTeleportApp) Create(ctx context.Context, req tfsdk.CreateResourc
 		return
 	}
 	app = appResource
+
 	diags = tfschema.CopyAppV3ToTerraform(ctx, app, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportApp) Read(ctx context.Context, req tfsdk.ReadResourceReq
 	}
 	
 	app := appI.(*apitypes.AppV3)
-	
 	diags = tfschema.CopyAppV3ToTerraform(ctx, app, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportApp) ImportState(ctx context.Context, req tfsdk.ImportRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopyAppV3ToTerraform(ctx, appResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

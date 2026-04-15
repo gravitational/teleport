@@ -141,6 +141,7 @@ func (r resourceTeleportInferencePolicy) Create(ctx context.Context, req tfsdk.C
 	inferencePolicyResource = inferencePolicyI
 	
 	inferencePolicy = inferencePolicyResource
+
 	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +184,6 @@ func (r resourceTeleportInferencePolicy) Read(ctx context.Context, req tfsdk.Rea
 		return
 	}
 	inferencePolicy := inferencePolicyI
-	
 	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,6 +322,7 @@ func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicyResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

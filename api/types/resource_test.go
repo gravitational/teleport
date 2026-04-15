@@ -201,7 +201,7 @@ func TestUnifiedNameCompare(t *testing.T) {
 func TestMatchSearch_ResourceSpecific(t *testing.T) {
 	t.Parallel()
 
-	labels := map[string]string{"env": "prod", "os": "mac"}
+	newLabels := func() map[string]string { return map[string]string{"env": "prod", "os": "mac"} }
 
 	cases := []struct {
 		name string
@@ -217,7 +217,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 				server, err := NewServerWithLabels("_", KindNode, ServerSpecV2{
 					Hostname: "foo",
 					Addr:     "bar",
-				}, labels)
+				}, newLabels())
 				require.NoError(t, err)
 
 				return server
@@ -239,7 +239,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:               "windows desktop",
 			matchingSearchVals: []string{"foo", "bar", "env", "prod", "os"},
 			newResource: func(t *testing.T) ResourceWithLabels {
-				desktop, err := NewWindowsDesktopV3("foo", labels, WindowsDesktopSpecV3{
+				desktop, err := NewWindowsDesktopV3("foo", newLabels(), WindowsDesktopSpecV3{
 					Addr: "bar",
 				})
 				require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 				app, err := NewAppV3(Metadata{
 					Name:        "foo",
 					Description: "bar",
-					Labels:      labels,
+					Labels:      newLabels(),
 				}, AppSpecV3{
 					PublicAddr: "baz",
 					URI:        "_",
@@ -270,7 +270,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			newResource: func(t *testing.T) ResourceWithLabels {
 				kc, err := NewKubernetesClusterV3FromLegacyCluster("", &KubernetesCluster{
 					Name:         "foo",
-					StaticLabels: labels,
+					StaticLabels: newLabels(),
 				})
 				require.NoError(t, err)
 
@@ -284,7 +284,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 				db, err := NewDatabaseV3(Metadata{
 					Name:        "foo",
 					Description: "bar",
-					Labels:      labels,
+					Labels:      newLabels(),
 				}, DatabaseSpecV3{
 					Protocol: "baz",
 					URI:      "_",
@@ -305,7 +305,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			newResource: func(t *testing.T) ResourceWithLabels {
 				db, err := NewDatabaseV3(Metadata{
 					Name:   "foo",
-					Labels: labels,
+					Labels: newLabels(),
 				}, DatabaseSpecV3{
 					Protocol: "_",
 					URI:      "_",
@@ -341,7 +341,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 				db, err := NewDatabaseV3(Metadata{
 					Name:        "foo",
 					Description: "bar",
-					Labels:      labels,
+					Labels:      newLabels(),
 				}, DatabaseSpecV3{
 					Protocol: "baz",
 					URI:      "_",

@@ -145,6 +145,7 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req tfsdk.C
 	
 	discoveryConfig = convert.ToProto(discoveryConfigResource)
 	
+
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -187,7 +188,6 @@ func (r resourceTeleportDiscoveryConfig) Read(ctx context.Context, req tfsdk.Rea
 		return
 	}
 	discoveryConfig := convert.ToProto(discoveryConfigI)
-	
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -329,6 +329,7 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfigResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

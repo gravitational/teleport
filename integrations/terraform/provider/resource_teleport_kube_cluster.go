@@ -149,6 +149,7 @@ func (r resourceTeleportKubeCluster) Create(ctx context.Context, req tfsdk.Creat
 		return
 	}
 	kubeCluster = kubeClusterResource
+
 	diags = tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -192,7 +193,6 @@ func (r resourceTeleportKubeCluster) Read(ctx context.Context, req tfsdk.ReadRes
 	}
 	
 	kubeCluster := kubeClusterI.(*apitypes.KubernetesClusterV3)
-	
 	diags = tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -338,6 +338,7 @@ func (r resourceTeleportKubeCluster) ImportState(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeClusterResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

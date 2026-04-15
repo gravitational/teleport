@@ -141,6 +141,7 @@ func (r resourceTeleportAppAuthConfig) Create(ctx context.Context, req tfsdk.Cre
 	appauthconfigResource = appauthconfigI
 	
 	appauthconfig = appauthconfigResource
+
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -183,7 +184,6 @@ func (r resourceTeleportAppAuthConfig) Read(ctx context.Context, req tfsdk.ReadR
 		return
 	}
 	appauthconfig := appauthconfigI
-	
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -322,6 +322,7 @@ func (r resourceTeleportAppAuthConfig) ImportState(ctx context.Context, req tfsd
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfigResource, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

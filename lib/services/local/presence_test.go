@@ -1161,11 +1161,16 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 
 	// Same resource name, but have different labels.
 	names := []string{"a", "a", "a", "a"}
-	labels := []map[string]string{
-		{"env": "prod"},
-		{"env": "dev"},
-		{"env": "qa"},
-		{"env": "dev"},
+	// Returns fresh label maps each call so that resource constructors
+	// that mutate labels (e.g. DatabaseV3 adding vnet-dns-name) don't
+	// bleed into other test cases.
+	newLabels := func() []map[string]string {
+		return []map[string]string{
+			{"env": "prod"},
+			{"env": "dev"},
+			{"env": "qa"},
+			{"env": "dev"},
+		}
 	}
 
 	tests := []struct {
@@ -1187,7 +1192,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 						Database: &types.DatabaseV3{
 							Metadata: types.Metadata{
 								Name:   names[i],
-								Labels: labels[i],
+								Labels: newLabels()[i],
 							},
 							Spec: types.DatabaseSpecV3{
 								Protocol: "_",
@@ -1213,7 +1218,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 						App: &types.AppV3{
 							Metadata: types.Metadata{
 								Name:   names[i],
-								Labels: labels[i],
+								Labels: newLabels()[i],
 							},
 							Spec: types.AppSpecV3{URI: "_"},
 						},
@@ -1233,7 +1238,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
 							Name:   names[i],
-							Labels: labels[i],
+							Labels: newLabels()[i],
 						},
 						types.KubernetesClusterSpecV3{},
 					)
