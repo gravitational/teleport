@@ -2587,6 +2587,48 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 	}
 }
 
+func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	const username = "alice"
+
+	pack := proxy.authPack(t, username, nil)
+
+	ap, err := types.NewAuthPreference(
+		types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorWebauthn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
+	require.NoError(t, err)
+
+	term, err := connectToHost(
+		t.Context(),
+		connectConfig{
+			pack:  pack,
+			host:  proxy.node.ID(),
+			proxy: proxy.webURL.Host,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := term.Close(); err != nil {
+			t.Logf("failed to close terminal: %v", err)
+		}
+	})
+
+	require.NoError(t, waitForOutput(term, "no supported MFA devices enrolled"))
+}
+
 type windowsDesktopServiceMock struct {
 	listener net.Listener
 }
