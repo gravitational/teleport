@@ -216,9 +216,9 @@ For example to spawn 32 requests per second for 2 minutes against a specific age
 tsh bench ssh --rate=32 --duration=2m user@node-agent -- ls
 ```
 
-Similarly to test 64 concurrent sessions against a single agent:
+Similarly to test 64 concurrent sessions against a single agent using a unique label:
 ```sh
-tsh bench web ssh --max=64 --duration=2m user@node-agent ls
+tsh bench web sessions --max=64 --duration=2m user@UNIQUE=example ls
 ```
 
 The payload can be customized to represent a typical use case.
