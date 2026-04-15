@@ -88,6 +88,7 @@ export const ResizingResourceWrapper = styled(Box)`
   padding-right: ${props => props.theme.space[3]}px;
 `;
 
+// expandDesktopKinds ensures that we include both Windows in Linux in every search that targets desktops
 function expandDesktopKinds(kinds?: string[]): string[] | undefined {
   if (!kinds || kinds.length === 0) {
     return kinds;
