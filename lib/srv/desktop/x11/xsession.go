@@ -86,6 +86,7 @@ type XSessionConfig struct {
 	Display string
 	// AuthorityFile is XAuthority file used to secure connection to X11 server.
 	AuthorityFile string
+	RemoteAddr    reexec.NetAddr
 }
 
 // StartTeleportExecXSession reexecs the current Teleport binary using
@@ -107,6 +108,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		Username:        cfg.Username,
 		Environment:     env,
 		LogConfig:       cfg.ChildLogConfig.ExecLogConfig,
+		UaccMetadata: reexec.UaccMetadata{
+			RemoteAddr: cfg.RemoteAddr,
+		},
 	}
 
 	inr, inw, err := os.Pipe()
