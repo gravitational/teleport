@@ -57,7 +57,7 @@ For CLI and SDK-based access, use `tsh` to obtain AWS credentials.
 In this section, you will configure AWS IAM resources to allow Teleport to issue AWS credentials.
 
 Navigate to the Teleport Web UI, click **Enroll New Resource** on the Resources listing page,
-and follow the guide after clicking the **AWS CLI/Console Access** tile.
+and follow the guide after clicking the **AWS CLI/Console Access via AWS Roles Anywhere** tile.
 
 <details>
   <summary>Manually configure the integration</summary>
@@ -208,6 +208,23 @@ and follow the guide after clicking the **AWS CLI/Console Access** tile.
      ```
 
   Teleport will now start syncing AWS IAM Roles Anywhere profiles as AWS applications every 5 minutes.
+  
+  1. Confirm the integration was created and is syncing profiles successfully.
+    
+     ```code
+     $ tctl get integration/<Var name="Integration Name" />
+     ```
+
+  Look for `status: SUCCESS` and a non-zero `synced_profiles` count in the output:
+
+     ```code
+     status:
+       aws_ra:
+         last_profile_sync:
+           status: SUCCESS
+           synced_profiles: 4
+           error_message: ""
+     ```
 
 </details>
 
@@ -217,24 +234,7 @@ and follow the guide after clicking the **AWS CLI/Console Access** tile.
 
 Confirm the integration was created and is syncing profiles successfully.
 
-1. Check the integration status:
-
-   ```code
-   $ tctl get integration/<Var name="Integration Name" />
-   ```
-
-   Look for `status: SUCCESS` and a non-zero `synced_profiles` count in the output:
-
-   ```code
-   status:
-     aws_ra:
-       last_profile_sync:
-         status: SUCCESS
-         synced_profiles: 4
-         error_message: ""
-   ```
-
-2. If profiles are not appearing in the Web UI, confirm that `profile_name_filters` is set
+1. If profiles are not appearing in the Web UI, confirm that `profile_name_filters` is set
    to `*` to import all profiles, or that your filter matches the profile names in AWS:
 
    ```code
@@ -251,7 +251,7 @@ Confirm the integration was created and is syncing profiles successfully.
 - If `error_message` is non-empty, check that the `TeleportRolesAnywhereProfileSync` IAM role has
   the inline policy attached and that the trust anchor ARN and profile ARN in the integration match
   what was created in AWS.
-- If you see a `Bad Request` error during profile or role creation in AWS, the most likely cause is
+- If you see a `Bad Request` error trying to assume the role via the app in Teleport, the most likely cause is
   that the Roles Anywhere trust policy JSON was pasted into the **Session policies** field on the
   profile creation page instead of into the **Custom trust policy** editor on the **Select trusted
   entity** page when creating the IAM role. Delete the misconfigured resource, return to
@@ -324,7 +324,7 @@ Grant your users access to the imported AWS profiles and roles by creating a Tel
 
   1. In the Teleport Web UI, navigate to **Zero Trust Access > Roles** and click **Create New Role**.
 
-  1. Set the role name to `aws-ro-access`.
+  1. Set the role name to `example-read-only-access`.
 
   1. In the **Resources** section, add an **Application Access** entry with the following values:
 
@@ -343,7 +343,7 @@ Grant your users access to the imported AWS profiles and roles by creating a Tel
      kind: role
      version: v8
      metadata:
-       name: aws-ro-access
+       name: example-read-only-access
      spec:
        allow:
          app_labels:
@@ -373,7 +373,7 @@ Assign this role to the users you want to grant access. You can also assign it t
 1. Confirm the role was created:
 
    ```code
-   $ tctl get role/aws-ro-access
+   $ tctl get role/example-read-only-access
    ```
 
    The output should show the role with the correct `app_labels` and `aws_role_arns` values.
@@ -392,7 +392,7 @@ Assign this role to the users you want to grant access. You can also assign it t
    $ tsh status
    ```
 
-   The `aws-ro-access` role should appear in the roles list.
+   The `example-read-only-access` role should appear in the roles list.
 
 - If the AWS profile does not appear in a later step when running `tsh apps login`, the most
   common cause is a missing re-login. Run `tsh logout` and `tsh login` again before continuing.
