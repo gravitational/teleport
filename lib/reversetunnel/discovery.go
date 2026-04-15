@@ -62,28 +62,6 @@ type discoveryProxy struct {
 	TTL time.Duration `json:"ttl,omitempty"`
 }
 
-// SetProxies overwrites the proxy list in the discoveryRequest with data from
-// the slice of [types.Server]s.
-func (r *discoveryRequest) SetProxies(proxies []types.Server) {
-	r.Proxies = make([]discoveryProxy, 0, len(proxies))
-	for _, proxy := range proxies {
-		d := discoveryProxy{
-			Version: types.V2,
-		}
-		d.Metadata.Name = proxy.GetName()
-		d.ProxyGroupID, _ = proxy.GetLabel(types.ProxyGroupIDLabel)
-		proxyGroupGeneration, _ := proxy.GetLabel(types.ProxyGroupGenerationLabel)
-		var err error
-		d.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
-		if err != nil {
-			// ParseUint can return the maximum uint64 on ErrRange
-			d.ProxyGroupGeneration = 0
-		}
-
-		r.Proxies = append(r.Proxies, d)
-	}
-}
-
 // ProxyNames returns the names of all proxies carried in the request.
 func (r *discoveryRequest) ProxyNames() []string {
 	names := make([]string, 0, len(r.Proxies))
@@ -209,19 +187,24 @@ func newDiscoPub(ctx context.Context, watcher *services.GenericWatcher[types.Ser
 	return pb
 }
 
-func discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
+func (pb *discoPub) discoFromServer(s types.Server, ttl time.Duration) discoveryProxy {
 	p := discoveryProxy{
 		Version: types.V2,
 	}
 	p.Metadata.Name = s.GetName()
 	p.TTL = ttl
 	p.ProxyGroupID, _ = s.GetLabel(types.ProxyGroupIDLabel)
-	proxyGroupGeneration, _ := s.GetLabel(types.ProxyGroupGenerationLabel)
+	proxyGroupGeneration, ok := s.GetLabel(types.ProxyGroupGenerationLabel)
+	if !ok {
+		return p
+	}
+
 	var err error
 	p.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
 	if err != nil {
 		// ParseUint can return the maximum uint64 on ErrRange
 		p.ProxyGroupGeneration = 0
+		pb.log.DebugContext(pb.ctx, "Failed to parse proxy group generation", "error", err, "value", proxyGroupGeneration)
 	}
 	return p
 }
@@ -339,7 +322,7 @@ func (pb *discoPub) get(sub *discoSub, params discoGetParams) []discoveryProxy {
 				continue
 			}
 		}
-		disco = append(disco, discoFromServer(proxy, ttl))
+		disco = append(disco, pb.discoFromServer(proxy, ttl))
 	}
 	return disco
 }
