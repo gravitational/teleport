@@ -811,7 +811,7 @@ func (sess *linuxSession) processScreenChanges() {
 			}
 			size += int(change.Width) * int(change.Height)
 			img, err := sess.backend.GetImage(change)
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to get image from backend", "error", err)
 				return
 			}
@@ -826,7 +826,7 @@ func (sess *linuxSession) processScreenChanges() {
 			framesSize := 0
 			for _, frame := range frames {
 				framesSize += len(frame.Pdu)
-				if err := sess.tdpConn.WriteMessage(frame); err != nil && !utils.IsOKNetworkError(err) {
+				if err := sess.tdpConn.WriteMessage(frame); err != nil {
 					sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
 					return
 				}
